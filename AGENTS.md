@@ -1,4 +1,29 @@
-## Documentation
+# Agent 开发约束
 
-Follow [the documentation policy](docs/documents.md). For non-trivial changes,
-plan and review the required documentation changes as part of the same PR.
+## 协作
+
+- huggon1 是项目所有者，borkwuddy 是协作开发伙伴。
+- 日常沟通使用中文；分支名、提交信息和 GitHub PR 使用英文。
+
+## 文档
+
+- 遵循 [文档政策](docs/documents.md)。
+- 非简单变更需要在实现前判断 README、AGENTS.md 和项目规划是否需要同步更新，并在同一个 PR 中完成。
+- README 只描述合并后的当前事实，不记录开发日志或 PR 过程。
+- 只有经过 huggon1 确认的产品规划变化才能写入项目规划。
+
+## 开发原则
+
+- 第一阶段优先实现由确定性假数据驱动的完整网页应用 Demo。
+- Demo 中的模拟解析、收集和 Agent 生成必须在界面中明确标记。
+- 外部平台、Skills、CLI 和已有仓库统一通过适配器或防腐层接入，不能让外部数据结构泄漏到核心领域。
+- Feed 中的生成内容必须能够追溯到原始内容和收集运行。
+- 登录态、密钥、私有内容和真实用户数据不得进入仓库、fixtures、日志或测试快照。
+- 共享契约发生变化时，在同一个 PR 中更新相关 fixtures、契约测试和受影响的适配器。
+
+## 验证
+
+- 提交前运行仓库提供的检查命令，并记录无法执行的检查及原因。
+- 文档变更至少运行 git diff --check，并验证仓库内链接指向存在的文件。
+- UI 变更需要验证主要页面、关键交互、响应式布局和异常状态。
+- 不把仅有界面效果的模拟能力报告为真实平台或真实 Agent 已经可用。
