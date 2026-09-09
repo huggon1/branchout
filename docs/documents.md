@@ -1,62 +1,81 @@
-# Documentation Policy
+# 文档政策
 
-This repository keeps durable project knowledge in `README.md` and `AGENTS.md`.
+本仓库把可长期复用的项目知识保存在 README、AGENTS.md 和经过确认的项目规划中。
 
-## README.md
+## README
 
-A `README.md` describes the current, post-merge truth of the directory or module that owns it.
+README 描述其所在目录或模块在合并后的当前事实。
 
-Use it for:
+适合记录：
 
-- the area's purpose and responsibilities;
-- behavior, boundaries, and limitations that callers or maintainers rely on;
-- terminology needed to understand the area;
-- concise rationale or intentional non-goals that code cannot safely explain;
-- links to related or child READMEs.
+- 当前职责、边界和限制；
+- 使用者或维护者依赖的行为；
+- 理解该区域所需的术语；
+- 代码无法安全表达的简短设计理由；
+- 相关文档和子目录 README 的链接。
 
-Do not use it for implementation plans, work logs, PR history, or narration of code that is already clear from the source.
+不适合记录：
 
-A README may summarize its direct children. Detailed facts belong in the nearest README that owns them.
+- 尚未确认的实现计划；
+- 工作日志和 PR 历史；
+- 已经能从代码直接理解的逐行说明；
+- 与当前实现不一致的未来状态。
+
+根 README 可以概括直接子模块。详细事实应放在离其负责范围最近的 README 中。
 
 ## AGENTS.md
 
-An `AGENTS.md` contains stable instructions for changing files in its directory and descendants.
+AGENTS.md 保存修改其所在目录及子目录时需要长期遵循的规则。
 
-Use it for:
+适合记录：
 
-- rules and constraints;
-- required validation;
-- required or prohibited development patterns;
-- links to the README or other source that explains the area.
+- 稳定的约束和开发规则；
+- 必须执行的验证；
+- 要求或禁止的开发模式；
+- 指向职责说明和相关文档的链接。
 
-Do not use it for feature descriptions, one-off task requirements, work logs, or rules already stated by a parent `AGENTS.md`.
+不适合记录：
 
-The root `AGENTS.md` applies repository-wide. A nested `AGENTS.md` supplements it only for its own subtree.
+- 一次性任务要求；
+- 功能介绍和产品宣传；
+- 工作日志；
+- 已由父级 AGENTS.md 说明的重复规则。
 
-## Placement
+根 AGENTS.md 对整个仓库生效。嵌套 AGENTS.md 只补充其子树与根规则不同的部分。
 
-Update an existing owner before creating another document.
+## 项目规划
 
-Create a README only when a directory has a meaningful responsibility, consumer boundary, or vocabulary of its own.
+docs/project-plan.md 保存 huggon1 已确认的产品方向、交付阶段、验收标准和仍待确认的决策。
 
-Create a nested AGENTS file only when its subtree has stable instructions that differ from the parent scope.
+项目规划可以描述未来里程碑，但必须满足：
 
-Keep one authoritative home for each fact. Link instead of copying.
+- 只写入已经确认的方向；
+- 清楚区分已确认事项和后续确认点；
+- 不记录逐日工作进度、命令输出或 PR 过程；
+- 产品方向变化时先获得确认，再修改文档；
+- 某项规划成为当前实现后，把对应事实同步到 README；
+- 已失效的规划应直接修订，避免并存多个互相冲突的真相。
 
-## Changes
+## 放置规则
 
-Update the owning README in the same PR when a change alters behavior, responsibility, terminology, boundaries, limitations, or durable rationale.
+优先更新已有的负责文档，不预先创建新的文档类别。
 
-Update the applicable AGENTS file in the same PR when a change creates or changes a stable instruction for future work.
+只有目录具有明确职责、使用者边界或独立术语时，才创建嵌套 README。
 
-Mechanical or local changes with no durable knowledge change require no documentation update.
+只有子树存在不同于父级的稳定开发规则时，才创建嵌套 AGENTS.md。
 
-Write documentation as the proposed post-merge current state, not as a future-tense plan or completion report.
+每项事实只保留一个权威位置，其他位置通过链接引用，避免复制。
 
-For non-trivial work, present the planned README and AGENTS changes before implementation. After implementation, reconcile those documents with the final code and evidence.
+## 变更要求
 
-## Evolution
+如果变更影响行为、职责、术语、边界、限制或长期设计理由，需要在同一个 PR 中更新负责这些事实的 README。
 
-Do not create new documentation categories preemptively.
+如果变更新增或调整未来工作必须遵循的稳定规则，需要在同一个 PR 中更新对应的 AGENTS.md。
 
-Add a new document type only after recurring content no longer fits README or AGENTS cleanly, and update this policy when that happens.
+如果变更影响已确认的里程碑、产品形态或验收标准，需要先获得 huggon1 确认，再在同一个 PR 中更新项目规划。
+
+机械性修改或局部实现细节没有产生长期知识变化时，不要求更新文档。
+
+README 和 AGENTS.md 按合并后的当前状态书写，不使用工作日志式叙述。项目规划按当前已确认的未来方向书写。
+
+非简单工作需要在实现前说明计划修改哪些文档；实现后再根据最终代码和验证证据校正文档。
