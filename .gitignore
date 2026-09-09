@@ -1,0 +1,30 @@
+# Local operating-system files
+.DS_Store
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# JavaScript and frontend outputs
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Logs and temporary files
+*.log
+*.tmp
+tmp/
+
+# Local IDE state
+.idea/
+*.swp
