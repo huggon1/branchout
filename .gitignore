@@ -28,3 +28,8 @@ tmp/
 # Local IDE state
 .idea/
 *.swp
+
+# Verification artifacts
+test-results/
+playwright-report/
+*.tsbuildinfo
