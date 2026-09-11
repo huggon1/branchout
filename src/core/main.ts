@@ -115,7 +115,10 @@ async function startService() {
   try {
     await access(browserCache);
   } catch {
-    await cp(join(runtime, "browser"), browserCache, { recursive: true });
+    await cp(join(runtime, "browser"), browserCache, {
+      recursive: true,
+      verbatimSymlinks: true,
+    });
   }
   const port = await new Promise<number>((resolve) => {
     const server = createServer();

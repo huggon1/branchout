@@ -91,7 +91,10 @@ try {
     await rm(tmp, { recursive: true, force: true });
   }
 }
-await cp(browser, join(root, "browser"), { recursive: true });
+await cp(browser, join(root, "browser"), {
+  recursive: true,
+  verbatimSymlinks: true,
+});
 await writeFile(
   join(root, "versions.json"),
   JSON.stringify(
