@@ -64,6 +64,10 @@ const date = (s: string) =>
     minute: "2-digit",
   });
 function App() {
+  const initialized = useRef(false);
+  const [ready, setReady] = useState(false);
+  const [opening, setOpening] = useState(true);
+  const [openingError, setOpeningError] = useState("");
   const [state, setState] = useState<any>({
     tasks: [],
     runs: [],
@@ -149,20 +153,30 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const refresh = async () => {
-    const r = await window.feedloom.command({ type: "state" });
-    if (r.ok) {
+    if (!initialized.current) {
+      setOpening(true);
+      setOpeningError("");
+    }
+    try {
+      if (!window.feedloom) throw Error("请通过桌面应用打开 Feedloom");
+      const r = await window.feedloom.command({ type: "state" });
+      if (!r.ok) throw Error(r.error || "无法读取本地工作空间");
       setState(r.value);
       setPrompt((v) => v || r.value.prompt);
       setMode(r.value.modelMode);
+      initialized.current = true;
+      setReady(true);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (initialized.current) setError(`工作空间刷新失败：${message}`);
+      else setOpeningError(message);
+    } finally {
+      setOpening(false);
     }
   };
   useEffect(() => {
-    if (!window.feedloom) {
-      setError("请通过桌面应用打开 Feedloom");
-      return;
-    }
     void refresh();
-    return window.feedloom.onChange(() => void refresh());
+    return window.feedloom?.onChange(() => void refresh());
   }, []);
   const act = async (value: any) => {
     setError("");
@@ -232,6 +246,32 @@ function App() {
       setFromFeed(undefined);
     }
   };
+  if (!ready)
+    return (
+      <div className="workspace-opening">
+        <div className="brand">
+          <span className="mark">
+            <Icon name="library" />
+          </span>
+          Feedloom
+        </div>
+        {openingError ? (
+          <section className="panel" role="alert">
+            <h2>暂时无法打开本地工作空间</h2>
+            <p className="muted">{openingError}</p>
+            <button
+              className="primary"
+              disabled={opening}
+              onClick={() => void refresh()}
+            >
+              重新加载
+            </button>
+          </section>
+        ) : (
+          <p role="status">正在打开本地工作空间…</p>
+        )}
+      </div>
+    );
   function materialTable() {
     return (
       <>
