@@ -33,9 +33,10 @@ export function buildJudgmentPrompt(
       intent,
       candidates: candidates.map((source) => ({
         id: `${source.source}:${source.sourceId}`,
-        title: source.title,
-        text: source.text,
-        completeness: source.completeness,
+        title: source.title.slice(0, 500),
+        text: source.text.slice(0, 16000),
+        completeness:
+          source.text.length > 16000 ? "partial" : source.completeness,
       })),
     }),
   ].join("\n");

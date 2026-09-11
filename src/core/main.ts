@@ -21,6 +21,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { Store } from "./store.js";
 import { nextDue, advanceMissed } from "./schedule.js";
+import { collectIntent } from "./collection.js";
 import {
   Command,
   TaskInput,
@@ -30,6 +31,7 @@ import {
   type Feed,
   type Inbox,
   SourceMaterial,
+  type CollectionPhase,
 } from "./contracts.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const dataDir =
@@ -47,6 +49,7 @@ app.on("second-instance", () => {
 let store: Store, win: BrowserWindow, tray: Tray;
 let quitting = false;
 const active = new Map<string, { cancel: () => void }>();
+const collectionControllers = new Map<string, AbortController>();
 let xhsProcess: ChildProcess | undefined;
 let xhsLoggedIn = false;
 let checkingLogin = false;
@@ -171,7 +174,13 @@ async function credentials() {
     ct0: cookies.find((c) => c.name === "ct0")?.value,
   };
 }
-async function work(key: string, payload: any): Promise<any> {
+async function work(
+  key: string,
+  payload: any,
+  signal?: AbortSignal,
+  onProgress?: (phase: CollectionPhase, message: string) => void,
+): Promise<any> {
+  signal?.throwIfAborted();
   if (active.has(key)) throw Error("正在执行，请稍候");
   if (quitting) throw Error("应用正在退出");
   const env = {
@@ -193,6 +202,7 @@ async function work(key: string, payload: any): Promise<any> {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
       active.delete(key);
       for (const pid of descendants) {
         try {
@@ -202,22 +212,35 @@ async function work(key: string, payload: any): Promise<any> {
       child.kill();
       err ? reject(err) : resolve(result);
     };
+    const abort = () => {
+      child.postMessage({ type: "cancel" });
+      finish(Error("已取消"));
+    };
     const timer = setTimeout(
       () => finish(Error("执行超时，请缩小本轮数量后重试")),
       payload.type === "collect" ? 900000 : 120000,
     );
     active.set(key, {
-      cancel: () => {
-        child.postMessage({ type: "cancel" });
-        finish(Error("已取消"));
-      },
+      cancel: abort,
     });
+    signal?.addEventListener("abort", abort, { once: true });
     child.on("message", (m: any) => {
       if (m.type === "child" && Number.isInteger(m.pid)) descendants.add(m.pid);
       else if (m.type === "childExit") descendants.delete(m.pid);
       else if (m.type === "result") finish(undefined, m.result);
       else if (m.type === "error") finish(Error(m.error));
-      else if (!reportedProgress) {
+      else if (
+        m.type === "progress" &&
+        onProgress &&
+        ["searching", "reading"].includes(m.phase)
+      ) {
+        onProgress(
+          m.phase,
+          typeof m.message === "string"
+            ? m.message.slice(0, 200)
+            : "正在获取来源内容",
+        );
+      } else if (!reportedProgress) {
         reportedProgress = true;
         notify();
       }
@@ -228,7 +251,12 @@ async function work(key: string, payload: any): Promise<any> {
     child.postMessage({ ...payload, dataDir, runtime });
   });
 }
-async function model(key: string, text: string, instruction: string) {
+async function model(
+  key: string,
+  text: string,
+  instruction: string,
+  signal?: AbortSignal,
+) {
   let apiKey: string | undefined;
   if (settings.mode === "api") {
     if (!settings.encrypted) throw Error("请先设置 API Key");
@@ -236,13 +264,17 @@ async function model(key: string, text: string, instruction: string) {
       Buffer.from(settings.encrypted, "base64"),
     );
   }
-  return work(key, {
-    type: "model",
-    text,
-    instruction,
-    mode: settings.mode,
-    apiKey,
-  });
+  return work(
+    key,
+    {
+      type: "model",
+      text,
+      instruction,
+      mode: settings.mode,
+      apiKey,
+    },
+    signal,
+  );
 }
 const modelInput = (m: SourceMaterial) =>
   JSON.stringify({
@@ -277,6 +309,8 @@ async function summarize(id: string) {
   notify();
 }
 async function collect(task: Task, prior?: Run) {
+  if ([...runningRuns.values()].some((r) => r.taskId === task.id))
+    throw Error("这个任务仍在执行或结束中，请稍候再试");
   const duplicate = store
     .list<Run>("runs")
     .find((r) => r.taskId === task.id && r.state === "running");
@@ -289,7 +323,12 @@ async function collect(task: Task, prior?: Run) {
         platforms: prior.platforms.map((p) =>
           p.state === "success" || p.state === "no_results"
             ? p
-            : { platform: p.platform, state: "pending", count: 0 },
+            : {
+                ...p,
+                state: "pending",
+                error: undefined,
+                stopReason: undefined,
+              },
         ),
       }
     : {
@@ -314,7 +353,84 @@ async function collect(task: Task, prior?: Run) {
     store.put("tasks", currentTask);
   }
   notify();
+  if (run.config.collectionMode === "intent") {
+    const controller = new AbortController();
+    collectionControllers.set(run.id, controller);
+    void collectIntent(
+      run,
+      {
+        search: async (config, limit, signal, onProgress) => {
+          signal.throwIfAborted();
+          const xhs =
+            config.platform === "xiaohongshu"
+              ? await connectService()
+              : undefined;
+          const x = config.platform === "x" ? await credentials() : undefined;
+          signal.throwIfAborted();
+          return work(
+            run.id,
+            {
+              type: "collect",
+              config,
+              candidateMode: true,
+              candidateLimit: limit,
+              xhs,
+              x,
+            },
+            signal,
+            onProgress,
+          );
+        },
+        model: async (prompt, signal) => {
+          const result = await model(run.id, "", prompt, signal);
+          return result.text;
+        },
+        accept: (decision) => {
+          const material = store.upsertMaterial(
+            decision.source,
+            task.id,
+            run.id,
+            day(),
+          );
+          if (decision.summary)
+            store.summary(material.id, material.version, decision.summary);
+          else
+            store.summary(
+              material.id,
+              material.version,
+              "",
+              "本轮未返回摘要，可单独重试",
+            );
+          return material.id;
+        },
+        persist: (value) => {
+          store.put("runs", value);
+          notify();
+        },
+      },
+      controller.signal,
+    )
+      .catch((e) => {
+        if (!cancelled(run)) {
+          run.state = run.platforms.some((p) => p.count) ? "partial" : "failed";
+          for (const p of run.platforms)
+            if (p.state === "running" || p.state === "pending") {
+              p.state = "failed";
+              p.error = errorText(e);
+            }
+          run.endedAt = stamp();
+          store.put("runs", run);
+        }
+      })
+      .finally(() => {
+        collectionControllers.delete(run.id);
+        runningRuns.delete(run.id);
+        notify();
+      });
+    return run.id;
+  }
   void (async () => {
+    const pendingSummaries: string[] = [];
     for (const c of run.config.sources) {
       const state = run.platforms.find((p) => p.platform === c.platform)!;
       if (state.state === "success" || state.state === "no_results") continue;
@@ -341,16 +457,18 @@ async function collect(task: Task, prior?: Run) {
         state.count = ms.length;
         store.put("runs", run);
         notify();
-        for (const m of ms) {
-          if (cancelled(run)) break;
-          await summarize(m.id);
-        }
+        pendingSummaries.push(...ms.map((m: Material) => m.id));
       } catch (e) {
         state.state = cancelled(run) ? "cancelled" : "failed";
         state.error = errorText(e);
       }
       store.put("runs", run);
       notify();
+    }
+    // Finish source retrieval before summaries, so one platform's text work cannot delay another search.
+    for (const id of pendingSummaries) {
+      if (cancelled(run)) break;
+      await summarize(id);
     }
     if (!cancelled(run)) {
       const ok = run.platforms.filter(
@@ -531,6 +649,7 @@ async function handle(raw: unknown) {
       );
     }
     case "cancelRun": {
+      collectionControllers.get(c.id)?.abort();
       active.get(c.id)?.cancel();
       const r = runningRuns.get(c.id) || store.get<Run>("runs", c.id);
       if (r) {
@@ -788,6 +907,7 @@ app.on("window-all-closed", () => {});
 app.on("before-quit", () => {
   quitting = true;
   clearInterval(interval);
+  for (const controller of collectionControllers.values()) controller.abort();
   for (const a of active.values()) a.cancel();
   xhsProcess?.kill();
 });
