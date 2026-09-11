@@ -11,6 +11,7 @@ import type {
 import "./style.css";
 import { Icon } from "./Icons.js";
 import { Markdown } from "./Markdown.js";
+import { TaskEditor } from "./TaskEditor.js";
 declare global {
   interface Window {
     feedloom: {
@@ -62,6 +63,27 @@ function App() {
     prompt: "",
   });
   const [page, setPage] = useState("素材库");
+  const [taskDirty, setTaskDirty] = useState(false);
+  const navigate = (next: string) => {
+    if (next === page) return;
+    if (
+      page === "收集任务" &&
+      taskDirty &&
+      !confirm("任务有未保存的修改，离开并放弃这些修改？")
+    )
+      return;
+    if (page === "收集任务" && taskDirty) {
+      setTask(undefined);
+      setTaskDirty(false);
+    }
+    setPage(next);
+  };
+  const chooseTask = (next: Task) => {
+    if (taskDirty && !confirm("任务有未保存的修改，切换并放弃这些修改？"))
+      return;
+    setTaskDirty(false);
+    setTask(next);
+  };
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -83,6 +105,15 @@ function App() {
   const [key, setKey] = useState("");
   const [mode, setMode] = useState("codex");
   const [fromFeed, setFromFeed] = useState<string>();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    setNotice("");
+  }, [page]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 3500);
+    return () => clearTimeout(timer);
+  }, [notice]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setDetail(undefined);
@@ -158,7 +189,6 @@ function App() {
     const result = await act({ type: "copy", text });
     if (result === undefined) return;
     setNotice("已复制");
-    setTimeout(() => setNotice(""), 2500);
   };
   const generate = async () => {
     const id = await act({
@@ -171,7 +201,7 @@ function App() {
     });
     if (id) {
       setFeed(id);
-      setPage("我的 Feed");
+      navigate("我的 Feed");
       setFromFeed(undefined);
     }
   };
@@ -278,7 +308,7 @@ function App() {
             <button
               className="primary push"
               disabled={!selected.length}
-              onClick={() => setPage("Feed 生成")}
+              onClick={() => navigate("Feed 生成")}
             >
               去生成 Feed · {selected.length}
             </button>
@@ -292,7 +322,7 @@ function App() {
                 ? "换一组筛选条件试试。"
                 : "先创建一个收集任务，让值得读的内容汇集到这里。"
             }
-            action={() => setPage("收集任务")}
+            action={() => navigate("收集任务")}
             label="前往收集任务"
           />
         ) : (
@@ -384,7 +414,10 @@ function App() {
     <div className="app">
       <aside>
         <div className="brand">
-          <span className="mark"><Icon name="library" /></span>Feedloom
+          <span className="mark">
+            <Icon name="library" />
+          </span>
+          Feedloom
         </div>
         <div className="tagline">把关注织成见解</div>
         <nav>
@@ -393,10 +426,12 @@ function App() {
               <button
                 key={p}
                 className={page === p ? "active" : ""}
-                onClick={() => setPage(p)}
+                onClick={() => navigate(p)}
               >
                 <span className="navicon" aria-hidden="true">
-                  <Icon name={["inbox", "tasks", "library", "sparkle", "feed"][i]} />
+                  <Icon
+                    name={["inbox", "tasks", "library", "sparkle", "feed"][i]}
+                  />
                 </span>
                 {p}
               </button>
@@ -405,7 +440,7 @@ function App() {
         </nav>
         <button
           className={`settings ${page === "连接与模型" ? "active" : ""}`}
-          onClick={() => setPage("连接与模型")}
+          onClick={() => navigate("连接与模型")}
         >
           <Icon name="settings" /> 连接与模型
         </button>
@@ -414,7 +449,8 @@ function App() {
       <main>
         <header>
           <div>
-            <div className="eyebrow">FEEDLOOM / WORKSPACE</div><h1>{page}</h1>
+            <div className="eyebrow">FEEDLOOM / WORKSPACE</div>
+            <h1>{page}</h1>
             <p>
               {
                 (
@@ -430,7 +466,9 @@ function App() {
               }
             </p>
           </div>
-          <span className="localbadge"><span /> 个人工作空间</span>
+          <span className="localbadge">
+            <span /> 个人工作空间
+          </span>
         </header>
         {error && (
           <div role="alert" className="error">
@@ -438,11 +476,58 @@ function App() {
             <button onClick={() => setError("")}>关闭</button>
           </div>
         )}
-        {notice && <div className="notice">{notice}</div>}
+        {notice && (
+          <div className="notice" role="status">
+            {notice}
+            <button aria-label="关闭提示" onClick={() => setNotice("")}>
+              ×
+            </button>
+          </div>
+        )}
         {page === "素材库" && materialTable()}
         {page === "Feed 生成" && (
           <div className="generation">
-            <section>{materialTable()}</section>
+            <section>
+              {fromFeed ? (
+                <div className="panel snapshot-panel">
+                  <span className="status running">重新生成</span>
+                  <h2>沿用原 Feed 的来源依据</h2>
+                  <p className="muted">
+                    使用生成当时保存的素材快照，修改提示词后另存为一份新 Feed。
+                  </p>
+                  {sourceFeed?.items.map((item, i) => (
+                    <div className="chosen" key={item.id}>
+                      <span>{i + 1}</span>
+                      <button
+                        className="titlelink"
+                        onClick={() =>
+                          setDetail({
+                            ...item.evidence.material,
+                            evidenceRuns: item.evidence.runs,
+                          })
+                        }
+                      >
+                        {item.evidence.material.title}
+                        <small className="selecteddate">
+                          {item.evidence.material.date} ·{" "}
+                          {platforms[item.evidence.material.source]}
+                        </small>
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setFromFeed(undefined);
+                      setSelected([]);
+                    }}
+                  >
+                    改为重新选材
+                  </button>
+                </div>
+              ) : (
+                materialTable()
+              )}
+            </section>
             <section className="panel composer">
               <h2>这次生成</h2>
               <p className="muted">按下面的顺序逐条生成，不合并来源。</p>
@@ -474,12 +559,13 @@ function App() {
                   部分所选素材已删除，请清空并重新选择。
                 </p>
               )}
-              {new Set(selectedRows.map((m) => m.canonicalUrl)).size <
-                selectedRows.length && (
-                <p className="warning">
-                  包含同一来源的不同日期素材，将分别生成。
-                </p>
-              )}
+              {!fromFeed &&
+                new Set(selectedRows.map((m) => m.canonicalUrl)).size <
+                  selectedRows.length && (
+                  <p className="warning">
+                    包含同一来源的不同日期素材，将分别生成。
+                  </p>
+                )}
               <label>
                 生成提示词
                 <textarea
@@ -493,6 +579,7 @@ function App() {
                 disabled={
                   !prompt.trim() ||
                   (!selectedRows.length && !fromFeed) ||
+                  (!!fromFeed && !sourceFeed) ||
                   (!fromFeed && selected.length !== selectedRows.length)
                 }
                 onClick={generate}
@@ -500,7 +587,12 @@ function App() {
                 生成并保存 Feed
               </button>
               {fromFeed && (
-                <button onClick={() => setFromFeed(undefined)}>
+                <button
+                  onClick={() => {
+                    setFromFeed(undefined);
+                    setSelected([]);
+                  }}
+                >
                   取消重新生成
                 </button>
               )}
@@ -513,13 +605,15 @@ function App() {
               <button
                 className="primary full"
                 onClick={() =>
-                  setTask({
+                  chooseTask({
                     id: "",
                     name: "",
                     description: "",
+                    collectionMode: "intent",
                     sources: [
                       {
                         platform: "github",
+                        searchMode: "search",
                         keyword: "",
                         period: "daily",
                         limit: 10,
@@ -540,7 +634,7 @@ function App() {
                 <button
                   key={t.id}
                   className={`listitem ${task?.id === t.id ? "selected" : ""}`}
-                  onClick={() => setTask(t)}
+                  onClick={() => chooseTask(t)}
                 >
                   <strong>{t.name}</strong>
                   <small>
@@ -571,21 +665,31 @@ function App() {
                       id: task.id || undefined,
                       task: t,
                     });
-                    if (saved) setTask(saved);
+                    if (saved) {
+                      setTask(saved);
+                      setTaskDirty(false);
+                      setNotice("任务已保存");
+                    }
+                    return saved;
                   }}
-                  run={() => act({ type: "runTask", id: task.id })}
-                  remove={() =>
-                    remove(
-                      "deleteTask",
-                      task.id,
-                      "删除任务？已有素材和 Feed 将保留。",
-                    )
-                  }
+                  run={(id) => act({ type: "runTask", id })}
+                  onDirty={setTaskDirty}
+                  remove={async () => {
+                    if (!confirm("删除任务？已有素材和 Feed 将保留。")) return;
+                    const result = await act({
+                      type: "deleteTask",
+                      id: task.id,
+                    });
+                    if (result !== undefined) {
+                      setTask(undefined);
+                      setTaskDirty(false);
+                    }
+                  }}
                 />
               ) : (
                 <Empty
                   title="从一个关注方向开始"
-                  text="榜单或关键词，各平台分别设置条件。"
+                  text="描述你想找到的信息，选择平台，开始第一次探索。"
                 />
               )}
               <h2>收集记录</h2>
@@ -618,7 +722,7 @@ function App() {
                             date: "",
                             used: "",
                           });
-                          setPage("素材库");
+                          navigate("素材库");
                         }}
                       >
                         查看素材
@@ -787,7 +891,7 @@ function App() {
                       onClick={() => {
                         setPrompt(currentFeed.prompt);
                         setFromFeed(currentFeed.id);
-                        setPage("Feed 生成");
+                        navigate("Feed 生成");
                       }}
                     >
                       修改提示词重新生成
@@ -824,7 +928,10 @@ function App() {
                         {labels[item.state]}
                       </small>
                       <h3>{item.evidence.material.title}</h3>
-                      <Markdown text={item.text || "等待生成内容"} open={(url) => act({ type: "open", url })} />
+                      <Markdown
+                        text={item.text || "等待生成内容"}
+                        open={(url) => act({ type: "open", url })}
+                      />
                       {item.error && <p className="warning">{item.error}</p>}
                       <div className="actions">
                         <button
@@ -873,7 +980,7 @@ function App() {
                 <Empty
                   title="还没有打开一份 Feed"
                   text="从素材库选几条你感兴趣的内容，开始第一份。"
-                  action={() => setPage("素材库")}
+                  action={() => navigate("素材库")}
                   label="前往素材库"
                 />
               )}
@@ -929,8 +1036,8 @@ function App() {
             <section className="panel">
               <h2>来源连接</h2>
               <div className="connection">
-                <strong>GitHub Trending</strong>
-                <span>公开榜单，无需登录</span>
+                <strong>GitHub</strong>
+                <span>公开仓库搜索与 Trending 榜单，无需登录</span>
               </div>
               {["xiaohongshu", "x"].map((p) => (
                 <div className="connection" key={p}>
@@ -1049,7 +1156,9 @@ function Empty({
 }) {
   return (
     <div className="empty">
-      <span><Icon name="library" /></span>
+      <span>
+        <Icon name="library" />
+      </span>
       <h2>{title}</h2>
       <p>{text}</p>
       {action && <button onClick={action}>{label}</button>}
@@ -1090,221 +1199,6 @@ function MaterialBody({
         />
       ))}
     </>
-  );
-}
-function TaskEditor({
-  task,
-  save,
-  run,
-  remove,
-}: {
-  task: Task;
-  save: (t: TaskInput) => void;
-  run: () => void;
-  remove: () => void;
-}) {
-  const [d, set] = useState<TaskInput>(task);
-  return (
-    <form
-      className="panel editor"
-      onSubmit={(e) => {
-        e.preventDefault();
-        save(d);
-      }}
-    >
-      <h2>{task.id ? "编辑任务" : "新建收集任务"}</h2>
-      <label>
-        任务名称
-        <input
-          required
-          value={d.name}
-          onChange={(e) => set({ ...d, name: e.target.value })}
-          placeholder="例如：AI 产品与工具"
-        />
-      </label>
-      <label>
-        关注描述
-        <textarea
-          rows={2}
-          value={d.description}
-          onChange={(e) => set({ ...d, description: e.target.value })}
-        />
-      </label>
-      <div className="platformchoices">
-        {(["github", "xiaohongshu", "x"] as const).map((p) => (
-          <label key={p}>
-            <input
-              type="checkbox"
-              checked={d.sources.some((c) => c.platform === p)}
-              onChange={(e) =>
-                set({
-                  ...d,
-                  sources: e.target.checked
-                    ? [
-                        ...d.sources,
-                        {
-                          platform: p,
-                          keyword: "",
-                          period: "daily",
-                          limit: 10,
-                          thresholds: {},
-                        },
-                      ]
-                    : d.sources.filter((c) => c.platform !== p),
-                })
-              }
-            />
-            {platforms[p]}
-          </label>
-        ))}
-      </div>
-      {d.sources.map((c, i) => (
-        <fieldset key={c.platform}>
-          <legend>{platforms[c.platform]}</legend>
-          {c.platform === "github" ? (
-            <p className="muted">
-              按 Trending 榜单收集，不按任务名称或描述过滤。
-            </p>
-          ) : (
-            <label>
-              搜索词
-              <input
-                required
-                value={c.keyword}
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i ? { ...s, keyword: e.target.value } : s,
-                    ),
-                  })
-                }
-              />
-            </label>
-          )}
-          <div className="formrow">
-            <label>
-              时间范围
-              <select
-                value={c.period}
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i ? { ...s, period: e.target.value as any } : s,
-                    ),
-                  })
-                }
-              >
-                <option value="daily">
-                  {c.platform === "github" ? "日榜" : "一天内"}
-                </option>
-                <option value="weekly">
-                  {c.platform === "github" ? "周榜" : "一周内"}
-                </option>
-                {c.platform !== "xiaohongshu" && (
-                  <option value="monthly">
-                    {c.platform === "github" ? "月榜" : "近 30 天"}
-                  </option>
-                )}
-              </select>
-            </label>
-            <label>
-              每轮最多
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={c.limit}
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i ? { ...s, limit: Number(e.target.value) } : s,
-                    ),
-                  })
-                }
-              />
-            </label>
-            <label>
-              {c.platform === "github" ? "Stars" : "点赞"}至少
-              <input
-                type="number"
-                min="0"
-                value={
-                  c.thresholds[c.platform === "github" ? "stars" : "likes"] ??
-                  ""
-                }
-                placeholder="不限制"
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i
-                        ? {
-                            ...s,
-                            thresholds:
-                              e.target.value === ""
-                                ? {}
-                                : {
-                                    [c.platform === "github"
-                                      ? "stars"
-                                      : "likes"]: Number(e.target.value),
-                                  },
-                          }
-                        : s,
-                    ),
-                  })
-                }
-              />
-            </label>
-          </div>
-        </fieldset>
-      ))}
-      <div className="formrow">
-        <label>
-          执行频率
-          <select
-            value={d.schedule}
-            onChange={(e) => set({ ...d, schedule: e.target.value as any })}
-          >
-            <option value="manual">仅手动</option>
-            <option value="hourly">每小时</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-          </select>
-        </label>
-        <label>
-          本机时间
-          <input
-            type="time"
-            value={d.time}
-            onChange={(e) => set({ ...d, time: e.target.value })}
-          />
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={d.paused}
-            onChange={(e) => set({ ...d, paused: e.target.checked })}
-          />
-          暂停定时收集
-        </label>
-      </div>
-      <div className="actions">
-        <button className="primary">保存任务</button>
-        {task.id && (
-          <>
-            <button type="button" onClick={run}>
-              立即执行已保存配置
-            </button>
-            <button type="button" onClick={remove}>
-              删除任务
-            </button>
-          </>
-        )}
-      </div>
-    </form>
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);
