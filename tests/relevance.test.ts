@@ -198,3 +198,37 @@ test("summary stays distinct from relevance reasons and is kept only after groun
     );
   }
 });
+
+test("judgment prompt distinguishes a derivative relationship from target mismatch", () => {
+  const derivative = {
+    ...source,
+    sourceId: "fictional-summit-audio",
+    title: "Summit Audio",
+    text: "A spin-off of an audio mod originally written for another climbing game.",
+    completeness: "partial" as const,
+  };
+  const prompt = buildJudgmentPrompt("寻找改善 Summit 游戏体验的模组", [
+    derivative,
+  ]);
+  assert.ok(prompt.includes("区分缺少相关证据与存在不相关证据"));
+  assert.ok(prompt.includes("不能仅因提到另一产品就推断当前项目仅适用于它"));
+  const input = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1));
+  assert.equal(input.candidates[0].completeness, "partial");
+  assert.equal(input.candidates[0].text, derivative.text);
+  const [decision] = judge(
+    {
+      decisions: [
+        {
+          id: "x:fictional-summit-audio",
+          status: "uncertain",
+          reason: "只说明与原作的衍生关系，未明确当前适用游戏和功能",
+          excerpts: [derivative.text],
+        },
+      ],
+    },
+    { sources: [derivative] },
+  );
+  assert.equal(decision.status, "uncertain");
+  assert.equal(decision.source.text, derivative.text);
+  assert.deepEqual(decision.excerpts, [derivative.text]);
+});
