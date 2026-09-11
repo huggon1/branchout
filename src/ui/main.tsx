@@ -9,6 +9,8 @@ import type {
   TaskInput,
 } from "../core/contracts.js";
 import "./style.css";
+import { Icon } from "./Icons.js";
+import { Markdown } from "./Markdown.js";
 declare global {
   interface Window {
     feedloom: {
@@ -18,7 +20,7 @@ declare global {
   }
 }
 const platforms: any = {
-  github: "GitHub Trending",
+  github: "GitHub",
   xiaohongshu: "小红书",
   x: "X",
 };
@@ -382,7 +384,7 @@ function App() {
     <div className="app">
       <aside>
         <div className="brand">
-          <span className="mark">▰</span>Feedloom
+          <span className="mark"><Icon name="library" /></span>Feedloom
         </div>
         <div className="tagline">把关注织成见解</div>
         <nav>
@@ -394,7 +396,7 @@ function App() {
                 onClick={() => setPage(p)}
               >
                 <span className="navicon" aria-hidden="true">
-                  {["↙", "☷", "▤", "✦", "▱"][i]}
+                  <Icon name={["inbox", "tasks", "library", "sparkle", "feed"][i]} />
                 </span>
                 {p}
               </button>
@@ -405,14 +407,14 @@ function App() {
           className={`settings ${page === "连接与模型" ? "active" : ""}`}
           onClick={() => setPage("连接与模型")}
         >
-          ⚙ 连接与模型
+          <Icon name="settings" /> 连接与模型
         </button>
         <div className="local">● 本地工作空间</div>
       </aside>
       <main>
         <header>
           <div>
-            <h1>{page}</h1>
+            <div className="eyebrow">FEEDLOOM / WORKSPACE</div><h1>{page}</h1>
             <p>
               {
                 (
@@ -428,7 +430,7 @@ function App() {
               }
             </p>
           </div>
-          <span className="localbadge">个人桌面版</span>
+          <span className="localbadge"><span /> 个人工作空间</span>
         </header>
         {error && (
           <div role="alert" className="error">
@@ -822,7 +824,7 @@ function App() {
                         {labels[item.state]}
                       </small>
                       <h3>{item.evidence.material.title}</h3>
-                      <div className="prose">{item.text || "等待生成内容"}</div>
+                      <Markdown text={item.text || "等待生成内容"} open={(url) => act({ type: "open", url })} />
                       {item.error && <p className="warning">{item.error}</p>}
                       <div className="actions">
                         <button
@@ -1047,7 +1049,7 @@ function Empty({
 }) {
   return (
     <div className="empty">
-      <span>▤</span>
+      <span><Icon name="library" /></span>
       <h2>{title}</h2>
       <p>{text}</p>
       {action && <button onClick={action}>{label}</button>}
@@ -1076,7 +1078,7 @@ function MaterialBody({
       {m.publishedAt && (
         <p className="muted">来源发布时间：{date(m.publishedAt)}</p>
       )}
-      <div className="prose">{m.text || "暂未获取正文，请打开原始链接。"}</div>
+      <Markdown text={m.text || "暂未获取正文，请打开原始链接。"} open={open} />
       {m.images?.map((url: string) => (
         <img
           alt="来源图片"
