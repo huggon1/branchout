@@ -12,6 +12,7 @@ import "./style.css";
 import { Icon } from "./Icons.js";
 import { Markdown } from "./Markdown.js";
 import { TaskEditor } from "./TaskEditor.js";
+import { RunResearch, phaseLabels } from "./RunResearch.js";
 declare global {
   interface Window {
     feedloom: {
@@ -44,6 +45,17 @@ const metricNames: any = {
   favorites: "收藏",
   reposts: "转发",
 };
+// A compact plaintext fallback when a summary is unavailable; never inject source HTML.
+const previewText = (text: string) =>
+  text
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^[\s#>*|`~-]+/gm, "")
+    .replace(/[*_`|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 220);
 const date = (s: string) =>
   new Date(s).toLocaleString("zh-CN", {
     month: "2-digit",
@@ -358,7 +370,7 @@ function App() {
                   <p className="summary">
                     {m.summary && <small>AI 摘要 · </small>}
                     {m.summary ||
-                      m.text?.slice(0, 160) ||
+                      previewText(m.text) ||
                       "正文待解析，打开来源查看"}
                   </p>
                   <div className="badges">
@@ -478,7 +490,7 @@ function App() {
         )}
         {notice && (
           <div className="notice" role="status">
-            {notice}
+            <span>{notice}</span>
             <button aria-label="关闭提示" onClick={() => setNotice("")}>
               ×
             </button>
@@ -706,11 +718,32 @@ function App() {
                     </div>
                     {r.platforms.map((p) => (
                       <p key={p.platform}>
-                        {platforms[p.platform]} · {labels[p.state]} · {p.count}{" "}
-                        条{" "}
+                        <strong>{platforms[p.platform]}</strong> ·{" "}
+                        {labels[p.state]} · 已入库 {p.count} 条
+                        {p.phase && p.state === "running" && (
+                          <span>
+                            {" "}
+                            · {phaseLabels[p.phase]}
+                            {p.round ? ` / 第 ${p.round} 轮` : ""}
+                          </span>
+                        )}
+                        {p.candidateCount !== undefined && (
+                          <span> · {p.candidateCount} 个候选</span>
+                        )}
+                        {p.stopReason && <span> · {p.stopReason}</span>}{" "}
                         {p.error && <span className="warning">{p.error}</span>}
                       </p>
                     ))}
+                    <RunResearch
+                      run={r}
+                      inspect={(candidate) =>
+                        setDetail({
+                          ...candidate.source,
+                          decision: candidate,
+                          evidenceRuns: [r],
+                        })
+                      }
+                    />
                     <div className="actions">
                       <button
                         onClick={() => {
@@ -1092,6 +1125,33 @@ function App() {
               关闭
             </button>
             <h2>{detail.title}</h2>
+            {detail.decision && (
+              <div className="abstract">
+                <small>
+                  相关性判断 ·{" "}
+                  {
+                    {
+                      accepted: "已收录",
+                      rejected: "已排除",
+                      uncertain: "待确认",
+                    }[
+                      detail.decision.status as
+                        | "accepted"
+                        | "rejected"
+                        | "uncertain"
+                    ]
+                  }
+                </small>
+                <p>{detail.decision.reason}</p>
+                <p>
+                  第 {detail.decision.round} 轮 · 查询：
+                  {detail.decision.query || "Trending 榜单"}
+                </p>
+                {detail.decision.excerpts.map((excerpt: string, i: number) => (
+                  <blockquote key={i}>{excerpt}</blockquote>
+                ))}
+              </div>
+            )}
             {detail.summary && (
               <div className="abstract">
                 <small>AI 摘要</small>
@@ -1116,6 +1176,26 @@ function App() {
                         {r?.taskName || "历史收集"} ·{" "}
                         {r ? date(r.startedAt) : id.slice(0, 8)}
                       </p>
+                      {r?.research?.candidates
+                        .filter(
+                          (c) =>
+                            c.status === "accepted" &&
+                            (c.materialId === detail.id ||
+                              c.source.canonicalUrl === detail.canonicalUrl),
+                        )
+                        .map((c) => (
+                          <div className="evidence-note" key={c.id}>
+                            <strong>收录依据</strong>
+                            <p>{c.reason}</p>
+                            <p className="muted">
+                              第 {c.round} 轮 · 查询：
+                              {c.query || "Trending 榜单"}
+                            </p>
+                            {c.excerpts.map((text, i) => (
+                              <blockquote key={i}>{text}</blockquote>
+                            ))}
+                          </div>
+                        ))}
                       {r?.config.sources
                         .filter((s) => s.platform === detail.source)
                         .map((s) => (

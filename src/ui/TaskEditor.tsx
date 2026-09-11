@@ -102,6 +102,7 @@ export function TaskEditor({
       <label>
         收集方式
         <select
+          aria-label="收集方式"
           value={d.collectionMode ?? "keyword"}
           onChange={(e) =>
             set({
@@ -164,6 +165,7 @@ export function TaskEditor({
               <label>
                 GitHub 收集入口
                 <select
+                  aria-label="GitHub 收集入口"
                   value={c.searchMode ?? "trending"}
                   onChange={(e) =>
                     changeSource(i, {
