@@ -336,7 +336,7 @@ test("retry resolves persisted uncertain candidates before searching even if cap
   assert.equal(run.state, "success");
 });
 
-test("retry cannot clear a persisted unresolved judgment just by reaching the cap", async () => {
+test("a completed uncertain judgment remains inspectable without making the run fail", async () => {
   const item = source("1"),
     run = runWith();
   run.platforms[0].count = 1;
@@ -357,9 +357,10 @@ test("retry cannot clear a persisted unresolved judgment just by reaching the ca
   };
   const h = harness([judgments([item], "uncertain")]);
   await collectIntent(run, h.deps, new AbortController().signal);
-  assert.equal(run.state, "partial");
-  assert.equal(run.platforms[0].state, "failed");
+  assert.equal(run.state, "success");
+  assert.equal(run.platforms[0].state, "success");
   assert.equal(run.research!.candidates[0].status, "uncertain");
+  assert.equal(run.research!.candidates[0].judgmentState, "complete");
 });
 
 test("retry deduplicates newly accepted pending candidates against later searches", async () => {
@@ -400,4 +401,41 @@ test("retry deduplicates newly accepted pending candidates against later searche
     run.research!.candidates.find((d) => d.id === "x:1")!.query,
     "prior",
   );
+});
+
+test("retry does not rejudge completed semantic uncertainty", async () => {
+  const item = source("1"),
+    run = runWith();
+  run.platforms[0].count = 1;
+  run.research = {
+    candidates: [
+      {
+        id: "x:1",
+        source: item,
+        query: "prior",
+        round: 1,
+        status: "uncertain",
+        judgmentState: "complete",
+        reason: "当前正文没有说明具体用途",
+        excerpts: [],
+      },
+    ],
+    events: [],
+    usage: { queries: 1, modelCalls: 1, candidates: 1 },
+  };
+  const h = harness([]);
+  await collectIntent(run, h.deps, new AbortController().signal);
+  assert.equal(run.state, "success");
+  assert.equal(run.research!.usage.modelCalls, 0);
+  assert.equal(run.research!.candidates[0].status, "uncertain");
+});
+
+test("malformed judgments remain unfinished and retryable", async () => {
+  const item = source("1"),
+    run = runWith({ maxRounds: 1 });
+  const h = harness([plan("one"), JSON.stringify({ decisions: [] })]);
+  h.deps.search = async () => [item];
+  await collectIntent(run, h.deps, new AbortController().signal);
+  assert.equal(run.state, "failed");
+  assert.equal(run.research!.candidates[0].judgmentState, "pending");
 });

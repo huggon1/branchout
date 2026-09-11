@@ -190,7 +190,9 @@ export async function collectIntent(
         // Retry unfinished judgments from persisted sources before spending another search request.
         const pending = research.candidates.filter(
           (d) =>
-            d.source.source === config.platform && d.status === "uncertain",
+            d.source.source === config.platform &&
+            d.status === "uncertain" &&
+            d.judgmentState !== "complete",
         );
         for (let offset = 0; offset < pending.length; offset += 8) {
           const batch = pending.slice(offset, offset + 8);
@@ -344,6 +346,7 @@ export async function collectIntent(
                     query,
                     round,
                     status: "uncertain",
+                    judgmentState: "pending",
                     reason: "本轮未完成相关性判断，可重试未完成平台",
                     excerpts: [],
                   });
@@ -368,7 +371,9 @@ export async function collectIntent(
         }
         const uncertain = research.candidates.some(
           (d) =>
-            d.source.source === config.platform && d.status === "uncertain",
+            d.source.source === config.platform &&
+            d.status === "uncertain" &&
+            d.judgmentState !== "complete",
         );
         platform.state =
           searchFailures || uncertain
