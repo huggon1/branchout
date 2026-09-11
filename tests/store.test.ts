@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { Store } from "../src/core/store.js";
 import { SourceMaterial, TaskInput } from "../src/core/contracts.js";
 const fixture = {
@@ -134,5 +135,173 @@ test("restart identifies unfinished work without losing successful items or repl
     assert.equal(s.get<any>("materials", m.id).summaryState, "failed");
   } finally {
     s.close();
+  }
+});
+
+const research = () => ({
+  intent: "Find a fictional repository",
+  events: [{ id: "event", at: "2026-09-11", phase: "judging" }].map((e) => ({
+    ...e,
+    message: "检查相关性",
+  })),
+  candidates: [
+    {
+      id: "github:fictional/repo",
+      source: { ...fixture },
+      query: "fictional",
+      round: 1,
+      status: "accepted",
+      reason: "原文明确相关",
+      excerpts: ["Original"],
+    },
+  ],
+  usage: { queries: 1, modelCalls: 2, candidates: 1 },
+});
+
+test("research writes reject invented evidence and preserve rejected and uncertain candidates", () => {
+  const s = new Store(":memory:");
+  try {
+    for (const change of [
+      { excerpts: ["invented"] },
+      { excerpts: [] },
+      { id: "github:another" },
+      { status: "uncertain", materialId: "material" },
+    ]) {
+      const data = research();
+      Object.assign(data.candidates[0], change);
+      assert.throws(() =>
+        s.put("runs", { id: "invalid", research: data } as any),
+      );
+      assert.equal(s.get("runs", "invalid"), undefined);
+    }
+    const data = research();
+    data.candidates.push(
+      ...["rejected", "uncertain"].map((status) => ({
+        ...data.candidates[0],
+        id: `github:${status}`,
+        source: { ...fixture, sourceId: status },
+        status,
+      })),
+    );
+    s.put("runs", { id: "run", research: data } as any);
+    assert.deepEqual(
+      s.get<any>("runs", "run").research.candidates.map((c: any) => c.status),
+      ["accepted", "rejected", "uncertain"],
+    );
+  } finally {
+    s.close();
+  }
+});
+
+test("Feed research evidence remains a deep snapshot after source and run changes", () => {
+  const s = new Store(":memory:");
+  try {
+    const originalResearch = research();
+    s.put("runs", { id: "r", research: originalResearch } as any);
+    const material = s.upsertMaterial(fixture, "task", "r", "2026-09-11");
+    const evidence = s.evidence(material.id);
+    s.saveFeed({
+      id: "f",
+      state: "success",
+      items: [{ id: "i", state: "success", text: "Feed", evidence }],
+    } as any);
+    originalResearch.candidates[0].source.text = "Caller mutation";
+    evidence.runs[0].research!.candidates[0].reason = "Caller mutation";
+    const updated = s.get<any>("runs", "r");
+    updated.research.candidates[0].reason = "Later judgment";
+    s.put("runs", updated);
+    const snapshot = s.get<any>("feeds", "f").items[0].evidence.runs[0]
+      .research;
+    assert.equal(snapshot.candidates[0].source.text, "Original");
+    assert.equal(snapshot.candidates[0].reason, "原文明确相关");
+    assert.equal(snapshot.usage.modelCalls, 2);
+  } finally {
+    s.close();
+  }
+});
+
+function legacyDb(path: string) {
+  const db = new DatabaseSync(path);
+  db.exec(
+    "CREATE TABLE tasks(id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE runs(id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE feeds(id TEXT PRIMARY KEY,data TEXT NOT NULL); PRAGMA user_version=1;",
+  );
+  return db;
+}
+
+test("v1 migration preserves historical bytes and changes only legacy live task modes", () => {
+  const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-"));
+  const path = join(dir, "db");
+  const legacy = legacyDb(path);
+  const task = {
+    id: "task",
+    name: "Legacy",
+    sources: [{ platform: "github", period: "daily", limit: 5 }],
+  };
+  const run = JSON.stringify({ id: "run", config: task, state: "success" });
+  const feed = JSON.stringify({
+    id: "feed",
+    items: [{ evidence: { runs: [JSON.parse(run)], material: fixture } }],
+  });
+  legacy
+    .prepare("INSERT INTO tasks VALUES(?,?)")
+    .run("task", JSON.stringify(task));
+  legacy
+    .prepare("INSERT INTO tasks VALUES(?,?)")
+    .run(
+      "intent",
+      JSON.stringify({ ...task, id: "intent", collectionMode: "intent" }),
+    );
+  legacy.prepare("INSERT INTO runs VALUES(?,?)").run("run", run);
+  legacy.prepare("INSERT INTO feeds VALUES(?,?)").run("feed", feed);
+  legacy.close();
+  let s = new Store(path);
+  try {
+    assert.equal(s.get<any>("tasks", "task").collectionMode, "keyword");
+    assert.equal(s.get<any>("tasks", "intent").collectionMode, "intent");
+    assert.equal(s.db.prepare("SELECT data FROM runs").get()!.data, run);
+    assert.equal(s.db.prepare("SELECT data FROM feeds").get()!.data, feed);
+    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 2);
+    s.close();
+    s = new Store(path);
+    assert.equal(s.get<any>("tasks", "task").collectionMode, "keyword");
+  } finally {
+    s.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test("migration failure rolls back earlier rows and schema version; future databases are refused", () => {
+  const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-failure-"));
+  const path = join(dir, "db");
+  const legacy = legacyDb(path);
+  const original = JSON.stringify({ id: "good", name: "unchanged" });
+  legacy.prepare("INSERT INTO tasks VALUES(?,?)").run("good", original);
+  legacy.prepare("INSERT INTO tasks VALUES(?,?)").run("bad", "{broken");
+  legacy.close();
+  try {
+    assert.throws(() => new Store(path));
+    const check = new DatabaseSync(path);
+    assert.equal(
+      check.prepare("SELECT data FROM tasks WHERE id='good'").get()!.data,
+      original,
+    );
+    assert.equal(check.prepare("PRAGMA user_version").get()!.user_version, 1);
+    assert.equal(
+      check
+        .prepare("SELECT name FROM sqlite_master WHERE name='materials'")
+        .get(),
+      undefined,
+    );
+    check.exec("PRAGMA user_version=3");
+    check.close();
+    assert.throws(() => new Store(path), /更新的应用版本/);
+    const finalCheck = new DatabaseSync(path);
+    assert.equal(
+      finalCheck.prepare("PRAGMA user_version").get()!.user_version,
+      3,
+    );
+    finalCheck.close();
+  } finally {
+    rmSync(dir, { recursive: true });
   }
 });
