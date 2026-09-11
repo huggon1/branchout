@@ -8,6 +8,8 @@ Feedloom 当前通过产品 Pitch 演示跨平台收集、内容编排和可追�
 
 演示页集中展示最终可能分布在手机、其他平台和后台的操作，不代表最终产品导航。Topic 提前绑定 Profile，收集与生成既可分段讲解，也可连续模拟。
 
+现有 Pitch 演示旧版 Topic、博主风格和连续生成流程，仅作历史演示；MVP 开发以 [PRD](docs/mvp-prd.md) 和[页面设计](docs/design/README.md)为准。
+
 ## 本地运行
 
 需要 Node.js 22 或更新版本及 npm。
@@ -41,6 +43,7 @@ npm run check
 ## 文档
 
 - [项目规划](docs/project-plan.md)
+- [技术架构](docs/technical-architecture.md)（已确认的目标方案，尚未实施）
 - [MVP PRD](docs/mvp-prd.md)：已确认的使用设计与五页设计图；不代表当前已实现能力。
 - [文档政策](docs/documents.md)
 - [Agent 开发约束](AGENTS.md)
