@@ -34,12 +34,12 @@ store.put("runs", {
   config: task,
   startedAt: new Date().toISOString(),
   endedAt: new Date().toISOString(),
-  state: "success",
+  state: "partial",
   platforms: [
     {
       platform: "github",
-      state: "success",
-      count: 2,
+      state: "failed",
+      count: 1,
       candidateCount: 3,
       phase: "finished",
     },
@@ -60,7 +60,7 @@ store.put("runs", {
     ],
     candidates: [
       {
-        id: "candidate-1",
+        id: "github:example/reader",
         source: raw,
         round: 1,
         query: "offline reader",
@@ -70,8 +70,13 @@ store.put("runs", {
         materialId: a.id,
       },
       {
-        id: "candidate-2",
-        source: { ...raw, title: "无关示例" },
+        id: "github:example/unrelated",
+        source: {
+          ...raw,
+          sourceId: "example/unrelated",
+          canonicalUrl: "https://github.com/example/unrelated",
+          title: "无关示例",
+        },
         round: 1,
         query: "reader",
         status: "rejected",
@@ -79,8 +84,13 @@ store.put("runs", {
         excerpts: [],
       },
       {
-        id: "candidate-3",
-        source: { ...raw, title: "待确认示例" },
+        id: "github:example/uncertain",
+        source: {
+          ...raw,
+          sourceId: "example/uncertain",
+          canonicalUrl: "https://github.com/example/uncertain",
+          title: "待确认示例",
+        },
         round: 1,
         query: "reader",
         status: "uncertain",
@@ -394,7 +404,7 @@ try {
   if (!hidden) throw Error("Closing window should retain application");
   if (errors.length) throw Error(`Renderer errors: ${errors.length}`);
   console.log(
-    "Desktop UI passed: selection persistence, half selection, duplicate dates, partial Feed copy, evidence dialog, task creation, settings, URL rejection",
+    "Desktop UI passed: 3 desktop sizes, layout boundaries, Markdown safety, draft save/run, regeneration inputs, collection evidence, selection and Feed copy",
   );
 } catch (error) {
   if (application)

@@ -1,6 +1,6 @@
 {
   "name": "feedloom",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Personal desktop collection and Feed workspace",
@@ -20,7 +20,7 @@
     "start": "npm run build && electron .",
     "prepare:runtime": "node scripts/with-system-proxy.mjs node scripts/prepare-runtime.mjs",
     "package:app": "npm run build && node scripts/with-system-proxy.mjs electron-packager . Feedloom --platform=darwin --arch=arm64 --out=build --overwrite --extra-resource=.runtime --ignore=\"^/(tests|test-results|playwright-report|docs|scripts|src|build|\\.runtime|\\.git)\"",
-    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs",
+    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs",
     "verify:live": "npm run build && node scripts/verify-live.mjs",
     "verify:package": "node scripts/verify-package.mjs"
   },
