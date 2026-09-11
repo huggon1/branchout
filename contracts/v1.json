@@ -692,6 +692,13 @@
                     "uncertain"
                   ]
                 },
+                "judgmentState": {
+                  "type": "string",
+                  "enum": [
+                    "complete",
+                    "pending"
+                  ]
+                },
                 "reason": {
                   "type": "string"
                 },
@@ -1574,6 +1581,13 @@
                           "uncertain"
                         ]
                       },
+                      "judgmentState": {
+                        "type": "string",
+                        "enum": [
+                          "complete",
+                          "pending"
+                        ]
+                      },
                       "reason": {
                         "type": "string"
                       },
@@ -2362,6 +2376,13 @@
                                     "accepted",
                                     "rejected",
                                     "uncertain"
+                                  ]
+                                },
+                                "judgmentState": {
+                                  "type": "string",
+                                  "enum": [
+                                    "complete",
+                                    "pending"
                                   ]
                                 },
                                 "reason": {

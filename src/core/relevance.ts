@@ -93,6 +93,7 @@ export function judgeCandidates({
       return {
         ...base,
         status: "rejected",
+        judgmentState: "complete",
         excerpts: [],
         reason:
           source.metrics[failedMetric[0]] == null
@@ -107,6 +108,7 @@ export function judgeCandidates({
       return {
         ...base,
         status: "uncertain",
+        judgmentState: "pending",
         excerpts: [],
         reason:
           matches.length > 1
@@ -126,16 +128,18 @@ export function judgeCandidates({
     const invalidEvidence = decision.excerpts.some(
       (excerpt) => !excerpts.includes(excerpt),
     );
-    if (decision.status === "accepted" && (!excerpts.length || invalidEvidence))
+    if (invalidEvidence || (decision.status === "accepted" && !excerpts.length))
       return {
         ...base,
         status: "uncertain",
+        judgmentState: "pending",
         excerpts,
-        reason: "模型建议收录，但未提供完整、可核对的原文摘录，需要确认",
+        reason: "模型未提供完整、可核对的原文摘录，需要重新判断",
       };
     return {
       ...base,
       status: decision.status,
+      judgmentState: "complete",
       reason: decision.reason,
       excerpts,
       ...(decision.status === "accepted" && decision.summary

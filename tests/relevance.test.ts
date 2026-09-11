@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildJudgmentPrompt, judgeCandidates } from "../src/core/relevance.js";
-import { SourceConfig, type SourceMaterial } from "../src/core/contracts.js";
+import {
+  SourceConfig,
+  CandidateDecisionSchema,
+  type SourceMaterial,
+} from "../src/core/contracts.js";
 
 const source: SourceMaterial = {
   schemaVersion: 1,
@@ -231,4 +235,49 @@ test("judgment prompt distinguishes a derivative relationship from target mismat
   assert.equal(decision.status, "uncertain");
   assert.equal(decision.source.text, derivative.text);
   assert.deepEqual(decision.excerpts, [derivative.text]);
+});
+
+test("completed semantic uncertainty is distinct from unfinished or invalid model judgment", () => {
+  for (const status of ["accepted", "rejected", "uncertain"]) {
+    const [decision] = judge({ decisions: [{ ...accepted, status }] });
+    assert.equal(decision.judgmentState, "complete");
+    assert.equal(decision.status, status);
+  }
+  assert.equal(
+    judge({
+      decisions: [{ ...accepted, status: "uncertain", excerpts: [] }],
+    })[0].judgmentState,
+    "complete",
+  );
+  for (const response of [
+    null,
+    {},
+    { decisions: [] },
+    { decisions: [accepted, accepted] },
+    { decisions: [{ ...accepted, status: "invalid" }] },
+    { decisions: [{ ...accepted, excerpts: [] }] },
+    { decisions: [{ ...accepted, excerpts: ["invented evidence"] }] },
+    {
+      decisions: [
+        { ...accepted, status: "uncertain", excerpts: ["invented evidence"] },
+      ],
+    },
+  ]) {
+    const [decision] = judge(response);
+    assert.equal(decision.judgmentState, "pending");
+    assert.equal(decision.status, "uncertain");
+  }
+  const [metricRejected] = judge(null, {
+    config: { ...config, thresholds: { likes: 100 } },
+  });
+  assert.equal(metricRejected.status, "rejected");
+  assert.equal(metricRejected.judgmentState, "complete");
+  const legacy = { ...judge({ decisions: [accepted] })[0] };
+  delete legacy.judgmentState;
+  assert.ok(CandidateDecisionSchema.safeParse(legacy).success);
+  assert.equal(
+    CandidateDecisionSchema.safeParse({ ...legacy, judgmentState: "unknown" })
+      .success,
+    false,
+  );
 });

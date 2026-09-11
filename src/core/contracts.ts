@@ -99,6 +99,7 @@ export const CandidateDecisionSchema = z.object({
   round: z.number().int().min(1),
   query: z.string(),
   status: z.enum(["accepted", "rejected", "uncertain"]),
+  judgmentState: z.enum(["complete", "pending"]).optional(),
   reason: z.string(),
   excerpts: z.array(z.string()),
   summary: z.string().max(1000).optional(),
