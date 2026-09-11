@@ -101,6 +101,7 @@ export const CandidateDecisionSchema = z.object({
   status: z.enum(["accepted", "rejected", "uncertain"]),
   reason: z.string(),
   excerpts: z.array(z.string()),
+  summary: z.string().max(1000).optional(),
   materialId: z.string().optional(),
 });
 export type CandidateDecision = z.infer<typeof CandidateDecisionSchema>;

@@ -701,6 +701,10 @@
                     "type": "string"
                   }
                 },
+                "summary": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
                 "materialId": {
                   "type": "string"
                 }
@@ -1579,6 +1583,10 @@
                           "type": "string"
                         }
                       },
+                      "summary": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
                       "materialId": {
                         "type": "string"
                       }
@@ -2364,6 +2372,10 @@
                                   "items": {
                                     "type": "string"
                                   }
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "maxLength": 1000
                                 },
                                 "materialId": {
                                   "type": "string"
