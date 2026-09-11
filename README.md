@@ -1,26 +1,60 @@
 # Feedloom
 
-Feedloom 面向个人阅读和可直接复制的知识分享、产品发现：独立管理转发内容，通过收集任务持续获得素材，再人工选材并按提示词生成 Feed。
+个人桌面收集与阅读工作空间：留存转发链接，定时收集素材，人工选材后用 Luna 逐条生成可复制的 Feed。
 
-## 当前状态
+## 使用
 
-仓库包含已确认的 MVP PRD、五页桌面设计图和目标技术架构。旧版产品 Pitch Demo 已移除，历史实现保留在 Git 历史中。
+首版支持 macOS Apple Silicon。打开本地构建的 `build/Feedloom-darwin-arm64/Feedloom.app`，在「连接与模型」中连接小红书和 X。本机已有 Codex 文件登录时默认使用 `gpt-5.6-luna`；也可自行配置 API Key，应用不会自动切换模型或计费方式。
 
-当前没有可运行的应用、依赖清单或应用测试命令。Electron 桌面应用、Pi 集成、真实平台收集和 Feed 生成尚未实现；设计图与技术方案不代表运行验证。
+- **转发收件箱**：粘贴 GitHub 仓库或小红书链接，读取 README／正文、图片和 AI 摘要；独立保存，不进入素材库。
+- **收集任务**：GitHub Trending 日／周／月榜；小红书关键词搜索一天内／一周内；X 关键词搜索一天内／一周内／近 30 天。每个平台独立设置门槛和数量上限，数量不足不补齐。GitHub 榜单不按任务描述筛选。
+- **素材库**：按任务、平台、起始收集日期和使用状态筛选，单平台按原生指标排序；切换筛选保留选中项。原文不全时标记部分解析，摘要失败可重试。
+- **Feed 生成／我的 Feed**：按选中顺序逐条生成并保存，失败项可重试，支持取消、单条替换及修改提示词后生成新 Feed。复制包含原始来源链接。
+
+同来源同日覆盖，跨日保留，多任务共享素材关系。Feed 保存生成时的素材与收集配置快照，后续覆盖或删除素材不改变已有依据。关闭窗口后应用在菜单栏驻留；通过菜单栏退出。定时任务仅在应用运行、电脑清醒时执行，错过的计划会显示补跑提示，并继续安排后续轮次；不会在唤醒后集中补跑。重启会将未完成工作标为中断，保留成功结果。
+
+## 开发与验证
+
+使用 Node.js 24。平台组件需要先下载；准备脚本固定版本并校验二进制和归档 SHA-256，浏览器由上游组件校验后随包携带。
+
+```sh
+npm install
+npm run prepare:runtime
+npm start
+npm run check
+npm run test:desktop
+npm run package:app
+```
+
+结构契约位于 [contracts/v1.json](contracts/v1.json)，由运行时 Zod schema 导出，契约测试检查两者一致。平台组合等业务约束额外由运行时校验。
+
+`check` 包括适配器和持久化测试、TypeScript、构建、文档链接及 diff 检查。`test:desktop` 使用临时数据库和虚构素材验证真实 Electron 窗口，结束后清理。界面截图位于被忽略的 `test-results/`。
+
+`npm run verify:live` 会使用已连接账号和当前模型额度，真实收集三个平台各一条并生成 Feed，结果保留在本地工作空间。`probe:github`、`probe:model` 和 `probe:desktop` 提供较小的接入诊断。真实内容与凭据不会输出到诊断日志。
+
+开发脚本及桌面后台读取 macOS 系统 HTTP 代理，不修改系统设置。若依赖安装跳过 Electron 下载，可运行 `node scripts/with-system-proxy.mjs node node_modules/electron/install.js`。开发模式的 `FEEDLOOM_DATA_DIR` 可隔离测试数据；安装包始终使用正常用户目录。
+
+## 本地数据与运行边界
+
+业务数据库和平台登录位于 `~/Library/Application Support/Feedloom`，浏览器组件缓存位于 `~/Library/Caches/xiaohongshu-mcp`。下载的运行组件、业务数据库、登录态、真实内容及截图均不进入仓库。
+
+Codex 认证只读当前有效 access token，不复制 refresh token、不代替 Codex 刷新登录。临近过期时在 Codex 中刷新后重试。API Key 通过 macOS 安全存储加密；API Key 路径尚未用真实付费密钥验收。
+
+Pi 在后台进程中运行，使用内存会话，关闭工具、扩展、Skills 和上下文文件自动发现。采集通过独立适配器完成，模型仅接收当前素材和提示词。外部内容按纯文本显示；打开来源链接限定允许的 HTTPS 域名。
+
+小红书使用 `xiaohongshu-mcp v2.5.0`，X 使用 last30days 固定版本中的只读搜索组件；两者依赖平台现有登录和页面／接口能力，可能受平台改动、风控或网络影响。X 正文保守标记为部分解析，不承诺展开所有长文、线程或视频。GitHub Trending 返回实际榜单，社交搜索不保证穷尽时间范围内的全部帖子。登录成功不代表每次采集必然成功，失败会保留原因和重试入口。
+
+当前安装包用于本机试用，未完成正式分发签名、公证或无开发环境机器验收。真实三平台收集、Luna 摘要及 Feed 生成已通过本机完整流程验证；睡眠唤醒提示和 API Key 仍需对应环境验证。
 
 ## 文档
 
-- [MVP 产品需求](docs/mvp-prd.md)：产品行为与验收场景。
-- [页面设计](docs/design/README.md)：五页已确认的视觉参考。
-- [项目规划](docs/project-plan.md)：交付阶段与产品边界。
-- [技术架构](docs/technical-architecture.md)：已确认、待实施的技术方案。
+- [MVP 产品需求](docs/mvp-prd.md)
+- [页面设计](docs/design/README.md)
+- [项目规划](docs/project-plan.md)
+- [技术架构](docs/technical-architecture.md)
 - [文档政策](docs/documents.md)
 - [Agent 开发约束](AGENTS.md)
 
-## 验证
+## 许可
 
-文档变更运行 `git diff --check`，并检查仓库内文档与图片链接指向存在的文件。应用代码落地时再建立对应的构建与测试命令。
-
-## 开源许可
-
-尚未选择开源许可证。公开可见不代表已授予复制、修改或分发许可。
+项目尚未选择开源许可证。第三方组件遵循各自许可，平台组件的许可证随 `.runtime` 一同打包。
