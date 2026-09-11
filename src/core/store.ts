@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   SourceMaterial,
   TaskInput,
+  ResearchStateSchema,
   type Material,
   type Task,
   type Run,
@@ -18,18 +19,38 @@ export class Store {
     );
     const version = (this.db.prepare("PRAGMA user_version").get() as any)
       .user_version;
-    if (version > 1) {
+    if (version > 2) {
       this.db.close();
       throw Error("数据库来自更新的应用版本，请使用新版应用");
     }
-    this.db.exec(`BEGIN;
+    try {
+      this.db.exec(`BEGIN IMMEDIATE;
    CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS materials(id TEXT PRIMARY KEY, identity TEXT NOT NULL, day TEXT NOT NULL, data TEXT NOT NULL, UNIQUE(identity,day));
    CREATE TABLE IF NOT EXISTS feeds(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS inbox(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS settings(id TEXT PRIMARY KEY,data TEXT NOT NULL);
-   PRAGMA user_version=1; COMMIT;`);
+   `);
+      if (version < 2) {
+        // Only live task configuration changes. Historical runs and Feed evidence
+        // must continue to describe the exact inputs used before the upgrade.
+        for (const row of this.db.prepare("SELECT id,data FROM tasks").all()) {
+          const task = JSON.parse(String(row.data));
+          if (task.collectionMode === undefined) {
+            task.collectionMode = "keyword";
+            this.db
+              .prepare("UPDATE tasks SET data=? WHERE id=?")
+              .run(JSON.stringify(task), row.id);
+          }
+        }
+      }
+      this.db.exec("PRAGMA user_version=2; COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      this.db.close();
+      throw error;
+    }
   }
   list<T>(table: "tasks" | "runs" | "materials" | "feeds" | "inbox"): T[] {
     return this.db
@@ -50,11 +71,36 @@ export class Store {
     table: "tasks" | "runs" | "feeds" | "inbox" | "settings",
     item: { id: string },
   ) {
+    let stored = item;
+    if (table === "runs" && "research" in item && item.research !== undefined) {
+      const research = ResearchStateSchema.parse(item.research);
+      for (const candidate of research.candidates) {
+        if (
+          candidate.id !==
+          `${candidate.source.source}:${candidate.source.sourceId}`
+        )
+          throw Error("候选来源标识不一致");
+        if (
+          candidate.excerpts.some(
+            (excerpt) =>
+              !excerpt.trim() ||
+              (!candidate.source.text.includes(excerpt) &&
+                !candidate.source.title.includes(excerpt)),
+          )
+        )
+          throw Error("候选摘录必须来自已获取的原文");
+        if (candidate.status === "accepted" && candidate.excerpts.length === 0)
+          throw Error("收录候选必须保留原文依据");
+        if (candidate.status !== "accepted" && candidate.materialId)
+          throw Error("未收录候选不能关联入库素材");
+      }
+      stored = { ...item, research } as typeof item;
+    }
     this.db
       .prepare(
         `INSERT INTO ${table}(id,data) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data`,
       )
-      .run(item.id, JSON.stringify(item));
+      .run(item.id, JSON.stringify(stored));
     return item;
   }
   delete(table: "tasks" | "materials" | "feeds" | "inbox", id: string) {

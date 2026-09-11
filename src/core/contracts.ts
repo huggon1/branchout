@@ -5,13 +5,12 @@ export const SourceConfig = z
   .object({
     platform: Platform,
     keyword: z.string().max(200).default(""),
+    searchMode: z.enum(["trending", "search"]).optional(),
     period: z.enum(["daily", "weekly", "monthly"]),
     limit: z.number().int().min(1).max(100),
     thresholds: z.record(z.string(), z.number().finite().min(0)).default({}),
   })
   .superRefine((c, ctx) => {
-    if (c.platform !== "github" && !c.keyword.trim())
-      ctx.addIssue({ code: "custom", message: "请填写搜索词" });
     if (c.platform === "xiaohongshu" && c.period === "monthly")
       ctx.addIssue({ code: "custom", message: "小红书首版支持一天内或一周内" });
     const metrics =
@@ -23,10 +22,22 @@ export const SourceConfig = z
     if (Object.keys(c.thresholds).some((k) => !metrics.includes(k)))
       ctx.addIssue({ code: "custom", message: "该平台不支持所选指标" });
   });
+export const CollectionBudget = z.object({
+  maxRounds: z.number().int().min(1).max(5).default(3),
+  maxQueries: z.number().int().min(1).max(30).default(12),
+  maxCandidates: z.number().int().min(1).max(150).default(90),
+  maxModelCalls: z.number().int().min(1).max(40).default(20),
+  maxDurationSeconds: z.number().int().min(15).max(900).default(300),
+});
+export type CollectionBudget = z.infer<typeof CollectionBudget>;
+export const DEFAULT_COLLECTION_BUDGET: CollectionBudget =
+  CollectionBudget.parse({});
 export const TaskInput = z
   .object({
     name: z.string().trim().min(1).max(80),
     description: z.string().max(500).default(""),
+    collectionMode: z.enum(["intent", "keyword"]).optional(),
+    budget: CollectionBudget.optional(),
     sources: z.array(SourceConfig).min(1).max(3),
     schedule: z.enum(["manual", "hourly", "daily", "weekly"]).default("manual"),
     time: z
@@ -38,7 +49,18 @@ export const TaskInput = z
   .refine(
     (t) => new Set(t.sources.map((s) => s.platform)).size === t.sources.length,
     "每个平台只能配置一次",
-  );
+  )
+  .superRefine((task, ctx) => {
+    if (
+      task.collectionMode !== "intent" &&
+      task.sources.some(
+        (s) =>
+          (s.platform !== "github" || s.searchMode === "search") &&
+          !s.keyword.trim(),
+      )
+    )
+      ctx.addIssue({ code: "custom", message: "固定关键词模式请填写搜索词" });
+  });
 export type TaskInput = z.infer<typeof TaskInput>;
 export interface Task extends TaskInput {
   id: string;
@@ -61,6 +83,50 @@ export const SourceMaterial = z.object({
   context: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
 });
 export type SourceMaterial = z.infer<typeof SourceMaterial>;
+export const CollectionPhase = z.enum([
+  "planning",
+  "searching",
+  "reading",
+  "judging",
+  "saving",
+  "summarizing",
+  "finished",
+]);
+export type CollectionPhase = z.infer<typeof CollectionPhase>;
+export const CandidateDecisionSchema = z.object({
+  id: z.string(),
+  source: SourceMaterial,
+  round: z.number().int().min(1),
+  query: z.string(),
+  status: z.enum(["accepted", "rejected", "uncertain"]),
+  judgmentState: z.enum(["complete", "pending"]).optional(),
+  reason: z.string(),
+  excerpts: z.array(z.string()),
+  summary: z.string().max(1000).optional(),
+  materialId: z.string().optional(),
+});
+export type CandidateDecision = z.infer<typeof CandidateDecisionSchema>;
+export const ResearchEventSchema = z.object({
+  id: z.string(),
+  at: z.string(),
+  platform: Platform.optional(),
+  phase: CollectionPhase,
+  round: z.number().int().optional(),
+  message: z.string(),
+});
+export type ResearchEvent = z.infer<typeof ResearchEventSchema>;
+export const ResearchStateSchema = z.object({
+  intent: z.string().optional(),
+  events: z.array(ResearchEventSchema),
+  candidates: z.array(CandidateDecisionSchema),
+  usage: z.object({
+    queries: z.number().int().min(0),
+    modelCalls: z.number().int().min(0),
+    candidates: z.number().int().min(0),
+  }),
+  stopReason: z.string().optional(),
+});
+export type ResearchState = z.infer<typeof ResearchStateSchema>;
 export type ResultState =
   | "pending"
   | "running"
@@ -85,6 +151,10 @@ export interface PlatformResult {
   state: ResultState | "no_results";
   count: number;
   error?: string;
+  phase?: CollectionPhase;
+  round?: number;
+  candidateCount?: number;
+  stopReason?: string;
 }
 export interface Run {
   id: string;
@@ -95,6 +165,7 @@ export interface Run {
   endedAt?: string;
   state: ResultState | "partial" | "no_results";
   platforms: PlatformResult[];
+  research?: ResearchState;
 }
 export interface Evidence {
   material: Material;
@@ -199,12 +270,17 @@ export const RunSchema = z.object({
   startedAt: z.string(),
   endedAt: z.string().optional(),
   state: ResultStateSchema.or(z.enum(["partial", "no_results"])),
+  research: ResearchStateSchema.optional(),
   platforms: z.array(
     z.object({
       platform: Platform,
       state: ResultStateSchema.or(z.literal("no_results")),
       count: z.number().int().min(0),
       error: z.string().optional(),
+      phase: CollectionPhase.optional(),
+      round: z.number().int().optional(),
+      candidateCount: z.number().int().min(0).optional(),
+      stopReason: z.string().optional(),
     }),
   ),
 });

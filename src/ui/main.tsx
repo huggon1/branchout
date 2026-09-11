@@ -9,6 +9,10 @@ import type {
   TaskInput,
 } from "../core/contracts.js";
 import "./style.css";
+import { Icon } from "./Icons.js";
+import { Markdown } from "./Markdown.js";
+import { TaskEditor } from "./TaskEditor.js";
+import { RunResearch, phaseLabels } from "./RunResearch.js";
 declare global {
   interface Window {
     feedloom: {
@@ -18,7 +22,7 @@ declare global {
   }
 }
 const platforms: any = {
-  github: "GitHub Trending",
+  github: "GitHub",
   xiaohongshu: "小红书",
   x: "X",
 };
@@ -41,6 +45,17 @@ const metricNames: any = {
   favorites: "收藏",
   reposts: "转发",
 };
+// A compact plaintext fallback when a summary is unavailable; never inject source HTML.
+const previewText = (text: string) =>
+  text
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^[\s#>*|`~-]+/gm, "")
+    .replace(/[*_`|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 220);
 const date = (s: string) =>
   new Date(s).toLocaleString("zh-CN", {
     month: "2-digit",
@@ -49,6 +64,10 @@ const date = (s: string) =>
     minute: "2-digit",
   });
 function App() {
+  const initialized = useRef(false);
+  const [ready, setReady] = useState(false);
+  const [opening, setOpening] = useState(true);
+  const [openingError, setOpeningError] = useState("");
   const [state, setState] = useState<any>({
     tasks: [],
     runs: [],
@@ -60,6 +79,28 @@ function App() {
     prompt: "",
   });
   const [page, setPage] = useState("素材库");
+  const [taskDirty, setTaskDirty] = useState(false);
+  const [pendingRun, setPendingRun] = useState<string>();
+  const navigate = (next: string) => {
+    if (next === page) return;
+    if (
+      page === "收集任务" &&
+      taskDirty &&
+      !confirm("任务有未保存的修改，离开并放弃这些修改？")
+    )
+      return;
+    if (page === "收集任务" && taskDirty) {
+      setTask(undefined);
+      setTaskDirty(false);
+    }
+    setPage(next);
+  };
+  const chooseTask = (next: Task) => {
+    if (taskDirty && !confirm("任务有未保存的修改，切换并放弃这些修改？"))
+      return;
+    setTaskDirty(false);
+    setTask(next);
+  };
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -82,6 +123,29 @@ function App() {
   const [mode, setMode] = useState("codex");
   const [fromFeed, setFromFeed] = useState<string>();
   useEffect(() => {
+    window.scrollTo(0, 0);
+    setNotice("");
+  }, [page]);
+  useEffect(() => {
+    if (!pendingRun) return;
+    if (page !== "收集任务") {
+      setPendingRun(undefined);
+      return;
+    }
+    const target = document.getElementById(`run-${pendingRun}`);
+    if (!target) return;
+    const frame = requestAnimationFrame(() => {
+      target.scrollIntoView({ block: "start", behavior: "auto" });
+      setPendingRun(undefined);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingRun, state.runs, page]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 3500);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setDetail(undefined);
     };
@@ -89,20 +153,30 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const refresh = async () => {
-    const r = await window.feedloom.command({ type: "state" });
-    if (r.ok) {
+    if (!initialized.current) {
+      setOpening(true);
+      setOpeningError("");
+    }
+    try {
+      if (!window.feedloom) throw Error("请通过桌面应用打开 Feedloom");
+      const r = await window.feedloom.command({ type: "state" });
+      if (!r.ok) throw Error(r.error || "无法读取本地工作空间");
       setState(r.value);
       setPrompt((v) => v || r.value.prompt);
       setMode(r.value.modelMode);
+      initialized.current = true;
+      setReady(true);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (initialized.current) setError(`工作空间刷新失败：${message}`);
+      else setOpeningError(message);
+    } finally {
+      setOpening(false);
     }
   };
   useEffect(() => {
-    if (!window.feedloom) {
-      setError("请通过桌面应用打开 Feedloom");
-      return;
-    }
     void refresh();
-    return window.feedloom.onChange(() => void refresh());
+    return window.feedloom?.onChange(() => void refresh());
   }, []);
   const act = async (value: any) => {
     setError("");
@@ -156,7 +230,6 @@ function App() {
     const result = await act({ type: "copy", text });
     if (result === undefined) return;
     setNotice("已复制");
-    setTimeout(() => setNotice(""), 2500);
   };
   const generate = async () => {
     const id = await act({
@@ -169,10 +242,36 @@ function App() {
     });
     if (id) {
       setFeed(id);
-      setPage("我的 Feed");
+      navigate("我的 Feed");
       setFromFeed(undefined);
     }
   };
+  if (!ready)
+    return (
+      <div className="workspace-opening">
+        <div className="brand">
+          <span className="mark">
+            <Icon name="library" />
+          </span>
+          Feedloom
+        </div>
+        {openingError ? (
+          <section className="panel" role="alert">
+            <h2>暂时无法打开本地工作空间</h2>
+            <p className="muted">{openingError}</p>
+            <button
+              className="primary"
+              disabled={opening}
+              onClick={() => void refresh()}
+            >
+              重新加载
+            </button>
+          </section>
+        ) : (
+          <p role="status">正在打开本地工作空间…</p>
+        )}
+      </div>
+    );
   function materialTable() {
     return (
       <>
@@ -276,7 +375,7 @@ function App() {
             <button
               className="primary push"
               disabled={!selected.length}
-              onClick={() => setPage("Feed 生成")}
+              onClick={() => navigate("Feed 生成")}
             >
               去生成 Feed · {selected.length}
             </button>
@@ -290,7 +389,7 @@ function App() {
                 ? "换一组筛选条件试试。"
                 : "先创建一个收集任务，让值得读的内容汇集到这里。"
             }
-            action={() => setPage("收集任务")}
+            action={() => navigate("收集任务")}
             label="前往收集任务"
           />
         ) : (
@@ -326,7 +425,7 @@ function App() {
                   <p className="summary">
                     {m.summary && <small>AI 摘要 · </small>}
                     {m.summary ||
-                      m.text?.slice(0, 160) ||
+                      previewText(m.text) ||
                       "正文待解析，打开来源查看"}
                   </p>
                   <div className="badges">
@@ -382,7 +481,10 @@ function App() {
     <div className="app">
       <aside>
         <div className="brand">
-          <span className="mark">▰</span>Feedloom
+          <span className="mark">
+            <Icon name="library" />
+          </span>
+          Feedloom
         </div>
         <div className="tagline">把关注织成见解</div>
         <nav>
@@ -391,10 +493,12 @@ function App() {
               <button
                 key={p}
                 className={page === p ? "active" : ""}
-                onClick={() => setPage(p)}
+                onClick={() => navigate(p)}
               >
                 <span className="navicon" aria-hidden="true">
-                  {["↙", "☷", "▤", "✦", "▱"][i]}
+                  <Icon
+                    name={["inbox", "tasks", "library", "sparkle", "feed"][i]}
+                  />
                 </span>
                 {p}
               </button>
@@ -403,15 +507,16 @@ function App() {
         </nav>
         <button
           className={`settings ${page === "连接与模型" ? "active" : ""}`}
-          onClick={() => setPage("连接与模型")}
+          onClick={() => navigate("连接与模型")}
         >
-          ⚙ 连接与模型
+          <Icon name="settings" /> 连接与模型
         </button>
         <div className="local">● 本地工作空间</div>
       </aside>
       <main>
         <header>
           <div>
+            <div className="eyebrow">FEEDLOOM / WORKSPACE</div>
             <h1>{page}</h1>
             <p>
               {
@@ -428,7 +533,9 @@ function App() {
               }
             </p>
           </div>
-          <span className="localbadge">个人桌面版</span>
+          <span className="localbadge">
+            <span /> 个人工作空间
+          </span>
         </header>
         {error && (
           <div role="alert" className="error">
@@ -436,11 +543,58 @@ function App() {
             <button onClick={() => setError("")}>关闭</button>
           </div>
         )}
-        {notice && <div className="notice">{notice}</div>}
+        {notice && (
+          <div className="notice" role="status">
+            <span>{notice}</span>
+            <button aria-label="关闭提示" onClick={() => setNotice("")}>
+              ×
+            </button>
+          </div>
+        )}
         {page === "素材库" && materialTable()}
         {page === "Feed 生成" && (
           <div className="generation">
-            <section>{materialTable()}</section>
+            <section>
+              {fromFeed ? (
+                <div className="panel snapshot-panel">
+                  <span className="status running">重新生成</span>
+                  <h2>沿用原 Feed 的来源依据</h2>
+                  <p className="muted">
+                    使用生成当时保存的素材快照，修改提示词后另存为一份新 Feed。
+                  </p>
+                  {sourceFeed?.items.map((item, i) => (
+                    <div className="chosen" key={item.id}>
+                      <span>{i + 1}</span>
+                      <button
+                        className="titlelink"
+                        onClick={() =>
+                          setDetail({
+                            ...item.evidence.material,
+                            evidenceRuns: item.evidence.runs,
+                          })
+                        }
+                      >
+                        {item.evidence.material.title}
+                        <small className="selecteddate">
+                          {item.evidence.material.date} ·{" "}
+                          {platforms[item.evidence.material.source]}
+                        </small>
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setFromFeed(undefined);
+                      setSelected([]);
+                    }}
+                  >
+                    改为重新选材
+                  </button>
+                </div>
+              ) : (
+                materialTable()
+              )}
+            </section>
             <section className="panel composer">
               <h2>这次生成</h2>
               <p className="muted">按下面的顺序逐条生成，不合并来源。</p>
@@ -472,12 +626,13 @@ function App() {
                   部分所选素材已删除，请清空并重新选择。
                 </p>
               )}
-              {new Set(selectedRows.map((m) => m.canonicalUrl)).size <
-                selectedRows.length && (
-                <p className="warning">
-                  包含同一来源的不同日期素材，将分别生成。
-                </p>
-              )}
+              {!fromFeed &&
+                new Set(selectedRows.map((m) => m.canonicalUrl)).size <
+                  selectedRows.length && (
+                  <p className="warning">
+                    包含同一来源的不同日期素材，将分别生成。
+                  </p>
+                )}
               <label>
                 生成提示词
                 <textarea
@@ -491,6 +646,7 @@ function App() {
                 disabled={
                   !prompt.trim() ||
                   (!selectedRows.length && !fromFeed) ||
+                  (!!fromFeed && !sourceFeed) ||
                   (!fromFeed && selected.length !== selectedRows.length)
                 }
                 onClick={generate}
@@ -498,7 +654,12 @@ function App() {
                 生成并保存 Feed
               </button>
               {fromFeed && (
-                <button onClick={() => setFromFeed(undefined)}>
+                <button
+                  onClick={() => {
+                    setFromFeed(undefined);
+                    setSelected([]);
+                  }}
+                >
                   取消重新生成
                 </button>
               )}
@@ -511,13 +672,15 @@ function App() {
               <button
                 className="primary full"
                 onClick={() =>
-                  setTask({
+                  chooseTask({
                     id: "",
                     name: "",
                     description: "",
+                    collectionMode: "intent",
                     sources: [
                       {
                         platform: "github",
+                        searchMode: "search",
                         keyword: "",
                         period: "daily",
                         limit: 10,
@@ -538,7 +701,7 @@ function App() {
                 <button
                   key={t.id}
                   className={`listitem ${task?.id === t.id ? "selected" : ""}`}
-                  onClick={() => setTask(t)}
+                  onClick={() => chooseTask(t)}
                 >
                   <strong>{t.name}</strong>
                   <small>
@@ -569,28 +732,47 @@ function App() {
                       id: task.id || undefined,
                       task: t,
                     });
-                    if (saved) setTask(saved);
+                    if (saved) {
+                      setTask(saved);
+                      setTaskDirty(false);
+                      setNotice("任务已保存");
+                    }
+                    return saved;
                   }}
-                  run={() => act({ type: "runTask", id: task.id })}
-                  remove={() =>
-                    remove(
-                      "deleteTask",
-                      task.id,
-                      "删除任务？已有素材和 Feed 将保留。",
-                    )
-                  }
+                  run={async (id) => {
+                    const runId = await act({ type: "runTask", id });
+                    if (typeof runId === "string") setPendingRun(runId);
+                    return runId;
+                  }}
+                  onDirty={setTaskDirty}
+                  remove={async () => {
+                    if (!confirm("删除任务？已有素材和 Feed 将保留。")) return;
+                    const result = await act({
+                      type: "deleteTask",
+                      id: task.id,
+                    });
+                    if (result !== undefined) {
+                      setTask(undefined);
+                      setTaskDirty(false);
+                    }
+                  }}
                 />
               ) : (
                 <Empty
                   title="从一个关注方向开始"
-                  text="榜单或关键词，各平台分别设置条件。"
+                  text="描述你想找到的信息，选择平台，开始第一次探索。"
                 />
               )}
               <h2>收集记录</h2>
               {state.runs
                 .filter((r: Run) => !task?.id || r.taskId === task.id)
                 .map((r: Run) => (
-                  <div className="panel run" key={r.id}>
+                  <div
+                    className="panel run"
+                    id={`run-${r.id}`}
+                    style={{ scrollMarginTop: 24 }}
+                    key={r.id}
+                  >
                     <div>
                       <strong>{r.taskName}</strong>
                       <span className={`status ${r.state}`}>
@@ -600,11 +782,32 @@ function App() {
                     </div>
                     {r.platforms.map((p) => (
                       <p key={p.platform}>
-                        {platforms[p.platform]} · {labels[p.state]} · {p.count}{" "}
-                        条{" "}
+                        <strong>{platforms[p.platform]}</strong> ·{" "}
+                        {labels[p.state]} · 已入库 {p.count} 条
+                        {p.phase && p.state === "running" && (
+                          <span>
+                            {" "}
+                            · {phaseLabels[p.phase]}
+                            {p.round ? ` / 第 ${p.round} 轮` : ""}
+                          </span>
+                        )}
+                        {p.candidateCount !== undefined && (
+                          <span> · {p.candidateCount} 个候选</span>
+                        )}
+                        {p.stopReason && <span> · {p.stopReason}</span>}{" "}
                         {p.error && <span className="warning">{p.error}</span>}
                       </p>
                     ))}
+                    <RunResearch
+                      run={r}
+                      inspect={(candidate) =>
+                        setDetail({
+                          ...candidate.source,
+                          decision: candidate,
+                          evidenceRuns: [r],
+                        })
+                      }
+                    />
                     <div className="actions">
                       <button
                         onClick={() => {
@@ -616,7 +819,7 @@ function App() {
                             date: "",
                             used: "",
                           });
-                          setPage("素材库");
+                          navigate("素材库");
                         }}
                       >
                         查看素材
@@ -785,7 +988,7 @@ function App() {
                       onClick={() => {
                         setPrompt(currentFeed.prompt);
                         setFromFeed(currentFeed.id);
-                        setPage("Feed 生成");
+                        navigate("Feed 生成");
                       }}
                     >
                       修改提示词重新生成
@@ -822,7 +1025,10 @@ function App() {
                         {labels[item.state]}
                       </small>
                       <h3>{item.evidence.material.title}</h3>
-                      <div className="prose">{item.text || "等待生成内容"}</div>
+                      <Markdown
+                        text={item.text || "等待生成内容"}
+                        open={(url) => act({ type: "open", url })}
+                      />
                       {item.error && <p className="warning">{item.error}</p>}
                       <div className="actions">
                         <button
@@ -871,7 +1077,7 @@ function App() {
                 <Empty
                   title="还没有打开一份 Feed"
                   text="从素材库选几条你感兴趣的内容，开始第一份。"
-                  action={() => setPage("素材库")}
+                  action={() => navigate("素材库")}
                   label="前往素材库"
                 />
               )}
@@ -927,8 +1133,8 @@ function App() {
             <section className="panel">
               <h2>来源连接</h2>
               <div className="connection">
-                <strong>GitHub Trending</strong>
-                <span>公开榜单，无需登录</span>
+                <strong>GitHub</strong>
+                <span>公开仓库搜索与 Trending 榜单，无需登录</span>
               </div>
               {["xiaohongshu", "x"].map((p) => (
                 <div className="connection" key={p}>
@@ -983,6 +1189,33 @@ function App() {
               关闭
             </button>
             <h2>{detail.title}</h2>
+            {detail.decision && (
+              <div className="abstract">
+                <small>
+                  相关性判断 ·{" "}
+                  {
+                    {
+                      accepted: "已收录",
+                      rejected: "已排除",
+                      uncertain: "待确认",
+                    }[
+                      detail.decision.status as
+                        | "accepted"
+                        | "rejected"
+                        | "uncertain"
+                    ]
+                  }
+                </small>
+                <p>{detail.decision.reason}</p>
+                <p>
+                  第 {detail.decision.round} 轮 · 查询：
+                  {detail.decision.query || "Trending 榜单"}
+                </p>
+                {detail.decision.excerpts.map((excerpt: string, i: number) => (
+                  <blockquote key={i}>{excerpt}</blockquote>
+                ))}
+              </div>
+            )}
             {detail.summary && (
               <div className="abstract">
                 <small>AI 摘要</small>
@@ -1007,6 +1240,26 @@ function App() {
                         {r?.taskName || "历史收集"} ·{" "}
                         {r ? date(r.startedAt) : id.slice(0, 8)}
                       </p>
+                      {r?.research?.candidates
+                        .filter(
+                          (c) =>
+                            c.status === "accepted" &&
+                            (c.materialId === detail.id ||
+                              c.source.canonicalUrl === detail.canonicalUrl),
+                        )
+                        .map((c) => (
+                          <div className="evidence-note" key={c.id}>
+                            <strong>收录依据</strong>
+                            <p>{c.reason}</p>
+                            <p className="muted">
+                              第 {c.round} 轮 · 查询：
+                              {c.query || "Trending 榜单"}
+                            </p>
+                            {c.excerpts.map((text, i) => (
+                              <blockquote key={i}>{text}</blockquote>
+                            ))}
+                          </div>
+                        ))}
                       {r?.config.sources
                         .filter((s) => s.platform === detail.source)
                         .map((s) => (
@@ -1047,7 +1300,9 @@ function Empty({
 }) {
   return (
     <div className="empty">
-      <span>▤</span>
+      <span>
+        <Icon name="library" />
+      </span>
       <h2>{title}</h2>
       <p>{text}</p>
       {action && <button onClick={action}>{label}</button>}
@@ -1076,7 +1331,7 @@ function MaterialBody({
       {m.publishedAt && (
         <p className="muted">来源发布时间：{date(m.publishedAt)}</p>
       )}
-      <div className="prose">{m.text || "暂未获取正文，请打开原始链接。"}</div>
+      <Markdown text={m.text || "暂未获取正文，请打开原始链接。"} open={open} />
       {m.images?.map((url: string) => (
         <img
           alt="来源图片"
@@ -1088,221 +1343,6 @@ function MaterialBody({
         />
       ))}
     </>
-  );
-}
-function TaskEditor({
-  task,
-  save,
-  run,
-  remove,
-}: {
-  task: Task;
-  save: (t: TaskInput) => void;
-  run: () => void;
-  remove: () => void;
-}) {
-  const [d, set] = useState<TaskInput>(task);
-  return (
-    <form
-      className="panel editor"
-      onSubmit={(e) => {
-        e.preventDefault();
-        save(d);
-      }}
-    >
-      <h2>{task.id ? "编辑任务" : "新建收集任务"}</h2>
-      <label>
-        任务名称
-        <input
-          required
-          value={d.name}
-          onChange={(e) => set({ ...d, name: e.target.value })}
-          placeholder="例如：AI 产品与工具"
-        />
-      </label>
-      <label>
-        关注描述
-        <textarea
-          rows={2}
-          value={d.description}
-          onChange={(e) => set({ ...d, description: e.target.value })}
-        />
-      </label>
-      <div className="platformchoices">
-        {(["github", "xiaohongshu", "x"] as const).map((p) => (
-          <label key={p}>
-            <input
-              type="checkbox"
-              checked={d.sources.some((c) => c.platform === p)}
-              onChange={(e) =>
-                set({
-                  ...d,
-                  sources: e.target.checked
-                    ? [
-                        ...d.sources,
-                        {
-                          platform: p,
-                          keyword: "",
-                          period: "daily",
-                          limit: 10,
-                          thresholds: {},
-                        },
-                      ]
-                    : d.sources.filter((c) => c.platform !== p),
-                })
-              }
-            />
-            {platforms[p]}
-          </label>
-        ))}
-      </div>
-      {d.sources.map((c, i) => (
-        <fieldset key={c.platform}>
-          <legend>{platforms[c.platform]}</legend>
-          {c.platform === "github" ? (
-            <p className="muted">
-              按 Trending 榜单收集，不按任务名称或描述过滤。
-            </p>
-          ) : (
-            <label>
-              搜索词
-              <input
-                required
-                value={c.keyword}
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i ? { ...s, keyword: e.target.value } : s,
-                    ),
-                  })
-                }
-              />
-            </label>
-          )}
-          <div className="formrow">
-            <label>
-              时间范围
-              <select
-                value={c.period}
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i ? { ...s, period: e.target.value as any } : s,
-                    ),
-                  })
-                }
-              >
-                <option value="daily">
-                  {c.platform === "github" ? "日榜" : "一天内"}
-                </option>
-                <option value="weekly">
-                  {c.platform === "github" ? "周榜" : "一周内"}
-                </option>
-                {c.platform !== "xiaohongshu" && (
-                  <option value="monthly">
-                    {c.platform === "github" ? "月榜" : "近 30 天"}
-                  </option>
-                )}
-              </select>
-            </label>
-            <label>
-              每轮最多
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={c.limit}
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i ? { ...s, limit: Number(e.target.value) } : s,
-                    ),
-                  })
-                }
-              />
-            </label>
-            <label>
-              {c.platform === "github" ? "Stars" : "点赞"}至少
-              <input
-                type="number"
-                min="0"
-                value={
-                  c.thresholds[c.platform === "github" ? "stars" : "likes"] ??
-                  ""
-                }
-                placeholder="不限制"
-                onChange={(e) =>
-                  set({
-                    ...d,
-                    sources: d.sources.map((s, n) =>
-                      n === i
-                        ? {
-                            ...s,
-                            thresholds:
-                              e.target.value === ""
-                                ? {}
-                                : {
-                                    [c.platform === "github"
-                                      ? "stars"
-                                      : "likes"]: Number(e.target.value),
-                                  },
-                          }
-                        : s,
-                    ),
-                  })
-                }
-              />
-            </label>
-          </div>
-        </fieldset>
-      ))}
-      <div className="formrow">
-        <label>
-          执行频率
-          <select
-            value={d.schedule}
-            onChange={(e) => set({ ...d, schedule: e.target.value as any })}
-          >
-            <option value="manual">仅手动</option>
-            <option value="hourly">每小时</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-          </select>
-        </label>
-        <label>
-          本机时间
-          <input
-            type="time"
-            value={d.time}
-            onChange={(e) => set({ ...d, time: e.target.value })}
-          />
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={d.paused}
-            onChange={(e) => set({ ...d, paused: e.target.checked })}
-          />
-          暂停定时收集
-        </label>
-      </div>
-      <div className="actions">
-        <button className="primary">保存任务</button>
-        {task.id && (
-          <>
-            <button type="button" onClick={run}>
-              立即执行已保存配置
-            </button>
-            <button type="button" onClick={remove}>
-              删除任务
-            </button>
-          </>
-        )}
-      </div>
-    </form>
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);

@@ -1,4 +1,5 @@
 import { SourceError } from "./github.mjs";
+import { MAX_SOURCE_TEXT } from "./retrieval.mjs";
 export function nativeCount(value) {
   if (typeof value === "number")
     return Number.isFinite(value) && value >= 0 ? value : null;
@@ -27,9 +28,15 @@ export function normalizeXhsSearch(response) {
         source: "xiaohongshu",
         sourceId: feed.id,
         canonicalUrl: `https://www.xiaohongshu.com/explore/${feed.id}`,
-        title: note.displayTitle || note.title || "未提供标题",
+        title: String(note.displayTitle || note.title || "未提供标题").slice(
+          0,
+          300,
+        ),
         author: note.user?.nickname || note.user?.nickName || null,
-        text: note.desc || "",
+        text:
+          typeof note.desc === "string"
+            ? note.desc.slice(0, MAX_SOURCE_TEXT)
+            : "",
         completeness: "partial",
         publishedAt: null,
         metrics: {
@@ -37,6 +44,7 @@ export function normalizeXhsSearch(response) {
           comments: nativeCount(metrics.commentCount),
           favorites: nativeCount(metrics.collectedCount),
         },
+        images: xhsImages(note.imageList),
       };
     });
 }
@@ -52,8 +60,8 @@ export function normalizeXSearch(response) {
       source: "x",
       sourceId: tweet.id,
       canonicalUrl: `https://x.com/i/status/${tweet.id}`,
-      title: tweet.text.slice(0, 100),
-      text: tweet.text,
+      title: postTitle(tweet.text),
+      text: tweet.text.slice(0, MAX_SOURCE_TEXT),
       author: tweet.author?.username || null,
       completeness: "partial",
       publishedAt: Number.isFinite(timestamp)
@@ -66,6 +74,17 @@ export function normalizeXSearch(response) {
       },
     };
   });
+}
+
+// A compact source-derived label keeps long posts readable in lists. The full
+// retrieved text remains available separately and is never called complete.
+export function postTitle(text) {
+  const first =
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) || "未提供正文";
+  return first.length > 72 ? `${first.slice(0, 71)}…` : first;
 }
 
 export function xhsImages(images) {

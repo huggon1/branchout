@@ -62,3 +62,16 @@ test("XHS images preserve CDN images using HTTPS and reject invalid schemes", as
     ["https://example.com/fictional.jpg", "https://example.com/fictional2.jpg"],
   );
 });
+
+test("long source content is bounded and X list labels use the first non-empty line", () => {
+  const [row] = normalizeXSearch([
+    { id: "123456", text: "\nA concise opening\n" + "x".repeat(600000) },
+  ]);
+  assert.equal(row.title, "A concise opening");
+  assert.equal(row.text.length, 500000);
+  assert.equal(row.completeness, "partial");
+  assert.equal(
+    normalizeXSearch([{ id: "123456", text: "x".repeat(500) }])[0].title.length,
+    72,
+  );
+});
