@@ -361,3 +361,43 @@ test("retry cannot clear a persisted unresolved judgment just by reaching the ca
   assert.equal(run.platforms[0].state, "failed");
   assert.equal(run.research!.candidates[0].status, "uncertain");
 });
+
+test("retry deduplicates newly accepted pending candidates against later searches", async () => {
+  const item = source("1"),
+    second = source("2"),
+    run = runWith();
+  run.config.sources[0].limit = 2;
+  run.research = {
+    candidates: [
+      {
+        id: "x:1",
+        source: item,
+        query: "prior",
+        round: 1,
+        status: "uncertain",
+        reason: "中断",
+        excerpts: [],
+      },
+    ],
+    events: [],
+    usage: { queries: 1, modelCalls: 1, candidates: 1 },
+  };
+  const h = harness([
+    judgments([item]),
+    plan("new search"),
+    judgments([second]),
+  ]);
+  h.deps.search = async () => [item, second];
+  await collectIntent(run, h.deps, new AbortController().signal);
+  assert.equal(run.state, "success");
+  assert.equal(run.platforms[0].count, 2);
+  assert.deepEqual(
+    h.accepted.map((d) => d.id),
+    ["x:1", "x:2"],
+  );
+  assert.equal(run.research!.candidates.length, 2);
+  assert.equal(
+    run.research!.candidates.find((d) => d.id === "x:1")!.query,
+    "prior",
+  );
+});

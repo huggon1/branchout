@@ -174,6 +174,7 @@ export async function collectIntent(
           }
           if (decision.status === "accepted") {
             decision.materialId = deps.accept(decision);
+            seen.add(decision.id);
             platform.count++;
           }
           research.candidates = research.candidates.filter(
@@ -226,12 +227,7 @@ export async function collectIntent(
             stopReason = "达到本平台素材上限";
             break;
           }
-          event(
-            "planning",
-            `第 ${round} 轮：理解意图并规划搜索`,
-            config.platform,
-            round,
-          );
+          event("planning", "理解意图并规划搜索", config.platform, round);
           const plan = QueryPlan.parse(
             await model(buildPlanPrompt(run, config, round, tried)),
           );
