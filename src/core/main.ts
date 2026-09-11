@@ -22,6 +22,7 @@ import { createServer } from "node:net";
 import { Store } from "./store.js";
 import { nextDue, advanceMissed } from "./schedule.js";
 import { collectIntent } from "./collection.js";
+import { awaitWithSignal } from "./abort.js";
 import {
   Command,
   TaskInput,
@@ -363,9 +364,12 @@ async function collect(task: Task, prior?: Run) {
           signal.throwIfAborted();
           const xhs =
             config.platform === "xiaohongshu"
-              ? await connectService()
+              ? await awaitWithSignal(connectService(), signal)
               : undefined;
-          const x = config.platform === "x" ? await credentials() : undefined;
+          const x =
+            config.platform === "x"
+              ? await awaitWithSignal(credentials(), signal)
+              : undefined;
           signal.throwIfAborted();
           return work(
             run.id,
