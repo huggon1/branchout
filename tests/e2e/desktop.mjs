@@ -250,6 +250,15 @@ try {
       );
     })
     .toBe(true);
+  const startedRun = await page.evaluate(async () => {
+    const result = await window.feedloom.command({ type: "state" });
+    return result.value.runs.find(
+      (entry) => entry.config.description === "验证保存并运行的最新描述",
+    ).id;
+  });
+  await expect(
+    page.locator(`#run-${startedRun}`).locator(":scope > div").first(),
+  ).toBeInViewport();
   await page.getByLabel("关注描述").fill("尚未保存的修改");
   await expect(
     page.getByRole("button", { name: "保存并立即执行" }),

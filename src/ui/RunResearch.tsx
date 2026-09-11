@@ -73,7 +73,7 @@ export function RunResearch({
       )}
       <details className="research-detail">
         <summary>
-          候选与筛选依据 <span>{research.candidates.length} 条已判断</span>
+          候选与筛选依据 <span>{research.candidates.length} 条候选记录</span>
         </summary>
         <p className="muted">
           待确认内容尚未入库；证据不足的结果保留在这里，供你打开原文核对。

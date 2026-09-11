@@ -76,6 +76,7 @@ function App() {
   });
   const [page, setPage] = useState("素材库");
   const [taskDirty, setTaskDirty] = useState(false);
+  const [pendingRun, setPendingRun] = useState<string>();
   const navigate = (next: string) => {
     if (next === page) return;
     if (
@@ -121,6 +122,20 @@ function App() {
     window.scrollTo(0, 0);
     setNotice("");
   }, [page]);
+  useEffect(() => {
+    if (!pendingRun) return;
+    if (page !== "收集任务") {
+      setPendingRun(undefined);
+      return;
+    }
+    const target = document.getElementById(`run-${pendingRun}`);
+    if (!target) return;
+    const frame = requestAnimationFrame(() => {
+      target.scrollIntoView({ block: "start", behavior: "auto" });
+      setPendingRun(undefined);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingRun, state.runs, page]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 3500);
@@ -684,7 +699,11 @@ function App() {
                     }
                     return saved;
                   }}
-                  run={(id) => act({ type: "runTask", id })}
+                  run={async (id) => {
+                    const runId = await act({ type: "runTask", id });
+                    if (typeof runId === "string") setPendingRun(runId);
+                    return runId;
+                  }}
                   onDirty={setTaskDirty}
                   remove={async () => {
                     if (!confirm("删除任务？已有素材和 Feed 将保留。")) return;
@@ -708,7 +727,12 @@ function App() {
               {state.runs
                 .filter((r: Run) => !task?.id || r.taskId === task.id)
                 .map((r: Run) => (
-                  <div className="panel run" key={r.id}>
+                  <div
+                    className="panel run"
+                    id={`run-${r.id}`}
+                    style={{ scrollMarginTop: 24 }}
+                    key={r.id}
+                  >
                     <div>
                       <strong>{r.taskName}</strong>
                       <span className={`status ${r.state}`}>
