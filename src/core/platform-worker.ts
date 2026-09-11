@@ -73,6 +73,10 @@ async function xhs(data: any, path: string, body?: any, signal?: AbortSignal) {
   }
   return result;
 }
+// Search and repository contents use separate GitHub rate-limit buckets.
+// Once the contents bucket is exhausted, read public raw content directly for
+// the rest of this worker instead of repeating requests known to fail.
+let githubReadmeApiLimited = false;
 async function githubRepo(
   url: string,
   signal?: AbortSignal,
@@ -96,30 +100,37 @@ async function githubRepo(
     metrics: {},
     images: [],
   };
-  try {
-    const r = await request(`https://api.github.com/repos/${repo}/readme`, {
-      headers: { Accept: "application/vnd.github.raw+json" },
-      signal,
-    });
-    const body = await r.text();
-    if (body.length > 500000) throw Error("README 过长");
-    result.text = body;
-    result.completeness = "complete";
-    return result;
-  } catch (error: any) {
-    controller.signal.throwIfAborted();
-    signal?.throwIfAborted();
-    if (["rate_limited", "login_required"].includes(error?.code)) throw error;
-    const r = await request(
-      `https://raw.githubusercontent.com/${repo}/HEAD/README.md`,
-      { signal },
-    );
-    const body = await r.text();
-    if (body.length > 500000) throw Error("README 过长");
-    result.text = body;
-    result.completeness = "complete";
-    return result;
+  if (!githubReadmeApiLimited) {
+    try {
+      const r = await request(
+        `https://api.github.com/repos/${repo}/readme`,
+        {
+          headers: { Accept: "application/vnd.github.raw+json" },
+          signal,
+        },
+        8,
+      );
+      const body = await r.text();
+      result.text = body.slice(0, 500000);
+      result.completeness = body.length > 500000 ? "partial" : "complete";
+      return result;
+    } catch (error: any) {
+      controller.signal.throwIfAborted();
+      signal?.throwIfAborted();
+      if (error?.code === "login_required") throw error;
+      if (error?.code === "rate_limited") githubReadmeApiLimited = true;
+      // Public raw README access does not use the contents API quota.
+    }
   }
+  const r = await request(
+    `https://raw.githubusercontent.com/${repo}/HEAD/README.md`,
+    { signal },
+    8,
+  );
+  const body = await r.text();
+  result.text = body.slice(0, 500000);
+  result.completeness = body.length > 500000 ? "partial" : "complete";
+  return result;
 }
 async function xhsDetail(
   data: any,

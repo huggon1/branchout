@@ -126,3 +126,76 @@ test("worker redacts platform error responses and surfaces login failure rather 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("GitHub collection reads public README before returning candidates when contents API quota is exhausted", async () => {
+  let apiReads = 0;
+  let rawReads = 0;
+  let failRaw = false;
+  const config = {
+    platform: "github",
+    searchMode: "search",
+    keyword: "fictional",
+    period: "monthly",
+    limit: 2,
+    thresholds: {},
+  };
+  globalThis.fetch = (async (input: any) => {
+    const url = new URL(input);
+    if (url.pathname.startsWith("/search/"))
+      return Response.json({
+        total_count: 2,
+        items: [1, 2].map((id) => ({
+          full_name: `fictional/repo-${id}`,
+          description: "Search description",
+          stargazers_count: 0,
+          forks_count: 0,
+        })),
+      });
+    if (url.hostname === "api.github.com") {
+      apiReads++;
+      return new Response("", {
+        status: 403,
+        headers: { "x-ratelimit-remaining": "0" },
+      });
+    }
+    assert.equal(url.hostname, "raw.githubusercontent.com");
+    assert.match(url.pathname, /\/HEAD\/README\.md$/);
+    rawReads++;
+    return failRaw
+      ? new Response("", { status: 404 })
+      : new Response("# Fictional project\n\nComplete README source body.");
+  }) as typeof fetch;
+  try {
+    const result = await collect({ config });
+    const rows = result.find((message) => message.type === "result")?.result;
+    assert.equal(rows.length, 2);
+    assert.equal(
+      apiReads,
+      1,
+      "quota exhaustion skips subsequent contents API requests",
+    );
+    assert.equal(rawReads, 2);
+    assert.ok(
+      rows.every(
+        (row: any) =>
+          row.completeness === "complete" &&
+          row.text.includes("Complete README source body"),
+      ),
+    );
+    assert.ok(result.some((message) => message.phase === "reading"));
+    failRaw = true;
+    const fallback = await collect({ config });
+    const partial = fallback.find(
+      (message) => message.type === "result",
+    )?.result;
+    assert.equal(partial.length, 2);
+    assert.ok(
+      partial.every(
+        (row: any) =>
+          row.completeness === "partial" && row.text === "Search description",
+      ),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
