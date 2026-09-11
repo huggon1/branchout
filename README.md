@@ -1,6 +1,6 @@
 # Feedloom
 
-Feedloom 把跨平台内容组织成围绕 Topic 持续生长、可追溯来源、具有个人表达风格的 Feed。
+Feedloom 当前通过产品 Pitch 演示跨平台收集、内容编排和可追溯的 Feed 阅读。
 
 ## 当前形态
 
@@ -41,6 +41,7 @@ npm run check
 ## 文档
 
 - [项目规划](docs/project-plan.md)
+- [MVP PRD](docs/mvp-prd.md)：已确认的使用设计与五页设计图；不代表当前已实现能力。
 - [文档政策](docs/documents.md)
 - [Agent 开发约束](AGENTS.md)
 
