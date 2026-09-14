@@ -4,7 +4,7 @@
 
 ## 使用
 
-首版支持 macOS Apple Silicon。打开本地构建的 `build/Feedloom-darwin-arm64/Feedloom.app`，在「连接与模型」中连接小红书和 X。本机已有 Codex 文件登录时默认使用 `gpt-5.6-luna`；也可自行配置 API Key，应用不会自动切换模型或计费方式。
+首版支持 macOS Apple Silicon。打开本地构建的 `build/Feedloom-darwin-arm64/Feedloom.app`，在「连接与模型」中连接小红书和 X。模型服务支持 Codex 订阅和自定义 OpenAI 兼容 API，可保存多个连接并明确启用其中一个。原有配置升级时保留模型与计费方式，应用不会自动切换。
 
 - **转发收件箱**：粘贴 GitHub 仓库或小红书链接，阅读排版后的 README／正文、图片和 AI 摘要；独立保存，不进入素材库。Markdown 禁用原始 HTML 执行，来源链接经过桌面端校验。
 - **收集任务**：新任务默认按意图探索。Luna 理解任务名称、关注描述和可选种子词，规划多组查询，结合候选原文判断相关性并补搜。支持 GitHub 仓库搜索／Trending、小红书和 X；各平台独立设置时间范围、门槛和最终素材上限。固定关键词模式仍可选择；已有任务升级后保持原模式。
@@ -35,7 +35,7 @@ GitHub 仓库搜索的日／周／月范围指最近 1／7／30 天推送时间�
 
 `check` 包括适配器和持久化测试、TypeScript、构建、文档链接及 diff 检查。`test:desktop` 使用临时数据库和虚构素材验证真实 Electron 窗口，结束后清理。界面截图位于被忽略的 `test-results/`。
 
-`npm run verify:live` 会使用已连接账号和当前模型额度，真实收集三个平台各一条并生成 Feed，结果保留在本地工作空间。`probe:github`、`probe:model` 和 `probe:desktop` 提供较小的接入诊断。真实内容与凭据不会输出到诊断日志。
+`npm run verify:live` 会使用已连接账号和当前模型额度，真实收集三个平台各一条并生成 Feed，结果保留在本地工作空间。`probe:github`、`probe:model` 和 `probe:desktop` 提供较小的接入诊断。`npm run verify:model-package` 在构建的安装包中验证官方模型发现和短文本调用，使用少量 Codex 额度，不保存模型配置或生成业务内容。真实内容与凭据不会输出到诊断日志。
 
 开发脚本及桌面后台读取 macOS 系统 HTTP 代理，不修改系统设置。若依赖安装跳过 Electron 下载，可运行 `node scripts/with-system-proxy.mjs node node_modules/electron/install.js`。开发模式的 `FEEDLOOM_DATA_DIR` 可隔离测试数据；安装包始终使用正常用户目录。
 
@@ -65,3 +65,15 @@ Pi 在后台进程中运行，使用内存会话，关闭任意工具、扩展�
 ## 许可
 
 项目尚未选择开源许可证。第三方组件遵循各自许可，平台组件的许可证随 `.runtime` 一同打包。
+
+## 模型连接
+
+「连接与模型」使用连接列表与配置详情，来源平台与模型服务分组展示。
+
+- 自定义 API：填写连接名称、Base URL、API Key 和模型 ID；高级设置选择 Chat Completions 或 Responses。支持文本输入，单次输出上限为 4096 tokens；兼容性以服务商实现和连接测试为准。API Key 经 Electron 系统安全存储加密，修改服务地址后需重新填写。
+- Codex 订阅：可读取本机 Codex 文件登录，也可点击「登录 Codex」在浏览器完成 Feedloom 独立登录。官方组件管理独立登录和刷新，Pi 只读取访问令牌；不复制本机刷新令牌。本机系统钥匙串登录不直接导入，可使用独立登录。
+- Codex 模型列表由随包官方组件动态提供；当前 Pi 未支持的模型标为不可选。旧模型从列表消失时提示重新选择，不自动更换模型。列表和账号状态不保证实际模型额度，点击「测试连接」验证真实响应。
+- 测试使用当前草稿，通过与摘要、意图判断和 Feed 生成相同的 Pi 会话发送短请求，不发送业务素材，会消耗少量额度。修改模型或凭据后，旧测试状态失效。测试不保存配置，也不切换当前服务。
+- 多个连接分别保存；「设为当前使用」影响后续模型请求，已经开始的请求继续使用原配置。配置升级保留原有 API Key、Luna 模型选择和认证方式。
+
+所有 Agent 功能共用 Pi。随包 `@openai/codex` 仅用于认证和模型发现，不执行 Agent、创建任务或调用工具。连接状态与模型调用错误不会包含原始服务诊断或密钥。

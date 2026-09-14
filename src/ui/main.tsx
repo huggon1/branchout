@@ -11,6 +11,7 @@ import type {
 import "./style.css";
 import { Icon } from "./Icons.js";
 import { Markdown } from "./Markdown.js";
+import { Connections } from "./Connections.js";
 import { TaskEditor } from "./TaskEditor.js";
 import { RunResearch, phaseLabels } from "./RunResearch.js";
 declare global {
@@ -80,9 +81,16 @@ function App() {
   });
   const [page, setPage] = useState("素材库");
   const [taskDirty, setTaskDirty] = useState(false);
+  const [connectionDirty, setConnectionDirty] = useState(false);
   const [pendingRun, setPendingRun] = useState<string>();
   const navigate = (next: string) => {
     if (next === page) return;
+    if (
+      page === "连接与模型" &&
+      connectionDirty &&
+      !confirm("连接有未保存的修改，离开并放弃这些修改？")
+    )
+      return;
     if (
       page === "收集任务" &&
       taskDirty &&
@@ -118,9 +126,6 @@ function App() {
     used: "",
     sort: "",
   });
-  const [qr, setQr] = useState("");
-  const [key, setKey] = useState("");
-  const [mode, setMode] = useState("codex");
   const [fromFeed, setFromFeed] = useState<string>();
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -163,7 +168,6 @@ function App() {
       if (!r.ok) throw Error(r.error || "无法读取本地工作空间");
       setState(r.value);
       setPrompt((v) => v || r.value.prompt);
-      setMode(r.value.modelMode);
       initialized.current = true;
       setReady(true);
     } catch (e: unknown) {
@@ -1085,95 +1089,11 @@ function App() {
           </div>
         )}
         {page === "连接与模型" && (
-          <div className="settingsgrid">
-            <section className="panel">
-              <h2>模型</h2>
-              <p>Luna · gpt-5.6-luna</p>
-              <label>
-                认证方式
-                <select value={mode} onChange={(e) => setMode(e.target.value)}>
-                  <option value="codex">使用本机 Codex 登录</option>
-                  <option value="api">使用 API Key</option>
-                </select>
-              </label>
-              <p className="muted">
-                不会自动切换模型或计费方式。Codex 登录过期后，在 Codex
-                中刷新再试。
-              </p>
-              {mode === "api" && (
-                <label>
-                  API Key
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    value={key}
-                    onChange={(e) => setKey(e.target.value)}
-                    placeholder={
-                      state.hasApiKey ? "已保存，留空保留" : "输入 API Key"
-                    }
-                  />
-                </label>
-              )}
-              <button
-                className="primary"
-                onClick={async () => {
-                  const result = await act({
-                    type: "modelSettings",
-                    mode,
-                    apiKey: key || undefined,
-                  });
-                  if (result === undefined) return;
-                  setKey("");
-                  setNotice("模型设置已保存");
-                }}
-              >
-                保存模型配置
-              </button>
-            </section>
-            <section className="panel">
-              <h2>来源连接</h2>
-              <div className="connection">
-                <strong>GitHub</strong>
-                <span>公开仓库搜索与 Trending 榜单，无需登录</span>
-              </div>
-              {["xiaohongshu", "x"].map((p) => (
-                <div className="connection" key={p}>
-                  <strong>{platforms[p]}</strong>
-                  <span>
-                    {state.connections[p] ? "已连接" : "尚未检查或未连接"}
-                  </span>
-                  <button
-                    onClick={async () => {
-                      const r = await act({ type: "connect", platform: p });
-                      if (r?.qr) setQr(r.qr);
-                      if (r?.loggedIn) {
-                        setQr("");
-                        setNotice("已登录");
-                      }
-                    }}
-                  >
-                    连接／检查登录
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (
-                        confirm(`退出 ${platforms[p]} 登录？之后需要重新登录。`)
-                      )
-                        void act({ type: "disconnect", platform: p });
-                    }}
-                  >
-                    退出
-                  </button>
-                </div>
-              ))}
-              {qr && (
-                <div className="qr">
-                  <img src={qr} alt="小红书登录二维码" />
-                  <p>用小红书扫码完成登录，过期后点击连接刷新。</p>
-                </div>
-              )}
-            </section>
-          </div>
+          <Connections
+            state={state}
+            refresh={refresh}
+            onDirty={setConnectionDirty}
+          />
         )}
       </main>
       {detail && (
