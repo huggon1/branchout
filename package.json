@@ -20,12 +20,13 @@
     "start": "npm run build && electron .",
     "prepare:runtime": "node scripts/with-system-proxy.mjs node scripts/prepare-runtime.mjs",
     "package:app": "npm run build && node scripts/with-system-proxy.mjs node scripts/package-app.mjs",
-    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs",
+    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node tests/e2e/connections.mjs",
     "verify:live": "npm run build && node scripts/verify-live.mjs",
     "verify:package": "node scripts/verify-package.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",
+    "@openai/codex": "0.154.0",
     "cheerio": "1.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

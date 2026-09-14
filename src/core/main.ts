@@ -1,4 +1,17 @@
 import {
+  migrateModelSettings,
+  publicModelSettings,
+  updateModelConnection,
+  defaultConnection,
+  type ModelSettings,
+  type ModelConnection,
+  type SavedConnection,
+} from "./model-settings.js";
+import {
+  readCodexConnection,
+  loginCodex,
+} from "../adapters/codex-connection.mjs";
+import {
   app,
   BrowserWindow,
   ipcMain,
@@ -12,7 +25,14 @@ import {
   nativeImage,
   powerMonitor,
 } from "electron";
-import { mkdir, readFile, writeFile, cp, access } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  writeFile,
+  rename,
+  cp,
+  access,
+} from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -56,7 +76,66 @@ let xhsLoggedIn = false;
 let checkingLogin = false;
 let xhsConnection: { url: string; token: string } | undefined;
 let proxyEnv: NodeJS.ProcessEnv = {};
-let settings: { mode: "codex" | "api"; encrypted?: string } = { mode: "codex" };
+let settings: ModelSettings = migrateModelSettings();
+const codexLifecycle = new AbortController();
+let codexInfo: any;
+let codexRequest: Promise<any> | undefined;
+let modelOperation: AbortController | undefined;
+let codexLogin: Promise<any> | undefined;
+async function discoverCodex(force = false) {
+  if (codexLogin) throw Error("请先完成 Codex 登录");
+  if (
+    !force &&
+    codexInfo &&
+    Date.now() - Date.parse(codexInfo.checkedAt) < 240000
+  )
+    return codexInfo;
+  if (!codexRequest)
+    codexRequest = readCodexConnection({
+      dataDir,
+      env: proxyEnv,
+      signal: codexLifecycle.signal,
+    })
+      .then((info) => {
+        codexInfo = info;
+        return info;
+      })
+      .finally(() => {
+        codexRequest = undefined;
+      });
+  return codexRequest;
+}
+function connectionKey(connection: ModelConnection, draftKey?: string) {
+  if (connection.mode !== "api") return undefined;
+  if (draftKey) return draftKey;
+  const saved = settings.connections.find((c) => c.id === connection.id);
+  if (
+    saved?.baseUrl !== connection.baseUrl ||
+    saved?.mode !== connection.mode ||
+    !saved.encrypted
+  )
+    throw Error("请为这个服务地址填写 API Key");
+  return safeStorage.decryptString(Buffer.from(saved.encrypted, "base64"));
+}
+async function modelPayload(connection: ModelConnection, draftKey?: string) {
+  const apiKey = connectionKey(connection, draftKey);
+  let codexHome;
+  if (connection.mode === "codex") {
+    const info = await discoverCodex();
+    const selected = info.models.find((m: any) => m.id === connection.model);
+    if (!selected?.supported)
+      throw Error("所选模型不在当前可用列表中，请刷新模型列表并重新选择");
+    codexHome = info.home;
+  }
+  return {
+    mode: connection.mode,
+    modelId: connection.model,
+    baseUrl: connection.baseUrl,
+    protocol: connection.protocol,
+    apiKey,
+    codexHome,
+  };
+}
 let interval: NodeJS.Timeout;
 const runtime = app.isPackaged
   ? join(process.resourcesPath, ".runtime")
@@ -73,10 +152,17 @@ const day = () =>
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-async function saveSettings() {
-  await writeFile(join(dataDir, "model.json"), JSON.stringify(settings), {
-    mode: 0o600,
-  });
+function encryptKey(key: string) {
+  if (!safeStorage.isEncryptionAvailable()) throw Error("系统安全存储不可用");
+  return safeStorage.encryptString(key).toString("base64");
+}
+async function persistModelSettings(next: ModelSettings) {
+  const path = join(dataDir, "model.json");
+  const temporary = `${path}.tmp`;
+  await writeFile(temporary, JSON.stringify(next), { mode: 0o600 });
+  await rename(temporary, path);
+  settings = next;
+  notify();
 }
 let serviceStarting: Promise<{ url: string; token: string }> | undefined;
 async function connectService() {
@@ -261,24 +347,12 @@ async function model(
   instruction: string,
   signal?: AbortSignal,
 ) {
-  let apiKey: string | undefined;
-  if (settings.mode === "api") {
-    if (!settings.encrypted) throw Error("请先设置 API Key");
-    apiKey = safeStorage.decryptString(
-      Buffer.from(settings.encrypted, "base64"),
-    );
-  }
-  return work(
-    key,
-    {
-      type: "model",
-      text,
-      instruction,
-      mode: settings.mode,
-      apiKey,
-    },
-    signal,
-  );
+  const connection = settings.connections.find(
+    (c) => c.id === settings.activeId,
+  )!;
+  const payload = await modelPayload(connection);
+  signal?.throwIfAborted();
+  return work(key, { type: "model", text, instruction, ...payload }, signal);
 }
 const modelInput = (m: SourceMaterial) =>
   JSON.stringify({
@@ -626,8 +700,10 @@ async function handle(raw: unknown) {
       const x = await credentials();
       return {
         ...store.state(),
-        modelMode: settings.mode,
-        hasApiKey: !!settings.encrypted,
+        modelMode: settings.connections.find((c) => c.id === settings.activeId)
+          ?.mode,
+        hasApiKey: settings.connections.some((c) => Boolean(c.encrypted)),
+        modelSettings: publicModelSettings(settings),
         connections: { x: !!x.authToken && !!x.ct0, xiaohongshu: xhsLoggedIn },
         busy: [...active.keys()],
       };
@@ -745,16 +821,105 @@ async function handle(raw: unknown) {
       store.delete("feeds", c.id);
       break;
     case "modelSettings": {
-      if (c.apiKey) {
-        if (!safeStorage.isEncryptionAvailable())
-          throw Error("系统安全存储不可用");
-        settings.encrypted = safeStorage
-          .encryptString(c.apiKey)
-          .toString("base64");
-      }
-      settings.mode = c.mode;
-      await saveSettings();
+      // Compatibility for the previous desktop command; migrate without losing the key.
+      let connection = settings.connections.find((x) => x.mode === c.mode);
+      if (!connection)
+        connection = {
+          ...defaultConnection,
+          id: "api",
+          name: "OpenAI API",
+          mode: "api",
+        };
+      const next = updateModelConnection(
+        settings,
+        connection,
+        c.apiKey,
+        encryptKey,
+      );
+      next.activeId = connection.id;
+      await persistModelSettings(next);
       break;
+    }
+    case "saveModelConnection": {
+      const next = updateModelConnection(
+        settings,
+        c.connection,
+        c.apiKey,
+        encryptKey,
+      );
+      await persistModelSettings(next);
+      break;
+    }
+    case "activateModelConnection": {
+      const connection = settings.connections.find((x) => x.id === c.id);
+      if (!connection) throw Error("连接不存在");
+      connectionKey(connection);
+      await persistModelSettings({ ...settings, activeId: c.id });
+      break;
+    }
+    case "deleteModelConnection": {
+      if (c.id === settings.activeId)
+        throw Error("请先启用其他连接，再删除当前连接");
+      await persistModelSettings({
+        ...settings,
+        connections: settings.connections.filter((x) => x.id !== c.id),
+      });
+      break;
+    }
+    case "codexModels": {
+      const { home, ...info } = await discoverCodex(true);
+      return info;
+    }
+    case "loginCodex": {
+      if (modelOperation || codexRequest || codexLogin)
+        throw Error("已有连接操作正在进行，请稍后重试");
+      const controller = new AbortController();
+      modelOperation = controller;
+      codexInfo = undefined;
+      codexLogin = loginCodex({
+        dataDir,
+        env: proxyEnv,
+        signal: controller.signal,
+        openLogin: (url: string) => shell.openExternal(url),
+      });
+      try {
+        return await codexLogin;
+      } finally {
+        codexLogin = undefined;
+        modelOperation = undefined;
+        codexInfo = undefined;
+      }
+    }
+    case "cancelModelOperation":
+      modelOperation?.abort();
+      return null;
+    case "testModelConnection": {
+      if (modelOperation) throw Error("已有连接测试或登录正在进行");
+      const controller = new AbortController();
+      modelOperation = controller;
+      const started = Date.now();
+      try {
+        if (c.connection.mode === "codex") codexInfo = undefined;
+        const payload = await modelPayload(c.connection, c.apiKey);
+        controller.signal.throwIfAborted();
+        const result = await work(
+          "model-connection-test",
+          {
+            type: "model",
+            text: "Feedloom connection check. No user content.",
+            instruction: "Reply with the single word OK.",
+            ...payload,
+          },
+          controller.signal,
+        );
+        return {
+          model: result.model,
+          checkedAt: stamp(),
+          elapsedMs: Date.now() - started,
+        };
+      } finally {
+        modelOperation = undefined;
+      }
     }
     case "connect":
       if (c.platform === "x") {
@@ -852,7 +1017,9 @@ app.whenReady().then(async () => {
   store = new Store(join(dataDir, "feedloom.sqlite"));
   store.recover();
   try {
-    settings = JSON.parse(await readFile(join(dataDir, "model.json"), "utf8"));
+    settings = migrateModelSettings(
+      JSON.parse(await readFile(join(dataDir, "model.json"), "utf8")),
+    );
   } catch {}
   const proxy = await session.defaultSession.resolveProxy(
     "https://chatgpt.com",
@@ -863,6 +1030,7 @@ app.whenReady().then(async () => {
       HTTPS_PROXY: `http://${match[1]}`,
       HTTP_PROXY: `http://${match[1]}`,
     };
+  let settingsMutation: Promise<unknown> = Promise.resolve();
   ipcMain.handle("command", async (event, raw) => {
     if (
       event.sender !== win.webContents ||
@@ -870,6 +1038,17 @@ app.whenReady().then(async () => {
     )
       throw Error("无效调用");
     try {
+      const mutations = [
+        "modelSettings",
+        "saveModelConnection",
+        "activateModelConnection",
+        "deleteModelConnection",
+      ];
+      if (mutations.includes(raw?.type)) {
+        const pending = settingsMutation.then(() => handle(raw));
+        settingsMutation = pending.catch(() => {});
+        return { ok: true, value: await pending };
+      }
       return { ok: true, value: await handle(raw) };
     } catch (e) {
       return { ok: false, error: errorText(e) };
@@ -913,6 +1092,8 @@ app.on("activate", () => {
 app.on("window-all-closed", () => {});
 app.on("before-quit", () => {
   quitting = true;
+  modelOperation?.abort();
+  codexLifecycle.abort();
   clearInterval(interval);
   for (const controller of collectionControllers.values()) controller.abort();
   for (const a of active.values()) a.cancel();
