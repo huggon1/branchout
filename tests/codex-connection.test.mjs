@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createCodexClient,
+  nativeExecutablePath,
   readCodexConnection,
   loginCodex,
 } from "../src/adapters/codex-connection.mjs";
@@ -135,4 +136,17 @@ test("independent login uses only browser auth, validates URL and completes from
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
+});
+
+test("packaged native executable resolves outside the ASAR archive", () => {
+  assert.equal(
+    nativeExecutablePath(
+      "/App/Resources/app.asar/node_modules/codex/vendor/bin/codex",
+    ),
+    "/App/Resources/app.asar.unpacked/node_modules/codex/vendor/bin/codex",
+  );
+  assert.equal(
+    nativeExecutablePath("/dev/node_modules/codex/vendor/bin/codex"),
+    "/dev/node_modules/codex/vendor/bin/codex",
+  );
 });

@@ -19,10 +19,15 @@ export function codexExecutable() {
   );
   if (process.platform !== "darwin" || process.arch !== "arm64")
     throw Error("当前 Codex 连接组件仅支持 macOS Apple Silicon");
-  return join(
-    dirname(codexRequire.resolve("@openai/codex-darwin-arm64/package.json")),
-    "vendor/aarch64-apple-darwin/bin/codex",
+  return nativeExecutablePath(
+    join(
+      dirname(codexRequire.resolve("@openai/codex-darwin-arm64/package.json")),
+      "vendor/aarch64-apple-darwin/bin/codex",
+    ),
   );
+}
+export function nativeExecutablePath(path) {
+  return path.replace("/app.asar/", "/app.asar.unpacked/");
 }
 export async function codexHome(dataDir, independent = false) {
   const owned = join(dataDir, "codex-connection");

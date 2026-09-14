@@ -37,6 +37,7 @@ const staging = await mkdtemp(join(tmpdir(), "feedloom-package-"));
 try {
   const outputs = await packager({
     tmpdir: staging,
+    asar: { unpack: "{**/*.node,**/@openai/codex-*/vendor/**/*}" },
     dir: ".",
     name: "Feedloom",
     platform: "darwin",
