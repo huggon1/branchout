@@ -331,7 +331,7 @@ try {
 
   await page.getByRole("button", { name: "连接与模型" }).click();
   await expect(
-    page.getByRole("heading", { name: "模型", exact: true }),
+    page.getByRole("heading", { name: "模型服务", exact: true }),
   ).toBeVisible();
   for (const [width, height] of [
     [1100, 720],

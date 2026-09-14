@@ -5,7 +5,6 @@ import {
   defaultConnection,
   type ModelSettings,
   type ModelConnection,
-  type SavedConnection,
 } from "./model-settings.js";
 import {
   readCodexConnection,
@@ -826,9 +825,9 @@ async function handle(raw: unknown) {
       if (!connection)
         connection = {
           ...defaultConnection,
-          id: "api",
-          name: "OpenAI API",
-          mode: "api",
+          id: c.mode,
+          name: c.mode === "api" ? "OpenAI API" : "Codex 订阅",
+          mode: c.mode,
         };
       const next = updateModelConnection(
         settings,
@@ -900,7 +899,10 @@ async function handle(raw: unknown) {
       const started = Date.now();
       try {
         if (c.connection.mode === "codex") codexInfo = undefined;
-        const payload = await modelPayload(c.connection, c.apiKey);
+        const payload = await awaitWithSignal(
+          modelPayload(c.connection, c.apiKey),
+          controller.signal,
+        );
         controller.signal.throwIfAborted();
         const result = await work(
           "model-connection-test",
@@ -917,6 +919,9 @@ async function handle(raw: unknown) {
           checkedAt: stamp(),
           elapsedMs: Date.now() - started,
         };
+      } catch (error) {
+        if (controller.signal.aborted) throw Error("已取消连接测试");
+        throw error;
       } finally {
         modelOperation = undefined;
       }

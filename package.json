@@ -20,9 +20,10 @@
     "start": "npm run build && electron .",
     "prepare:runtime": "node scripts/with-system-proxy.mjs node scripts/prepare-runtime.mjs",
     "package:app": "npm run build && node scripts/with-system-proxy.mjs node scripts/package-app.mjs",
-    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node tests/e2e/connections.mjs",
+    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node tests/e2e/connections.mjs && node tests/e2e/codex-connection.mjs",
     "verify:live": "npm run build && node scripts/verify-live.mjs",
-    "verify:package": "node scripts/verify-package.mjs"
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:model-package": "node scripts/verify-model-package.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",
