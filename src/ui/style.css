@@ -1237,3 +1237,85 @@ legend {
 .workspace-opening .muted {
   overflow-wrap: anywhere;
 }
+
+.inbox-capabilities,
+.bot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.inbox-capabilities {
+  margin-bottom: 18px;
+}
+.inbox-capabilities p {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.bot-settings {
+  grid-column: 1 / -1;
+}
+.bot-card {
+  border: 1px solid #dce3ed;
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 0;
+}
+.bot-card h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bot-card details {
+  margin-bottom: 16px;
+  line-height: 1.8;
+}
+.bot-card code {
+  overflow-wrap: anywhere;
+}
+.bot-card .actions {
+  flex-wrap: wrap;
+}
+.preview-label {
+  color: #875600;
+  background: #fff7df;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.prose img {
+  max-width: 100%;
+  height: auto;
+  cursor: zoom-in;
+  vertical-align: middle;
+}
+.prose .preview-image {
+  max-height: 85vh;
+  max-width: 90vw;
+  object-fit: contain;
+  cursor: zoom-out;
+}
+.media-warning {
+  display: inline-block;
+  font-size: 13px;
+  color: #986200;
+  padding: 4px;
+}
+.prose details {
+  border: 1px solid #e0e7ef;
+  padding: 12px;
+  border-radius: 8px;
+}
+.prose summary {
+  cursor: pointer;
+}
+.sourceimage img {
+  max-width: 100%;
+  height: auto;
+  cursor: zoom-in;
+}
+.sourceimage .preview-image {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+}

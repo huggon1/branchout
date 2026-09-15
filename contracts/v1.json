@@ -2587,6 +2587,30 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {
+      "origin": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "telegram",
+              "feishu"
+            ]
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "peer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "messageId",
+          "peer"
+        ],
+        "additionalProperties": false
+      },
       "id": {
         "type": "string"
       },

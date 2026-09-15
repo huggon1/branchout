@@ -199,3 +199,48 @@ test("GitHub collection reads public README before returning candidates when con
     globalThis.fetch = originalFetch;
   }
 });
+
+test("cn short links resolve to XHS detail with access parameters preserved", async () => {
+  const seen: string[] = [];
+  globalThis.fetch = (async (input: any, init: any) => {
+    const u = new URL(input);
+    seen.push(u.hostname);
+    if (u.hostname === "xhslink.cn") {
+      assert.equal(init.redirect, "manual");
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location:
+            "https://www.xiaohongshu.com/explore/fictional-note?xsec_token=fictional-access",
+        },
+      });
+    }
+    assert.equal(u.hostname, "127.0.0.1");
+    assert.equal(JSON.parse(init.body).xsec_token, "fictional-access");
+    return Response.json({
+      success: true,
+      data: {
+        data: {
+          note: { title: "Fictional", desc: "Fictional body", imageList: [] },
+        },
+      },
+    });
+  }) as typeof fetch;
+  try {
+    messages = [];
+    await receive({
+      data: {
+        type: "parse",
+        url: "https://xhslink.cn/o/fictional",
+        xhs: { url: "http://127.0.0.1:12345", token: "fictional-only" },
+      },
+    });
+    assert.equal(
+      messages.find((m) => m.type === "result")?.result.text,
+      "Fictional body",
+    );
+    assert.deepEqual(seen, ["xhslink.cn", "127.0.0.1"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

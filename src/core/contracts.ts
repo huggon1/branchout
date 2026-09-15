@@ -187,6 +187,7 @@ export interface Feed {
   items: FeedItem[];
 }
 export interface Inbox {
+  origin?: { channel: "telegram" | "feishu"; messageId: string; peer: string };
   id: string;
   url: string;
   createdAt: string;
@@ -197,6 +198,24 @@ export interface Inbox {
   error?: string;
 }
 export const Command = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("botSave"),
+    channel: z.enum(["telegram", "feishu"]),
+    secret: z.string().max(1000).optional(),
+    appId: z.string().max(200).optional(),
+  }),
+  z.object({
+    type: z.literal("botBind"),
+    channel: z.enum(["telegram", "feishu"]),
+  }),
+  z.object({
+    type: z.literal("botDisable"),
+    channel: z.enum(["telegram", "feishu"]),
+  }),
+  z.object({
+    type: z.literal("parseText"),
+    text: z.string().min(1).max(20000),
+  }),
   z.object({ type: z.literal("state") }),
   z.object({
     type: z.literal("saveTask"),
@@ -317,6 +336,13 @@ export const FeedSchema = z.object({
   ),
 });
 export const InboxSchema = z.object({
+  origin: z
+    .object({
+      channel: z.enum(["telegram", "feishu"]),
+      messageId: z.string(),
+      peer: z.string(),
+    })
+    .optional(),
   id: z.string(),
   url: z.string().url(),
   createdAt: z.string(),
