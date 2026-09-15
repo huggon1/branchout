@@ -11,13 +11,17 @@ type Props = {
   act: (c: any) => Promise<any>;
   refresh: () => Promise<void>;
   onDirty: (dirty: boolean) => void;
+  githubKey: string;
+  setGithubKey: (value: string) => void;
+  setNotice: (value: string) => void;
 };
 const sources = [
   {
     id: "github",
     name: "GitHub",
-    description: "公开仓库搜索与 Trending",
-    capabilities: "公开仓库解析、仓库搜索与 Trending 榜单，无需登录。",
+    description: "公开探索与授权仓库分析",
+    capabilities:
+      "公开仓库探索无需登录；私有仓库分析需要对目标仓库具有 Contents 与 Pull requests 只读权限的 Token。",
   },
   {
     id: "xiaohongshu",
@@ -39,6 +43,9 @@ export function Connections({
   onDirty,
   initialSection,
   act,
+  githubKey,
+  setGithubKey,
+  setNotice,
 }: Props) {
   const settings = state.modelSettings || {
     activeId: "codex",
@@ -66,10 +73,11 @@ export function Connections({
     !source &&
     !botSelected &&
     (JSON.stringify(draft) !== baseline || Boolean(key) || !saved);
+  const anyDirty = dirty || (source?.id === "github" && Boolean(githubKey));
   useEffect(() => {
-    onDirty(dirty);
+    onDirty(anyDirty);
     return () => onDirty(false);
-  }, [dirty, onDirty]);
+  }, [anyDirty, onDirty]);
   const command = async (value: any) => {
     const r = await window.feedloom.command(value);
     if (!r.ok) throw Error(r.error);
@@ -235,7 +243,9 @@ export function Connections({
               <strong>{p.name}</strong>
               <small>
                 {p.id === "github"
-                  ? "无需登录"
+                  ? state.hasGithubToken
+                    ? "私有仓库已授权"
+                    : "公开仓库可用"
                   : state.connections[p.id]
                     ? "已连接"
                     : "未连接或待检查"}
@@ -344,6 +354,84 @@ export function Connections({
                       }}
                     >
                       退出连接
+                    </button>
+                  </div>
+                </>
+              )}
+              {source.id === "github" && (
+                <>
+                  <label>
+                    GitHub 只读 Token
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      aria-label="GitHub 只读 Token"
+                      value={githubKey}
+                      onChange={(event) => setGithubKey(event.target.value)}
+                      placeholder={
+                        state.hasGithubToken
+                          ? "已保存，输入新 Token 替换"
+                          : "公开仓库可留空"
+                      }
+                    />
+                  </label>
+                  <p className="muted">
+                    Token 经系统安全存储加密，不进入素材、日志或公开探索查询。
+                  </p>
+                  <div className="actions">
+                    <button
+                      className="primary"
+                      disabled={controlsDisabled || !githubKey.trim()}
+                      onClick={() =>
+                        void run("保存 GitHub Token", async () => {
+                          await command({
+                            type: "sourceKey",
+                            source: "github",
+                            value: githubKey,
+                          });
+                          setGithubKey("");
+                          await refresh();
+                          setNotice("GitHub Token 已保存");
+                        })
+                      }
+                    >
+                      保存 Token
+                    </button>
+                    <button
+                      disabled={controlsDisabled || !state.hasGithubToken}
+                      onClick={() =>
+                        void run("检查 GitHub 连接", async () => {
+                          await command({
+                            type: "checkSource",
+                            source: "github",
+                          });
+                          setNotice(
+                            "GitHub 身份验证通过；仓库权限在绑定时检查",
+                          );
+                        })
+                      }
+                    >
+                      检查连接
+                    </button>
+                    <button
+                      disabled={controlsDisabled || !state.hasGithubToken}
+                      onClick={() => {
+                        if (
+                          confirm("清除 GitHub Token？私有仓库将无法更新分析。")
+                        )
+                          void run("清除 GitHub Token", async () => {
+                            await command({
+                              type: "sourceKey",
+                              source: "github",
+                              value: "",
+                            });
+                            setGithubKey("");
+                            await refresh();
+                            setNotice("GitHub Token 已清除");
+                          });
+                      }}
+                    >
+                      清除 Token
                     </button>
                   </div>
                 </>

@@ -1598,3 +1598,82 @@ legend {
   border-radius: 9px;
   margin-top: 8px;
 }
+
+/* Repository understanding and independent exploration inputs. */
+.version-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 12px;
+  margin: 10px 0;
+  background: #f1f5fc;
+  border: 1px solid #dce5f4;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.version-card small {
+  flex-basis: 100%;
+  color: #657289;
+}
+.explore-config {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.explore-config .panel {
+  min-width: 0;
+}
+.repo-choice,
+.angle-choice {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5eaf2;
+}
+.angle-choice details {
+  margin: 6px 0 0 26px;
+  color: #52627b;
+}
+.exploration-launch,
+.batch {
+  margin: 20px 0;
+}
+.exploration-launch .actions label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.review-run,
+.exploration-run {
+  padding: 16px 0;
+  border-top: 1px solid #e1e7f0;
+  overflow-wrap: anywhere;
+}
+.review-run h4 {
+  font-size: 17px;
+  margin: 18px 0 8px;
+}
+.review-run p {
+  line-height: 1.6;
+}
+.exploration-run summary {
+  cursor: pointer;
+  line-height: 1.7;
+  font-weight: 600;
+}
+.discovery-tags {
+  display: block;
+  color: #305dad;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.composer .chosen {
+  flex-wrap: wrap;
+}
+.composer .chosen select {
+  max-width: 100%;
+}
+.filters {
+  flex-wrap: wrap;
+}
+.batch.focused {
+  border-color: #83a9f1;
+}
