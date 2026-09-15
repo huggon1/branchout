@@ -41,7 +41,16 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { Store } from "./store.js";
-import { nextDue, advanceMissed } from "./schedule.js";
+import { WorkspaceService } from "./workspace-service.js";
+import {
+  uniqueEvidence,
+  chooseChapter,
+  groupedItems,
+  parseGeneration,
+  generationInstruction,
+} from "./feed-generation.js";
+import { chapterTitle, templates } from "./templates.js";
+import { publicURL } from "../adapters/public-url.mjs";
 import { collectIntent } from "./collection.js";
 import { awaitWithSignal } from "./abort.js";
 import {
@@ -140,7 +149,12 @@ async function modelPayload(connection: ModelConnection, draftKey?: string) {
     codexHome,
   };
 }
-let interval: NodeJS.Timeout;
+let workspace: WorkspaceService;
+let githubEncrypted: string | undefined;
+const githubToken = () =>
+  githubEncrypted
+    ? safeStorage.decryptString(Buffer.from(githubEncrypted, "base64"))
+    : undefined;
 const runtime = app.isPackaged
   ? join(process.resourcesPath, ".runtime")
   : join(app.getAppPath(), ".runtime");
@@ -312,14 +326,17 @@ async function work(
     };
     const timer = setTimeout(
       () => finish(Error("执行超时，请缩小本轮数量后重试")),
-      payload.type === "collect" ? 900000 : 120000,
+      ["collect", "repoSnapshot"].includes(payload.type) ? 900000 : 120000,
     );
     active.set(key, {
       cancel: abort,
     });
     signal?.addEventListener("abort", abort, { once: true });
     child.on("message", (m: any) => {
-      if (m.type === "child" && Number.isInteger(m.pid)) descendants.add(m.pid);
+      if (m.type === "repoProgress" && onProgress) {
+        (onProgress as any)(m.value);
+      } else if (m.type === "child" && Number.isInteger(m.pid))
+        descendants.add(m.pid);
       else if (m.type === "childExit") descendants.delete(m.pid);
       else if (m.type === "result") finish(undefined, m.result);
       else if (m.type === "error") finish(Error(m.error));
@@ -430,7 +447,7 @@ async function collect(task: Task, prior?: Run) {
   store.put("runs", run);
   const currentTask = store.get<Task>("tasks", task.id);
   if (currentTask) {
-    currentTask.nextDue = nextDue(currentTask);
+    currentTask.nextDue = null;
     delete currentTask.missedAt;
     store.put("tasks", currentTask);
   }
@@ -648,17 +665,36 @@ async function runFeed(feed: Feed, target?: string) {
       try {
         const r = await model(
           `feed:${feed.id}`,
-          modelInput(item.evidence.material),
-          feed.prompt,
+          JSON.stringify({
+            source: item.evidence.material,
+            discoveries: item.evidence.discoveries
+              ?.filter((d) => d.template.id === item.chapter)
+              .map((d) => ({
+                repo: d.repoName,
+                context: d.understanding.publicContext,
+                reason: d.reason,
+                excerpts: d.excerpts,
+                source: d.source,
+              })),
+            chapter: chapterTitle(item.chapter),
+          }),
+          generationInstruction(feed.prompt),
         );
         if (feedCancelled(feed) || quitting) {
           item.text = old;
           item.state = old ? "success" : "cancelled";
           break;
         }
-        item.text = r.text;
-        item.state = "success";
-        item.error = undefined;
+        const result = parseGeneration(r.text);
+        if (result.status === "insufficient") {
+          item.text = old;
+          item.state = old ? "success" : "insufficient";
+          item.error = result.reason;
+        } else {
+          item.text = result.text;
+          item.state = "success";
+          item.error = undefined;
+        }
       } catch (e) {
         item.text = old;
         item.state = old
@@ -724,7 +760,9 @@ async function handle(raw: unknown) {
         hasApiKey: settings.connections.some((c) => Boolean(c.encrypted)),
         modelSettings: publicModelSettings(settings),
         connections: { x: !!x.authToken && !!x.ct0, xiaohongshu: xhsLoggedIn },
-        busy: [...active.keys()],
+        busy: [...active.keys(), ...workspace.controllers.keys()],
+        hasGithubToken: !!githubEncrypted,
+        templates,
       };
     }
     case "botSave":
@@ -754,29 +792,46 @@ async function handle(raw: unknown) {
         );
       return ids[0];
     }
-    case "saveTask": {
-      const t = store.saveTask(c.task, c.id);
-      t.nextDue = nextDue(t);
-      store.put("tasks", t);
-      notify();
-      return t;
-    }
-    case "deleteTask":
-      store.delete("tasks", c.id);
+    case "bindRepo":
+      return workspace.bind(c.name);
+    case "analyzeRepo":
+      return workspace.analyze(c.id);
+    case "retryAnalysis":
+      return workspace.retryAnalysis(c.id);
+    case "cancelAnalysis":
+      workspace.cancel(c.id);
       break;
-    case "runTask": {
-      const t = store.get<Task>("tasks", c.id);
-      if (!t) throw Error("任务不存在");
-      return collect(t);
+    case "unbindRepo":
+      workspace.unbind(c.id);
+      break;
+    case "explore":
+      return workspace.explore(c.input);
+    case "cancelBatch":
+      workspace.cancel(c.id);
+      break;
+    case "retryExploration":
+      return workspace.retry(c.id);
+    case "sourceKey": {
+      if (c.value && !safeStorage.isEncryptionAvailable())
+        throw Error("系统安全存储不可用");
+      githubEncrypted = c.value
+        ? safeStorage.encryptString(c.value.trim()).toString("base64")
+        : undefined;
+      store.put("settings", {
+        id: "githubCredential",
+        encrypted: githubEncrypted,
+      } as any);
+      break;
     }
-    case "retryRun": {
-      const r = store.get<Run>("runs", c.id);
-      if (!r) throw Error("收集记录不存在");
-      return collect(
-        { ...r.config, id: r.taskId, createdAt: r.startedAt, nextDue: null },
-        r,
-      );
+    case "checkSource": {
+      if (!githubToken()) throw Error("请先保存 GitHub 只读 Token");
+      return work("github-check", { type: "repoCheck", token: githubToken() });
     }
+    case "saveTask":
+    case "deleteTask":
+    case "runTask":
+    case "retryRun":
+      throw Error("旧收集任务仅保留历史，请使用探索");
     case "cancelRun": {
       collectionControllers.get(c.id)?.abort();
       active.get(c.id)?.cancel();
@@ -829,6 +884,7 @@ async function handle(raw: unknown) {
       const evidence = source
         ? source.items.map((i) => i.evidence)
         : [...new Set(c.ids)].map((id) => store.evidence(id));
+      const chosen = uniqueEvidence(evidence);
       store.put("settings", { id: "prompt", value: c.prompt } as any);
       return runFeed({
         id: randomUUID(),
@@ -836,12 +892,19 @@ async function handle(raw: unknown) {
         createdAt: stamp(),
         prompt: c.prompt,
         state: "pending",
-        items: evidence.map((e) => ({
-          id: randomUUID(),
-          evidence: e,
-          state: "pending",
-          text: "",
-        })),
+        items: groupedItems(
+          chosen.map((e, i) => ({
+            id: randomUUID(),
+            evidence: e,
+            chapter: source
+              ? source.items.find(
+                  (i) => i.evidence.material.id === e.material.id,
+                )?.chapter || "legacy"
+              : chooseChapter(e, c.chapters?.[e.material.id]),
+            state: "pending" as const,
+            text: "",
+          })),
+        ).flatMap((g) => g.items),
       });
     }
     case "retryFeed": {
@@ -1019,19 +1082,7 @@ async function handle(raw: unknown) {
       }
       break;
     case "open": {
-      const u = new URL(c.url);
-      if (
-        u.protocol !== "https:" ||
-        u.username !== "" ||
-        u.password !== "" ||
-        !u.hostname.includes(".") ||
-        u.hostname === "localhost" ||
-        u.hostname.endsWith(".local") ||
-        /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(
-          u.hostname,
-        )
-      )
-        throw Error("不支持的来源链接");
+      publicURL(c.url);
       await shell.openExternal(c.url);
       return;
     }
@@ -1071,6 +1122,62 @@ app.whenReady().then(async () => {
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
   store = new Store(join(dataDir, "feedloom.sqlite"));
   store.recover();
+  githubEncrypted = store.get<any>("settings", "githubCredential")?.encrypted;
+  workspace = new WorkspaceService(store, {
+    metadata: (name) =>
+      work("repo-bind", { type: "repoMetadata", name, token: githubToken() }),
+    read: (input, signal, onProgress) =>
+      work(
+        `repo:${input.repo.id}`,
+        { type: "repoSnapshot", ...input, token: githubToken() },
+        signal,
+        onProgress as any,
+      ),
+    model: async (key, prompt, signal) =>
+      (await model(key, "", prompt, signal)).text,
+    search: async (run, platform, query, language, signal) =>
+      work(
+        run.id,
+        {
+          type: "collect",
+          config: {
+            platform,
+            keyword: query,
+            searchMode: "search",
+            period: run.period,
+            limit: 10,
+            thresholds: {},
+          },
+          candidateMode: true,
+          candidateLimit: 10,
+          windowEnd: run.startedAt,
+          language,
+          xhs:
+            platform === "xiaohongshu"
+              ? await awaitWithSignal(connectService(), signal)
+              : undefined,
+          x:
+            platform === "x"
+              ? await awaitWithSignal(credentials(), signal)
+              : undefined,
+        },
+        signal,
+      ),
+    readSource: async (source, signal) =>
+      work(
+        `read:${randomUUID()}`,
+        {
+          type: "readSource",
+          source,
+          xhs:
+            source.source === "xiaohongshu"
+              ? await awaitWithSignal(connectService(), signal)
+              : undefined,
+        },
+        signal,
+      ),
+    notify,
+  });
   try {
     settings = migrateModelSettings(
       JSON.parse(await readFile(join(dataDir, "model.json"), "utf8")),
@@ -1141,17 +1248,6 @@ app.whenReady().then(async () => {
     ]),
   );
   tray.on("click", () => win.show());
-  interval = setInterval(() => {
-    for (const t of store.list<Task>("tasks")) {
-      if (t.paused || !t.nextDue) continue;
-      const due = Date.parse(t.nextDue);
-      if (due <= Date.now()) {
-        if (Date.now() - due < 65000) void collect(t).catch(() => {});
-        else store.put("tasks", advanceMissed(t));
-      }
-    }
-    notify();
-  }, 30000);
   powerMonitor.on("resume", () => {
     notify();
     void checkLogin();
@@ -1166,7 +1262,7 @@ app.on("before-quit", () => {
   bots?.close();
   modelOperation?.abort();
   codexLifecycle.abort();
-  clearInterval(interval);
+  workspace?.shutdown();
   for (const controller of collectionControllers.values()) controller.abort();
   for (const a of active.values()) a.cancel();
   xhsProcess?.kill();

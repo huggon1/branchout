@@ -1,5 +1,1239 @@
 {
   "schemaVersion": 1,
+  "workspace": {
+    "repo": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "understandingId": {
+          "type": "string"
+        },
+        "boundary": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "fullName", "url", "private", "branch", "createdAt"],
+      "additionalProperties": false
+    },
+    "understanding": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3000
+        },
+        "users": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "problems": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scenarios": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraints": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uncertainties": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "excerpt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": ["path", "excerpt", "url"],
+            "additionalProperties": false
+          }
+        },
+        "publicContext": {
+          "type": "object",
+          "properties": {
+            "product": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "users": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "problems": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "scenarios": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["product", "users", "problems", "scenarios"],
+          "additionalProperties": false
+        },
+        "id": {
+          "type": "string"
+        },
+        "repoId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "product",
+        "users",
+        "problems",
+        "scenarios",
+        "constraints",
+        "uncertainties",
+        "evidence",
+        "publicContext",
+        "id",
+        "repoId",
+        "version",
+        "createdAt",
+        "commit",
+        "branch"
+      ],
+      "additionalProperties": false
+    },
+    "analysis": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "repoId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "endedAt": {
+          "type": "string"
+        },
+        "base": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "since": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "success",
+            "failed",
+            "cancelled",
+            "interrupted"
+          ]
+        },
+        "phase": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "understandingId": {
+          "type": "string"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "decision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "responsibility": {
+                "type": "string",
+                "minLength": 1
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1
+              },
+              "experiment": {
+                "type": "string"
+              },
+              "evidence": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "excerpt": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": ["path", "excerpt", "url"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "title",
+              "decision",
+              "responsibility",
+              "question",
+              "evidence"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "changeNote": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "repoId",
+        "startedAt",
+        "branch",
+        "since",
+        "state",
+        "phase",
+        "changes"
+      ],
+      "additionalProperties": false
+    },
+    "exploration": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "repoId": {
+          "type": "string"
+        },
+        "repoName": {
+          "type": "string"
+        },
+        "understanding": {
+          "type": "object",
+          "properties": {
+            "product": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 3000
+            },
+            "users": {
+              "minItems": 1,
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "problems": {
+              "minItems": 1,
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "scenarios": {
+              "minItems": 1,
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "constraints": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "uncertainties": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "excerpt": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "required": ["path", "excerpt", "url"],
+                "additionalProperties": false
+              }
+            },
+            "publicContext": {
+              "type": "object",
+              "properties": {
+                "product": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "users": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "problems": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "scenarios": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["product", "users", "problems", "scenarios"],
+              "additionalProperties": false
+            },
+            "id": {
+              "type": "string"
+            },
+            "repoId": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "commit": {
+              "type": "string"
+            },
+            "branch": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "product",
+            "users",
+            "problems",
+            "scenarios",
+            "constraints",
+            "uncertainties",
+            "evidence",
+            "publicContext",
+            "id",
+            "repoId",
+            "version",
+            "createdAt",
+            "commit",
+            "branch"
+          ],
+          "additionalProperties": false
+        },
+        "template": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "enum": [
+                "alternatives",
+                "needs",
+                "experience",
+                "growth",
+                "capabilities"
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "title": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "version", "title", "prompt"],
+          "additionalProperties": false
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["github", "xiaohongshu", "x"]
+          }
+        },
+        "period": {
+          "type": "string",
+          "enum": ["daily", "weekly", "monthly"]
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "endedAt": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "success",
+            "partial",
+            "no_results",
+            "failed",
+            "cancelled",
+            "interrupted"
+          ]
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["at", "message"],
+            "additionalProperties": false
+          }
+        },
+        "outcomes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": ["pending", "success", "no_results", "failed"]
+              },
+              "error": {
+                "type": "string"
+              },
+              "queries": {
+                "type": "number"
+              },
+              "count": {
+                "type": "number"
+              }
+            },
+            "required": ["state", "queries", "count"],
+            "additionalProperties": false
+          }
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "queries": {
+              "type": "number"
+            },
+            "reads": {
+              "type": "number"
+            },
+            "modelCalls": {
+              "type": "number"
+            },
+            "candidates": {
+              "type": "number"
+            }
+          },
+          "required": ["queries", "reads", "modelCalls", "candidates"],
+          "additionalProperties": false
+        },
+        "stopReason": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "attempts": {
+          "default": 0,
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "batchId",
+        "repoId",
+        "repoName",
+        "understanding",
+        "template",
+        "platforms",
+        "period",
+        "startedAt",
+        "state",
+        "events",
+        "outcomes",
+        "usage",
+        "attempts"
+      ],
+      "additionalProperties": false
+    },
+    "batch": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "runIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "success",
+            "partial",
+            "no_results",
+            "failed",
+            "cancelled",
+            "interrupted"
+          ]
+        },
+        "attempts": {
+          "default": 0,
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["id", "createdAt", "runIds", "state", "attempts"],
+      "additionalProperties": false
+    },
+    "template": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "alternatives",
+            "needs",
+            "experience",
+            "growth",
+            "capabilities"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "title": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "version", "title", "prompt"],
+      "additionalProperties": false
+    },
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repoIds": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "angles": {
+          "minItems": 1,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "alternatives",
+              "needs",
+              "experience",
+              "growth",
+              "capabilities"
+            ]
+          }
+        },
+        "platforms": {
+          "minItems": 1,
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["github", "xiaohongshu", "x"]
+          }
+        },
+        "period": {
+          "default": "weekly",
+          "type": "string",
+          "enum": ["daily", "weekly", "monthly"]
+        }
+      },
+      "required": ["repoIds", "angles", "platforms", "period"],
+      "additionalProperties": false
+    }
+  },
+  "discovery": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "materialId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "batchId": {
+        "type": "string"
+      },
+      "repoId": {
+        "type": "string"
+      },
+      "repoName": {
+        "type": "string"
+      },
+      "understanding": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000
+          },
+          "users": {
+            "minItems": 1,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "problems": {
+            "minItems": 1,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scenarios": {
+            "minItems": 1,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraints": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "uncertainties": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "excerpt": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "required": ["path", "excerpt", "url"],
+              "additionalProperties": false
+            }
+          },
+          "publicContext": {
+            "type": "object",
+            "properties": {
+              "product": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "users": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "problems": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scenarios": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["product", "users", "problems", "scenarios"],
+            "additionalProperties": false
+          },
+          "id": {
+            "type": "string"
+          },
+          "repoId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "product",
+          "users",
+          "problems",
+          "scenarios",
+          "constraints",
+          "uncertainties",
+          "evidence",
+          "publicContext",
+          "id",
+          "repoId",
+          "version",
+          "createdAt",
+          "commit",
+          "branch"
+        ],
+        "additionalProperties": false
+      },
+      "template": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "alternatives",
+              "needs",
+              "experience",
+              "growth",
+              "capabilities"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "title": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "version", "title", "prompt"],
+        "additionalProperties": false
+      },
+      "reason": {
+        "type": "string"
+      },
+      "excerpts": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "discoveredAt": {
+        "type": "string"
+      },
+      "query": {
+        "type": "string"
+      },
+      "activityAt": {
+        "type": "string"
+      },
+      "activityBasis": {
+        "type": "string"
+      },
+      "source": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "source": {
+            "type": "string",
+            "enum": ["github", "xiaohongshu", "x"]
+          },
+          "sourceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "canonicalUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "completeness": {
+            "type": "string",
+            "enum": ["partial", "complete"]
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metrics": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "images": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "context": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "source",
+          "sourceId",
+          "canonicalUrl",
+          "title",
+          "author",
+          "text",
+          "completeness",
+          "publishedAt",
+          "metrics",
+          "images"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "id",
+      "materialId",
+      "runId",
+      "batchId",
+      "repoId",
+      "repoName",
+      "understanding",
+      "template",
+      "reason",
+      "excerpts",
+      "discoveredAt",
+      "query",
+      "activityAt",
+      "activityBasis",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "explorationCandidate": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "source": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "source": {
+            "type": "string",
+            "enum": ["github", "xiaohongshu", "x"]
+          },
+          "sourceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "canonicalUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "completeness": {
+            "type": "string",
+            "enum": ["partial", "complete"]
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metrics": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "images": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "context": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "source",
+          "sourceId",
+          "canonicalUrl",
+          "title",
+          "author",
+          "text",
+          "completeness",
+          "publishedAt",
+          "metrics",
+          "images"
+        ],
+        "additionalProperties": false
+      },
+      "round": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+      },
+      "query": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["accepted", "rejected", "uncertain"]
+      },
+      "judgmentState": {
+        "type": "string",
+        "enum": ["complete", "pending"]
+      },
+      "reason": {
+        "type": "string"
+      },
+      "excerpts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "summary": {
+        "type": "string",
+        "maxLength": 1000
+      },
+      "materialId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "language": {
+        "type": "string",
+        "enum": ["zh", "en"]
+      },
+      "readState": {
+        "type": "string",
+        "enum": ["pending", "read", "failed"]
+      },
+      "activityAt": {
+        "type": "string"
+      },
+      "activityBasis": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "round",
+      "query",
+      "status",
+      "reason",
+      "excerpts",
+      "runId",
+      "language",
+      "readState"
+    ],
+    "additionalProperties": false
+  },
   "sourceMaterial": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -10,11 +1244,7 @@
       },
       "source": {
         "type": "string",
-        "enum": [
-          "github",
-          "xiaohongshu",
-          "x"
-        ]
+        "enum": ["github", "xiaohongshu", "x"]
       },
       "sourceId": {
         "type": "string",
@@ -42,10 +1272,7 @@
       },
       "completeness": {
         "type": "string",
-        "enum": [
-          "partial",
-          "complete"
-        ]
+        "enum": ["partial", "complete"]
       },
       "publishedAt": {
         "anyOf": [
@@ -132,10 +1359,7 @@
           },
           "collectionMode": {
             "type": "string",
-            "enum": [
-              "intent",
-              "keyword"
-            ]
+            "enum": ["intent", "keyword"]
           },
           "budget": {
             "type": "object",
@@ -189,11 +1413,7 @@
               "properties": {
                 "platform": {
                   "type": "string",
-                  "enum": [
-                    "github",
-                    "xiaohongshu",
-                    "x"
-                  ]
+                  "enum": ["github", "xiaohongshu", "x"]
                 },
                 "keyword": {
                   "default": "",
@@ -202,18 +1422,11 @@
                 },
                 "searchMode": {
                   "type": "string",
-                  "enum": [
-                    "trending",
-                    "search"
-                  ]
+                  "enum": ["trending", "search"]
                 },
                 "period": {
                   "type": "string",
-                  "enum": [
-                    "daily",
-                    "weekly",
-                    "monthly"
-                  ]
+                  "enum": ["daily", "weekly", "monthly"]
                 },
                 "limit": {
                   "type": "integer",
@@ -245,12 +1458,7 @@
           "schedule": {
             "default": "manual",
             "type": "string",
-            "enum": [
-              "manual",
-              "hourly",
-              "daily",
-              "weekly"
-            ]
+            "enum": ["manual", "hourly", "daily", "weekly"]
           },
           "time": {
             "default": "09:00",
@@ -295,11 +1503,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "createdAt",
-          "nextDue"
-        ],
+        "required": ["id", "createdAt", "nextDue"],
         "additionalProperties": false
       }
     ]
@@ -332,10 +1536,7 @@
           },
           "collectionMode": {
             "type": "string",
-            "enum": [
-              "intent",
-              "keyword"
-            ]
+            "enum": ["intent", "keyword"]
           },
           "budget": {
             "type": "object",
@@ -389,11 +1590,7 @@
               "properties": {
                 "platform": {
                   "type": "string",
-                  "enum": [
-                    "github",
-                    "xiaohongshu",
-                    "x"
-                  ]
+                  "enum": ["github", "xiaohongshu", "x"]
                 },
                 "keyword": {
                   "default": "",
@@ -402,18 +1599,11 @@
                 },
                 "searchMode": {
                   "type": "string",
-                  "enum": [
-                    "trending",
-                    "search"
-                  ]
+                  "enum": ["trending", "search"]
                 },
                 "period": {
                   "type": "string",
-                  "enum": [
-                    "daily",
-                    "weekly",
-                    "monthly"
-                  ]
+                  "enum": ["daily", "weekly", "monthly"]
                 },
                 "limit": {
                   "type": "integer",
@@ -445,12 +1635,7 @@
           "schedule": {
             "default": "manual",
             "type": "string",
-            "enum": [
-              "manual",
-              "hourly",
-              "daily",
-              "weekly"
-            ]
+            "enum": ["manual", "hourly", "daily", "weekly"]
           },
           "time": {
             "default": "09:00",
@@ -488,15 +1673,13 @@
               "success",
               "failed",
               "cancelled",
-              "interrupted"
+              "interrupted",
+              "insufficient"
             ]
           },
           {
             "type": "string",
-            "enum": [
-              "partial",
-              "no_results"
-            ]
+            "enum": ["partial", "no_results"]
           }
         ]
       },
@@ -519,11 +1702,7 @@
                 },
                 "platform": {
                   "type": "string",
-                  "enum": [
-                    "github",
-                    "xiaohongshu",
-                    "x"
-                  ]
+                  "enum": ["github", "xiaohongshu", "x"]
                 },
                 "phase": {
                   "type": "string",
@@ -546,12 +1725,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "at",
-                "phase",
-                "message"
-              ],
+              "required": ["id", "at", "phase", "message"],
               "additionalProperties": false
             }
           },
@@ -572,11 +1746,7 @@
                     },
                     "source": {
                       "type": "string",
-                      "enum": [
-                        "github",
-                        "xiaohongshu",
-                        "x"
-                      ]
+                      "enum": ["github", "xiaohongshu", "x"]
                     },
                     "sourceId": {
                       "type": "string",
@@ -604,10 +1774,7 @@
                     },
                     "completeness": {
                       "type": "string",
-                      "enum": [
-                        "partial",
-                        "complete"
-                      ]
+                      "enum": ["partial", "complete"]
                     },
                     "publishedAt": {
                       "anyOf": [
@@ -686,18 +1853,11 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": [
-                    "accepted",
-                    "rejected",
-                    "uncertain"
-                  ]
+                  "enum": ["accepted", "rejected", "uncertain"]
                 },
                 "judgmentState": {
                   "type": "string",
-                  "enum": [
-                    "complete",
-                    "pending"
-                  ]
+                  "enum": ["complete", "pending"]
                 },
                 "reason": {
                   "type": "string"
@@ -747,22 +1907,14 @@
                 "maximum": 9007199254740991
               }
             },
-            "required": [
-              "queries",
-              "modelCalls",
-              "candidates"
-            ],
+            "required": ["queries", "modelCalls", "candidates"],
             "additionalProperties": false
           },
           "stopReason": {
             "type": "string"
           }
         },
-        "required": [
-          "events",
-          "candidates",
-          "usage"
-        ],
+        "required": ["events", "candidates", "usage"],
         "additionalProperties": false
       },
       "platforms": {
@@ -772,11 +1924,7 @@
           "properties": {
             "platform": {
               "type": "string",
-              "enum": [
-                "github",
-                "xiaohongshu",
-                "x"
-              ]
+              "enum": ["github", "xiaohongshu", "x"]
             },
             "state": {
               "anyOf": [
@@ -788,7 +1936,8 @@
                     "success",
                     "failed",
                     "cancelled",
-                    "interrupted"
+                    "interrupted",
+                    "insufficient"
                   ]
                 },
                 {
@@ -831,11 +1980,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "platform",
-            "state",
-            "count"
-          ],
+          "required": ["platform", "state", "count"],
           "additionalProperties": false
         }
       }
@@ -861,11 +2006,7 @@
       },
       "source": {
         "type": "string",
-        "enum": [
-          "github",
-          "xiaohongshu",
-          "x"
-        ]
+        "enum": ["github", "xiaohongshu", "x"]
       },
       "sourceId": {
         "type": "string",
@@ -893,10 +2034,7 @@
       },
       "completeness": {
         "type": "string",
-        "enum": [
-          "partial",
-          "complete"
-        ]
+        "enum": ["partial", "complete"]
       },
       "publishedAt": {
         "anyOf": [
@@ -974,7 +2112,8 @@
           "success",
           "failed",
           "cancelled",
-          "interrupted"
+          "interrupted",
+          "insufficient"
         ]
       },
       "error": {
@@ -1033,11 +2172,7 @@
           },
           "source": {
             "type": "string",
-            "enum": [
-              "github",
-              "xiaohongshu",
-              "x"
-            ]
+            "enum": ["github", "xiaohongshu", "x"]
           },
           "sourceId": {
             "type": "string",
@@ -1065,10 +2200,7 @@
           },
           "completeness": {
             "type": "string",
-            "enum": [
-              "partial",
-              "complete"
-            ]
+            "enum": ["partial", "complete"]
           },
           "publishedAt": {
             "anyOf": [
@@ -1146,7 +2278,8 @@
               "success",
               "failed",
               "cancelled",
-              "interrupted"
+              "interrupted",
+              "insufficient"
             ]
           },
           "error": {
@@ -1221,10 +2354,7 @@
                 },
                 "collectionMode": {
                   "type": "string",
-                  "enum": [
-                    "intent",
-                    "keyword"
-                  ]
+                  "enum": ["intent", "keyword"]
                 },
                 "budget": {
                   "type": "object",
@@ -1278,11 +2408,7 @@
                     "properties": {
                       "platform": {
                         "type": "string",
-                        "enum": [
-                          "github",
-                          "xiaohongshu",
-                          "x"
-                        ]
+                        "enum": ["github", "xiaohongshu", "x"]
                       },
                       "keyword": {
                         "default": "",
@@ -1291,18 +2417,11 @@
                       },
                       "searchMode": {
                         "type": "string",
-                        "enum": [
-                          "trending",
-                          "search"
-                        ]
+                        "enum": ["trending", "search"]
                       },
                       "period": {
                         "type": "string",
-                        "enum": [
-                          "daily",
-                          "weekly",
-                          "monthly"
-                        ]
+                        "enum": ["daily", "weekly", "monthly"]
                       },
                       "limit": {
                         "type": "integer",
@@ -1334,12 +2453,7 @@
                 "schedule": {
                   "default": "manual",
                   "type": "string",
-                  "enum": [
-                    "manual",
-                    "hourly",
-                    "daily",
-                    "weekly"
-                  ]
+                  "enum": ["manual", "hourly", "daily", "weekly"]
                 },
                 "time": {
                   "default": "09:00",
@@ -1377,15 +2491,13 @@
                     "success",
                     "failed",
                     "cancelled",
-                    "interrupted"
+                    "interrupted",
+                    "insufficient"
                   ]
                 },
                 {
                   "type": "string",
-                  "enum": [
-                    "partial",
-                    "no_results"
-                  ]
+                  "enum": ["partial", "no_results"]
                 }
               ]
             },
@@ -1408,11 +2520,7 @@
                       },
                       "platform": {
                         "type": "string",
-                        "enum": [
-                          "github",
-                          "xiaohongshu",
-                          "x"
-                        ]
+                        "enum": ["github", "xiaohongshu", "x"]
                       },
                       "phase": {
                         "type": "string",
@@ -1435,12 +2543,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "id",
-                      "at",
-                      "phase",
-                      "message"
-                    ],
+                    "required": ["id", "at", "phase", "message"],
                     "additionalProperties": false
                   }
                 },
@@ -1461,11 +2564,7 @@
                           },
                           "source": {
                             "type": "string",
-                            "enum": [
-                              "github",
-                              "xiaohongshu",
-                              "x"
-                            ]
+                            "enum": ["github", "xiaohongshu", "x"]
                           },
                           "sourceId": {
                             "type": "string",
@@ -1493,10 +2592,7 @@
                           },
                           "completeness": {
                             "type": "string",
-                            "enum": [
-                              "partial",
-                              "complete"
-                            ]
+                            "enum": ["partial", "complete"]
                           },
                           "publishedAt": {
                             "anyOf": [
@@ -1575,18 +2671,11 @@
                       },
                       "status": {
                         "type": "string",
-                        "enum": [
-                          "accepted",
-                          "rejected",
-                          "uncertain"
-                        ]
+                        "enum": ["accepted", "rejected", "uncertain"]
                       },
                       "judgmentState": {
                         "type": "string",
-                        "enum": [
-                          "complete",
-                          "pending"
-                        ]
+                        "enum": ["complete", "pending"]
                       },
                       "reason": {
                         "type": "string"
@@ -1636,22 +2725,14 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": [
-                    "queries",
-                    "modelCalls",
-                    "candidates"
-                  ],
+                  "required": ["queries", "modelCalls", "candidates"],
                   "additionalProperties": false
                 },
                 "stopReason": {
                   "type": "string"
                 }
               },
-              "required": [
-                "events",
-                "candidates",
-                "usage"
-              ],
+              "required": ["events", "candidates", "usage"],
               "additionalProperties": false
             },
             "platforms": {
@@ -1661,11 +2742,7 @@
                 "properties": {
                   "platform": {
                     "type": "string",
-                    "enum": [
-                      "github",
-                      "xiaohongshu",
-                      "x"
-                    ]
+                    "enum": ["github", "xiaohongshu", "x"]
                   },
                   "state": {
                     "anyOf": [
@@ -1677,7 +2754,8 @@
                           "success",
                           "failed",
                           "cancelled",
-                          "interrupted"
+                          "interrupted",
+                          "insufficient"
                         ]
                       },
                       {
@@ -1720,11 +2798,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "platform",
-                  "state",
-                  "count"
-                ],
+                "required": ["platform", "state", "count"],
                 "additionalProperties": false
               }
             }
@@ -1740,12 +2814,350 @@
           ],
           "additionalProperties": false
         }
+      },
+      "discoveries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "materialId": {
+              "type": "string"
+            },
+            "runId": {
+              "type": "string"
+            },
+            "batchId": {
+              "type": "string"
+            },
+            "repoId": {
+              "type": "string"
+            },
+            "repoName": {
+              "type": "string"
+            },
+            "understanding": {
+              "type": "object",
+              "properties": {
+                "product": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 3000
+                },
+                "users": {
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "problems": {
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "scenarios": {
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "constraints": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "uncertainties": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "evidence": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "excerpt": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    },
+                    "required": ["path", "excerpt", "url"],
+                    "additionalProperties": false
+                  }
+                },
+                "publicContext": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "users": {
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "problems": {
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "scenarios": {
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["product", "users", "problems", "scenarios"],
+                  "additionalProperties": false
+                },
+                "id": {
+                  "type": "string"
+                },
+                "repoId": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "commit": {
+                  "type": "string"
+                },
+                "branch": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "product",
+                "users",
+                "problems",
+                "scenarios",
+                "constraints",
+                "uncertainties",
+                "evidence",
+                "publicContext",
+                "id",
+                "repoId",
+                "version",
+                "createdAt",
+                "commit",
+                "branch"
+              ],
+              "additionalProperties": false
+            },
+            "template": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "enum": [
+                    "alternatives",
+                    "needs",
+                    "experience",
+                    "growth",
+                    "capabilities"
+                  ]
+                },
+                "version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "title": {
+                  "type": "string"
+                },
+                "prompt": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "version", "title", "prompt"],
+              "additionalProperties": false
+            },
+            "reason": {
+              "type": "string"
+            },
+            "excerpts": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "discoveredAt": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "activityAt": {
+              "type": "string"
+            },
+            "activityBasis": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "type": "number",
+                  "const": 1
+                },
+                "source": {
+                  "type": "string",
+                  "enum": ["github", "xiaohongshu", "x"]
+                },
+                "sourceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "canonicalUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "author": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "completeness": {
+                  "type": "string",
+                  "enum": ["partial", "complete"]
+                },
+                "publishedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "metrics": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "images": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "context": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "source",
+                "sourceId",
+                "canonicalUrl",
+                "title",
+                "author",
+                "text",
+                "completeness",
+                "publishedAt",
+                "metrics",
+                "images"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "materialId",
+            "runId",
+            "batchId",
+            "repoId",
+            "repoName",
+            "understanding",
+            "template",
+            "reason",
+            "excerpts",
+            "discoveredAt",
+            "query",
+            "activityAt",
+            "activityBasis",
+            "source"
+          ],
+          "additionalProperties": false
+        }
       }
     },
-    "required": [
-      "material",
-      "runs"
-    ],
+    "required": ["material", "runs"],
     "additionalProperties": false
   },
   "generation": {
@@ -1769,10 +3181,7 @@
         "type": "string"
       }
     },
-    "required": [
-      "ids",
-      "prompt"
-    ],
+    "required": ["ids", "prompt"],
     "additionalProperties": false
   },
   "feed": {
@@ -1801,7 +3210,8 @@
               "success",
               "failed",
               "cancelled",
-              "interrupted"
+              "interrupted",
+              "insufficient"
             ]
           },
           {
@@ -1830,11 +3240,7 @@
                     },
                     "source": {
                       "type": "string",
-                      "enum": [
-                        "github",
-                        "xiaohongshu",
-                        "x"
-                      ]
+                      "enum": ["github", "xiaohongshu", "x"]
                     },
                     "sourceId": {
                       "type": "string",
@@ -1862,10 +3268,7 @@
                     },
                     "completeness": {
                       "type": "string",
-                      "enum": [
-                        "partial",
-                        "complete"
-                      ]
+                      "enum": ["partial", "complete"]
                     },
                     "publishedAt": {
                       "anyOf": [
@@ -1943,7 +3346,8 @@
                         "success",
                         "failed",
                         "cancelled",
-                        "interrupted"
+                        "interrupted",
+                        "insufficient"
                       ]
                     },
                     "error": {
@@ -2018,10 +3422,7 @@
                           },
                           "collectionMode": {
                             "type": "string",
-                            "enum": [
-                              "intent",
-                              "keyword"
-                            ]
+                            "enum": ["intent", "keyword"]
                           },
                           "budget": {
                             "type": "object",
@@ -2075,11 +3476,7 @@
                               "properties": {
                                 "platform": {
                                   "type": "string",
-                                  "enum": [
-                                    "github",
-                                    "xiaohongshu",
-                                    "x"
-                                  ]
+                                  "enum": ["github", "xiaohongshu", "x"]
                                 },
                                 "keyword": {
                                   "default": "",
@@ -2088,18 +3485,11 @@
                                 },
                                 "searchMode": {
                                   "type": "string",
-                                  "enum": [
-                                    "trending",
-                                    "search"
-                                  ]
+                                  "enum": ["trending", "search"]
                                 },
                                 "period": {
                                   "type": "string",
-                                  "enum": [
-                                    "daily",
-                                    "weekly",
-                                    "monthly"
-                                  ]
+                                  "enum": ["daily", "weekly", "monthly"]
                                 },
                                 "limit": {
                                   "type": "integer",
@@ -2131,12 +3521,7 @@
                           "schedule": {
                             "default": "manual",
                             "type": "string",
-                            "enum": [
-                              "manual",
-                              "hourly",
-                              "daily",
-                              "weekly"
-                            ]
+                            "enum": ["manual", "hourly", "daily", "weekly"]
                           },
                           "time": {
                             "default": "09:00",
@@ -2174,15 +3559,13 @@
                               "success",
                               "failed",
                               "cancelled",
-                              "interrupted"
+                              "interrupted",
+                              "insufficient"
                             ]
                           },
                           {
                             "type": "string",
-                            "enum": [
-                              "partial",
-                              "no_results"
-                            ]
+                            "enum": ["partial", "no_results"]
                           }
                         ]
                       },
@@ -2205,11 +3588,7 @@
                                 },
                                 "platform": {
                                   "type": "string",
-                                  "enum": [
-                                    "github",
-                                    "xiaohongshu",
-                                    "x"
-                                  ]
+                                  "enum": ["github", "xiaohongshu", "x"]
                                 },
                                 "phase": {
                                   "type": "string",
@@ -2232,12 +3611,7 @@
                                   "type": "string"
                                 }
                               },
-                              "required": [
-                                "id",
-                                "at",
-                                "phase",
-                                "message"
-                              ],
+                              "required": ["id", "at", "phase", "message"],
                               "additionalProperties": false
                             }
                           },
@@ -2258,11 +3632,7 @@
                                     },
                                     "source": {
                                       "type": "string",
-                                      "enum": [
-                                        "github",
-                                        "xiaohongshu",
-                                        "x"
-                                      ]
+                                      "enum": ["github", "xiaohongshu", "x"]
                                     },
                                     "sourceId": {
                                       "type": "string",
@@ -2290,10 +3660,7 @@
                                     },
                                     "completeness": {
                                       "type": "string",
-                                      "enum": [
-                                        "partial",
-                                        "complete"
-                                      ]
+                                      "enum": ["partial", "complete"]
                                     },
                                     "publishedAt": {
                                       "anyOf": [
@@ -2372,18 +3739,11 @@
                                 },
                                 "status": {
                                   "type": "string",
-                                  "enum": [
-                                    "accepted",
-                                    "rejected",
-                                    "uncertain"
-                                  ]
+                                  "enum": ["accepted", "rejected", "uncertain"]
                                 },
                                 "judgmentState": {
                                   "type": "string",
-                                  "enum": [
-                                    "complete",
-                                    "pending"
-                                  ]
+                                  "enum": ["complete", "pending"]
                                 },
                                 "reason": {
                                   "type": "string"
@@ -2433,22 +3793,14 @@
                                 "maximum": 9007199254740991
                               }
                             },
-                            "required": [
-                              "queries",
-                              "modelCalls",
-                              "candidates"
-                            ],
+                            "required": ["queries", "modelCalls", "candidates"],
                             "additionalProperties": false
                           },
                           "stopReason": {
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "events",
-                          "candidates",
-                          "usage"
-                        ],
+                        "required": ["events", "candidates", "usage"],
                         "additionalProperties": false
                       },
                       "platforms": {
@@ -2458,11 +3810,7 @@
                           "properties": {
                             "platform": {
                               "type": "string",
-                              "enum": [
-                                "github",
-                                "xiaohongshu",
-                                "x"
-                              ]
+                              "enum": ["github", "xiaohongshu", "x"]
                             },
                             "state": {
                               "anyOf": [
@@ -2474,7 +3822,8 @@
                                     "success",
                                     "failed",
                                     "cancelled",
-                                    "interrupted"
+                                    "interrupted",
+                                    "insufficient"
                                   ]
                                 },
                                 {
@@ -2517,11 +3866,7 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "platform",
-                            "state",
-                            "count"
-                          ],
+                          "required": ["platform", "state", "count"],
                           "additionalProperties": false
                         }
                       }
@@ -2537,13 +3882,374 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "discoveries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "materialId": {
+                        "type": "string"
+                      },
+                      "runId": {
+                        "type": "string"
+                      },
+                      "batchId": {
+                        "type": "string"
+                      },
+                      "repoId": {
+                        "type": "string"
+                      },
+                      "repoName": {
+                        "type": "string"
+                      },
+                      "understanding": {
+                        "type": "object",
+                        "properties": {
+                          "product": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 3000
+                          },
+                          "users": {
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "problems": {
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "scenarios": {
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "constraints": {
+                            "maxItems": 10,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "uncertainties": {
+                            "maxItems": 10,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "evidence": {
+                            "minItems": 1,
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "path": {
+                                  "type": "string"
+                                },
+                                "excerpt": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "format": "uri"
+                                }
+                              },
+                              "required": ["path", "excerpt", "url"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "publicContext": {
+                            "type": "object",
+                            "properties": {
+                              "product": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "users": {
+                                "maxItems": 10,
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "problems": {
+                                "maxItems": 10,
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "scenarios": {
+                                "maxItems": 10,
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "product",
+                              "users",
+                              "problems",
+                              "scenarios"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "repoId": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "commit": {
+                            "type": "string"
+                          },
+                          "branch": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "users",
+                          "problems",
+                          "scenarios",
+                          "constraints",
+                          "uncertainties",
+                          "evidence",
+                          "publicContext",
+                          "id",
+                          "repoId",
+                          "version",
+                          "createdAt",
+                          "commit",
+                          "branch"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "template": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "alternatives",
+                              "needs",
+                              "experience",
+                              "growth",
+                              "capabilities"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["id", "version", "title", "prompt"],
+                        "additionalProperties": false
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "excerpts": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "discoveredAt": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      },
+                      "activityAt": {
+                        "type": "string"
+                      },
+                      "activityBasis": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "object",
+                        "properties": {
+                          "schemaVersion": {
+                            "type": "number",
+                            "const": 1
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": ["github", "xiaohongshu", "x"]
+                          },
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "canonicalUrl": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "completeness": {
+                            "type": "string",
+                            "enum": ["partial", "complete"]
+                          },
+                          "publishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "metrics": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "images": {
+                            "default": [],
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "context": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "schemaVersion",
+                          "source",
+                          "sourceId",
+                          "canonicalUrl",
+                          "title",
+                          "author",
+                          "text",
+                          "completeness",
+                          "publishedAt",
+                          "metrics",
+                          "images"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "materialId",
+                      "runId",
+                      "batchId",
+                      "repoId",
+                      "repoName",
+                      "understanding",
+                      "template",
+                      "reason",
+                      "excerpts",
+                      "discoveredAt",
+                      "query",
+                      "activityAt",
+                      "activityBasis",
+                      "source"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
-              "required": [
-                "material",
-                "runs"
-              ],
+              "required": ["material", "runs"],
               "additionalProperties": false
+            },
+            "chapter": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "alternatives",
+                    "needs",
+                    "experience",
+                    "growth",
+                    "capabilities"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "const": "legacy"
+                }
+              ]
             },
             "state": {
               "type": "string",
@@ -2553,7 +4259,8 @@
                 "success",
                 "failed",
                 "cancelled",
-                "interrupted"
+                "interrupted",
+                "insufficient"
               ]
             },
             "text": {
@@ -2563,24 +4270,12 @@
               "type": "string"
             }
           },
-          "required": [
-            "id",
-            "evidence",
-            "state",
-            "text"
-          ],
+          "required": ["id", "evidence", "state", "text"],
           "additionalProperties": false
         }
       }
     },
-    "required": [
-      "id",
-      "title",
-      "createdAt",
-      "prompt",
-      "state",
-      "items"
-    ],
+    "required": ["id", "title", "createdAt", "prompt", "state", "items"],
     "additionalProperties": false
   },
   "inbox": {
@@ -2629,7 +4324,8 @@
           "success",
           "failed",
           "cancelled",
-          "interrupted"
+          "interrupted",
+          "insufficient"
         ]
       },
       "material": {
@@ -2641,11 +4337,7 @@
           },
           "source": {
             "type": "string",
-            "enum": [
-              "github",
-              "xiaohongshu",
-              "x"
-            ]
+            "enum": ["github", "xiaohongshu", "x"]
           },
           "sourceId": {
             "type": "string",
@@ -2673,10 +4365,7 @@
           },
           "completeness": {
             "type": "string",
-            "enum": [
-              "partial",
-              "complete"
-            ]
+            "enum": ["partial", "complete"]
           },
           "publishedAt": {
             "anyOf": [
@@ -2756,21 +4445,15 @@
           "success",
           "failed",
           "cancelled",
-          "interrupted"
+          "interrupted",
+          "insufficient"
         ]
       },
       "error": {
         "type": "string"
       }
     },
-    "required": [
-      "id",
-      "url",
-      "createdAt",
-      "state",
-      "summary",
-      "summaryState"
-    ],
+    "required": ["id", "url", "createdAt", "state", "summary", "summaryState"],
     "additionalProperties": false
   }
 }

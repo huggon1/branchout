@@ -12,7 +12,9 @@ import "./style.css";
 import { Icon } from "./Icons.js";
 import { Markdown, SourceImage, resourceUrl } from "./Markdown.js";
 import { Connections } from "./Connections.js";
-import { TaskEditor } from "./TaskEditor.js";
+import { RepoReview, Explorer } from "./Workspace.js";
+import { templates, chapterTitle } from "../core/templates.js";
+import { groupedItems, copyFeed } from "../core/feed-layout.js";
 import { RunResearch, phaseLabels } from "./RunResearch.js";
 declare global {
   interface Window {
@@ -36,6 +38,7 @@ const labels: any = {
   cancelled: "已取消",
   interrupted: "已中断",
   no_results: "无结果",
+  insufficient: "依据不足",
 };
 const metricNames: any = {
   stars: "Stars",
@@ -124,10 +127,15 @@ function App() {
     run: "",
     platform: "",
     task: "",
+    repo: "",
+    angle: "",
+    batch: "",
     date: "",
     used: "",
     sort: "",
   });
+  const [chapters, setChapters] = useState<Record<string, string>>({});
+  const [githubKey, setGithubKey] = useState("");
   const [fromFeed, setFromFeed] = useState<string>();
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -199,9 +207,42 @@ function App() {
   const remove = async (type: string, id: string, message: string) => {
     if (confirm(message)) await act({ type, id });
   };
+  const discoveries = (m: Material) =>
+    (state.discoveries || []).filter(
+      (d: any) =>
+        d.source.source === m.source && d.source.sourceId === m.sourceId,
+    );
+  const identity = (m: Material) => `${m.source}:${m.sourceId}`;
+  const selectUnique = (ids: string[]) => {
+    const keys = new Set<string>();
+    return ids.filter((id) => {
+      const m = state.materials.find((x: Material) => x.id === id);
+      if (!m) return false;
+      const key = identity(m);
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    });
+  };
+  const isSelected = (m: Material) =>
+    selected.some((id) => {
+      const x = state.materials.find((x: Material) => x.id === id);
+      return x && identity(x) === identity(m);
+    });
+  const deselect = (m: Material) =>
+    selected.filter((id) => {
+      const x = state.materials.find((x: Material) => x.id === id);
+      return !x || identity(x) !== identity(m);
+    });
   const rows: Material[] = state.materials
     .filter(
       (m: Material) =>
+        (!filter.repo ||
+          discoveries(m).some((d: any) => d.repoId === filter.repo)) &&
+        (!filter.angle ||
+          discoveries(m).some((d: any) => d.template.id === filter.angle)) &&
+        (!filter.batch ||
+          discoveries(m).some((d: any) => d.batchId === filter.batch)) &&
         (!filter.platform || m.source === filter.platform) &&
         (!filter.task || m.taskIds.includes(filter.task)) &&
         (!filter.run || m.runIds.includes(filter.run)) &&
@@ -212,13 +253,37 @@ function App() {
       filter.platform && filter.sort
         ? (b.metrics[filter.sort] ?? -1) - (a.metrics[filter.sort] ?? -1)
         : b.updatedAt.localeCompare(a.updatedAt),
+    )
+    .filter(
+      (m: Material, i: number, rows: Material[]) =>
+        rows.findIndex((x) => identity(x) === identity(m)) === i,
     );
   const selectedRows: Material[] = selected
     .map((id) => state.materials.find((m: Material) => m.id === id))
     .filter(Boolean);
+  const selectedChapter = (m: Material) =>
+    chapters[m.id] ||
+    templates.find((t) =>
+      discoveries(m).some((d: any) => d.template.id === t.id),
+    )?.id ||
+    "legacy";
+  const chapterOrder = [...new Set(selectedRows.map(selectedChapter))];
+  selectedRows.sort(
+    (a, b) =>
+      chapterOrder.indexOf(selectedChapter(a)) -
+      chapterOrder.indexOf(selectedChapter(b)),
+  );
   const sourceFeed: Feed | undefined = state.feeds.find(
     (f: Feed) => f.id === fromFeed,
   );
+  const sourceItems =
+    sourceFeed?.items.filter(
+      (item, i, items) =>
+        items.findIndex(
+          (x) =>
+            identity(x.evidence.material) === identity(item.evidence.material),
+        ) === i,
+    ) || [];
   const currentFeed: Feed | undefined = state.feeds.find(
     (f: Feed) => f.id === feed,
   );
@@ -228,7 +293,7 @@ function App() {
   const all = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (all.current) {
-      const n = rows.filter((m) => selected.includes(m.id)).length;
+      const n = rows.filter((m) => isSelected(m)).length;
       all.current.indeterminate = n > 0 && n < rows.length;
     }
   }, [rows, selected]);
@@ -241,10 +306,11 @@ function App() {
     const id = await act({
       type: "generate",
       ids: fromFeed
-        ? sourceFeed?.items.map((i) => i.evidence.material.id) || selected
+        ? sourceItems.map((i) => i.evidence.material.id) || selected
         : selected,
       prompt,
       fromFeed,
+      chapters,
     });
     if (id) {
       setFeed(id);
@@ -310,6 +376,42 @@ function App() {
               </option>
             ))}
           </select>
+          <select
+            aria-label="仓库筛选"
+            value={filter.repo}
+            onChange={(e) => setFilter({ ...filter, repo: e.target.value })}
+          >
+            <option value="">全部仓库</option>
+            {(state.repos || []).map((r: any) => (
+              <option key={r.id} value={r.id}>
+                {r.fullName}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="角度筛选"
+            value={filter.angle}
+            onChange={(e) => setFilter({ ...filter, angle: e.target.value })}
+          >
+            <option value="">全部角度</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="批次筛选"
+            value={filter.batch}
+            onChange={(e) => setFilter({ ...filter, batch: e.target.value })}
+          >
+            <option value="">全部批次</option>
+            {(state.batches || []).map((b: any) => (
+              <option key={b.id} value={b.id}>
+                {date(b.createdAt)} · {b.runIds.length} 项
+              </option>
+            ))}
+          </select>
           <input
             aria-label="起始收集日期"
             type="date"
@@ -360,14 +462,15 @@ function App() {
             <input
               ref={all}
               type="checkbox"
-              checked={
-                rows.length > 0 && rows.every((m) => selected.includes(m.id))
-              }
+              checked={rows.length > 0 && rows.every((m) => isSelected(m))}
               onChange={(e) =>
                 setSelected(
                   e.target.checked
-                    ? [...new Set([...selected, ...rows.map((m) => m.id)])]
-                    : selected.filter((id) => !rows.some((m) => m.id === id)),
+                    ? selectUnique([...selected, ...rows.map((m) => m.id)])
+                    : selected.filter(
+                        (id) =>
+                          !rows.some((m) => deselect(m).includes(id) === false),
+                      ),
                 )
               }
             />{" "}
@@ -393,10 +496,10 @@ function App() {
             text={
               state.materials.length
                 ? "换一组筛选条件试试。"
-                : "先创建一个收集任务，让值得读的内容汇集到这里。"
+                : "先绑定仓库并生成理解，再按角度探索素材。"
             }
-            action={() => navigate("收集任务")}
-            label="前往收集任务"
+            action={() => navigate("探索")}
+            label="前往探索"
           />
         ) : (
           <div className="table">
@@ -409,18 +512,18 @@ function App() {
             </div>
             {rows.map((m) => (
               <div
-                className={`materialrow ${selected.includes(m.id) ? "selected" : ""}`}
+                className={`materialrow ${isSelected(m) ? "selected" : ""}`}
                 key={m.id}
               >
                 <input
                   aria-label={`选择 ${m.title}`}
                   type="checkbox"
-                  checked={selected.includes(m.id)}
+                  checked={isSelected(m)}
                   onChange={(e) =>
                     setSelected(
                       e.target.checked
-                        ? [...selected, m.id]
-                        : selected.filter((id) => id !== m.id),
+                        ? selectUnique([...selected, m.id])
+                        : deselect(m),
                     )
                   }
                 />
@@ -428,6 +531,18 @@ function App() {
                   <button className="titlelink" onClick={() => setDetail(m)}>
                     {m.title}
                   </button>
+                  {discoveries(m).length > 0 && (
+                    <small className="discovery-tags">
+                      {[
+                        ...new Set(
+                          discoveries(m).map(
+                            (d: any) => `${d.repoName} · ${d.template.title}`,
+                          ),
+                        ),
+                      ].join(" / ")}{" "}
+                      · {discoveries(m).length} 次发现
+                    </small>
+                  )}
                   <p className="summary">
                     {m.summary && <small>AI 摘要 · </small>}
                     {m.summary ||
@@ -494,22 +609,38 @@ function App() {
         </div>
         <div className="tagline">把关注织成见解</div>
         <nav>
-          {["转发收件箱", "收集任务", "素材库", "Feed 生成", "我的 Feed"].map(
-            (p, i) => (
-              <button
-                key={p}
-                className={page === p ? "active" : ""}
-                onClick={() => navigate(p)}
-              >
-                <span className="navicon" aria-hidden="true">
-                  <Icon
-                    name={["inbox", "tasks", "library", "sparkle", "feed"][i]}
-                  />
-                </span>
-                {p}
-              </button>
-            ),
-          )}
+          {[
+            "转发收件箱",
+            "项目回顾",
+            "探索",
+            "素材库",
+            "Feed 生成",
+            "我的 Feed",
+            "历史收集",
+          ].map((p, i) => (
+            <button
+              key={p}
+              className={page === p ? "active" : ""}
+              onClick={() => navigate(p)}
+            >
+              <span className="navicon" aria-hidden="true">
+                <Icon
+                  name={
+                    [
+                      "inbox",
+                      "tasks",
+                      "tasks",
+                      "library",
+                      "sparkle",
+                      "feed",
+                      "tasks",
+                    ][i]
+                  }
+                />
+              </span>
+              {p}
+            </button>
+          ))}
         </nav>
         <button
           className={`settings ${page === "连接与模型" ? "active" : ""}`}
@@ -529,7 +660,9 @@ function App() {
                 (
                   {
                     转发收件箱: "留住一条链接，慢慢读。",
-                    收集任务: "设好关注方向，把发现交给下一次收集。",
+                    项目回顾: "看懂产品，回顾值得深入理解的变化。",
+                    探索: "基于已有仓库理解，按预设角度发现内容。",
+                    历史收集: "旧任务与来源依据只读保留，定时执行已停用。",
                     素材库: "看看原始信号，选出你想继续读的内容。",
                     "Feed 生成": "你选素材，Feedloom 帮你组织表达。",
                     "我的 Feed": "值得留下的发现，都在这里。",
@@ -566,9 +699,10 @@ function App() {
                   <span className="status running">重新生成</span>
                   <h2>沿用原 Feed 的来源依据</h2>
                   <p className="muted">
-                    使用生成当时保存的素材快照，修改提示词后另存为一份新 Feed。
+                    使用生成当时保存的素材快照，修改提示词后另存为一份新
+                    Feed。同来源只保留第一项，下列清单即实际输入。
                   </p>
-                  {sourceFeed?.items.map((item, i) => (
+                  {sourceItems.map((item, i) => (
                     <div className="chosen" key={item.id}>
                       <span>{i + 1}</span>
                       <button
@@ -577,6 +711,8 @@ function App() {
                           setDetail({
                             ...item.evidence.material,
                             evidenceRuns: item.evidence.runs,
+                            evidenceDiscoveries:
+                              item.evidence.discoveries || [],
                           })
                         }
                       >
@@ -603,9 +739,11 @@ function App() {
             </section>
             <section className="panel composer">
               <h2>这次生成</h2>
-              <p className="muted">按下面的顺序逐条生成，不合并来源。</p>
+              <p className="muted">
+                按下列章节归属和顺序逐条生成；同章保持选择顺序，不合并来源。
+              </p>
               {fromFeed ? (
-                <p>使用原 Feed 的 {sourceFeed?.items.length} 条来源快照</p>
+                <p>使用原 Feed 的 {sourceItems.length} 条来源快照</p>
               ) : (
                 selectedRows.map((m, i) => (
                   <div className="chosen" key={m.id}>
@@ -616,6 +754,37 @@ function App() {
                         {m.date} · {platforms[m.source]}
                       </small>
                     </button>
+                    <select
+                      aria-label={`章节 ${m.title}`}
+                      value={
+                        chapters[m.id] ||
+                        templates.find((t) =>
+                          discoveries(m).some(
+                            (d: any) => d.template.id === t.id,
+                          ),
+                        )?.id ||
+                        "legacy"
+                      }
+                      onChange={(e) =>
+                        setChapters({ ...chapters, [m.id]: e.target.value })
+                      }
+                    >
+                      {discoveries(m).length ? (
+                        templates
+                          .filter((t) =>
+                            discoveries(m).some(
+                              (d: any) => d.template.id === t.id,
+                            ),
+                          )
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.title}
+                            </option>
+                          ))
+                      ) : (
+                        <option value="legacy">历史素材</option>
+                      )}
+                    </select>
                     <button
                       className="quiet"
                       onClick={() =>
@@ -636,7 +805,7 @@ function App() {
                 new Set(selectedRows.map((m) => m.canonicalUrl)).size <
                   selectedRows.length && (
                   <p className="warning">
-                    包含同一来源的不同日期素材，将分别生成。
+                    包含同一来源的不同日期素材，生成时仅保留首次选择的快照。
                   </p>
                 )}
               <label>
@@ -672,189 +841,37 @@ function App() {
             </section>
           </div>
         )}
-        {page === "收集任务" && (
-          <div className="split">
-            <section className="panel list">
-              <button
-                className="primary full"
-                onClick={() =>
-                  chooseTask({
-                    id: "",
-                    name: "",
-                    description: "",
-                    collectionMode: "intent",
-                    sources: [
-                      {
-                        platform: "github",
-                        searchMode: "search",
-                        keyword: "",
-                        period: "daily",
-                        limit: 10,
-                        thresholds: {},
-                      },
-                    ],
-                    schedule: "manual",
-                    time: "09:00",
-                    paused: false,
-                    createdAt: "",
-                    nextDue: null,
-                  })
-                }
-              >
-                ＋ 新建任务
-              </button>
-              {state.tasks.map((t: Task) => (
-                <button
-                  key={t.id}
-                  className={`listitem ${task?.id === t.id ? "selected" : ""}`}
-                  onClick={() => chooseTask(t)}
-                >
-                  <strong>{t.name}</strong>
-                  <small>
-                    {t.sources.map((s) => platforms[s.platform]).join(" · ")}
-                  </small>
-                  <small>
-                    {t.paused
-                      ? "已暂停"
-                      : t.schedule === "manual"
-                        ? "手动执行"
-                        : `计划执行 · ${t.time}`}
-                  </small>
-                  {(t.missedAt ||
-                    (t.nextDue && Date.parse(t.nextDue) < Date.now())) && (
-                    <small className="warning">错过计划，可立即补跑</small>
-                  )}
-                </button>
-              ))}
-            </section>
-            <section>
-              {task ? (
-                <TaskEditor
-                  key={task.id}
-                  task={task}
-                  save={async (t) => {
-                    const saved = await act({
-                      type: "saveTask",
-                      id: task.id || undefined,
-                      task: t,
-                    });
-                    if (saved) {
-                      setTask(saved);
-                      setTaskDirty(false);
-                      setNotice("任务已保存");
-                    }
-                    return saved;
-                  }}
-                  run={async (id) => {
-                    const runId = await act({ type: "runTask", id });
-                    if (typeof runId === "string") setPendingRun(runId);
-                    return runId;
-                  }}
-                  onDirty={setTaskDirty}
-                  remove={async () => {
-                    if (!confirm("删除任务？已有素材和 Feed 将保留。")) return;
-                    const result = await act({
-                      type: "deleteTask",
-                      id: task.id,
-                    });
-                    if (result !== undefined) {
-                      setTask(undefined);
-                      setTaskDirty(false);
-                    }
-                  }}
-                />
-              ) : (
-                <Empty
-                  title="从一个关注方向开始"
-                  text="描述你想找到的信息，选择平台，开始第一次探索。"
-                />
-              )}
-              <h2>收集记录</h2>
-              {state.runs
-                .filter((r: Run) => !task?.id || r.taskId === task.id)
-                .map((r: Run) => (
-                  <div
-                    className="panel run"
-                    id={`run-${r.id}`}
-                    style={{ scrollMarginTop: 24 }}
-                    key={r.id}
-                  >
-                    <div>
-                      <strong>{r.taskName}</strong>
-                      <span className={`status ${r.state}`}>
-                        {labels[r.state]}
-                      </span>
-                      <small>{date(r.startedAt)}</small>
-                    </div>
-                    {r.platforms.map((p) => (
-                      <p key={p.platform}>
-                        <strong>{platforms[p.platform]}</strong> ·{" "}
-                        {labels[p.state]} · 已入库 {p.count} 条
-                        {p.phase && p.state === "running" && (
-                          <span>
-                            {" "}
-                            · {phaseLabels[p.phase]}
-                            {p.round ? ` / 第 ${p.round} 轮` : ""}
-                          </span>
-                        )}
-                        {p.candidateCount !== undefined && (
-                          <span> · {p.candidateCount} 个候选</span>
-                        )}
-                        {p.stopReason && <span> · {p.stopReason}</span>}{" "}
-                        {p.error && <span className="warning">{p.error}</span>}
+        {page === "项目回顾" && (
+          <RepoReview state={state} act={act} navigate={navigate} />
+        )}
+        {page === "探索" && (
+          <Explorer state={state} act={act} navigate={navigate} />
+        )}
+        {page === "历史收集" && (
+          <section className="panel">
+            <p>历史任务只读保留。新发现请使用探索，历史素材仍可生成 Feed。</p>
+            {state.tasks.map((t: Task) => (
+              <details key={t.id}>
+                <summary>{t.name}</summary>
+                <p>{t.description}</p>
+                {state.runs
+                  .filter((r: Run) => r.taskId === t.id)
+                  .map((r: Run) => (
+                    <div key={r.id}>
+                      <p>
+                        {date(r.startedAt)} · {labels[r.state]}
                       </p>
-                    ))}
-                    <RunResearch
-                      run={r}
-                      inspect={(candidate) =>
-                        setDetail({
-                          ...candidate.source,
-                          decision: candidate,
-                          evidenceRuns: [r],
-                        })
-                      }
-                    />
-                    <div className="actions">
-                      <button
-                        onClick={() => {
-                          setFilter({
-                            ...filter,
-                            task: r.taskId,
-                            run: r.id,
-                            platform: "",
-                            date: "",
-                            used: "",
-                          });
-                          navigate("素材库");
-                        }}
-                      >
-                        查看素材
-                      </button>
-                      {r.state === "running" ? (
-                        <button
-                          onClick={() => act({ type: "cancelRun", id: r.id })}
-                        >
-                          取消运行
-                        </button>
-                      ) : (
-                        [
-                          "failed",
-                          "partial",
-                          "interrupted",
-                          "cancelled",
-                        ].includes(r.state) && (
-                          <button
-                            onClick={() => act({ type: "retryRun", id: r.id })}
-                          >
-                            重试未完成平台
-                          </button>
-                        )
-                      )}
+                      <RunResearch
+                        run={r}
+                        inspect={(c: any) =>
+                          setDetail({ ...c.source, decision: c })
+                        }
+                      />
                     </div>
-                  </div>
-                ))}
-            </section>
-          </div>
+                  ))}
+              </details>
+            ))}
+          </section>
         )}
         {state.buildLabel?.includes("测试版") && (
           <p className="preview-label">{state.buildLabel}</p>
@@ -1006,17 +1023,7 @@ function App() {
                   <div className="actions">
                     <button
                       disabled={!currentFeed.items.some((i) => i.text)}
-                      onClick={() =>
-                        copy(
-                          currentFeed.items
-                            .filter((i) => i.text)
-                            .map(
-                              (i) =>
-                                `${i.text}\n${i.evidence.material.canonicalUrl}`,
-                            )
-                            .join("\n\n"),
-                        )
-                      }
+                      onClick={() => copy(copyFeed(currentFeed))}
                     >
                       复制可用内容
                     </button>
@@ -1064,60 +1071,140 @@ function App() {
                       重试未完成项
                     </button>
                   )}
-                  {currentFeed.items.map((item, i) => (
-                    <article className="feeditem" key={item.id}>
-                      <small>
-                        {i + 1} / {currentFeed.items.length} ·{" "}
-                        {labels[item.state]}
-                      </small>
-                      <h3>{item.evidence.material.title}</h3>
-                      <Markdown
-                        text={item.text || "等待生成内容"}
-                        open={(url) => act({ type: "open", url })}
-                      />
-                      {item.error && <p className="warning">{item.error}</p>}
-                      <div className="actions">
-                        <button
-                          disabled={!item.text}
-                          onClick={() =>
-                            copy(
-                              `${item.text}\n${item.evidence.material.canonicalUrl}`,
-                            )
-                          }
-                        >
-                          复制单条
-                        </button>
-                        <button
-                          onClick={() =>
-                            setDetail({
-                              ...item.evidence.material,
-                              evidenceRuns: item.evidence.runs,
-                            })
-                          }
-                        >
-                          查看来源依据
-                        </button>
-                        <button
-                          disabled={currentFeed.state === "running"}
-                          onClick={() => {
-                            if (
-                              !item.text ||
-                              confirm(
-                                "重新生成成功后将替换当前单条内容，失败时保留原文。",
-                              )
-                            )
-                              void act({
-                                type: "retryFeed",
-                                id: currentFeed.id,
-                                itemId: item.id,
-                              });
-                          }}
-                        >
-                          重新生成单条
-                        </button>
-                      </div>
-                    </article>
+                  {!currentFeed.items.some((i) => i.state === "success") && (
+                    <p className="warning">
+                      本次尚无可阅读成品。选材与提示词已保留，不会补齐空章节。
+                    </p>
+                  )}
+                  {groupedItems(
+                    currentFeed.items.filter(
+                      (i) => i.state === "success" && i.text,
+                    ),
+                  ).map((g) => (
+                    <section key={g.id}>
+                      <h2>{g.title}</h2>
+                      {g.items.map((item) => (
+                        <article key={item.id} className="feeditem">
+                          <h3>{item.evidence.material.title}</h3>
+                          <p className="muted">
+                            {[
+                              ...new Set(
+                                item.evidence.discoveries?.map(
+                                  (d) => d.repoName,
+                                ) || [],
+                              ),
+                            ].join(" · ")}
+                          </p>
+                          <Markdown
+                            text={item.text}
+                            open={(url) => act({ type: "open", url })}
+                          />
+                          <div className="actions">
+                            <button
+                              onClick={() =>
+                                copy(
+                                  `${item.text}\n${item.evidence.material.canonicalUrl}`,
+                                )
+                              }
+                            >
+                              复制单条
+                            </button>
+                            <button
+                              onClick={() =>
+                                setDetail({
+                                  ...item.evidence.material,
+                                  evidenceRuns: item.evidence.runs,
+                                  evidenceDiscoveries:
+                                    item.evidence.discoveries || [],
+                                })
+                              }
+                            >
+                              查看来源依据
+                            </button>
+                            <button
+                              disabled={currentFeed.state === "running"}
+                              onClick={() => {
+                                if (confirm("成功后替换此条，失败保留原文。"))
+                                  void act({
+                                    type: "retryFeed",
+                                    id: currentFeed.id,
+                                    itemId: item.id,
+                                  });
+                              }}
+                            >
+                              重新生成单条
+                            </button>
+                          </div>
+                          {item.error && (
+                            <p className="warning">
+                              上次替换未完成：{item.error}
+                            </p>
+                          )}
+                        </article>
+                      ))}
+                    </section>
                   ))}
+                  {currentFeed.items.some((i) => i.state !== "success") && (
+                    <h3>未产出条目与生成状态</h3>
+                  )}
+                  {currentFeed.items
+                    .filter((item) => item.state !== "success")
+                    .map((item, i) => (
+                      <article className="feeditem" key={item.id}>
+                        <small>
+                          {i + 1} / {currentFeed.items.length} ·{" "}
+                          {labels[item.state]}
+                        </small>
+                        <h3>{item.evidence.material.title}</h3>
+                        <Markdown
+                          text={item.text || "等待生成内容"}
+                          open={(url) => act({ type: "open", url })}
+                        />
+                        {item.error && <p className="warning">{item.error}</p>}
+                        <div className="actions">
+                          <button
+                            disabled={!item.text}
+                            onClick={() =>
+                              copy(
+                                `${item.text}\n${item.evidence.material.canonicalUrl}`,
+                              )
+                            }
+                          >
+                            复制单条
+                          </button>
+                          <button
+                            onClick={() =>
+                              setDetail({
+                                ...item.evidence.material,
+                                evidenceRuns: item.evidence.runs,
+                                evidenceDiscoveries:
+                                  item.evidence.discoveries || [],
+                              })
+                            }
+                          >
+                            查看来源依据
+                          </button>
+                          <button
+                            disabled={currentFeed.state === "running"}
+                            onClick={() => {
+                              if (
+                                !item.text ||
+                                confirm(
+                                  "重新生成成功后将替换当前单条内容，失败时保留原文。",
+                                )
+                              )
+                                void act({
+                                  type: "retryFeed",
+                                  id: currentFeed.id,
+                                  itemId: item.id,
+                                });
+                            }}
+                          >
+                            重新生成单条
+                          </button>
+                        </div>
+                      </article>
+                    ))}
                 </div>
               ) : (
                 <Empty
@@ -1137,6 +1224,9 @@ function App() {
             onDirty={setConnectionDirty}
             initialSection={connectionSection}
             act={act}
+            githubKey={githubKey}
+            setGithubKey={setGithubKey}
+            setNotice={setNotice}
           />
         )}
       </main>
@@ -1190,6 +1280,40 @@ function App() {
               material={detail}
               open={(url) => act({ type: "open", url })}
             />
+            {(detail.evidenceDiscoveries || discoveries(detail)).length > 0 && (
+              <section>
+                <h3>发现关系</h3>
+                {(detail.evidenceDiscoveries || discoveries(detail)).map(
+                  (d: any) => (
+                    <article className="review-run" key={d.id}>
+                      <strong>
+                        {d.repoName} · {d.template.title}
+                      </strong>
+                      <p className="muted">
+                        理解 v{d.understanding.version} ·{" "}
+                        {d.understanding.commit.slice(0, 12)} · 模板 v
+                        {d.template.version} · {date(d.discoveredAt)}
+                      </p>
+                      <p>{d.reason}</p>
+                      <p>
+                        {d.activityBasis} · {date(d.activityAt)}
+                      </p>
+                      {d.excerpts.map((e: string, i: number) => (
+                        <blockquote key={i}>{e}</blockquote>
+                      ))}
+                      <details>
+                        <summary>当时使用的来源正文与理解</summary>
+                        <p>{d.understanding.product}</p>
+                        <Markdown
+                          text={d.source.text}
+                          open={(url) => act({ type: "open", url })}
+                        />
+                      </details>
+                    </article>
+                  ),
+                )}
+              </section>
+            )}
             {detail.runIds && (
               <section>
                 <h3>收集依据</h3>

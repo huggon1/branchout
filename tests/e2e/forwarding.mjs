@@ -107,10 +107,12 @@ try {
       ),
     ).toBe(false);
   }
-  await page.getByRole("button", { name: /GitHub 无需登录/ }).click();
+  await page.getByRole("button", { name: /GitHub 公开仓库可用/ }).click();
   await expect(
     page.getByRole("heading", { name: "GitHub", exact: true }),
   ).toBeVisible();
+  await expect(page.getByLabel("GitHub 只读 Token")).toBeVisible();
+  await expect(page.getByRole("button", { name: "保存 Token" })).toBeDisabled();
   await page.getByRole("button", { name: /转发机器人 Telegram/ }).click();
   await expect(page.getByLabel("Bot Token", { exact: true })).toBeVisible();
   await page.screenshot({

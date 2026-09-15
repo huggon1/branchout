@@ -4,12 +4,38 @@ import {
   SourceMaterial,
   TaskInput,
   ResearchStateSchema,
+  Discovery,
+  ExplorationCandidate,
   type Material,
   type Task,
   type Run,
   type Feed,
   type Inbox,
 } from "./contracts.js";
+import {
+  Repo,
+  Understanding,
+  Analysis,
+  Exploration,
+  Batch,
+} from "./workspace-contracts.js";
+type WorkspaceTable =
+  | "repos"
+  | "understandings"
+  | "analyses"
+  | "explorations"
+  | "batches"
+  | "discoveries"
+  | "candidates";
+const workspaceSchemas = {
+  repos: Repo,
+  understandings: Understanding,
+  analyses: Analysis,
+  explorations: Exploration,
+  batches: Batch,
+  discoveries: Discovery,
+  candidates: ExplorationCandidate,
+};
 export class Store {
   db: DatabaseSync;
   constructor(path: string) {
@@ -19,7 +45,7 @@ export class Store {
     );
     const version = (this.db.prepare("PRAGMA user_version").get() as any)
       .user_version;
-    if (version > 2) {
+    if (version > 3) {
       this.db.close();
       throw Error("数据库来自更新的应用版本，请使用新版应用");
     }
@@ -32,6 +58,10 @@ export class Store {
    CREATE TABLE IF NOT EXISTS inbox(id TEXT PRIMARY KEY, data TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS settings(id TEXT PRIMARY KEY,data TEXT NOT NULL);
    `);
+      for (const name of Object.keys(workspaceSchemas))
+        this.db.exec(
+          `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+        );
       if (version < 2) {
         // Only live task configuration changes. Historical runs and Feed evidence
         // must continue to describe the exact inputs used before the upgrade.
@@ -45,21 +75,40 @@ export class Store {
           }
         }
       }
-      this.db.exec("PRAGMA user_version=2; COMMIT;");
+      if (version < 3)
+        for (const row of this.db.prepare("SELECT id,data FROM tasks").all()) {
+          const task = JSON.parse(String(row.data));
+          task.paused = true;
+          task.nextDue = null;
+          delete task.missedAt;
+          this.db
+            .prepare("UPDATE tasks SET data=? WHERE id=?")
+            .run(JSON.stringify(task), row.id);
+        }
+      this.db.exec("PRAGMA user_version=3; COMMIT;");
     } catch (error) {
       this.db.exec("ROLLBACK");
       this.db.close();
       throw error;
     }
   }
-  list<T>(table: "tasks" | "runs" | "materials" | "feeds" | "inbox"): T[] {
+  list<T>(
+    table: WorkspaceTable | "tasks" | "runs" | "materials" | "feeds" | "inbox",
+  ): T[] {
     return this.db
       .prepare(`SELECT data FROM ${table} ORDER BY rowid DESC`)
       .all()
       .map((r: any) => JSON.parse(r.data));
   }
   get<T>(
-    table: "tasks" | "runs" | "materials" | "feeds" | "inbox" | "settings",
+    table:
+      | WorkspaceTable
+      | "tasks"
+      | "runs"
+      | "materials"
+      | "feeds"
+      | "inbox"
+      | "settings",
     id: string,
   ): T | undefined {
     const r = this.db
@@ -67,11 +116,16 @@ export class Store {
       .get(id) as any;
     return r ? JSON.parse(r.data) : undefined;
   }
-  put(
-    table: "tasks" | "runs" | "feeds" | "inbox" | "settings",
-    item: { id: string },
+  put<T extends { id: string }>(
+    table: WorkspaceTable | "tasks" | "runs" | "feeds" | "inbox" | "settings",
+    item: T,
   ) {
-    let stored = item;
+    let stored: { id: string } = item;
+    if (table in workspaceSchemas) {
+      stored = workspaceSchemas[table as WorkspaceTable].parse(item);
+      if (table === "understandings" && this.get(table, item.id))
+        throw Error("理解版本不可修改");
+    }
     if (table === "runs" && "research" in item && item.research !== undefined) {
       const research = ResearchStateSchema.parse(item.research);
       for (const candidate of research.candidates) {
@@ -103,7 +157,10 @@ export class Store {
       .run(item.id, JSON.stringify(stored));
     return item;
   }
-  delete(table: "tasks" | "materials" | "feeds" | "inbox", id: string) {
+  delete(
+    table: "repos" | "tasks" | "materials" | "feeds" | "inbox",
+    id: string,
+  ) {
     this.db.prepare(`DELETE FROM ${table} WHERE id=?`).run(id);
   }
   saveTask(
@@ -199,13 +256,65 @@ export class Store {
     if (!material) throw Error("所选素材已删除，请重新选择");
     return {
       material,
+      discoveries: this.list<Discovery>("discoveries").filter(
+        (d) =>
+          d.source.source === material.source &&
+          d.source.sourceId === material.sourceId,
+      ),
       runs: material.runIds
         .map((id) => this.get<Run>("runs", id))
         .filter((r): r is Run => !!r),
     };
   }
+  completeAnalysis(
+    repo: Repo,
+    analysis: Analysis,
+    understanding: Understanding,
+  ) {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = this.get<Repo>("repos", repo.id);
+      if (!current || current.understandingId !== repo.understandingId)
+        throw Error("仓库分析基准已改变");
+      this.put("understandings", understanding);
+      this.put("analyses", {
+        ...analysis,
+        state: "success",
+        phase: "已完成",
+        endedAt: new Date().toISOString(),
+        understandingId: understanding.id,
+      });
+      this.put("repos", {
+        ...current,
+        branch: understanding.branch,
+        boundary: understanding.commit,
+        understandingId: understanding.id,
+      });
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+  saveDiscovery(discovery: Discovery) {
+    const d = Discovery.parse(discovery);
+    if (
+      d.excerpts.some(
+        (e) => !d.source.text.includes(e) && !d.source.title.includes(e),
+      )
+    )
+      throw Error("发现依据必须来自原文");
+    this.put("discoveries", d);
+  }
   recover() {
-    for (const table of ["runs", "feeds", "inbox"] as const) {
+    for (const table of [
+      "runs",
+      "feeds",
+      "inbox",
+      "analyses",
+      "explorations",
+      "batches",
+    ] as const) {
       for (const item of this.list<any>(table)) {
         let changed = false;
         if (item.state === "running" || item.state === "pending") {
@@ -235,6 +344,13 @@ export class Store {
   }
   state() {
     return {
+      repos: this.list<Repo>("repos"),
+      understandings: this.list<Understanding>("understandings"),
+      analyses: this.list<Analysis>("analyses"),
+      explorations: this.list<Exploration>("explorations"),
+      batches: this.list<Batch>("batches"),
+      discoveries: this.list<Discovery>("discoveries"),
+      candidates: this.list<ExplorationCandidate>("candidates"),
       tasks: this.list<Task>("tasks"),
       runs: this.list<Run>("runs"),
       materials: this.list<Material>("materials"),

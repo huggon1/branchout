@@ -1,5 +1,11 @@
 import { ModelConnection } from "./model-settings.js";
 import { z } from "zod";
+import {
+  workspaceCommands,
+  workspaceSchema,
+  DiscoveryMeta,
+  Chapter,
+} from "./workspace-contracts.js";
 export const Platform = z.enum(["github", "xiaohongshu", "x"]);
 export type Platform = z.infer<typeof Platform>;
 export const SourceConfig = z
@@ -134,7 +140,8 @@ export type ResultState =
   | "success"
   | "failed"
   | "cancelled"
-  | "interrupted";
+  | "interrupted"
+  | "insufficient";
 export interface Material extends SourceMaterial {
   id: string;
   date: string;
@@ -171,10 +178,12 @@ export interface Run {
 export interface Evidence {
   material: Material;
   runs: Run[];
+  discoveries?: Discovery[];
 }
 export interface FeedItem {
   id: string;
   evidence: Evidence;
+  chapter?: string;
   state: ResultState;
   text: string;
   error?: string;
@@ -198,7 +207,18 @@ export interface Inbox {
   summaryState: ResultState;
   error?: string;
 }
+export const ExplorationCandidate = CandidateDecisionSchema.extend({
+  runId: z.string(),
+  language: z.enum(["zh", "en"]),
+  readState: z.enum(["pending", "read", "failed"]),
+  activityAt: z.string().optional(),
+  activityBasis: z.string().optional(),
+});
+export type ExplorationCandidate = z.infer<typeof ExplorationCandidate>;
+export const Discovery = DiscoveryMeta.extend({ source: SourceMaterial });
+export type Discovery = z.infer<typeof Discovery>;
 export const Command = z.discriminatedUnion("type", [
+  ...workspaceCommands,
   z.object({
     type: z.literal("botSave"),
     channel: z.enum(["telegram", "feishu"]),
@@ -243,6 +263,7 @@ export const Command = z.discriminatedUnion("type", [
     ids: z.array(z.string()).min(1).max(100),
     prompt: z.string().trim().min(1).max(10000),
     fromFeed: z.string().optional(),
+    chapters: z.record(z.string(), Chapter).optional(),
   }),
   z.object({
     type: z.literal("retryFeed"),
@@ -288,6 +309,7 @@ const ResultStateSchema = z.enum([
   "failed",
   "cancelled",
   "interrupted",
+  "insufficient",
 ]);
 export const TaskSchema = TaskInput.and(
   z.object({
@@ -334,6 +356,7 @@ export const MaterialSchema = SourceMaterial.extend({
 export const EvidenceSchema = z.object({
   material: MaterialSchema,
   runs: z.array(RunSchema),
+  discoveries: z.array(Discovery).optional(),
 });
 export const FeedSchema = z.object({
   id: z.string(),
@@ -345,6 +368,7 @@ export const FeedSchema = z.object({
     z.object({
       id: z.string(),
       evidence: EvidenceSchema,
+      chapter: Chapter.optional(),
       state: ResultStateSchema,
       text: z.string(),
       error: z.string().optional(),
@@ -375,6 +399,9 @@ export const GenerationSchema = z.object({
 });
 export const contractSchema = {
   schemaVersion: 1,
+  workspace: workspaceSchema,
+  discovery: z.toJSONSchema(Discovery),
+  explorationCandidate: z.toJSONSchema(ExplorationCandidate),
   sourceMaterial: z.toJSONSchema(SourceMaterial),
   task: z.toJSONSchema(TaskSchema),
   run: z.toJSONSchema(RunSchema),
