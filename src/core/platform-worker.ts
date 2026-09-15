@@ -13,6 +13,11 @@ import {
   normalizeXhsSearch,
   xhsImages,
 } from "../adapters/social.mjs";
+import {
+  readRepo,
+  readRepositorySnapshot,
+  repositoryClient,
+} from "../adapters/repository.mjs";
 import { configureNetwork } from "../adapters/network.mjs";
 import {
   hydrateCandidates,
@@ -196,6 +201,7 @@ async function collect(data: any) {
             period: c.period,
             limit,
             signal: controller.signal,
+            now: data.windowEnd ? Date.parse(data.windowEnd) : Date.now(),
             onProgress: (page: number) =>
               progress("searching", `正在搜索 GitHub 仓库，第 ${page} 页`),
           })
@@ -280,12 +286,15 @@ async function collect(data: any) {
     return data.candidateMode ? rows : selectRetrieved(rows, data);
   }
   if (c.platform !== "x") throw Error("不支持的收集平台");
-  const { since } = sourceWindow(c.period);
+  const { since } = sourceWindow(
+    c.period,
+    data.windowEnd ? Date.parse(data.windowEnd) : Date.now(),
+  );
   const keyword = String(c.keyword || "")
     .replace(/(?:^|\s)(?:since|until):\S+/gi, " ")
     .trim();
   if (!keyword || keyword.length > 200) throw Error("X 搜索词无效");
-  const query = `${keyword} since:${since}`;
+  const query = `${keyword} since:${since}${data.windowEnd ? ` until:${new Date(Date.parse(data.windowEnd) + 86400000).toISOString().slice(0, 10)}` : ""}`;
   rows = await new Promise<any[]>((resolve, reject) => {
     if (!data.x?.authToken || !data.x?.ct0) {
       reject(Error("请先连接 X"));
@@ -392,7 +401,34 @@ port.on("message", async ({ data }: any) => {
       });
     } else if (data.type === "collect") result = await collect(data);
     else if (data.type === "parse") result = await parse(data);
-    else throw Error("不支持的操作");
+    else if (data.type === "repoMetadata")
+      result = await readRepo({ ...data, signal: controller.signal });
+    else if (data.type === "repoCheck") {
+      await repositoryClient({ token: data.token, signal: controller.signal })(
+        "/user",
+      );
+      result = { ok: true };
+    } else if (data.type === "repoSnapshot")
+      result = await readRepositorySnapshot({
+        ...data,
+        signal: controller.signal,
+        onProgress: (value: any) =>
+          port.postMessage({ type: "repoProgress", value }),
+      });
+    else if (data.type === "readSource") {
+      if (data.source.source === "github")
+        result = {
+          ...data.source,
+          ...(await githubRepo(data.source.canonicalUrl)),
+          context: data.source.context,
+        };
+      else if (data.source.source === "xiaohongshu")
+        result = {
+          ...data.source,
+          ...(await parse({ ...data, url: data.source.canonicalUrl })),
+        };
+      else throw Error("X 完整线程读取暂不可用，保留已获取正文");
+    } else throw Error("不支持的操作");
     port.postMessage({ type: "result", result });
   } catch (e: any) {
     port.postMessage({
