@@ -95,6 +95,24 @@ try {
   ).toBeDisabled();
   await page.getByText("创建与配置步骤", { exact: true }).last().click();
   await expect(page.getByText(/im.message.receive_v1/)).toBeVisible();
+  for (const [width, height] of [
+    [1100, 720],
+    [1280, 800],
+    [1440, 940],
+  ]) {
+    await page.setViewportSize({ width, height });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+    ).toBe(false);
+  }
+  await page.getByRole("button", { name: /GitHub 无需登录/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "GitHub", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /转发机器人 Telegram/ }).click();
+  await expect(page.getByLabel("Bot Token", { exact: true })).toBeVisible();
   await page.screenshot({
     path: "test-results/bot-settings.png",
     fullPage: true,

@@ -1,3 +1,4 @@
+import { ModelConnection } from "./model-settings.js";
 import { z } from "zod";
 export const Platform = z.enum(["github", "xiaohongshu", "x"]);
 export type Platform = z.infer<typeof Platform>;
@@ -253,6 +254,21 @@ export const Command = z.discriminatedUnion("type", [
     mode: z.enum(["codex", "api"]),
     apiKey: z.string().max(1000).optional(),
   }),
+  z.object({
+    type: z.literal("saveModelConnection"),
+    connection: ModelConnection,
+    apiKey: z.string().trim().min(1).max(4000).optional(),
+  }),
+  z.object({
+    type: z.literal("testModelConnection"),
+    connection: ModelConnection,
+    apiKey: z.string().trim().min(1).max(4000).optional(),
+  }),
+  z.object({ type: z.literal("activateModelConnection"), id: z.string() }),
+  z.object({ type: z.literal("deleteModelConnection"), id: z.string() }),
+  z.object({ type: z.literal("codexModels") }),
+  z.object({ type: z.literal("loginCodex") }),
+  z.object({ type: z.literal("cancelModelOperation") }),
   z.object({
     type: z.literal("connect"),
     platform: z.enum(["x", "xiaohongshu"]),

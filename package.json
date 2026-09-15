@@ -1,6 +1,6 @@
 {
   "name": "feedloom",
-  "version": "0.3.0-preview.2",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Personal desktop collection and Feed workspace",
@@ -20,13 +20,15 @@
     "start": "npm run build && electron .",
     "prepare:runtime": "node scripts/with-system-proxy.mjs node scripts/prepare-runtime.mjs",
     "package:app": "npm run build && node scripts/with-system-proxy.mjs node scripts/package-app.mjs",
-    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node --import tsx tests/e2e/forwarding.mjs",
+    "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node tests/e2e/connections.mjs && node tests/e2e/codex-connection.mjs && node --import tsx tests/e2e/forwarding.mjs",
     "verify:live": "npm run build && node scripts/verify-live.mjs",
-    "verify:package": "node scripts/verify-package.mjs"
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:model-package": "node scripts/verify-model-package.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",
     "@larksuiteoapi/node-sdk": "^1.74.0",
+    "@openai/codex": "0.154.0",
     "cheerio": "1.2.0",
     "https-proxy-agent": "^9.1.0",
     "react": "19.1.0",
