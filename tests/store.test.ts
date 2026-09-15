@@ -228,7 +228,7 @@ function legacyDb(path: string) {
   return db;
 }
 
-test("v1 migration preserves historical bytes and changes only legacy live task modes", () => {
+test("migration preserves historical bytes, legacy modes and retires task scheduling", () => {
   const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-"));
   const path = join(dir, "db");
   const legacy = legacyDb(path);
@@ -258,9 +258,11 @@ test("v1 migration preserves historical bytes and changes only legacy live task 
   try {
     assert.equal(s.get<any>("tasks", "task").collectionMode, "keyword");
     assert.equal(s.get<any>("tasks", "intent").collectionMode, "intent");
+    assert.equal(s.get<any>("tasks", "task").paused, true);
+    assert.equal(s.get<any>("tasks", "task").nextDue, null);
     assert.equal(s.db.prepare("SELECT data FROM runs").get()!.data, run);
     assert.equal(s.db.prepare("SELECT data FROM feeds").get()!.data, feed);
-    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 2);
+    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 3);
     s.close();
     s = new Store(path);
     assert.equal(s.get<any>("tasks", "task").collectionMode, "keyword");
@@ -292,13 +294,13 @@ test("migration failure rolls back earlier rows and schema version; future datab
         .get(),
       undefined,
     );
-    check.exec("PRAGMA user_version=3");
+    check.exec("PRAGMA user_version=4");
     check.close();
     assert.throws(() => new Store(path), /更新的应用版本/);
     const finalCheck = new DatabaseSync(path);
     assert.equal(
       finalCheck.prepare("PRAGMA user_version").get()!.user_version,
-      3,
+      4,
     );
     finalCheck.close();
   } finally {

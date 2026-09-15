@@ -2,6 +2,8 @@ import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { repo, understanding, exploration } from "../fixtures/workspace.ts";
+import { templates } from "../../src/core/templates.ts";
 import { Store } from "../../src/core/store.ts";
 const dir = await mkdtemp(join(tmpdir(), "feedloom-ui-"));
 const store = new Store(join(dir, "feedloom.sqlite"));
@@ -122,6 +124,49 @@ store.saveFeed({
     },
   ],
 });
+store.put("repos", {
+  ...repo,
+  understandingId: understanding.id,
+  boundary: understanding.commit,
+});
+store.put("understandings", understanding);
+const discovery = {
+  id: "ui-discovery",
+  materialId: b.id,
+  runId: "ui-exploration",
+  batchId: "ui-batch",
+  repoId: repo.id,
+  repoName: repo.fullName,
+  understanding,
+  template: templates[0],
+  source: raw,
+  reason: "与保存链接后阅读的场景有关",
+  excerpts: ["离线阅读"],
+  discoveredAt: "2026-09-15T00:00:00Z",
+  query: "offline reader",
+  activityAt: "2026-09-14T12:00:00Z",
+  activityBasis: "最近推送",
+};
+store.saveDiscovery(discovery);
+store.saveDiscovery({
+  ...discovery,
+  id: "ui-discovery-two",
+  template: templates[1],
+  reason: "用户需要离线阅读",
+});
+store.put("explorations", {
+  ...exploration("ui-exploration"),
+  batchId: "ui-batch",
+  state: "partial",
+  stopReason: "平台覆盖有限",
+});
+store.put("batches", {
+  id: "ui-batch",
+  createdAt: "2026-09-15T00:00:00Z",
+  runIds: ["ui-exploration"],
+  state: "partial",
+  attempts: 1,
+});
 store.close();
 let application;
 let previousClipboard;
@@ -143,7 +188,7 @@ try {
   await expect(
     page.getByRole("heading", { name: "素材库", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".materialrow")).toHaveCount(2);
+  await expect(page.locator(".materialrow")).toHaveCount(1);
   await page.getByLabel("选择 example/reader").first().check();
   await expect(page.getByText("已选 1 条", { exact: true })).toBeVisible();
   await page.getByLabel("平台筛选").selectOption("x");
@@ -152,13 +197,15 @@ try {
   await page.getByLabel("平台筛选").selectOption("");
   await expect(page.getByLabel("全选当前结果")).toHaveJSProperty(
     "indeterminate",
-    true,
+    false,
   );
   await page.getByLabel("全选当前结果").check();
-  await page.getByRole("button", { name: "去生成 Feed · 2" }).click();
-  await expect(
-    page.getByText("包含同一来源的不同日期素材，将分别生成。"),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "去生成 Feed · 1" }).click();
+  await expect(page.getByLabel(`章节 ${raw.title}`)).toHaveValue(
+    "alternatives",
+  );
+  await page.getByLabel(`章节 ${raw.title}`).selectOption("needs");
+  await expect(page.getByLabel(`章节 ${raw.title}`)).toHaveValue("needs");
   await mkdir("test-results", { recursive: true });
   await page.screenshot({ path: "test-results/generation.png" });
   for (const [width, height] of [
@@ -190,7 +237,10 @@ try {
   const copied = await application.evaluate(({ clipboard }) =>
     clipboard.readText(),
   );
-  if (copied !== "这是确定性的测试内容。\nhttps://github.com/example/reader")
+  if (
+    copied !==
+    "## 历史素材\n\n这是确定性的测试内容。\nhttps://github.com/example/reader"
+  )
     throw Error("Copy contract failed");
   await page.screenshot({ path: "test-results/feed.png" });
   await page.getByRole("button", { name: "查看来源依据" }).first().click();
@@ -217,68 +267,40 @@ try {
   await expect(page.getByText("已选 0 条", { exact: true })).toBeVisible();
   await page
     .locator("nav")
-    .getByRole("button", { name: "收集任务", exact: true })
+    .getByRole("button", { name: "历史收集", exact: true })
     .click();
-  await page.locator(".listitem").filter({ hasText: task.name }).click();
-  await expect(page.getByLabel("收集方式", { exact: true })).toHaveValue(
-    "keyword",
-  );
+  await expect(
+    page.getByText(
+      "历史任务只读保留。新发现请使用探索，历史素材仍可生成 Feed。",
+    ),
+  ).toBeVisible();
+  await page.getByText(task.name, { exact: true }).click();
   await page.getByText("候选与筛选依据", { exact: false }).click();
   await page.getByRole("button", { name: "已排除 1", exact: true }).click();
-  await expect(page.locator(".candidate")).toHaveCount(1);
   await expect(page.getByText("讨论内容与阅读工具无关")).toBeVisible();
-  await page.getByRole("button", { name: "待确认 1", exact: true }).click();
-  await expect(page.getByText("正文不足以确认")).toBeVisible();
-  await page.getByRole("button", { name: /新建任务/ }).click();
-  await expect(page.getByLabel("收集方式", { exact: true })).toHaveValue(
-    "intent",
-  );
-  await expect(page.getByLabel("GitHub 收集入口")).toHaveValue("search");
-  await page.getByLabel("任务名称").fill("新建验证任务");
-  await page.getByRole("button", { name: "保存任务", exact: true }).click();
   await expect(
-    page.locator(".listitem").filter({ hasText: "新建验证任务" }),
+    page.getByRole("button", { name: "保存任务", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "项目回顾", exact: true })
+    .click();
+  await expect(page.getByText("仓库理解 v1", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "运行仓库分析", exact: true }),
   ).toBeVisible();
-  // Saving and running must use the returned task ID and the visible draft.
-  await page.evaluate(() =>
-    window.feedloom.command({ type: "modelSettings", mode: "api" }),
-  );
-  await page.getByLabel("关注描述").fill("验证保存并运行的最新描述");
-  await page.getByRole("button", { name: "保存并立即执行" }).click();
-  await expect
-    .poll(async () => {
-      const result = await page.evaluate(() =>
-        window.feedloom.command({ type: "state" }),
-      );
-      const created = result.value.tasks.find(
-        (entry) => entry.name === "新建验证任务",
-      );
-      return result.value.runs.some(
-        (entry) =>
-          entry.taskId === created?.id &&
-          entry.config.description === "验证保存并运行的最新描述",
-      );
-    })
-    .toBe(true);
-  const startedRun = await page.evaluate(async () => {
-    const result = await window.feedloom.command({ type: "state" });
-    return result.value.runs.find(
-      (entry) => entry.config.description === "验证保存并运行的最新描述",
-    ).id;
-  });
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "探索", exact: true })
+    .click();
   await expect(
-    page.locator(`#run-${startedRun}`).locator(":scope > div").first(),
-  ).toBeInViewport();
-  await page.getByLabel("关注描述").fill("尚未保存的修改");
-  await expect(
-    page.getByRole("button", { name: "保存并立即执行" }),
+    page.getByText("仓库理解 v1", { exact: true }).first(),
   ).toBeVisible();
-  page.once("dialog", (dialog) => dialog.dismiss());
-  await page.locator(".listitem").filter({ hasText: task.name }).click();
-  await expect(page.getByLabel("关注描述")).toHaveValue("尚未保存的修改");
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.locator(".listitem").filter({ hasText: task.name }).click();
-  await expect(page.getByLabel("任务名称")).toHaveValue(task.name);
+  await page.getByLabel(repo.fullName, { exact: true }).check();
+  await expect(page.getByText("2 项探索", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "开始探索", exact: true }),
+  ).toBeEnabled();
   for (const [width, height] of [
     [1100, 720],
     [1280, 800],
@@ -289,11 +311,13 @@ try {
         BrowserWindow.getAllWindows()[0].setContentSize(...size),
       [width, height],
     );
-    await page.screenshot({ path: `test-results/tasks-${width}.png` });
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth,
-    );
-    if (overflow) throw Error(`Desktop layout overflows at ${width}`);
+    await page.screenshot({ path: `test-results/exploration-${width}.png` });
+    if (
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )
+    )
+      throw Error(`Exploration overflow ${width}`);
   }
   await page.screenshot({ path: "test-results/tasks.png" });
   await page
@@ -371,30 +395,39 @@ try {
     .items[0];
   if (original.text !== "这是确定性的测试内容。" || !original.error)
     throw Error("Failed replacement discarded old content");
-  const run = await command({ type: "runTask", id: task.id });
-  await command({ type: "cancelRun", id: run });
+  const retired = await page.evaluate(
+    (id) => window.feedloom.command({ type: "runTask", id }),
+    task.id,
+  );
+  if (retired.ok) throw Error("Retired task remained executable");
+  const before = await command({ type: "state" });
+  const batch = await command({
+    type: "explore",
+    input: {
+      repoIds: [repo.id],
+      angles: ["alternatives", "needs"],
+      platforms: ["github"],
+      period: "weekly",
+    },
+  });
+  await command({ type: "cancelBatch", id: batch });
   await expect
     .poll(async () => {
       const s = await command({ type: "state" });
-      return s.runs.find((r) => r.id === run).state;
+      return ["cancelled", "failed"].includes(
+        s.batches.find((b) => b.id === batch).state,
+      );
     })
-    .toBe("cancelled");
-  await page.waitForTimeout(300);
-  const cancelled = await command({ type: "state" });
-  if (cancelled.runs.find((r) => r.id === run).state !== "cancelled")
-    throw Error("Cancelled run resurrected");
-  await command({
-    type: "saveTask",
-    id: task.id,
-    task: { ...task, name: "修改后的任务配置" },
-  });
-  await command({ type: "retryRun", id: run });
-  await command({ type: "cancelRun", id: run });
-  const retryState = await command({ type: "state" });
+    .toBe(true);
+  const after = await command({ type: "state" });
+  if (after.analyses.length !== before.analyses.length)
+    throw Error("Exploration auto-triggered repository analysis");
   if (
-    retryState.tasks.find((t) => t.id === task.id).name !== "修改后的任务配置"
+    after.explorations
+      .filter((r) => r.batchId === batch)
+      .some((r) => r.understanding.id !== understanding.id)
   )
-    throw Error("Retry restored obsolete task config");
+    throw Error("Wrong understanding snapshot");
   await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].close(),
   );
@@ -404,7 +437,7 @@ try {
   if (!hidden) throw Error("Closing window should retain application");
   if (errors.length) throw Error(`Renderer errors: ${errors.length}`);
   console.log(
-    "Desktop UI passed: 3 desktop sizes, layout boundaries, Markdown safety, draft save/run, regeneration inputs, collection evidence, selection and Feed copy",
+    "Desktop UI passed: 3 desktop sizes, layout boundaries, Markdown safety, manual repo/exploration inputs, retired scheduling, regeneration snapshots, discovery overlap, chapters, selection and Feed copy",
   );
 } catch (error) {
   if (application)

@@ -1,125 +1,129 @@
+// Explicit real run; pass a public or authorized repository. Results stay in the chosen local workspace.
 import { _electron as electron } from "@playwright/test";
-const app = await electron.launch(
-  process.env.FEEDLOOM_VERIFY_PACKAGED
-    ? {
-        executablePath: new URL(
-          "../build/Feedloom-darwin-arm64/Feedloom.app/Contents/MacOS/Feedloom",
-          import.meta.url,
-        ).pathname,
-      }
-    : { args: ["."] },
+const name = process.env.FEEDLOOM_VERIFY_REPO;
+if (!name)
+  throw Error(
+    "Set FEEDLOOM_VERIFY_REPO=owner/repo; optionally FEEDLOOM_DATA_DIR for an isolated workspace",
+  );
+const platforms = (process.env.FEEDLOOM_VERIFY_PLATFORMS || "github").split(
+  ",",
 );
+const application = await electron.launch({
+  args: ["."],
+  env: { ...process.env, FEEDLOOM_SKIP_AUTO_CONNECT: "1" },
+});
 try {
-  const page = await app.firstWindow();
+  const page = await application.firstWindow();
   await page.waitForFunction(
     () => !!window.feedloom && !!document.querySelector("h1"),
   );
-  const command = async (v) => {
-    const r = await page.evaluate((v) => window.feedloom.command(v), v);
+  const command = async (value) => {
+    const r = await page.evaluate((v) => window.feedloom.command(v), value);
     if (!r.ok) throw Error(r.error);
     return r.value;
   };
-  const existing = (await command({ type: "state" })).tasks.find(
-    (t) => t.name === "首次试跑 · AI 与开源",
-  );
-  const task =
-    existing ||
-    (await command({
-      type: "saveTask",
-      task: {
-        name: "首次试跑 · AI 与开源",
-        description: "验证三个真实来源，每个平台最多一条。",
-        sources: [
-          {
-            platform: "github",
-            keyword: "",
-            period: "daily",
-            limit: 1,
-            thresholds: {},
-          },
-          {
-            platform: "xiaohongshu",
-            keyword: "AI工具",
-            period: "daily",
-            limit: 1,
-            thresholds: {},
-          },
-          {
-            platform: "x",
-            keyword: "AI",
-            period: "weekly",
-            limit: 1,
-            thresholds: {},
-          },
-        ],
-        schedule: "manual",
-        time: "09:00",
-        paused: false,
-      },
-    }));
-  const runId = await command({ type: "runTask", id: task.id });
-  const deadline = Date.now() + 600000;
-  let state, run;
-  while (Date.now() < deadline) {
-    state = await command({ type: "state" });
-    run = state.runs.find((r) => r.id === runId);
-    if (run.state !== "running") break;
-    await new Promise((r) => setTimeout(r, 2000));
+  const wait = async (get, finished, timeout = 600000) => {
+    const end = Date.now() + timeout;
+    while (Date.now() < end) {
+      const value = await get();
+      if (finished(value)) return value;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    throw Error("Live verification timed out");
+  };
+  const existing =
+    process.env.FEEDLOOM_VERIFY_REUSE === "1"
+      ? (await command({ type: "state" })).repos.find(
+          (r) => r.fullName === name && r.understandingId,
+        )
+      : undefined;
+  const repo = existing || (await command({ type: "bindRepo", name }));
+  if (existing)
+    console.log(
+      JSON.stringify({
+        stage: "analysis",
+        state: "reused",
+        understandingId: repo.understandingId,
+      }),
+    );
+  else {
+    const analysisId = await command({ type: "analyzeRepo", id: repo.id });
+    const analysis = await wait(
+      async () =>
+        (await command({ type: "state" })).analyses.find(
+          (a) => a.id === analysisId,
+        ),
+      (a) => a && a.state !== "running",
+    );
+    console.log(
+      JSON.stringify({
+        stage: "analysis",
+        state: analysis.state,
+        changes: analysis.changes.length,
+      }),
+    );
+    if (analysis.state !== "success")
+      throw Error(analysis.error || "Analysis did not complete");
   }
-  console.log(
-    JSON.stringify({
-      collection: run.state,
-      platforms: run.platforms.map((p) => ({
-        platform: p.platform,
-        state: p.state,
-        count: p.count,
-        error: p.error,
-      })),
-    }),
-  );
-  const materials = state.materials.filter((m) => m.runIds.includes(runId));
-  console.log(
-    JSON.stringify({
-      materials: materials.length,
-      summaries: materials.map((m) => ({
-        platform: m.source,
-        state: m.summaryState,
-        body: m.completeness,
-        error: m.error,
-      })),
-    }),
-  );
-  if (materials.length !== 3 || run.state !== "success")
-    throw Error("Three-source collection incomplete");
-  if (materials.some((m) => m.summaryState !== "success"))
-    throw Error("Summary incomplete");
-  const id = await command({
-    type: "generate",
-    ids: materials.map((m) => m.id),
-    prompt:
-      "用中文写一条简短、有阅读兴趣的 Feed，说明具体内容和值得关注的点，只依据素材，不编造事实。",
+  const batchId = await command({
+    type: "explore",
+    input: {
+      repoIds: [repo.id],
+      angles: ["alternatives"],
+      platforms,
+      period: "weekly",
+    },
   });
-  let feed;
-  while (Date.now() < deadline) {
-    state = await command({ type: "state" });
-    feed = state.feeds.find((f) => f.id === id);
-    if (feed.state !== "running") break;
-    await new Promise((r) => setTimeout(r, 2000));
-  }
+  const batch = await wait(
+    async () =>
+      (await command({ type: "state" })).batches.find((b) => b.id === batchId),
+    (b) => b && !["pending", "running"].includes(b.state),
+  );
+  const state = await command({ type: "state" });
+  const discoveries = state.discoveries.filter((d) => d.batchId === batchId);
   console.log(
     JSON.stringify({
-      generation: feed.state,
-      count: feed.items.length,
-      success: feed.items.filter((i) => i.state === "success").length,
-      evidenceComplete: feed.items.every((i) =>
-        i.evidence.runs.some((r) => r.id === runId),
-      ),
+      stage: "exploration",
+      state: batch.state,
+      discoveries: discoveries.length,
+      runs: state.explorations
+        .filter((r) => r.batchId === batchId)
+        .map((r) => ({
+          state: r.state,
+          usage: r.usage,
+          stopReason: r.stopReason,
+        })),
     }),
   );
-  if (feed.state !== "success") throw Error("Feed incomplete");
-  console.log(
-    "Live three-source end-to-end passed; task, materials, and Feed retained in local workspace",
-  );
+  if (!discoveries.length) {
+    if (batch.state === "no_results") {
+      console.log("No relevant recent material; no Feed fabricated");
+    } else throw Error("Exploration produced no usable evidence");
+  } else {
+    const id = await command({
+      type: "generate",
+      ids: [discoveries[0].materialId],
+      prompt: "用中文轻量总结内容及与产品的具体关系，不虚构依据。",
+    });
+    const feed = await wait(
+      async () =>
+        (await command({ type: "state" })).feeds.find((f) => f.id === id),
+      (f) => f && f.state !== "running",
+    );
+    console.log(
+      JSON.stringify({
+        stage: "feed",
+        state: feed.state,
+        items: feed.items.map((i) => ({
+          state: i.state,
+          chapter: i.chapter,
+          hasEvidence: !!i.evidence.discoveries?.length,
+        })),
+      }),
+    );
+    if (!feed.items.some((i) => i.state === "success"))
+      throw Error("No readable Feed output");
+  }
 } finally {
-  await app.close();
+  await application.close();
 }
