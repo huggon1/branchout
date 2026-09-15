@@ -10,7 +10,7 @@ import type {
 } from "../core/contracts.js";
 import "./style.css";
 import { Icon } from "./Icons.js";
-import { Markdown } from "./Markdown.js";
+import { Markdown, SourceImage, resourceUrl } from "./Markdown.js";
 import { Connections } from "./Connections.js";
 import { TaskEditor } from "./TaskEditor.js";
 import { RunResearch, phaseLabels } from "./RunResearch.js";
@@ -83,7 +83,8 @@ function App() {
   const [taskDirty, setTaskDirty] = useState(false);
   const [connectionDirty, setConnectionDirty] = useState(false);
   const [pendingRun, setPendingRun] = useState<string>();
-  const navigate = (next: string) => {
+  const [connectionSection, setConnectionSection] = useState<string>();
+  const navigate = (next: string, section?: string) => {
     if (next === page) return;
     if (
       page === "连接与模型" &&
@@ -101,6 +102,7 @@ function App() {
       setTask(undefined);
       setTaskDirty(false);
     }
+    setConnectionSection(section);
     setPage(next);
   };
   const chooseTask = (next: Task) => {
@@ -854,13 +856,44 @@ function App() {
             </section>
           </div>
         )}
+        {state.buildLabel?.includes("测试版") && (
+          <p className="preview-label">{state.buildLabel}</p>
+        )}
         {page === "转发收件箱" && (
           <>
+            <div className="inbox-capabilities panel">
+              <div>
+                <strong>支持解析的内容</strong>
+                <p>
+                  <b>GitHub 公开仓库</b> · README
+                  正文、图片、徽章、表格与代码；不执行嵌入应用。
+                </p>
+                <p>
+                  <b>小红书笔记</b> ·
+                  可获取的正文与图片，需要小红书登录；视频保留原文入口。
+                </p>
+              </div>
+              <div>
+                <strong>接收渠道</strong>
+                <p>粘贴分享文案 · Telegram · 飞书</p>
+                <p>
+                  {["telegram", "feishu"]
+                    .map(
+                      (c) =>
+                        `${c === "telegram" ? "Telegram" : "飞书"}：${state.bots?.[c]?.bound && state.bots?.[c]?.enabled ? state.bots[c].state : "未启用或未绑定"}`,
+                    )
+                    .join(" · ")}
+                </p>
+                <button onClick={() => navigate("连接与模型", "bots")}>
+                  配置机器人
+                </button>
+              </div>
+            </div>
             <form
               className="linkinput"
               onSubmit={(e) => {
                 e.preventDefault();
-                void act({ type: "parse", url: link }).then((id) => {
+                void act({ type: "parseText", text: link }).then((id) => {
                   if (id) {
                     setInbox(id);
                     setLink("");
@@ -869,11 +902,11 @@ function App() {
               }}
             >
               <input
-                type="url"
+                type="text"
                 required
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
-                placeholder="粘贴 GitHub 仓库或小红书链接"
+                placeholder="粘贴 GitHub 仓库链接或整段小红书分享文案"
               />
               <button className="primary">解析链接</button>
             </form>
@@ -887,7 +920,12 @@ function App() {
                   >
                     <strong>{i.material?.title || i.url}</strong>
                     <small>
-                      {labels[i.state]} · {date(i.createdAt)}
+                      {i.origin
+                        ? i.origin.channel === "telegram"
+                          ? "Telegram"
+                          : "飞书"
+                        : "粘贴"}{" "}
+                      · {labels[i.state]} · {date(i.createdAt)}
                     </small>
                   </button>
                 ))}
@@ -915,7 +953,11 @@ function App() {
                         删除
                       </button>
                     </div>
-                    <h2>{currentInbox.material?.title || "正在解析链接"}</h2>
+                    <h2>{currentInbox.material?.title || "链接解析"}</h2>
+                    <p className="muted">
+                      正文：{labels[currentInbox.state]} · AI 摘要：
+                      {labels[currentInbox.summaryState]}
+                    </p>
                     {currentInbox.error && (
                       <p className="warning">{currentInbox.error}</p>
                     )}
@@ -1093,6 +1135,8 @@ function App() {
             state={state}
             refresh={refresh}
             onDirty={setConnectionDirty}
+            initialSection={connectionSection}
+            act={act}
           />
         )}
       </main>
@@ -1251,16 +1295,25 @@ function MaterialBody({
       {m.publishedAt && (
         <p className="muted">来源发布时间：{date(m.publishedAt)}</p>
       )}
-      <Markdown text={m.text || "暂未获取正文，请打开原始链接。"} open={open} />
+      {m.context?.readmeWarning && (
+        <p className="warning">{m.context.readmeWarning}</p>
+      )}
+      {m.context?.readmePath && (
+        <p className="muted">
+          {m.context.readmePath} · 版本{" "}
+          {String(m.context.readmeRef).slice(0, 12)}
+        </p>
+      )}
+      <Markdown
+        key={m.sourceId}
+        text={m.text || "暂未获取正文，请打开原始链接。"}
+        open={open}
+        context={m.context}
+      />
       {m.images?.map((url: string) => (
-        <img
-          alt="来源图片"
-          className="sourceimage"
-          referrerPolicy="no-referrer"
-          loading="lazy"
-          key={url}
-          src={url}
-        />
+        <div className="sourceimage" key={url}>
+          <SourceImage src={resourceUrl(url)} alt="来源图片" />
+        </div>
       ))}
     </>
   );

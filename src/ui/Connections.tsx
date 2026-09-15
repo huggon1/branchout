@@ -3,9 +3,12 @@ import {
   defaultConnection,
   type ModelConnection,
 } from "../core/model-settings.js";
+import { BotSettings } from "./BotSettings.js";
 type PublicConnection = ModelConnection & { hasApiKey?: boolean };
 type Props = {
   state: any;
+  initialSection?: string;
+  act: (c: any) => Promise<any>;
   refresh: () => Promise<void>;
   onDirty: (dirty: boolean) => void;
 };
@@ -30,13 +33,19 @@ const sources = [
     capabilities: "在独立登录窗口完成登录后，可按关键词收集公开帖子。",
   },
 ];
-export function Connections({ state, refresh, onDirty }: Props) {
+export function Connections({
+  state,
+  refresh,
+  onDirty,
+  initialSection,
+  act,
+}: Props) {
   const settings = state.modelSettings || {
     activeId: "codex",
     connections: [defaultConnection],
   };
   const connections: PublicConnection[] = settings.connections;
-  const [selected, setSelected] = useState(settings.activeId);
+  const [selected, setSelected] = useState(initialSection || settings.activeId);
   const [draft, setDraft] = useState<PublicConnection>(
     () => connections.find((c) => c.id === selected) || connections[0],
   );
@@ -50,10 +59,13 @@ export function Connections({ state, refresh, onDirty }: Props) {
   const [loadingModels, setLoadingModels] = useState(false);
   const [qr, setQr] = useState("");
   const [adding, setAdding] = useState(false);
+  const botSelected = selected === "bots";
   const source = sources.find((p) => selected === `source-${p.id}`);
   const saved = connections.find((c) => c.id === draft.id);
   const dirty =
-    !source && (JSON.stringify(draft) !== baseline || Boolean(key) || !saved);
+    !source &&
+    !botSelected &&
+    (JSON.stringify(draft) !== baseline || Boolean(key) || !saved);
   useEffect(() => {
     onDirty(dirty);
     return () => onDirty(false);
@@ -94,7 +106,7 @@ export function Connections({ state, refresh, onDirty }: Props) {
     }
   };
   useEffect(() => {
-    if (!source && draft.mode === "codex" && !catalog)
+    if (!source && !botSelected && draft.mode === "codex" && !catalog)
       void loadModels().catch((e) => setError(e.message));
   }, [selected]);
   const edit = (patch: Partial<PublicConnection>) => {
@@ -199,7 +211,7 @@ export function Connections({ state, refresh, onDirty }: Props) {
             )}
           </button>
         ))}
-        {!saved && !source && (
+        {!saved && !source && !botSelected && (
           <div className="connection-choice selected">
             <span className="connection-avatar">A</span>
             <span className="connection-choice-text">
@@ -231,379 +243,405 @@ export function Connections({ state, refresh, onDirty }: Props) {
             </span>
           </button>
         ))}
-      </div>
-      <section className="panel connection-detail">
-        <header className="connection-detail-header">
-          <div>
-            <p className="connection-eyebrow">
-              {source ? "来源平台" : "模型服务"}
-            </p>
-            <h2>{source?.name || draft.name || "新建连接"}</h2>
-            <p className="muted">
-              {source?.description ||
-                (draft.mode === "codex"
-                  ? "使用订阅登录，选择可用模型。"
-                  : "连接 OpenAI 兼容服务，使用你自己的模型与 API Key。")}
-            </p>
-          </div>
-          <span className={`connection-status ${dirty ? "draft" : ""}`}>
-            {source
-              ? source.id === "github"
-                ? "无需登录"
-                : state.connections[source.id]
-                  ? "已连接"
-                  : "待检查"
-              : dirty
-                ? "未保存"
-                : settings.activeId === draft.id
-                  ? "当前使用"
-                  : "已保存"}
+        <h2 className="source-list-title">转发接入</h2>
+        <button
+          className={`connection-choice ${botSelected ? "selected" : ""}`}
+          onClick={() => choose("bots")}
+          disabled={controlsDisabled}
+        >
+          <span className="connection-avatar">↗</span>
+          <span className="connection-choice-text">
+            <strong>转发机器人</strong>
+            <small>Telegram · 飞书</small>
           </span>
-        </header>
-        {source ? (
-          <div className="connection-form">
-            <div className="connection-note">
-              <strong>可用能力</strong>
-              <p>{source.capabilities}</p>
+        </button>
+      </div>
+      {botSelected ? (
+        <BotSettings bots={state.bots} act={act} />
+      ) : (
+        <section className="panel connection-detail">
+          <header className="connection-detail-header">
+            <div>
+              <p className="connection-eyebrow">
+                {source ? "来源平台" : "模型服务"}
+              </p>
+              <h2>{source?.name || draft.name || "新建连接"}</h2>
+              <p className="muted">
+                {source?.description ||
+                  (draft.mode === "codex"
+                    ? "使用订阅登录，选择可用模型。"
+                    : "连接 OpenAI 兼容服务，使用你自己的模型与 API Key。")}
+              </p>
             </div>
-            {source.id !== "github" && (
-              <>
-                <p className="muted">
-                  登录成功与解析、收集成功分别判断，实际运行结果以任务记录为准。
-                </p>
-                <div className="actions">
-                  <button
-                    className="primary"
-                    disabled={controlsDisabled}
-                    onClick={() =>
-                      void run("检查登录", async () => {
-                        const r = await command({
-                          type: "connect",
-                          platform: source.id,
-                        });
-                        if (r?.qr) setQr(r.qr);
-                        if (r?.loggedIn) {
-                          setQr("");
-                          setMessage("登录检查通过");
-                        } else if (!r?.qr)
-                          setMessage("请在打开的窗口中完成登录，再检查连接。");
-                        await refresh();
-                      })
-                    }
-                  >
-                    连接／检查登录
-                  </button>
-                  <button
-                    disabled={controlsDisabled || !state.connections[source.id]}
-                    onClick={() => {
-                      if (
-                        confirm(`退出 ${source.name} 登录？之后需要重新登录。`)
-                      )
-                        void run("退出连接", async () => {
-                          await command({
-                            type: "disconnect",
+            <span className={`connection-status ${dirty ? "draft" : ""}`}>
+              {source
+                ? source.id === "github"
+                  ? "无需登录"
+                  : state.connections[source.id]
+                    ? "已连接"
+                    : "待检查"
+                : dirty
+                  ? "未保存"
+                  : settings.activeId === draft.id
+                    ? "当前使用"
+                    : "已保存"}
+            </span>
+          </header>
+          {source ? (
+            <div className="connection-form">
+              <div className="connection-note">
+                <strong>可用能力</strong>
+                <p>{source.capabilities}</p>
+              </div>
+              {source.id !== "github" && (
+                <>
+                  <p className="muted">
+                    登录成功与解析、收集成功分别判断，实际运行结果以任务记录为准。
+                  </p>
+                  <div className="actions">
+                    <button
+                      className="primary"
+                      disabled={controlsDisabled}
+                      onClick={() =>
+                        void run("检查登录", async () => {
+                          const r = await command({
+                            type: "connect",
                             platform: source.id,
                           });
-                          setQr("");
+                          if (r?.qr) setQr(r.qr);
+                          if (r?.loggedIn) {
+                            setQr("");
+                            setMessage("登录检查通过");
+                          } else if (!r?.qr)
+                            setMessage(
+                              "请在打开的窗口中完成登录，再检查连接。",
+                            );
                           await refresh();
-                          setMessage("已退出连接");
-                        });
-                    }}
-                  >
-                    退出连接
-                  </button>
-                </div>
-              </>
-            )}
-            {qr && (
-              <div className="qr">
-                <img src={qr} alt="小红书登录二维码" />
-                <p>使用小红书扫码，完成后点击检查登录。</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            <fieldset className="connection-form" disabled={controlsDisabled}>
-              <label>
-                连接名称
-                <input
-                  value={draft.name}
-                  maxLength={80}
-                  onChange={(e) => edit({ name: e.target.value })}
-                />
-              </label>
-              {draft.mode === "api" ? (
-                <>
-                  <label>
-                    服务地址（Base URL）
-                    <input
-                      value={draft.baseUrl}
-                      placeholder="https://api.example.com/v1"
-                      onChange={(e) => {
-                        edit({ baseUrl: e.target.value });
-                        setKey("");
-                      }}
-                    />
-                  </label>
-                  <label>
-                    API Key
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      value={key}
-                      placeholder={
-                        canKeepKey
-                          ? "已安全保存，留空保留"
-                          : "输入这个服务的 API Key"
-                      }
-                      onChange={(e) => {
-                        setKey(e.target.value);
-                        setTest(undefined);
-                        setError("");
-                      }}
-                    />
-                  </label>
-                  {saved?.hasApiKey && !canKeepKey && (
-                    <p className="connection-hint">
-                      服务地址已改变，请重新填写 API Key。
-                    </p>
-                  )}
-                  <label>
-                    模型名称
-                    <input
-                      value={draft.model}
-                      maxLength={160}
-                      placeholder="填写服务商提供的模型 ID"
-                      onChange={(e) => edit({ model: e.target.value })}
-                    />
-                  </label>
-                  <details>
-                    <summary>高级设置</summary>
-                    <label>
-                      接口类型
-                      <select
-                        aria-label="接口类型"
-                        value={draft.protocol}
-                        onChange={(e) =>
-                          edit({
-                            protocol: e.target
-                              .value as ModelConnection["protocol"],
-                          })
-                        }
-                      >
-                        <option value="openai-completions">
-                          Chat Completions
-                        </option>
-                        <option value="openai-responses">Responses</option>
-                      </select>
-                    </label>
-                    <p className="connection-hint">
-                      按服务商文档选择接口。此连接处理文本，单次输出上限为 4096
-                      tokens。
-                    </p>
-                  </details>
-                </>
-              ) : (
-                <>
-                  <div className="connection-note">
-                    <strong>
-                      {catalog ? "已识别订阅登录" : "Codex 订阅登录"}
-                    </strong>
-                    <p>
-                      {catalog?.source ||
-                        "可复用本机 Codex 文件登录，或在 Feedloom 中独立登录。"}
-                    </p>
-                    <p className="connection-hint">
-                      独立登录由官方组件管理；已有本机登录过期时，可在 Codex
-                      中刷新或在这里重新登录。
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void run("等待浏览器登录", async () => {
-                          setTest(undefined);
-                          setCatalog(undefined);
-                          await command({ type: "loginCodex" });
-                          setCatalog(undefined);
-                          await loadModels();
-                          setTest(undefined);
-                          setMessage("登录已完成，请选择模型并测试连接。");
                         })
                       }
                     >
-                      登录 Codex
+                      连接／检查登录
                     </button>
-                  </div>
-                  <label>
-                    模型
-                    <select
-                      aria-label="模型"
-                      value={draft.model}
-                      onChange={(e) => edit({ model: e.target.value })}
-                    >
-                      {!catalog?.models.some(
-                        (m: any) => m.id === draft.model,
-                      ) && (
-                        <option value={draft.model}>
-                          {draft.model} · 待验证
-                        </option>
-                      )}
-                      {catalog?.models.map((m: any) => (
-                        <option key={m.id} value={m.id} disabled={!m.supported}>
-                          {m.name}
-                          {!m.supported ? " · 需更新应用" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="connection-model-refresh">
-                    <small className="muted">
-                      名单来自 Codex；模型是否可调用以测试结果为准。
-                    </small>
                     <button
-                      onClick={() =>
-                        void run("刷新模型", async () => {
-                          await loadModels();
-                          setTest(undefined);
-                        })
+                      disabled={
+                        controlsDisabled || !state.connections[source.id]
                       }
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `退出 ${source.name} 登录？之后需要重新登录。`,
+                          )
+                        )
+                          void run("退出连接", async () => {
+                            await command({
+                              type: "disconnect",
+                              platform: source.id,
+                            });
+                            setQr("");
+                            await refresh();
+                            setMessage("已退出连接");
+                          });
+                      }}
                     >
-                      刷新模型列表
+                      退出连接
                     </button>
                   </div>
                 </>
               )}
-            </fieldset>
-            <div className="connection-test" aria-live="polite">
-              <strong>
-                {busy === "测试连接"
-                  ? "正在验证模型响应…"
-                  : test
-                    ? "连接测试通过"
-                    : "待测试"}
-              </strong>
-              <p>
-                {test
-                  ? `${test.model} · ${(test.elapsedMs / 1000).toFixed(1)} 秒 · ${new Date(test.checkedAt).toLocaleTimeString("zh-CN")}`
-                  : "发送一条不含业务内容的短请求，消耗少量模型额度。修改配置后需要重新测试。"}
-              </p>
+              {qr && (
+                <div className="qr">
+                  <img src={qr} alt="小红书登录二维码" />
+                  <p>使用小红书扫码，完成后点击检查登录。</p>
+                </div>
+              )}
             </div>
-            <footer className="connection-footer">
-              <div className="actions">
-                <button
-                  disabled={controlsDisabled || !valid || !available}
-                  onClick={() =>
-                    void run("测试连接", async () => {
-                      setTest(undefined);
-                      const result = await command({
-                        type: "testModelConnection",
-                        connection: fields(),
-                        apiKey: key || undefined,
-                      });
-                      setTest(result);
-                    })
-                  }
-                >
-                  测试连接
-                </button>
-                <button
-                  className="primary"
-                  disabled={controlsDisabled || !dirty || !valid}
-                  onClick={() =>
-                    void run("保存配置", async () => {
-                      await command({
-                        type: "saveModelConnection",
-                        connection: fields(),
-                        apiKey: key || undefined,
-                      });
-                      const next = {
-                        ...fields(),
-                        hasApiKey:
-                          draft.mode === "api" && Boolean(key || canKeepKey),
-                      };
-                      setDraft(next);
-                      setBaseline(JSON.stringify(next));
-                      setKey("");
-                      await refresh();
-                      setMessage("配置已保存");
-                    })
-                  }
-                >
-                  保存配置
-                </button>
-                {settings.activeId !== draft.id && saved && (
+          ) : (
+            <>
+              <fieldset className="connection-form" disabled={controlsDisabled}>
+                <label>
+                  连接名称
+                  <input
+                    value={draft.name}
+                    maxLength={80}
+                    onChange={(e) => edit({ name: e.target.value })}
+                  />
+                </label>
+                {draft.mode === "api" ? (
+                  <>
+                    <label>
+                      服务地址（Base URL）
+                      <input
+                        value={draft.baseUrl}
+                        placeholder="https://api.example.com/v1"
+                        onChange={(e) => {
+                          edit({ baseUrl: e.target.value });
+                          setKey("");
+                        }}
+                      />
+                    </label>
+                    <label>
+                      API Key
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        value={key}
+                        placeholder={
+                          canKeepKey
+                            ? "已安全保存，留空保留"
+                            : "输入这个服务的 API Key"
+                        }
+                        onChange={(e) => {
+                          setKey(e.target.value);
+                          setTest(undefined);
+                          setError("");
+                        }}
+                      />
+                    </label>
+                    {saved?.hasApiKey && !canKeepKey && (
+                      <p className="connection-hint">
+                        服务地址已改变，请重新填写 API Key。
+                      </p>
+                    )}
+                    <label>
+                      模型名称
+                      <input
+                        value={draft.model}
+                        maxLength={160}
+                        placeholder="填写服务商提供的模型 ID"
+                        onChange={(e) => edit({ model: e.target.value })}
+                      />
+                    </label>
+                    <details>
+                      <summary>高级设置</summary>
+                      <label>
+                        接口类型
+                        <select
+                          aria-label="接口类型"
+                          value={draft.protocol}
+                          onChange={(e) =>
+                            edit({
+                              protocol: e.target
+                                .value as ModelConnection["protocol"],
+                            })
+                          }
+                        >
+                          <option value="openai-completions">
+                            Chat Completions
+                          </option>
+                          <option value="openai-responses">Responses</option>
+                        </select>
+                      </label>
+                      <p className="connection-hint">
+                        按服务商文档选择接口。此连接处理文本，单次输出上限为
+                        4096 tokens。
+                      </p>
+                    </details>
+                  </>
+                ) : (
+                  <>
+                    <div className="connection-note">
+                      <strong>
+                        {catalog ? "已识别订阅登录" : "Codex 订阅登录"}
+                      </strong>
+                      <p>
+                        {catalog?.source ||
+                          "可复用本机 Codex 文件登录，或在 Feedloom 中独立登录。"}
+                      </p>
+                      <p className="connection-hint">
+                        独立登录由官方组件管理；已有本机登录过期时，可在 Codex
+                        中刷新或在这里重新登录。
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void run("等待浏览器登录", async () => {
+                            setTest(undefined);
+                            setCatalog(undefined);
+                            await command({ type: "loginCodex" });
+                            setCatalog(undefined);
+                            await loadModels();
+                            setTest(undefined);
+                            setMessage("登录已完成，请选择模型并测试连接。");
+                          })
+                        }
+                      >
+                        登录 Codex
+                      </button>
+                    </div>
+                    <label>
+                      模型
+                      <select
+                        aria-label="模型"
+                        value={draft.model}
+                        onChange={(e) => edit({ model: e.target.value })}
+                      >
+                        {!catalog?.models.some(
+                          (m: any) => m.id === draft.model,
+                        ) && (
+                          <option value={draft.model}>
+                            {draft.model} · 待验证
+                          </option>
+                        )}
+                        {catalog?.models.map((m: any) => (
+                          <option
+                            key={m.id}
+                            value={m.id}
+                            disabled={!m.supported}
+                          >
+                            {m.name}
+                            {!m.supported ? " · 需更新应用" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="connection-model-refresh">
+                      <small className="muted">
+                        名单来自 Codex；模型是否可调用以测试结果为准。
+                      </small>
+                      <button
+                        onClick={() =>
+                          void run("刷新模型", async () => {
+                            await loadModels();
+                            setTest(undefined);
+                          })
+                        }
+                      >
+                        刷新模型列表
+                      </button>
+                    </div>
+                  </>
+                )}
+              </fieldset>
+              <div className="connection-test" aria-live="polite">
+                <strong>
+                  {busy === "测试连接"
+                    ? "正在验证模型响应…"
+                    : test
+                      ? "连接测试通过"
+                      : "待测试"}
+                </strong>
+                <p>
+                  {test
+                    ? `${test.model} · ${(test.elapsedMs / 1000).toFixed(1)} 秒 · ${new Date(test.checkedAt).toLocaleTimeString("zh-CN")}`
+                    : "发送一条不含业务内容的短请求，消耗少量模型额度。修改配置后需要重新测试。"}
+                </p>
+              </div>
+              <footer className="connection-footer">
+                <div className="actions">
                   <button
-                    disabled={controlsDisabled || dirty}
+                    disabled={controlsDisabled || !valid || !available}
                     onClick={() =>
-                      void run("启用连接", async () => {
-                        await command({
-                          type: "activateModelConnection",
-                          id: draft.id,
+                      void run("测试连接", async () => {
+                        setTest(undefined);
+                        const result = await command({
+                          type: "testModelConnection",
+                          connection: fields(),
+                          apiKey: key || undefined,
                         });
-                        await refresh();
-                        setMessage("所有 Agent 功能将使用这个连接");
+                        setTest(result);
                       })
                     }
                   >
-                    设为当前使用
+                    测试连接
                   </button>
-                )}
-              </div>
-              {saved && settings.activeId !== draft.id && (
-                <button
-                  className="connection-delete"
-                  disabled={controlsDisabled}
-                  onClick={() => {
-                    if (confirm(`删除连接「${draft.name}」？`))
-                      void run("删除连接", async () => {
+                  <button
+                    className="primary"
+                    disabled={controlsDisabled || !dirty || !valid}
+                    onClick={() =>
+                      void run("保存配置", async () => {
                         await command({
-                          type: "deleteModelConnection",
-                          id: draft.id,
+                          type: "saveModelConnection",
+                          connection: fields(),
+                          apiKey: key || undefined,
                         });
-                        const next = connections.find(
-                          (c) => c.id === settings.activeId,
-                        )!;
-                        setSelected(next.id);
+                        const next = {
+                          ...fields(),
+                          hasApiKey:
+                            draft.mode === "api" && Boolean(key || canKeepKey),
+                        };
                         setDraft(next);
                         setBaseline(JSON.stringify(next));
                         setKey("");
                         await refresh();
-                      });
-                  }}
+                        setMessage("配置已保存");
+                      })
+                    }
+                  >
+                    保存配置
+                  </button>
+                  {settings.activeId !== draft.id && saved && (
+                    <button
+                      disabled={controlsDisabled || dirty}
+                      onClick={() =>
+                        void run("启用连接", async () => {
+                          await command({
+                            type: "activateModelConnection",
+                            id: draft.id,
+                          });
+                          await refresh();
+                          setMessage("所有 Agent 功能将使用这个连接");
+                        })
+                      }
+                    >
+                      设为当前使用
+                    </button>
+                  )}
+                </div>
+                {saved && settings.activeId !== draft.id && (
+                  <button
+                    className="connection-delete"
+                    disabled={controlsDisabled}
+                    onClick={() => {
+                      if (confirm(`删除连接「${draft.name}」？`))
+                        void run("删除连接", async () => {
+                          await command({
+                            type: "deleteModelConnection",
+                            id: draft.id,
+                          });
+                          const next = connections.find(
+                            (c) => c.id === settings.activeId,
+                          )!;
+                          setSelected(next.id);
+                          setDraft(next);
+                          setBaseline(JSON.stringify(next));
+                          setKey("");
+                          await refresh();
+                        });
+                    }}
+                  >
+                    删除连接
+                  </button>
+                )}
+              </footer>
+              <p className="connection-hint connection-bottom-note">
+                保存不等于连接可用。不会自动切换模型或计费方式。
+              </p>
+            </>
+          )}
+          {busy && (
+            <p role="status" className="connection-feedback">
+              {busy}…
+              {["测试连接", "等待浏览器登录"].includes(busy) && (
+                <button
+                  onClick={() => void command({ type: "cancelModelOperation" })}
                 >
-                  删除连接
+                  取消
                 </button>
               )}
-            </footer>
-            <p className="connection-hint connection-bottom-note">
-              保存不等于连接可用。不会自动切换模型或计费方式。
             </p>
-          </>
-        )}
-        {busy && (
-          <p role="status" className="connection-feedback">
-            {busy}…
-            {["测试连接", "等待浏览器登录"].includes(busy) && (
-              <button
-                onClick={() => void command({ type: "cancelModelOperation" })}
-              >
-                取消
-              </button>
-            )}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="connection-feedback error">
-            {error}
-          </p>
-        )}
-        {message && (
-          <p role="status" className="connection-feedback">
-            {message}
-          </p>
-        )}
-      </section>
+          )}
+          {error && (
+            <p role="alert" className="connection-feedback error">
+              {error}
+            </p>
+          )}
+          {message && (
+            <p role="status" className="connection-feedback">
+              {message}
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

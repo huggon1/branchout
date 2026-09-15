@@ -6,6 +6,7 @@ import {
   readdir,
   realpath,
   access,
+  readFile,
   mkdtemp,
   rm,
 } from "node:fs/promises";
@@ -32,6 +33,8 @@ async function verifyLinks(root) {
 const runtime = resolve(".runtime");
 await access(join(runtime, "xiaohongshu-mcp"));
 await verifyLinks(runtime);
+const pkg = JSON.parse(await readFile("package.json", "utf8"));
+const name = pkg.version.includes("preview") ? "Feedloom Preview" : "Feedloom";
 // Packager clears its entire temporary root; isolate each invocation.
 const staging = await mkdtemp(join(tmpdir(), "feedloom-package-"));
 try {
@@ -39,7 +42,10 @@ try {
     tmpdir: staging,
     asar: { unpack: "{**/*.node,**/@openai/codex-*/vendor/**/*}" },
     dir: ".",
-    name: "Feedloom",
+    name,
+    appBundleId: pkg.version.includes("preview")
+      ? "com.feedloom.preview"
+      : "com.feedloom.app",
     platform: "darwin",
     arch: "arm64",
     out: "build",
@@ -48,7 +54,7 @@ try {
       /^\/(tests|test-results|playwright-report|docs|scripts|src|build|\.runtime|\.git)/,
   });
   for (const output of outputs) {
-    const bundle = join(output, "Feedloom.app");
+    const bundle = join(output, `${name}.app`);
     // Packager's extraResource copy resolves framework links to absolute source
     // paths. Preserve the original relative links so the browser is relocatable.
     await cp(runtime, join(bundle, "Contents/Resources/.runtime"), {

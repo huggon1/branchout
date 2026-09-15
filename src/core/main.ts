@@ -1,3 +1,5 @@
+import { BotHub } from "./bots.js";
+import { extractLinks } from "../adapters/bot-messages.js";
 import {
   migrateModelSettings,
   publicModelSettings,
@@ -54,11 +56,13 @@ import {
   type CollectionPhase,
 } from "./contracts.js";
 const here = dirname(fileURLToPath(import.meta.url));
+const preview = app.getVersion().includes("preview");
+const appName = preview ? "Feedloom Preview" : "Feedloom";
 const dataDir =
   (!app.isPackaged && process.env.FEEDLOOM_DATA_DIR) ||
-  join(homedir(), "Library/Application Support/Feedloom");
+  join(homedir(), "Library/Application Support", appName);
 app.setPath("userData", dataDir);
-app.setName("Feedloom");
+app.setName(appName);
 if (!app.requestSingleInstanceLock()) app.quit();
 app.on("second-instance", () => {
   if (win && !win.isDestroyed()) {
@@ -67,6 +71,7 @@ app.on("second-instance", () => {
   }
 });
 let store: Store, win: BrowserWindow, tray: Tray;
+let bots: BotHub;
 let quitting = false;
 const active = new Map<string, { cancel: () => void }>();
 const collectionControllers = new Map<string, AbortController>();
@@ -570,14 +575,22 @@ async function collect(task: Task, prior?: Run) {
   })();
   return run.id;
 }
-async function parseInbox(item: Inbox) {
-  if (active.has(item.id) || active.has(`summary:${item.id}`))
+const parsingInbox = new Set<string>();
+async function parseInbox(item: Inbox, wait = false) {
+  if (
+    parsingInbox.has(item.id) ||
+    active.has(item.id) ||
+    active.has(`summary:${item.id}`)
+  )
     throw Error("正在解析，请稍候");
+  parsingInbox.add(item.id);
+  item.summary = "";
+  item.summaryState = "pending";
   item.state = "running";
   item.error = undefined;
   store.put("inbox", item);
   notify();
-  void (async () => {
+  const completion = (async () => {
     try {
       item.material = SourceMaterial.parse(
         await work(item.id, {
@@ -595,6 +608,8 @@ async function parseInbox(item: Inbox) {
       notify();
       try {
         item.summaryState = "running";
+        store.put("inbox", item);
+        notify();
         const r = await model(
           `summary:${item.id}`,
           modelInput(item.material!),
@@ -612,7 +627,8 @@ async function parseInbox(item: Inbox) {
     }
     if (store.get("inbox", item.id)) store.put("inbox", item);
     notify();
-  })();
+  })().finally(() => parsingInbox.delete(item.id));
+  if (wait) await completion;
   return item.id;
 }
 const runningFeeds = new Map<string, Feed>();
@@ -699,6 +715,10 @@ async function handle(raw: unknown) {
       const x = await credentials();
       return {
         ...store.state(),
+        bots: bots?.snapshot() || {},
+        buildLabel: app.getVersion().includes("preview")
+          ? `测试版 · ${app.getVersion()}`
+          : app.getVersion(),
         modelMode: settings.connections.find((c) => c.id === settings.activeId)
           ?.mode,
         hasApiKey: settings.connections.some((c) => Boolean(c.encrypted)),
@@ -706,6 +726,33 @@ async function handle(raw: unknown) {
         connections: { x: !!x.authToken && !!x.ct0, xiaohongshu: xhsLoggedIn },
         busy: [...active.keys()],
       };
+    }
+    case "botSave":
+      await bots.save(c.channel, c.secret, c.appId);
+      break;
+    case "botBind":
+      bots.bind(c.channel);
+      break;
+    case "botDisable":
+      bots.disable(c.channel);
+      break;
+    case "parseText": {
+      const urls = extractLinks(c.text);
+      if (!urls.length)
+        throw Error("未找到支持的链接，请粘贴 GitHub 仓库首页或小红书分享文案");
+      const ids = [];
+      for (const url of urls)
+        ids.push(
+          await parseInbox({
+            id: randomUUID(),
+            url,
+            createdAt: stamp(),
+            state: "pending",
+            summary: "",
+            summaryState: "pending",
+          }),
+        );
+      return ids[0];
     }
     case "saveTask": {
       const t = store.saveTask(c.task, c.id);
@@ -975,10 +1022,13 @@ async function handle(raw: unknown) {
       const u = new URL(c.url);
       if (
         u.protocol !== "https:" ||
-        !(
-          u.hostname === "github.com" ||
-          u.hostname === "x.com" ||
-          u.hostname === "www.xiaohongshu.com"
+        u.username !== "" ||
+        u.password !== "" ||
+        !u.hostname.includes(".") ||
+        u.hostname === "localhost" ||
+        u.hostname.endsWith(".local") ||
+        /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(
+          u.hostname,
         )
       )
         throw Error("不支持的来源链接");
@@ -998,7 +1048,7 @@ async function createWindow() {
     height: 940,
     minWidth: 1100,
     minHeight: 720,
-    title: "Feedloom",
+    title: appName,
     backgroundColor: "#f7f9fc",
     webPreferences: {
       preload: join(here, "preload.cjs"),
@@ -1059,6 +1109,22 @@ app.whenReady().then(async () => {
       return { ok: false, error: errorText(e) };
     }
   });
+  bots = new BotHub(
+    store,
+    (text) => {
+      if (!safeStorage.isEncryptionAvailable())
+        throw Error("系统安全存储不可用");
+      return safeStorage.encryptString(text).toString("base64");
+    },
+    (text) => safeStorage.decryptString(Buffer.from(text, "base64")),
+    session.defaultSession.fetch.bind(session.defaultSession) as typeof fetch,
+    notify,
+    async (item) => {
+      await parseInbox(item, true);
+    },
+    proxyEnv.HTTPS_PROXY,
+  );
+  await bots.init();
   await createWindow();
   if (app.isPackaged || !process.env.FEEDLOOM_SKIP_AUTO_CONNECT)
     void checkLogin();
@@ -1066,11 +1132,11 @@ app.whenReady().then(async () => {
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
   );
   tray = new Tray(icon);
-  tray.setTitle("F");
-  tray.setToolTip("Feedloom");
+  tray.setTitle(preview ? "Fᵖ" : "F");
+  tray.setToolTip(appName);
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "打开 Feedloom", click: () => win.show() },
+      { label: `打开 ${appName}`, click: () => win.show() },
       { label: "退出", click: () => app.quit() },
     ]),
   );
@@ -1097,6 +1163,7 @@ app.on("activate", () => {
 app.on("window-all-closed", () => {});
 app.on("before-quit", () => {
   quitting = true;
+  bots?.close();
   modelOperation?.abort();
   codexLifecycle.abort();
   clearInterval(interval);

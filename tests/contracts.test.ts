@@ -96,6 +96,11 @@ test("versioned JSON contracts match runtime schemas and cover persisted source 
     assert.ok(
       InboxSchema.safeParse({
         id: "inbox",
+        origin: {
+          channel: "telegram",
+          peer: "fictional-peer",
+          messageId: "fictional-message",
+        },
         url: m.canonicalUrl,
         createdAt: task.createdAt,
         state: "failed",

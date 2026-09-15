@@ -1,3 +1,5 @@
+import { fetchReadme } from "../adapters/readme.mjs";
+import { SourceMaterial as SourceMaterialSchema } from "./contracts.js";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import {
@@ -73,64 +75,21 @@ async function xhs(data: any, path: string, body?: any, signal?: AbortSignal) {
   }
   return result;
 }
-// Search and repository contents use separate GitHub rate-limit buckets.
-// Once the contents bucket is exhausted, read public raw content directly for
-// the rest of this worker instead of repeating requests known to fail.
-let githubReadmeApiLimited = false;
+const readmeApiState = { limited: false };
 async function githubRepo(
   url: string,
   signal?: AbortSignal,
 ): Promise<SourceMaterial> {
-  const u = new URL(url);
-  if (u.hostname !== "github.com") throw Error("只支持 GitHub 仓库链接");
-  const parts = u.pathname.split("/").filter(Boolean);
-  if (parts.length < 2 || !parts.slice(0, 2).every((s) => /^[\w.-]+$/.test(s)))
-    throw Error("无效仓库链接");
-  const repo = parts.slice(0, 2).join("/");
-  const result: SourceMaterial = {
-    schemaVersion: 1,
-    source: "github",
-    sourceId: repo.toLowerCase(),
-    canonicalUrl: `https://github.com/${repo}`,
-    title: repo,
-    author: parts[0],
-    text: "",
-    completeness: "partial",
-    publishedAt: null,
-    metrics: {},
-    images: [],
-  };
-  if (!githubReadmeApiLimited) {
-    try {
-      const r = await request(
-        `https://api.github.com/repos/${repo}/readme`,
-        {
-          headers: { Accept: "application/vnd.github.raw+json" },
-          signal,
-        },
-        8,
-      );
-      const body = await r.text();
-      result.text = body.slice(0, 500000);
-      result.completeness = body.length > 500000 ? "partial" : "complete";
-      return result;
-    } catch (error: any) {
-      controller.signal.throwIfAborted();
-      signal?.throwIfAborted();
-      if (error?.code === "login_required") throw error;
-      if (error?.code === "rate_limited") githubReadmeApiLimited = true;
-      // Public raw README access does not use the contents API quota.
-    }
-  }
-  const r = await request(
-    `https://raw.githubusercontent.com/${repo}/HEAD/README.md`,
-    { signal },
-    8,
+  return SourceMaterialSchema.parse(
+    await fetchReadme(url, {
+      apiState: readmeApiState,
+      signal: AbortSignal.any([
+        controller.signal,
+        ...(signal ? [signal] : []),
+        AbortSignal.timeout(60000),
+      ]),
+    }),
   );
-  const body = await r.text();
-  result.text = body.slice(0, 500000);
-  result.completeness = body.length > 500000 ? "partial" : "complete";
-  return result;
 }
 async function xhsDetail(
   data: any,
@@ -187,6 +146,8 @@ async function parse(data: any) {
     if (
       !(
         u.hostname === "xhslink.com" ||
+        u.hostname === "xhslink.cn" ||
+        u.hostname === "www.xhslink.cn" ||
         u.hostname === "www.xhslink.com" ||
         u.hostname === "xiaohongshu.com" ||
         u.hostname.endsWith(".xiaohongshu.com")
@@ -254,6 +215,8 @@ async function collect(data: any) {
         githubRepo(row.canonicalUrl, signal).then((detail) => ({
           text: detail.text,
           completeness: detail.completeness,
+          context: { ...row.context, ...detail.context },
+          images: detail.images,
         })),
       {
         signal: controller.signal,
