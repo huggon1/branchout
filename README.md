@@ -1,12 +1,12 @@
-# Feedloom
+# nature-feed
 
 个人桌面收集与阅读工作空间：留存转发链接，按关注意图探索素材，人工选材后用 Luna 逐条生成可复制的 Feed。
 
 ## 使用
 
-首版支持 macOS Apple Silicon。打开本地构建的 `build/Feedloom-darwin-arm64/Feedloom.app`，在「连接与模型」中连接小红书和 X。模型服务支持 Codex 订阅和自定义 OpenAI 兼容 API，可保存多个连接并明确启用其中一个。原有配置升级时保留模型与计费方式，应用不会自动切换。
+首版支持 macOS Apple Silicon。打开本地构建的 `build/nature-feed-darwin-arm64/nature-feed.app`，在「连接与模型」中连接小红书和 X。模型服务支持 Codex 订阅和自定义 OpenAI 兼容 API，可保存多个连接并明确启用其中一个。原有配置升级时保留模型与计费方式，应用不会自动切换。
 
-版本号含 `preview` 时构建为独立的 `Feedloom Preview.app`，界面标记测试版，数据位于 `~/Library/Application Support/Feedloom Preview`，不与稳定版数据库或机器人连接共用。
+版本号含 `preview` 时构建为独立的 `nature-feed Preview.app`，界面标记测试版，数据位于 `~/Library/Application Support/Feedloom Preview`，不与稳定版数据库或机器人连接共用。
 
 - **转发收件箱**：粘贴分享文案或通过 Telegram／飞书机器人接收本人私聊的 GitHub 仓库、小红书链接。每条消息最多处理十个不同链接，各自保存；平台重复投递不重复入库。阅读 README／正文、图片与 AI 摘要，正文和摘要状态分开展示，独立保存、不进入素材库。README 按实际路径和可获取的 commit 解析相对图片与链接，常见 HTML 结构经过白名单清洗，禁用脚本；图片可以预览，加载失败独立提示。
 - **项目回顾**：绑定 GitHub 公开或已授权私有仓库，手动运行分析。产品理解带版本、生成时间及固定 commit；近期变化分析独立呈现。首次整理最近 7 天，之后增量追加开发时间线；概览与变化分别完成，未完成的变化不推进边界。
@@ -65,7 +65,7 @@ GitHub 的近期活动依据为最近推送，不表示产品发布或热议。�
 
 数据库升级至 v3，新增仓库、理解、分析、探索批次、组合、候选与发现关系存储；旧任务停止调度，历史收集配置和 Feed 快照保持原样。
 
-业务数据库和平台登录位于 `~/Library/Application Support/Feedloom`，浏览器组件缓存位于 `~/Library/Caches/xiaohongshu-mcp`。下载的运行组件、业务数据库、登录态、真实内容及截图均不进入仓库。
+产品已从 Feedloom 更名为 nature-feed，沿用原有应用标识与数据目录，以保留升级前的数据和连接。业务数据库和平台登录位于 `~/Library/Application Support/Feedloom`，浏览器组件缓存位于 `~/Library/Caches/xiaohongshu-mcp`。下载的运行组件、业务数据库、登录态、真实内容及截图均不进入仓库。
 
 Codex 认证只读当前有效 access token，不复制 refresh token、不代替 Codex 刷新登录。临近过期时在 Codex 中刷新后重试。API Key 通过 macOS 安全存储加密；API Key 路径尚未用真实付费密钥验收。
 
@@ -80,6 +80,9 @@ Pi 在后台进程中运行。仓库分析启用受控只读工具与多轮调�
 产品规则与模块边界见下列文档；实施分层及真实验收条件见项目规划。
 
 - [MVP 产品需求](docs/mvp-prd.md)
+- [设计所需的产品上下文](PRODUCT.md)
+- [视觉设计指引](DESIGN.md)
+- [持续界面设计流程](docs/design/workflow.md)
 - [页面设计](docs/design/README.md)
 - [项目规划](docs/project-plan.md)
 - [技术架构](docs/technical-architecture.md)
@@ -95,7 +98,7 @@ Pi 在后台进程中运行。仓库分析启用受控只读工具与多轮调�
 「连接与模型」使用连接列表与配置详情，来源平台与模型服务分组展示。
 
 - 自定义 API：填写连接名称、Base URL、API Key 和模型 ID；高级设置选择 Chat Completions 或 Responses。支持文本输入，单次输出上限为 4096 tokens；兼容性以服务商实现和连接测试为准。API Key 经 Electron 系统安全存储加密，修改服务地址后需重新填写。
-- Codex 订阅：可读取本机 Codex 文件登录，也可点击「登录 Codex」在浏览器完成 Feedloom 独立登录。官方组件管理独立登录和刷新，Pi 只读取访问令牌；不复制本机刷新令牌。本机系统钥匙串登录不直接导入，可使用独立登录。
+- Codex 订阅：可读取本机 Codex 文件登录，也可点击「登录 Codex」在浏览器完成 nature-feed 独立登录。官方组件管理独立登录和刷新，Pi 只读取访问令牌；不复制本机刷新令牌。本机系统钥匙串登录不直接导入，可使用独立登录。
 - Codex 模型列表由随包官方组件动态提供；当前 Pi 未支持的模型标为不可选。旧模型从列表消失时提示重新选择，不自动更换模型。列表和账号状态不保证实际模型额度，点击「测试连接」验证真实响应。
 - 测试使用当前草稿，通过与摘要、意图判断和 Feed 生成相同的 Pi 会话发送短请求，不发送业务素材，会消耗少量额度。修改模型或凭据后，旧测试状态失效。测试不保存配置，也不切换当前服务。
 - 多个连接分别保存；「设为当前使用」影响后续模型请求，已经开始的请求继续使用原配置。配置升级保留原有 API Key、Luna 模型选择和认证方式。

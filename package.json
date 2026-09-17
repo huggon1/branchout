@@ -1,5 +1,5 @@
 {
-  "name": "feedloom",
+  "name": "nature-feed",
   "version": "0.3.0",
   "private": true,
   "type": "module",
@@ -23,7 +23,8 @@
     "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node tests/e2e/connections.mjs && node tests/e2e/codex-connection.mjs && node --import tsx tests/e2e/forwarding.mjs",
     "verify:live": "npm run build && node scripts/verify-live.mjs",
     "verify:package": "node scripts/verify-package.mjs",
-    "verify:model-package": "node scripts/verify-model-package.mjs"
+    "verify:model-package": "node scripts/verify-model-package.mjs",
+    "build:icons": "electron scripts/build-icons.cjs && iconutil -c icns assets/app-icon.iconset -o assets/app-icon.icns"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",

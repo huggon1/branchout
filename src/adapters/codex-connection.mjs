@@ -201,7 +201,7 @@ export async function readCodexConnection(options) {
         runtime.getModels("openai-codex").map((m) => m.id),
       ),
       home: location.home,
-      source: location.owned ? "Feedloom 独立登录" : "本机 Codex 文件登录",
+      source: location.owned ? "nature-feed 独立登录" : "本机 Codex 文件登录",
       checkedAt: new Date().toISOString(),
     };
   } finally {

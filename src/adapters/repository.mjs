@@ -23,7 +23,7 @@ export function repositoryClient({ token, signal, fetchImpl = fetch }) {
       ]),
       headers: {
         Accept: "application/vnd.github+json",
-        "User-Agent": "Feedloom",
+        "User-Agent": "nature-feed",
         "X-GitHub-Api-Version": "2022-11-28",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
