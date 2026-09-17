@@ -397,7 +397,17 @@ port.on("message", async ({ data }: any) => {
       result = await generateText({
         ...data,
         signal: controller.signal,
-        onProgress: () => port.postMessage({ type: "progress" }),
+        onProgress: (p: any) => port.postMessage({ type: "progress", ...p }),
+      });
+    } else if (data.type === "repoRead") {
+      const { repositoryRead } = await import(
+        "../adapters/repository-reader.mjs"
+      );
+      result = await repositoryRead({
+        ...data,
+        signal: controller.signal,
+        onProgress: (value: any) =>
+          port.postMessage({ type: "repoProgress", value }),
       });
     } else if (data.type === "collect") result = await collect(data);
     else if (data.type === "parse") result = await parse(data);

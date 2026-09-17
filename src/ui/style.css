@@ -1677,3 +1677,79 @@ legend {
 .batch.focused {
   border-color: #83a9f1;
 }
+
+.project-review {
+  overflow-wrap: anywhere;
+}
+.review-overview,
+.review-timeline {
+  margin-top: 28px;
+}
+.review-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.review-facts h4 {
+  margin-bottom: 8px;
+  color: #49576b;
+}
+.project-review details {
+  margin: 12px 0;
+}
+.project-review summary {
+  cursor: pointer;
+  color: #425d80;
+  line-height: 1.6;
+}
+.review-status {
+  background: #eef4ff;
+  border: 1px solid #d6e3f9;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 20px;
+}
+.progress-entry {
+  border-left: 2px solid #d7e3f3;
+  margin: 22px 0;
+  padding: 0 0 12px 20px;
+}
+.progress-entry time {
+  color: #718096;
+  font-size: 12px;
+}
+.progress-entry h4 {
+  font-size: 18px;
+  margin: 7px 0;
+}
+.progress-entry h5 {
+  font-size: 14px;
+  margin: 18px 0 5px;
+  color: #526176;
+}
+.review-history {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+  margin-top: 30px !important;
+}
+.review-sources blockquote {
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+.review-timeline .empty {
+  min-height: 0;
+  padding: 22px;
+}
+
+.review-use-cases article {
+  margin: 16px 0;
+  padding-left: 16px;
+  border-left: 2px solid #dbe7f5;
+}
+.review-use-cases h5 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.review-use-cases p {
+  margin: 6px 0;
+}

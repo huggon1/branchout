@@ -19,6 +19,13 @@ export interface WorkspaceDeps {
     signal: AbortSignal,
     onProgress: (value: any) => void,
   ) => Promise<any>;
+  agent?: (
+    key: string,
+    prompt: string,
+    context: any,
+    signal: AbortSignal,
+    progress?: (message: string) => void,
+  ) => Promise<any>;
   model: (key: string, prompt: string, signal: AbortSignal) => Promise<string>;
   search: (
     run: Exploration,
@@ -58,7 +65,11 @@ export class WorkspaceService {
       : undefined;
     if (priorId && (!prior || prior.repoId !== id || prior.state === "success"))
       throw Error("不能重试此分析");
-    if (prior && prior.base !== repo.boundary)
+    if (
+      prior &&
+      (prior.checkpoint?.timelineComplete ? prior.commit : prior.base) !==
+        repo.boundary
+    )
       throw Error("分析基准已更新，请发起新分析");
     const startedAt = new Date().toISOString();
     const run: Analysis = prior
@@ -84,6 +95,9 @@ export class WorkspaceService {
       run,
       {
         read: this.deps.read,
+        agent: this.deps.agent
+          ? (p, c, s, progress) => this.deps.agent!(run.id, p, c, s, progress)
+          : undefined,
         model: (prompt, signal) => this.deps.model(run.id, prompt, signal),
         notify: this.deps.notify,
       },
@@ -134,6 +148,16 @@ export class WorkspaceService {
             repoId,
             repoName: repo.fullName,
             understanding,
+            projectProgress: this.store
+              .list<Analysis>("analyses")
+              .filter(
+                (a) =>
+                  a.repoId === repoId &&
+                  (a.state === "success" || a.checkpoint?.timelineComplete),
+              )
+              .flatMap((a) => a.progress || [])
+              .sort((a, b) => b.at.localeCompare(a.at)),
+            progressReadIds: [],
             template: templates.find((t) => t.id === angle),
             platforms: value.platforms,
             period: value.period,

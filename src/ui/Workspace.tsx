@@ -27,14 +27,38 @@ type Props = {
 export function RepoReview({ state, act, navigate }: Props) {
   const [name, setName] = useState(""),
     [selected, setSelected] = useState(""),
-    [binding, setBinding] = useState(false);
+    [binding, setBinding] = useState(false),
+    [visible, setVisible] = useState(10);
   const repo: Repo | undefined =
     state.repos?.find((r: Repo) => r.id === selected) || state.repos?.[0];
   const understanding: Understanding | undefined = state.understandings?.find(
     (u: Understanding) => u.id === repo?.understandingId,
   );
-  const runs: Analysis[] = (state.analyses || []).filter(
-    (a: Analysis) => a.repoId === repo?.id,
+  const runs: Analysis[] = (state.analyses || [])
+    .filter((a: Analysis) => a.repoId === repo?.id)
+    .sort((a: Analysis, b: Analysis) => b.startedAt.localeCompare(a.startedAt));
+  const active = runs.find((a) => a.state === "running"),
+    unfinished = runs.find(
+      (a) =>
+        a.reviewVersion === 2 &&
+        ["failed", "cancelled", "interrupted"].includes(a.state) &&
+        (a.checkpoint?.timelineComplete ? a.commit : a.base) === repo?.boundary,
+    );
+  const allEntries = runs
+    .flatMap((a) => (a.progress || []).map((e) => ({ ...e, runId: a.id })))
+    .sort((a, b) => b.at.localeCompare(a.at));
+  const entries = allEntries.filter((e) => e.significance === "milestone");
+  const open = (url: string) => act({ type: "open", url });
+  const evidence = (items: Understanding["evidence"]) => (
+    <details className="review-sources">
+      <summary>查看相关代码与说明 · {items.length} 处</summary>
+      {items.map((e, i) => (
+        <blockquote key={i}>
+          <button onClick={() => open(e.url)}>{e.path} ↗</button>
+          <p>{e.excerpt}</p>
+        </blockquote>
+      ))}
+    </details>
   );
   return (
     <>
@@ -48,6 +72,7 @@ export function RepoReview({ state, act, navigate }: Props) {
             if (r) {
               setSelected(r.id);
               setName("");
+              setVisible(10);
             }
           } finally {
             setBinding(false);
@@ -66,8 +91,7 @@ export function RepoReview({ state, act, navigate }: Props) {
         </button>
       </form>
       <p className="muted">
-        公开仓库可直接绑定；私有仓库先在连接与模型中配置只读
-        Token。绑定后需手动运行分析。
+        公开仓库可直接绑定；私有仓库需在连接与模型中配置只读 Token。
       </p>
       <div className="split">
         <section className="panel list">
@@ -75,30 +99,50 @@ export function RepoReview({ state, act, navigate }: Props) {
             <button
               key={r.id}
               className={`listitem ${r.id === repo?.id ? "selected" : ""}`}
-              onClick={() => setSelected(r.id)}
+              onClick={() => {
+                setSelected(r.id);
+                setVisible(10);
+              }}
             >
               <strong>{r.fullName}</strong>
               <small>
                 {r.private ? "私有" : "公开"} · {r.branch} ·{" "}
-                {r.understandingId ? "已有理解" : "待分析"}
+                {r.understandingId ? "已有概览" : "等待认识"}
               </small>
             </button>
           ))}
         </section>
         <section>
           {repo ? (
-            <div className="panel reading">
+            <div className="panel reading project-review">
               <div className="actions">
                 <button
                   className="primary"
-                  disabled={runs.some((a) => a.state === "running")}
-                  onClick={() => act({ type: "analyzeRepo", id: repo.id })}
+                  disabled={!!active}
+                  onClick={() =>
+                    act(
+                      unfinished
+                        ? { type: "retryAnalysis", id: unfinished.id }
+                        : { type: "analyzeRepo", id: repo.id },
+                    )
+                  }
                 >
-                  运行仓库分析
+                  {active
+                    ? "正在分析…"
+                    : unfinished
+                      ? "继续分析"
+                      : understanding
+                        ? "看看最近进展"
+                        : "看看这个项目"}
                 </button>
-                <button onClick={() => navigate("探索")}>前往探索</button>
                 <button
-                  disabled={runs.some((a) => a.state === "running")}
+                  disabled={!understanding}
+                  onClick={() => navigate("探索")}
+                >
+                  前往探索
+                </button>
+                <button
+                  disabled={!!active}
                   onClick={() => {
                     if (confirm("解除仓库绑定？历史素材与 Feed 依据保留。"))
                       void act({ type: "unbindRepo", id: repo.id });
@@ -108,118 +152,221 @@ export function RepoReview({ state, act, navigate }: Props) {
                 </button>
               </div>
               <h2>{repo.fullName}</h2>
-              {understanding ? (
-                <>
-                  <Version understanding={understanding} />
-                  <p className="muted">AI 生成的仓库理解 · 事实以引用为准</p>
-                  <Markdown
-                    text={understanding.product}
-                    open={(url) => act({ type: "open", url })}
-                  />
-                  {[
-                    ["服务对象", understanding.users],
-                    ["痛点", understanding.problems],
-                    ["核心场景", understanding.scenarios],
-                    ["必要约束", understanding.constraints],
-                    ["推断与信息缺口", understanding.uncertainties],
-                  ].map(([title, items]) => (
-                    <section key={title as string}>
-                      <h3>{title as string}</h3>
+              <p className="muted">
+                认识项目，整理进展，为下一次探索保留上下文。
+              </p>
+              {active && (
+                <div className="review-status" role="status">
+                  <strong>{active.phase}</strong>
+                  {active.checkpoint?.overviewId && (
+                    <p>项目概览已更新，正在整理开发时间线。</p>
+                  )}
+                  <button
+                    onClick={() =>
+                      act({ type: "cancelAnalysis", id: active.id })
+                    }
+                  >
+                    取消分析
+                  </button>
+                </div>
+              )}
+              {!active && unfinished && (
+                <div className="review-status">
+                  <strong>
+                    {unfinished.checkpoint?.overviewId
+                      ? "概览可读，仍有分析未完成"
+                      : "上次分析未完成"}
+                  </strong>
+                  <p>{unfinished.error}</p>
+                  <small>已完成的阶段会保留，继续时使用同一仓库版本。</small>
+                </div>
+              )}
+              <section className="review-overview">
+                <h3>项目概览</h3>
+                {understanding ? (
+                  <>
+                    <p className="muted">
+                      AI 分析 · v{understanding.version} ·{" "}
+                      {time(understanding.createdAt)} ·{" "}
+                      {understanding.commit.slice(0, 8)}
+                    </p>
+                    <Markdown text={understanding.product} open={open} />
+                    {understanding.useCases ? (
+                      <section className="review-use-cases">
+                        <h4>什么时候会用到它</h4>
+                        {understanding.useCases.map((c, i) => (
+                          <article key={i}>
+                            <h5>{c.situation}</h5>
+                            <p>{c.need}</p>
+                            <Markdown text={c.experience} open={open} />
+                          </article>
+                        ))}
+                      </section>
+                    ) : (
                       <ul>
-                        {(items as string[]).map((v, i) => (
-                          <li key={i}>{v}</li>
+                        {understanding.scenarios.map((s, i) => (
+                          <li key={i}>{s}</li>
                         ))}
                       </ul>
-                    </section>
-                  ))}
-                  <details>
-                    <summary>理解依据</summary>
-                    {understanding.evidence.map((e, i) => (
-                      <blockquote key={i}>
-                        <button
-                          onClick={() => act({ type: "open", url: e.url })}
-                        >
-                          {e.path} ↗
-                        </button>
-                        <p>{e.excerpt}</p>
-                      </blockquote>
-                    ))}
-                  </details>
-                </>
-              ) : (
-                <p className="empty">
-                  尚无可用理解，运行分析后可以探索。无需确认或编辑理解。
-                </p>
-              )}
-              <h3>近期变化与分析记录</h3>
-              {runs.map((a) => (
-                <article className="review-run" key={a.id}>
-                  <strong>
-                    {time(a.startedAt)} · {names[a.state]}
-                  </strong>
-                  <p className="muted">
-                    {a.phase} ·{" "}
-                    {a.base
-                      ? `${a.base.slice(0, 8)} → ${a.commit?.slice(0, 8) || "待固定"}`
-                      : `首次 ${time(a.since)} 起`}
+                    )}
+                    {(understanding.constraints.length > 0 ||
+                      understanding.uncertainties.length > 0) && (
+                      <details>
+                        <summary>使用限制与仍需确认的地方</summary>
+                        <ul>
+                          {[
+                            ...understanding.constraints,
+                            ...understanding.uncertainties,
+                          ].map((v, i) => (
+                            <li key={i}>{v}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {evidence(understanding.evidence)}
+                    <details>
+                      <summary>概览历史</summary>
+                      {(state.understandings || [])
+                        .filter(
+                          (u: Understanding) =>
+                            u.repoId === repo.id && u.id !== understanding.id,
+                        )
+                        .sort(
+                          (a: Understanding, b: Understanding) =>
+                            b.version - a.version,
+                        )
+                        .map((u: Understanding) => (
+                          <details key={u.id}>
+                            <summary>
+                              v{u.version} · {time(u.createdAt)} ·{" "}
+                              {u.commit.slice(0, 8)}
+                            </summary>
+                            <Markdown text={u.product} open={open} />
+                            {evidence(u.evidence)}
+                          </details>
+                        ))}
+                    </details>
+                  </>
+                ) : (
+                  <p className="empty">
+                    点击“看看这个项目”，读取文档与实现，建立第一份项目概览。
                   </p>
-                  {a.error && <p className="warning">{a.error}</p>}
-                  {a.changeNote && <p>{a.changeNote}</p>}
-                  {a.changes.map((c, i) => (
-                    <section key={i}>
-                      <h4>{c.title}</h4>
-                      <p>
-                        <b>决策：</b>
-                        {c.decision}
+                )}
+              </section>
+              <section className="review-timeline">
+                <h3>
+                  值得关注的进展{" "}
+                  <small>
+                    {entries.length ? `${entries.length} 项进展` : ""}
+                  </small>
+                </h3>
+                <p className="muted">
+                  记录产品能力、使用方式和方向的变化；日常维护留在分析记录中。
+                </p>
+                {entries.slice(0, visible).map((e) => (
+                  <article className="progress-entry" key={e.id}>
+                    <time>{new Date(e.at).toLocaleDateString("zh-CN")}</time>
+                    <h4>{e.title}</h4>
+                    <Markdown text={e.summary} open={open} />
+                    {evidence(e.evidence)}
+                  </article>
+                ))}
+                {!entries.length && (
+                  <p className="empty">
+                    {runs.find((a) => a.changeNote)?.changeNote ||
+                      "暂无需要单独展示的产品进展，详细变化保留在分析记录中。"}
+                  </p>
+                )}
+                {entries.length > visible && (
+                  <button onClick={() => setVisible((v) => v + 10)}>
+                    再看 10 条进展
+                  </button>
+                )}
+              </section>
+              <details className="review-history">
+                <summary>分析记录 · {runs.length} 次</summary>
+                {runs.map((a) => (
+                  <article className="review-run" key={a.id}>
+                    <strong>
+                      {time(a.startedAt)} · {names[a.state]}
+                    </strong>
+                    <p>{a.phase}</p>
+                    <p className="muted">
+                      {a.base
+                        ? `${a.base.slice(0, 8)} → ${a.commit?.slice(0, 8) || "待固定"}`
+                        : `首次从 ${time(a.since)} 开始，不含更早历史`}
+                    </p>
+                    {a.checkpoint && (
+                      <p className="muted">
+                        已分析 {a.checkpoint.completed?.length || 0} /{" "}
+                        {a.checkpoint.commits?.length || 0} 个提交 ·{" "}
+                        {a.checkpoint.reads || 0} 次 Agent 读取
                       </p>
-                      <p>
-                        <b>新增责任：</b>
-                        {c.responsibility}
-                      </p>
-                      <p>
-                        <b>值得追问：</b>
-                        {c.question}
-                      </p>
-                      {c.experiment && (
-                        <p>最小实验建议（未执行）：{c.experiment}</p>
+                    )}
+                    {a.error && <p className="warning">{a.error}</p>}
+                    {a.changeNote && <p>{a.changeNote}</p>}
+                    {!!a.progress?.length && (
+                      <details>
+                        <summary>全部变更记录 · {a.progress.length} 条</summary>
+                        {a.progress.map((e) => (
+                          <details key={e.id}>
+                            <summary>
+                              {e.title}
+                              {e.significance === "milestone"
+                                ? " · 产品进展"
+                                : ""}
+                            </summary>
+                            <Markdown text={e.summary} open={open} />
+                            {e.mechanism && (
+                              <Markdown text={e.mechanism} open={open} />
+                            )}
+                            {evidence(e.evidence)}
+                          </details>
+                        ))}
+                      </details>
+                    )}
+                    {a.checkpoint?.excluded?.length ? (
+                      <details>
+                        <summary>
+                          未单列的机械变化 · {a.checkpoint.excluded.length}
+                        </summary>
+                        {a.checkpoint.excluded.map((e) => (
+                          <p key={e.sha}>
+                            {e.sha.slice(0, 8)} · {e.reason}
+                          </p>
+                        ))}
+                      </details>
+                    ) : null}
+                    {a.changes.map((c, i) => (
+                      <details key={i}>
+                        <summary>{c.title} · 旧版分析</summary>
+                        <p>{c.decision}</p>
+                        <p>{c.responsibility}</p>
+                        {evidence(c.evidence)}
+                      </details>
+                    ))}
+                    {!active &&
+                      ["failed", "cancelled", "interrupted"].includes(
+                        a.state,
+                      ) &&
+                      (a.checkpoint?.timelineComplete ? a.commit : a.base) ===
+                        repo.boundary && (
+                        <button
+                          onClick={() =>
+                            act({ type: "retryAnalysis", id: a.id })
+                          }
+                        >
+                          继续此分析
+                        </button>
                       )}
-                      {c.evidence.map((e, j) => (
-                        <details key={j}>
-                          <summary>{e.path}</summary>
-                          <blockquote>{e.excerpt}</blockquote>
-                          <button
-                            onClick={() => act({ type: "open", url: e.url })}
-                          >
-                            打开变更证据 ↗
-                          </button>
-                        </details>
-                      ))}
-                    </section>
-                  ))}
-                  {a.state === "running" ? (
-                    <button
-                      onClick={() => act({ type: "cancelAnalysis", id: a.id })}
-                    >
-                      取消分析
-                    </button>
-                  ) : (
-                    ["failed", "cancelled", "interrupted"].includes(
-                      a.state,
-                    ) && (
-                      <button
-                        onClick={() => act({ type: "retryAnalysis", id: a.id })}
-                      >
-                        重试此分析
-                      </button>
-                    )
-                  )}
-                </article>
-              ))}
+                  </article>
+                ))}
+              </details>
             </div>
           ) : (
             <div className="empty">
               <h2>从一个仓库开始</h2>
-              <p>绑定后手动生成产品理解与近期变化分析。</p>
+              <p>绑定后认识项目、整理开发进展，再开始探索。</p>
             </div>
           )}
         </section>
