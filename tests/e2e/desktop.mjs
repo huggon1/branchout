@@ -191,6 +191,17 @@ try {
   await expect(page.locator(".materialrow")).toHaveCount(1);
   await page.getByLabel("选择 example/reader").first().check();
   await expect(page.getByText("已选 1 条", { exact: true })).toBeVisible();
+  // Authored controls retain their native keyboard behavior.
+  const allResults = page.getByLabel("全选当前结果");
+  await allResults.focus();
+  await page.keyboard.press("Space");
+  await expect(allResults).not.toBeChecked();
+  await page.keyboard.press("Space");
+  await expect(allResults).toBeChecked();
+  const platformSelect = page.getByLabel("平台筛选");
+  await platformSelect.click();
+  expect(await platformSelect.evaluate((el) => el.matches(":open"))).toBe(true);
+  await page.keyboard.press("Escape");
   await page.getByLabel("平台筛选").selectOption("x");
   await expect(page.getByText("没有匹配的素材", { exact: true })).toBeVisible();
   await expect(page.getByText("已选 1 条", { exact: true })).toBeVisible();
@@ -228,6 +239,12 @@ try {
       });
     });
     if (overlap) throw Error(`Generation controls overlap at ${width}`);
+    const titleWidth = await page
+      .locator(".composer .chosen .titlelink")
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().width);
+    if (titleWidth < 150)
+      throw Error(`Generation title squeezed at ${width}: ${titleWidth}px`);
   }
 
   await page.locator("nav").getByRole("button", { name: "我的 Feed" }).click();
@@ -293,7 +310,20 @@ try {
     .locator("nav")
     .getByRole("button", { name: "探索", exact: true })
     .click();
-  await expect(page.getByText("仓库理解 v1", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("仓库理解 v1", { exact: true }).first(),
+  ).toBeVisible();
+  const scope = page.locator(".angle-choice summary").first();
+  await scope.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".angle-choice details").first()).toHaveAttribute(
+    "open",
+    "",
+  );
+  await page.keyboard.press("Enter");
+  await expect(
+    page.locator(".angle-choice details").first(),
+  ).not.toHaveAttribute("open", "");
   await page.getByLabel(repo.fullName, { exact: true }).check();
   await expect(page.getByText("2 项探索", { exact: true })).toBeVisible();
   await expect(

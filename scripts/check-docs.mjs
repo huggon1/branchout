@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 function walk(dir) { return readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]); }
 let broken = 0;
-for (const file of ['README.md', 'AGENTS.md', ...walk('docs')].filter(p => p.endsWith('.md'))) {
+for (const file of ['README.md', 'AGENTS.md', 'PRODUCT.md', 'DESIGN.md', ...walk('docs')].filter(p => p.endsWith('.md'))) {
   for (const match of readFileSync(file, 'utf8').matchAll(/\]\(([^)]+)\)/g)) {
     const dest = match[1].split('#')[0];
     if (!dest || /^[a-z]+:/i.test(dest)) continue;

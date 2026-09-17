@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Icon } from "./Icons.js";
 import type {
   Repo,
   Understanding,
@@ -54,7 +55,9 @@ export function RepoReview({ state, act, navigate }: Props) {
       <summary>查看相关代码与说明 · {items.length} 处</summary>
       {items.map((e, i) => (
         <blockquote key={i}>
-          <button onClick={() => open(e.url)}>{e.path} ↗</button>
+          <button onClick={() => open(e.url)}>
+            {e.path} <Icon name="external" />
+          </button>
           <p>{e.excerpt}</p>
         </blockquote>
       ))}
@@ -99,6 +102,7 @@ export function RepoReview({ state, act, navigate }: Props) {
             <button
               key={r.id}
               className={`listitem ${r.id === repo?.id ? "selected" : ""}`}
+              aria-pressed={r.id === repo?.id}
               onClick={() => {
                 setSelected(r.id);
                 setVisible(10);
@@ -595,7 +599,7 @@ export function Explorer({ state, act, navigate }: Props) {
                             act({ type: "open", url: c.source.canonicalUrl })
                           }
                         >
-                          打开来源 ↗
+                          打开来源 <Icon name="external" />
                         </button>
                       </article>
                     ))}

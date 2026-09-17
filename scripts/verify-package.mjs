@@ -6,7 +6,7 @@ const home = await mkdtemp(join(tmpdir(), "feedloom-package-"));
 const application = await electron.launch({
   executablePath: join(
     process.cwd(),
-    "build/Feedloom-darwin-arm64/Feedloom.app/Contents/MacOS/Feedloom",
+    "build/nature-feed-darwin-arm64/nature-feed.app/Contents/MacOS/nature-feed",
   ),
   env: { ...process.env, HOME: home },
 });

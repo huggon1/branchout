@@ -34,7 +34,9 @@ const runtime = resolve(".runtime");
 await access(join(runtime, "xiaohongshu-mcp"));
 await verifyLinks(runtime);
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
-const name = pkg.version.includes("preview") ? "Feedloom Preview" : "Feedloom";
+const name = pkg.version.includes("preview")
+  ? "nature-feed Preview"
+  : "nature-feed";
 // Packager clears its entire temporary root; isolate each invocation.
 const staging = await mkdtemp(join(tmpdir(), "feedloom-package-"));
 try {
@@ -43,6 +45,7 @@ try {
     asar: { unpack: "{**/*.node,**/@openai/codex-*/vendor/**/*}" },
     dir: ".",
     name,
+    icon: "assets/app-icon.icns",
     appBundleId: pkg.version.includes("preview")
       ? "com.feedloom.preview"
       : "com.feedloom.app",
@@ -51,7 +54,7 @@ try {
     out: "build",
     overwrite: true,
     ignore:
-      /^\/(tests|test-results|playwright-report|docs|scripts|src|build|\.runtime|\.git)/,
+      /^\/(tests|test-results|playwright-report|docs|scripts|src|build|\.runtime|\.impeccable|\.git)/,
   });
   for (const output of outputs) {
     const bundle = join(output, `${name}.app`);

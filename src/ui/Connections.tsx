@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Icon } from "./Icons.js";
 import {
   defaultConnection,
   type ModelConnection,
@@ -184,7 +185,7 @@ export function Connections({
             onClick={() => setAdding(!adding)}
             disabled={controlsDisabled}
           >
-            ＋
+            <Icon name="plus" />
           </button>
         </div>
         {adding && (
@@ -259,7 +260,9 @@ export function Connections({
           onClick={() => choose("bots")}
           disabled={controlsDisabled}
         >
-          <span className="connection-avatar">↗</span>
+          <span className="connection-avatar">
+            <Icon name="inbox" />
+          </span>
           <span className="connection-choice-text">
             <strong>转发机器人</strong>
             <small>Telegram · 飞书</small>
@@ -272,9 +275,6 @@ export function Connections({
         <section className="panel connection-detail">
           <header className="connection-detail-header">
             <div>
-              <p className="connection-eyebrow">
-                {source ? "来源平台" : "模型服务"}
-              </p>
               <h2>{source?.name || draft.name || "新建连接"}</h2>
               <p className="muted">
                 {source?.description ||
@@ -533,7 +533,7 @@ export function Connections({
                       </strong>
                       <p>
                         {catalog?.source ||
-                          "可复用本机 Codex 文件登录，或在 Feedloom 中独立登录。"}
+                          "可复用本机 Codex 文件登录，或在 nature-feed 中独立登录。"}
                       </p>
                       <p className="connection-hint">
                         独立登录由官方组件管理；已有本机登录过期时，可在 Codex

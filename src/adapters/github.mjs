@@ -86,7 +86,7 @@ export async function fetchTrending({
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(25_000)])
       : AbortSignal.timeout(25_000),
-    headers: { "User-Agent": "Feedloom/0.1", Accept: "text/html" },
+    headers: { "User-Agent": "nature-feed/0.1", Accept: "text/html" },
   });
   if (!response.ok)
     throw new SourceError(
@@ -223,7 +223,7 @@ export async function fetchRepositorySearch({
         signal: boundedSignal,
         headers: {
           Accept: "application/vnd.github+json",
-          "User-Agent": "Feedloom/0.1",
+          "User-Agent": "nature-feed/0.1",
         },
       });
       if (!response.ok) throw githubRequestError(response);

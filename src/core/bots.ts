@@ -331,7 +331,7 @@ export class BotHub {
       void this.reply(
         c,
         message.peer,
-        "已绑定 Feedloom。发送 GitHub 仓库或小红书分享链接即可解析。",
+        "已绑定 nature-feed。发送 GitHub 仓库或小红书分享链接即可解析。",
       );
       return;
     }
@@ -372,7 +372,7 @@ export class BotHub {
       c,
       message.peer,
       links.length
-        ? `已接收 ${links.length} 条链接，正在排队解析。完整内容请在 Feedloom 转发收件箱阅读。`
+        ? `已接收 ${links.length} 条链接，正在排队解析。完整内容请在 nature-feed 转发收件箱阅读。`
         : "未发现支持的链接。请发送 GitHub 仓库首页或小红书分享文案；暂不解析截图、附件、聊天合并转发和其他平台。",
     );
     for (const item of items) this.pending.add(item.id);
@@ -397,7 +397,7 @@ export class BotHub {
           await this.reply(
             result.origin.channel,
             result.origin.peer,
-            `${result.material?.title || result.url}\n${result.state === "success" ? (result.material?.completeness === "partial" ? "部分解析完成" : "正文解析完成") : "解析失败，请在 Feedloom 重试"}${result.summary ? `\nAI 摘要：${result.summary.slice(0, 1200)}` : result.state === "success" ? "\nAI 摘要暂不可用，原文已保存。" : ""}\n${result.url}`,
+            `${result.material?.title || result.url}\n${result.state === "success" ? (result.material?.completeness === "partial" ? "部分解析完成" : "正文解析完成") : "解析失败，请在 nature-feed 重试"}${result.summary ? `\nAI 摘要：${result.summary.slice(0, 1200)}` : result.state === "success" ? "\nAI 摘要暂不可用，原文已保存。" : ""}\n${result.url}`,
           );
       }
     } finally {

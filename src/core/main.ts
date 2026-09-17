@@ -66,10 +66,12 @@ import {
 } from "./contracts.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const preview = app.getVersion().includes("preview");
-const appName = preview ? "Feedloom Preview" : "Feedloom";
+const appName = preview ? "nature-feed Preview" : "nature-feed";
+// Keep the existing data location and bundle identity across the brand rename.
+const legacyDataName = preview ? "Feedloom Preview" : "Feedloom";
 const dataDir =
   (!app.isPackaged && process.env.FEEDLOOM_DATA_DIR) ||
-  join(homedir(), "Library/Application Support", appName);
+  join(homedir(), "Library/Application Support", legacyDataName);
 app.setPath("userData", dataDir);
 app.setName(appName);
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -300,7 +302,7 @@ async function work(
   const child = utilityProcess.fork(join(here, "platform-worker.js"), [], {
     env,
     stdio: "ignore",
-    serviceName: "Feedloom task",
+    serviceName: "nature-feed task",
   });
   let done = false;
   let reportedProgress = false;
@@ -1028,7 +1030,7 @@ async function handle(raw: unknown) {
           "model-connection-test",
           {
             type: "model",
-            text: "Feedloom connection check. No user content.",
+            text: "nature-feed connection check. No user content.",
             instruction: "Reply with the single word OK.",
             ...payload,
           },
@@ -1256,11 +1258,14 @@ app.whenReady().then(async () => {
   await createWindow();
   if (app.isPackaged || !process.env.FEEDLOOM_SKIP_AUTO_CONNECT)
     void checkLogin();
-  const icon = nativeImage.createFromDataURL(
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+  app.dock?.setIcon(
+    nativeImage.createFromPath(join(here, "../assets/app-icon.png")),
   );
+  const icon = nativeImage.createFromPath(
+    join(here, "../assets/trayTemplate.png"),
+  );
+  icon.setTemplateImage(true);
   tray = new Tray(icon);
-  tray.setTitle(preview ? "Fᵖ" : "F");
   tray.setToolTip(appName);
   tray.setContextMenu(
     Menu.buildFromTemplate([

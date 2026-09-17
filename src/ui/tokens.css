@@ -1,0 +1,45 @@
+@font-face {
+  font-family: "Newsreader";
+  src: url("./fonts/Newsreader.ttf") format("truetype");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --font-reading: "Newsreader", "Songti SC", "Noto Serif CJK SC", serif;
+  --color-canvas: #fbfcfa;
+  --color-surface: #ffffff;
+  --color-subtle: #f3f5f1;
+  --color-ink: #202a26;
+  --color-secondary: #49594f;
+  --color-muted: #627168;
+  --color-accent: #35705a;
+  --color-accent-hover: #285943;
+  --color-selected: #e7eee9;
+  --color-line: #dce3dc;
+  --color-control-line: #a6b3a9;
+  --color-focus: #35705a;
+  --color-success: #286147;
+  --color-success-bg: #eaf3ed;
+  --color-warning: #855914;
+  --color-warning-bg: #faf1df;
+  --color-danger: #a13f36;
+  --color-danger-bg: #f9eeeb;
+  --radius-control: 10px;
+  --radius-surface: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --duration-feedback: 140ms;
+  --ease-feedback: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-overlay: 0 24px 80px #202a2630;
+  --line: var(--color-line);
+  --muted: var(--color-muted);
+}
