@@ -14,6 +14,8 @@
 
 ## 开发原则
 
+- 界面设计、重构或视觉评审前读取 [产品上下文](PRODUCT.md)、[视觉设计指引](DESIGN.md) 和[设计流程](docs/design/workflow.md)，按页面任务确定阅读、过程掌控与操作效率的优先级；产品规则仍以 MVP PRD 为准。
+
 - 实现产品行为前读取 [MVP PRD](docs/mvp-prd.md)，设计模块与运行边界前读取[技术架构](docs/technical-architecture.md)；页面实现参考[设计图](docs/design/README.md)。
 - 开发中的模拟解析、收集和 Agent 生成必须在界面中明确标记。
 - 外部平台、Skills、CLI 和已有仓库统一通过适配器或防腐层接入，不能让外部数据结构泄漏到核心领域。

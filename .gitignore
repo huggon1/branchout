@@ -34,5 +34,12 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 
+# Local design exploration and Impeccable runtime state
+.impeccable/*
+!.impeccable/design.json
+
 # Downloaded third-party runtime dependencies
 .runtime/
+
+# Reproducible icon intermediates
+assets/*.iconset/
