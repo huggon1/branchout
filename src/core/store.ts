@@ -346,7 +346,17 @@ export class Store {
     return {
       repos: this.list<Repo>("repos"),
       understandings: this.list<Understanding>("understandings"),
-      analyses: this.list<Analysis>("analyses"),
+      analyses: this.list<Analysis>("analyses").map((a) => ({
+        ...a,
+        checkpoint: a.checkpoint
+          ? {
+              ...a.checkpoint,
+              manifest: undefined,
+              details: undefined,
+              entries: undefined,
+            }
+          : undefined,
+      })),
       explorations: this.list<Exploration>("explorations"),
       batches: this.list<Batch>("batches"),
       discoveries: this.list<Discovery>("discoveries"),

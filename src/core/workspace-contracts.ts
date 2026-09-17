@@ -26,7 +26,18 @@ export const Citation = z.object({
 });
 export const UnderstandingContent = z.object({
   product: z.string().min(1).max(3000),
-  users: z.array(z.string()).min(1).max(10),
+  useCases: z
+    .array(
+      z.object({
+        situation: z.string().min(1).max(300),
+        need: z.string().min(1).max(300),
+        experience: z.string().min(1).max(600),
+      }),
+    )
+    .min(1)
+    .max(3)
+    .optional(),
+  users: z.array(z.string()).max(10),
   problems: z.array(z.string()).min(1).max(10),
   scenarios: z.array(z.string()).min(1).max(10),
   constraints: z.array(z.string()).max(10),
@@ -40,6 +51,7 @@ export const UnderstandingContent = z.object({
   }),
 });
 export const Understanding = UnderstandingContent.extend({
+  analysisVersion: z.union([z.literal(2), z.literal(3)]).optional(),
   id: z.string(),
   repoId: z.string(),
   version: z.number().int().positive(),
@@ -55,6 +67,40 @@ export const ChangeCandidate = z.object({
   question: z.string().min(1),
   experiment: z.string().optional(),
   evidence: z.array(Citation).min(1),
+});
+export const ProgressEntry = z.object({
+  significance: z.enum(["milestone", "supporting"]).optional(),
+  id: z.string(),
+  title: z.string().min(1).max(100),
+  summary: z.string().min(1).max(800),
+  before: z.string().max(1500),
+  after: z.string().max(1500),
+  mechanism: z.string().max(2000),
+  implications: z.string().max(1500),
+  verification: z.string().max(1500),
+  commits: z.array(z.string()).min(1),
+  evidence: z.array(Citation).min(1),
+  at: z.string(),
+  relatedIds: z.array(z.string()).optional(),
+});
+export type ProgressEntry = z.infer<typeof ProgressEntry>;
+export const ReviewCheckpoint = z.object({
+  manifest: z.any().optional(),
+  commits: z.array(z.any()).optional(),
+  page: z.number().optional(),
+  enumerated: z.boolean().optional(),
+  details: z.record(z.string(), z.any()).optional(),
+  completed: z.array(z.string()).optional(),
+  entries: z.array(ProgressEntry).optional(),
+  excluded: z
+    .array(z.object({ sha: z.string(), reason: z.string() }))
+    .optional(),
+  curated: z.boolean().optional(),
+  timelineComplete: z.boolean().optional(),
+  overviewId: z.string().optional(),
+  overviewState: z.enum(["pending", "success", "failed"]).optional(),
+  overviewError: z.string().optional(),
+  reads: z.number().optional(),
 });
 export const Analysis = z.object({
   id: z.string(),
@@ -77,6 +123,9 @@ export const Analysis = z.object({
   error: z.string().optional(),
   understandingId: z.string().optional(),
   changes: z.array(ChangeCandidate),
+  reviewVersion: z.literal(2).optional(),
+  progress: z.array(ProgressEntry).optional(),
+  checkpoint: ReviewCheckpoint.optional(),
   changeNote: z.string().optional(),
 });
 export type Analysis = z.infer<typeof Analysis>;
@@ -105,6 +154,9 @@ export const ExplorationInput = z
       c.addIssue({ code: "custom", message: "小红书只支持一天内或一周内" });
   });
 export const Exploration = z.object({
+  projectProgress: z.array(ProgressEntry).optional(),
+  progressReadIds: z.array(z.string()).optional(),
+  progressMatches: z.array(z.string()).optional(),
   id: z.string(),
   batchId: z.string(),
   repoId: z.string(),
@@ -164,6 +216,7 @@ export const Batch = z.object({
 });
 export type Batch = z.infer<typeof Batch>;
 export const DiscoveryMeta = z.object({
+  projectProgress: z.array(ProgressEntry).optional(),
   id: z.string(),
   materialId: z.string(),
   runId: z.string(),

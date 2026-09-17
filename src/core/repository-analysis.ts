@@ -60,6 +60,12 @@ export async function analyzeRepository(
   repo: Repo,
   run: Analysis,
   deps: {
+    agent?: (
+      prompt: string,
+      context: any,
+      signal: AbortSignal,
+      progress?: (message: string) => void,
+    ) => Promise<any>;
     read: (
       input: any,
       signal: AbortSignal,
@@ -70,6 +76,16 @@ export async function analyzeRepository(
   },
   signal: AbortSignal,
 ) {
+  if (deps.agent) {
+    const { reviewRepository } = await import("./repository-review.js");
+    return reviewRepository(
+      store,
+      repo,
+      run,
+      { ...deps, agent: deps.agent },
+      signal,
+    );
+  }
   try {
     const snapshot = await deps.read(
       { repo, base: run.base, since: run.since, fixedCommit: run.commit },

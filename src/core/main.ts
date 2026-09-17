@@ -326,7 +326,10 @@ async function work(
     };
     const timer = setTimeout(
       () => finish(Error("执行超时，请缩小本轮数量后重试")),
-      ["collect", "repoSnapshot"].includes(payload.type) ? 900000 : 120000,
+      ["collect", "repoSnapshot", "repoRead"].includes(payload.type) ||
+        payload.repository
+        ? 900000
+        : 120000,
     );
     active.set(key, {
       cancel: abort,
@@ -367,13 +370,20 @@ async function model(
   text: string,
   instruction: string,
   signal?: AbortSignal,
+  repository?: any,
+  onProgress?: (phase: string, message: string) => void,
 ) {
   const connection = settings.connections.find(
     (c) => c.id === settings.activeId,
   )!;
   const payload = await modelPayload(connection);
   signal?.throwIfAborted();
-  return work(key, { type: "model", text, instruction, ...payload }, signal);
+  return work(
+    key,
+    { type: "model", text, instruction, ...payload, repository },
+    signal,
+    onProgress,
+  );
 }
 const modelInput = (m: SourceMaterial) =>
   JSON.stringify({
@@ -1129,9 +1139,20 @@ app.whenReady().then(async () => {
     read: (input, signal, onProgress) =>
       work(
         `repo:${input.repo.id}`,
-        { type: "repoSnapshot", ...input, token: githubToken() },
+        { type: "repoRead", ...input, token: githubToken() },
         signal,
         onProgress as any,
+      ),
+    agent: (key, prompt, context, signal, progress) =>
+      model(
+        key,
+        "",
+        prompt,
+        signal,
+        ["edit", "curate"].includes(context.mode)
+          ? undefined
+          : { ...context, token: githubToken() },
+        (_phase, message) => progress?.(message),
       ),
     model: async (key, prompt, signal) =>
       (await model(key, "", prompt, signal)).text,

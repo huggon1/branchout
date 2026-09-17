@@ -115,3 +115,47 @@ test("public link guard rejects private, mapped, loopback and credential URLs", 
   assert.equal(publicAddress("10.0.0.1"), false);
   assert.equal(publicAddress("8.8.8.8"), true);
 });
+
+test("new reader enumerates more than 25 changes by fixed compare pages", async () => {
+  const { repositoryRead } = await import(
+    "../src/adapters/repository-reader.mjs"
+  );
+  const calls = [];
+  const fetchImpl = fake((path, q) => {
+    calls.push(path);
+    return {
+      status: "ahead",
+      total_commits: 130,
+      commits: Array.from(
+        { length: q.get("page") === "1" ? 100 : 30 },
+        (_, i) => ({
+          sha: String(i + (q.get("page") === "1" ? 0 : 100)).padStart(40, "0"),
+          commit: {
+            message: "feature",
+            committer: { date: "2026-09-15T00:00:00Z" },
+          },
+        }),
+      ),
+    };
+  });
+  const first = await repositoryRead({
+    repo,
+    operation: "changes",
+    base: "b".repeat(40),
+    fixedCommit: sha,
+    page: 1,
+    fetchImpl,
+  });
+  const second = await repositoryRead({
+    repo,
+    operation: "changes",
+    base: "b".repeat(40),
+    fixedCommit: sha,
+    page: 2,
+    fetchImpl,
+  });
+  assert.equal(first.rows.length + second.rows.length, 130);
+  assert.equal(first.done, false);
+  assert.equal(second.done, true);
+  assert.ok(calls.every((p) => p.endsWith(sha)));
+});
