@@ -285,17 +285,15 @@ try {
     .locator("nav")
     .getByRole("button", { name: "项目回顾", exact: true })
     .click();
-  await expect(page.getByText("仓库理解 v1", { exact: true })).toBeVisible();
+  await expect(page.getByText(/AI 分析 · v1/)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "运行仓库分析", exact: true }),
+    page.getByRole("button", { name: "看看最近进展", exact: true }),
   ).toBeVisible();
   await page
     .locator("nav")
     .getByRole("button", { name: "探索", exact: true })
     .click();
-  await expect(
-    page.getByText("仓库理解 v1", { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByText("仓库理解 v1", { exact: true }).first()).toBeVisible();
   await page.getByLabel(repo.fullName, { exact: true }).check();
   await expect(page.getByText("2 项探索", { exact: true })).toBeVisible();
   await expect(
