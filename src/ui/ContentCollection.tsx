@@ -159,6 +159,7 @@ export function ContentCollection(props: Props) {
     setCompactCreate(false);
     chooseCollection(result.id);
     props.notice("已创建收藏夹“" + result.name + "”");
+    restoreCollectionFocus();
   };
   const saveRename = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -170,6 +171,7 @@ export function ContentCollection(props: Props) {
     if (!result) return;
     setRename("");
     props.notice("已重命名为“" + result.name + "”");
+    restoreCollectionFocus();
   };
   const current = collections.find((item) => item.id === collectionId);
 
@@ -327,7 +329,13 @@ export function ContentCollection(props: Props) {
                       onChange={(event) => setRename(event.target.value)}
                     />
                     <button className="primary">保存</button>
-                    <button type="button" onClick={() => setRename("")}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRename("");
+                        restoreCollectionFocus();
+                      }}
+                    >
                       取消
                     </button>
                   </form>
@@ -354,6 +362,7 @@ export function ContentCollection(props: Props) {
                             if (result !== undefined) {
                               if (manage.current) manage.current.open = false;
                               props.notice("默认收藏夹已更新");
+                              restoreCollectionFocus();
                             }
                           })
                         }

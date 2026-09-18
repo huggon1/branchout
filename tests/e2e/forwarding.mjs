@@ -263,6 +263,7 @@ try {
   await expect(
     page.getByRole("heading", { name: "键盘创建 Keyboard" }),
   ).toBeVisible();
+  await expect(compactCollection).toBeFocused();
   await page.getByLabel("收藏夹操作").click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "删除收藏夹" }).click();
@@ -306,16 +307,23 @@ try {
   await expect(page.getByRole("heading", { name: "产品 灵感" })).toBeVisible();
   await page.getByLabel("收藏夹操作").click();
   await page.getByRole("button", { name: "重命名", exact: true }).click();
+  await page.getByLabel("收藏夹名称").fill("取消本次重命名");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.locator(".collection-navigation > button.selected")).toBeFocused();
+  await page.getByLabel("收藏夹操作").click();
+  await page.getByRole("button", { name: "重命名", exact: true }).click();
   await page.getByLabel("收藏夹名称").fill("产品洞察 Product Notes");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "产品洞察 Product Notes" }),
   ).toBeVisible();
+  await expect(page.locator(".collection-navigation > button.selected")).toBeFocused();
   await page.getByLabel("收藏夹操作").click();
   await page.getByRole("button", { name: "设为默认", exact: true }).click();
   await expect(
     page.getByText("默认收藏夹已更新", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".collection-navigation > button.selected")).toBeFocused();
   await page.getByRole("button", { name: /Inbox/ }).click();
   await page.getByLabel("选择 部分解析示例").check();
   await page.getByLabel("选择 https://github.com/example/body-failed").check();
