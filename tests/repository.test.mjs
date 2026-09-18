@@ -104,6 +104,10 @@ test("local Git reader pins objects and excludes worktree, symlink and submodule
     const serialized = JSON.stringify({ manifest, detail, evidence });
     assert.equal(serialized.includes(outside), false);
     assert.equal(serialized.includes("untracked-private"), false);
+    run("checkout", "--detach", head);
+    const detached = await inspectLocalRepository(root);
+    assert.equal(detached.branch, "detached HEAD");
+    assert.equal(detached.oid, head);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
