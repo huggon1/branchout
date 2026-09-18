@@ -2499,7 +2499,7 @@ button > svg {
 .collection-list-heading h2 {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 16px;
+  font-size: 19px;
 }
 .collection-navigation {
   display: grid;
@@ -2533,7 +2533,7 @@ button > svg {
 .collection-navigation small,
 .collection-navigation b {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .collection-navigation b {
   font-variant-numeric: tabular-nums;
@@ -2715,7 +2715,7 @@ button > svg {
 .collection-item-topline small {
   min-width: 0;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .collection-state {
   flex-shrink: 0;
@@ -2723,7 +2723,7 @@ button > svg {
   border-radius: 6px;
   color: var(--color-success);
   background: var(--color-success-bg);
-  font-size: 10px;
+  font-size: 12px;
 }
 .collection-state.running {
   color: var(--color-accent);
@@ -2735,14 +2735,14 @@ button > svg {
 }
 .collection-organization-state {
   color: var(--color-warning);
-  font-size: 11px;
+  font-size: 12px;
 }
 .collection-item-move {
   grid-column: 2;
   width: 100%;
   min-height: 32px;
   padding-block: 5px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .collection-reader {
   min-height: 470px;
@@ -2753,7 +2753,7 @@ button > svg {
 .collection-reading h2 {
   margin: 20px 0 8px;
   font-family: var(--font-reading);
-  font-size: 27px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -2777,12 +2777,12 @@ button > svg {
   background: var(--color-subtle);
 }
 .collection-callout.warning {
-  border-color: #e9d9b7;
+  border-color: var(--color-line);
   background: var(--color-warning-bg);
   color: var(--color-warning);
 }
 .collection-callout.danger {
-  border-color: #edcec8;
+  border-color: var(--color-line);
   background: var(--color-danger-bg);
   color: var(--color-danger);
 }
@@ -2855,7 +2855,7 @@ button > svg {
 .collection-empty h2 {
   margin: 20px 0 8px;
   color: var(--color-secondary);
-  font-size: 17px;
+  font-size: 19px;
 }
 .collection-empty p {
   max-width: 36ch;
