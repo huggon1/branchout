@@ -107,12 +107,14 @@ try {
       ),
     ).toBe(false);
   }
-  await page.getByRole("button", { name: /GitHub 公开仓库可用/ }).click();
+  await page.getByRole("button", { name: /GitHub 公开来源可用/ }).click();
   await expect(
     page.getByRole("heading", { name: "GitHub", exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel("GitHub 只读 Token")).toBeVisible();
-  await expect(page.getByRole("button", { name: "保存 Token" })).toBeDisabled();
+  await expect(page.getByLabel("GitHub 只读 Token")).toHaveCount(0);
+  await expect(
+    page.getByText(/项目回顾只读取你在本机明确选择的 Git checkout/),
+  ).toBeVisible();
   await page.getByRole("button", { name: /转发机器人 Telegram/ }).click();
   await expect(page.getByLabel("Bot Token", { exact: true })).toBeVisible();
   await page.screenshot({

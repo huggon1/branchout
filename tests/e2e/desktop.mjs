@@ -1,11 +1,54 @@
 import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { repo, understanding, exploration } from "../fixtures/workspace.ts";
+import { execFileSync } from "node:child_process";
+import {
+  repo as legacyRepo,
+  understanding as legacyUnderstanding,
+  exploration,
+} from "../fixtures/workspace.ts";
 import { templates } from "../../src/core/templates.ts";
 import { Store } from "../../src/core/store.ts";
 const dir = await mkdtemp(join(tmpdir(), "feedloom-ui-"));
+const projectRoot = realpathSync(process.cwd());
+const projectOid = String(
+  execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectRoot }),
+).trim();
+const currentBranch = String(
+  execFileSync("git", ["branch", "--show-current"], { cwd: projectRoot }),
+).trim();
+const repo = {
+  ...legacyRepo,
+  fullName: "nature-feed · 本地项目与一段很长的 mixed-language repository name",
+  source: "local",
+  url: undefined,
+  private: undefined,
+  branch: "previous/旧分支",
+  headOid: projectOid,
+  understandingId: legacyUnderstanding.id,
+  boundary: projectOid,
+};
+const understanding = {
+  ...legacyUnderstanding,
+  commit: projectOid,
+  branch: currentBranch,
+  evidence: [
+    {
+      path: "README.md",
+      excerpt: "nature-feed",
+      locator: {
+        kind: "project-file",
+        projectId: repo.id,
+        revision: { oid: projectOid, branch: currentBranch },
+        path: "README.md",
+        line: 1,
+        endLine: 12,
+      },
+    },
+  ],
+};
 const store = new Store(join(dir, "feedloom.sqlite"));
 const task = store.saveTask({
   name: "界面验证 · 示例任务",
@@ -126,8 +169,13 @@ store.saveFeed({
 });
 store.put("repos", {
   ...repo,
-  understandingId: understanding.id,
-  boundary: understanding.commit,
+});
+store.putLocalBinding({
+  id: repo.id,
+  rootPath: projectRoot,
+  branch: repo.branch,
+  oid: projectOid,
+  linkedAt: repo.createdAt,
 });
 store.put("understandings", understanding);
 const discovery = {
@@ -156,6 +204,8 @@ store.saveDiscovery({
 });
 store.put("explorations", {
   ...exploration("ui-exploration"),
+  repoName: repo.fullName,
+  understanding,
   batchId: "ui-batch",
   lifecycle: "resumable_after_restart",
   outcome: "partial_coverage",
@@ -386,6 +436,52 @@ try {
   await expect(
     page.getByRole("button", { name: "看看最近进展", exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("checkout 已改变，尚未更新关联")).toBeVisible();
+  await expect(page.getByText(currentBranch, { exact: true })).toBeVisible();
+  await page
+    .getByText(/查看相关代码与说明/)
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "README.md · 应用内查看" })
+    .first()
+    .click();
+  const evidenceDialog = page.getByRole("dialog", {
+    name: "README.md",
+  });
+  await expect(evidenceDialog).toBeVisible();
+  await expect(evidenceDialog).toContainText(projectOid.slice(0, 12));
+  await expect(evidenceDialog.locator("pre")).toContainText("nature-feed");
+  await expect(
+    evidenceDialog.getByRole("button", { name: "关闭" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(evidenceDialog.locator("pre")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    evidenceDialog.getByRole("button", { name: "关闭" }),
+  ).toBeFocused();
+  await page.screenshot({ path: "test-results/evidence-viewer.png" });
+  await page.keyboard.press("Escape");
+  await expect(evidenceDialog).toHaveCount(0);
+  for (const [width, height] of [
+    [1100, 720],
+    [1280, 800],
+    [1440, 940],
+  ]) {
+    await application.evaluate(
+      ({ BrowserWindow }, size) =>
+        BrowserWindow.getAllWindows()[0].setContentSize(...size),
+      [width, height],
+    );
+    await page.screenshot({ path: `test-results/project-review-${width}.png` });
+    if (
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )
+    )
+      throw Error(`Project review overflows at ${width}`);
+  }
   await page
     .locator("nav")
     .getByRole("button", { name: "探索", exact: true })
@@ -511,6 +607,9 @@ try {
   await expect(
     page.getByRole("heading", { name: "模型服务", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: /GitHub/ }).click();
+  await expect(page.getByText("公开来源可用", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("GitHub 只读 Token")).toHaveCount(0);
   for (const [width, height] of [
     [1100, 720],
     [1280, 800],

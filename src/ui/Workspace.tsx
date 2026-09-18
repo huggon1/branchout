@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icons.js";
 import type {
   Repo,
@@ -6,6 +6,7 @@ import type {
   Analysis,
   Exploration,
   Batch,
+  EvidenceLocator,
 } from "../core/workspace-contracts.js";
 import { templates } from "../core/templates.js";
 import { Markdown } from "./Markdown.js";
@@ -31,11 +32,66 @@ type Props = {
   act: (v: any) => Promise<any>;
   navigate: (p: string, id?: string) => void;
 };
+function EvidenceViewer({ value, close }: { value: any; close: () => void }) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const content = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    closeButton.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+      if (event.key === "Tab") {
+        const first = closeButton.current;
+        const last = content.current;
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+  }, [close]);
+  return (
+    <div className="overlay" onClick={close}>
+      <section
+        className="modal evidence-viewer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="evidence-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button ref={closeButton} className="close" onClick={close}>
+          关闭
+        </button>
+        <p className="evidence-revision">
+          固定证据 · {value.revision.slice(0, 12)}
+        </p>
+        <h2 id="evidence-title">{value.title}</h2>
+        <p className="muted">
+          内容直接读取自分析时固定的 commit，不跟随当前 checkout 变化。
+        </p>
+        <pre ref={content} tabIndex={0}>
+          {value.text}
+        </pre>
+      </section>
+    </div>
+  );
+}
 export function RepoReview({ state, act, navigate }: Props) {
-  const [name, setName] = useState(""),
-    [selected, setSelected] = useState(""),
+  const [selected, setSelected] = useState(""),
     [binding, setBinding] = useState(false),
-    [visible, setVisible] = useState(10);
+    [visible, setVisible] = useState(10),
+    [inspection, setInspection] = useState<any>(),
+    [evidenceView, setEvidenceView] = useState<any>(),
+    [evidenceLoading, setEvidenceLoading] = useState(false);
   const repo: Repo | undefined =
     state.repos?.find((r: Repo) => r.id === selected) || state.repos?.[0];
   const understanding: Understanding | undefined = state.understandings?.find(
@@ -56,14 +112,44 @@ export function RepoReview({ state, act, navigate }: Props) {
     .sort((a, b) => b.at.localeCompare(a.at));
   const entries = allEntries.filter((e) => e.significance === "milestone");
   const open = (url: string) => act({ type: "open", url });
+  const local = repo?.source === "local";
+  useEffect(() => {
+    setInspection(undefined);
+    if (!repo || !local) return;
+    let current = true;
+    void act({ type: "inspectLocalRepo", id: repo.id }).then((value) => {
+      if (current && value) setInspection(value);
+    });
+    return () => {
+      current = false;
+    };
+  }, [repo?.id, repo?.headOid, local]);
+  const showEvidence = async (locator: EvidenceLocator) => {
+    setEvidenceLoading(true);
+    try {
+      const value = await act({ type: "readEvidence", locator });
+      if (value) setEvidenceView(value);
+    } finally {
+      setEvidenceLoading(false);
+    }
+  };
   const evidence = (items: Understanding["evidence"]) => (
     <details className="review-sources">
       <summary>查看相关代码与说明 · {items.length} 处</summary>
       {items.map((e, i) => (
         <blockquote key={i}>
-          <button onClick={() => open(e.url)}>
-            {e.path} <Icon name="external" />
-          </button>
+          {e.locator ? (
+            <button
+              disabled={evidenceLoading}
+              onClick={() => void showEvidence(e.locator!)}
+            >
+              {e.path} · 应用内查看
+            </button>
+          ) : (
+            <button onClick={() => open(e.webUrl || e.url!)}>
+              {e.path} <Icon name="external" />
+            </button>
+          )}
           <p>{e.excerpt}</p>
         </blockquote>
       ))}
@@ -71,39 +157,40 @@ export function RepoReview({ state, act, navigate }: Props) {
   );
   return (
     <>
-      <form
-        className="linkinput"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBinding(true);
-          try {
-            const r = await act({ type: "bindRepo", name });
-            if (r) {
-              setSelected(r.id);
-              setName("");
-              setVisible(10);
+      <section className="local-project-picker">
+        <div>
+          <h2>从当前 checkout 认识项目</h2>
+          <p>
+            只读取已提交的固定 commit；未提交内容、外部 submodule
+            和本机绝对路径不会进入分析。
+          </p>
+        </div>
+        <button
+          className="primary"
+          disabled={binding}
+          onClick={async () => {
+            setBinding(true);
+            try {
+              const r = await act({ type: "bindLocalRepo" });
+              if (r) {
+                setSelected(r.id);
+                setVisible(10);
+              }
+            } finally {
+              setBinding(false);
             }
-          } finally {
-            setBinding(false);
-          }
-        }}
-      >
-        <input
-          aria-label="GitHub 仓库"
-          placeholder="owner/repo 或 GitHub 仓库链接"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <button className="primary" disabled={binding}>
-          {binding ? "正在检查访问…" : "绑定仓库"}
+          }}
+        >
+          {binding ? "正在验证目录…" : "选择本地 Git 目录"}
         </button>
-      </form>
-      <p className="muted">
-        公开仓库可直接绑定；私有仓库需在连接与模型中配置只读 Token。
-      </p>
+      </section>
       <div className="split">
         <section className="panel list">
+          {!(state.repos || []).length && (
+            <p className="empty compact">
+              还没有项目。选择一个本地 Git 目录后，应用会固定当前 commit。
+            </p>
+          )}
           {(state.repos || []).map((r: Repo) => (
             <button
               key={r.id}
@@ -116,8 +203,8 @@ export function RepoReview({ state, act, navigate }: Props) {
             >
               <strong>{r.fullName}</strong>
               <small>
-                {r.private ? "私有" : "公开"} · {r.branch} ·{" "}
-                {r.understandingId ? "已有概览" : "等待认识"}
+                {r.source === "local" ? "本地 Git" : "旧 GitHub · 只读"} ·{" "}
+                {r.branch} · {r.understandingId ? "已有概览" : "等待认识"}
               </small>
             </button>
           ))}
@@ -128,7 +215,7 @@ export function RepoReview({ state, act, navigate }: Props) {
               <div className="actions">
                 <button
                   className="primary"
-                  disabled={!!active}
+                  disabled={!!active || !local}
                   onClick={() =>
                     act(
                       unfinished
@@ -137,14 +224,35 @@ export function RepoReview({ state, act, navigate }: Props) {
                     )
                   }
                 >
-                  {active
-                    ? "正在分析…"
-                    : unfinished
-                      ? "继续分析"
-                      : understanding
-                        ? "看看最近进展"
-                        : "看看这个项目"}
+                  {!local
+                    ? "旧项目只读"
+                    : active
+                      ? "正在分析…"
+                      : unfinished
+                        ? "继续分析"
+                        : understanding
+                          ? "看看最近进展"
+                          : "看看这个项目"}
                 </button>
+                {!local && (
+                  <button
+                    disabled={binding}
+                    onClick={async () => {
+                      setBinding(true);
+                      try {
+                        const result = await act({
+                          type: "relinkLocalRepo",
+                          id: repo.id,
+                        });
+                        if (result?.repo) setSelected(result.repo.id);
+                      } finally {
+                        setBinding(false);
+                      }
+                    }}
+                  >
+                    {binding ? "正在核对历史…" : "关联本地目录"}
+                  </button>
+                )}
                 <button
                   disabled={!understanding}
                   onClick={() => navigate("探索")}
@@ -165,6 +273,50 @@ export function RepoReview({ state, act, navigate }: Props) {
               <p className="muted">
                 认识项目，整理进展，为下一次探索保留上下文。
               </p>
+              {!local && (
+                <div className="review-status legacy-project" role="status">
+                  <strong>旧 GitHub 项目以只读方式保留</strong>
+                  <p>
+                    历史概览、进展、素材和 Feed
+                    依据仍可阅读。选择本地目录后，只有固定 commit
+                    历史连续才会保留此项目身份；否则会新建项目。
+                  </p>
+                </div>
+              )}
+              {local && inspection && (
+                <dl className="revision-strip" aria-label="当前 checkout 状态">
+                  <div>
+                    <dt>关联分支</dt>
+                    <dd>{inspection.boundBranch}</dd>
+                  </div>
+                  <div>
+                    <dt>当前 checkout</dt>
+                    <dd>{inspection.currentBranch}</dd>
+                  </div>
+                  <div>
+                    <dt>下一次分析</dt>
+                    <dd>{inspection.currentOid.slice(0, 12)}</dd>
+                  </div>
+                </dl>
+              )}
+              {inspection?.detached && (
+                <div className="review-status" role="status">
+                  <strong>当前是 detached HEAD</strong>
+                  <p>
+                    可以分析这个固定 commit；切换到其他分支或 commit
+                    后，下一次分析会再次要求确认。
+                  </p>
+                </div>
+              )}
+              {inspection?.branchChanged && (
+                <div className="review-status warning-state" role="status">
+                  <strong>checkout 已改变，尚未更新关联</strong>
+                  <p>
+                    开始新分析时会要求确认从 {inspection.boundBranch} 切换到{" "}
+                    {inspection.currentBranch}。取消后仍保留原关联。
+                  </p>
+                </div>
+              )}
               {active && (
                 <div className="review-status" role="status">
                   <strong>{active.phase}</strong>
@@ -375,12 +527,18 @@ export function RepoReview({ state, act, navigate }: Props) {
             </div>
           ) : (
             <div className="empty">
-              <h2>从一个仓库开始</h2>
-              <p>绑定后认识项目、整理开发进展，再开始探索。</p>
+              <h2>从一个本地项目开始</h2>
+              <p>选择目录并固定当前 commit，再整理概览与开发进展。</p>
             </div>
           )}
         </section>
       </div>
+      {evidenceView && (
+        <EvidenceViewer
+          value={evidenceView}
+          close={() => setEvidenceView(undefined)}
+        />
+      )}
     </>
   );
 }
