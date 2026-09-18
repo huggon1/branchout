@@ -45,7 +45,7 @@ try {
     asar: { unpack: "{**/*.node,**/@openai/codex-*/vendor/**/*}" },
     dir: ".",
     name,
-    icon: "assets/app-icon.icns",
+    icon: resolve("assets/app-icon.icns"),
     appBundleId: pkg.version.includes("preview")
       ? "com.feedloom.preview"
       : "com.feedloom.app",
