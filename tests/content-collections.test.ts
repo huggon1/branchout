@@ -108,25 +108,23 @@ test("ordered Store migration v6 preserves every legacy inbox payload byte", () 
   }
 });
 
-test("real v3 to v4 to v5 to v6 migration retains each earlier capability", () => {
+test("real v3 to v4 to v5 to v6 to v7 migration retains each earlier capability", () => {
   const dir = mkdtempSync(join(tmpdir(), "nature-feed-v3-v6-"));
   const path = join(dir, "db");
   const item = legacyItem("legacy");
   seedDatabase(path, 3, [item]);
   const legacy = new DatabaseSync(path);
-  legacy
-    .prepare("INSERT INTO explorations(id,data) VALUES(?,?)")
-    .run(
-      "exploration",
-      JSON.stringify({
-        id: "exploration",
-        state: "success",
-        events: [],
-        usage: { modelCalls: 1, queries: 2, reads: 3, candidates: 4 },
-        startedAt: "2026-09-18T08:00:00.000Z",
-        endedAt: "2026-09-18T09:00:00.000Z",
-      }),
-    );
+  legacy.prepare("INSERT INTO explorations(id,data) VALUES(?,?)").run(
+    "exploration",
+    JSON.stringify({
+      id: "exploration",
+      state: "success",
+      events: [],
+      usage: { modelCalls: 1, queries: 2, reads: 3, candidates: 4 },
+      startedAt: "2026-09-18T08:00:00.000Z",
+      endedAt: "2026-09-18T09:00:00.000Z",
+    }),
+  );
   legacy
     .prepare("INSERT INTO batches(id,data) VALUES(?,?)")
     .run("batch", JSON.stringify({ id: "batch", state: "success" }));
@@ -142,13 +140,15 @@ test("real v3 to v4 to v5 to v6 migration retains each earlier capability", () =
   try {
     assert.equal(
       (store.db.prepare("PRAGMA user_version").get() as any).user_version,
-      6,
+      STORE_VERSION,
     );
     const exploration = JSON.parse(
       String(
-        (store.db
-          .prepare("SELECT data FROM explorations WHERE id='exploration'")
-          .get() as any).data,
+        (
+          store.db
+            .prepare("SELECT data FROM explorations WHERE id='exploration'")
+            .get() as any
+        ).data,
       ),
     );
     assert.equal(exploration.lifecycle, "completed");
@@ -161,10 +161,20 @@ test("real v3 to v4 to v5 to v6 migration retains each earlier capability", () =
     );
     assert.equal(store.get("settings", "githubCredential"), undefined);
     assert.equal(store.collections.default().name, "Inbox");
+    assert.ok(
+      store.db
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE name='bot_organization_sessions'",
+        )
+        .get(),
+    );
     assert.equal(store.collections.assignments()[0].itemId, item.id);
     assert.equal(
-      (store.db.prepare("SELECT data FROM inbox WHERE id=?").get(item.id) as any)
-        .data,
+      (
+        store.db
+          .prepare("SELECT data FROM inbox WHERE id=?")
+          .get(item.id) as any
+      ).data,
       JSON.stringify(item),
     );
   } finally {
@@ -196,6 +206,44 @@ test("v6 failure rolls back schema, assignments, and Store version", () => {
     );
   } finally {
     after.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test("ordered v7 migration adds durable bot sessions without rewriting inbox bytes", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nature-feed-v7-migration-"));
+  const path = join(dir, "db");
+  let store = new Store(path);
+  const item = legacyItem("v7-kept") as Inbox;
+  store.put("inbox", item);
+  store.ensureInboxAssignment(item);
+  store.close();
+
+  const v6 = new DatabaseSync(path);
+  const before = String(
+    (v6.prepare("SELECT data FROM inbox WHERE id=?").get(item.id) as any).data,
+  );
+  v6.exec("DROP TABLE bot_organization_sessions; PRAGMA user_version=6;");
+  v6.close();
+
+  store = new Store(path);
+  try {
+    assert.equal(
+      (store.db.prepare("PRAGMA user_version").get() as any).user_version,
+      STORE_VERSION,
+    );
+    assert.equal(
+      (
+        store.db
+          .prepare("SELECT data FROM inbox WHERE id=?")
+          .get(item.id) as any
+      ).data,
+      before,
+    );
+    assert.deepEqual(store.botOrganizations.list(), []);
+    assert.equal(store.collections.assignments()[0].itemId, item.id);
+  } finally {
+    store.close();
     rmSync(dir, { recursive: true });
   }
 });
@@ -282,7 +330,7 @@ test("single and bulk assignment retain source, timestamp, batch, and bot state"
   }
 });
 
-test("fresh v6 Store persists collection CRUD, bulk move, and deletion across restart", () => {
+test("fresh Store persists collection CRUD, bulk move, and deletion across restart", () => {
   const dir = mkdtempSync(join(tmpdir(), "nature-feed-collections-"));
   const path = join(dir, "db");
   let store = new Store(path);
@@ -290,7 +338,7 @@ test("fresh v6 Store persists collection CRUD, bulk move, and deletion across re
     assert.equal(store.collections.default().name, "Inbox");
     assert.equal(
       (store.db.prepare("PRAGMA user_version").get() as any).user_version,
-      6,
+      STORE_VERSION,
     );
     const items = [
       legacyItem("fresh", "2026-09-18T14:00:00.000Z"),

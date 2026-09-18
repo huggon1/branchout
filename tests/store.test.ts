@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { Store } from "../src/core/store.js";
+import { Store, STORE_VERSION } from "../src/core/store.js";
 import { SourceMaterial, TaskInput } from "../src/core/contracts.js";
 import { exploration } from "./fixtures/workspace.js";
 const fixture = {
@@ -221,7 +221,7 @@ test("Feed research evidence remains a deep snapshot after source and run change
   }
 });
 
-test("ordered v5 and v6 migrations preserve history and clear the obsolete project credential", () => {
+test("ordered v5, v6, and v7 migrations preserve history and clear the obsolete project credential", () => {
   const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-"));
   const path = join(dir, "db");
   const v4 = new DatabaseSync(path);
@@ -259,7 +259,10 @@ test("ordered v5 and v6 migrations preserve history and clear the obsolete proje
       legacyRepo,
     );
     assert.equal(s.get("settings", "githubCredential"), undefined);
-    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 6);
+    assert.equal(
+      s.db.prepare("PRAGMA user_version").get()!.user_version,
+      STORE_VERSION,
+    );
     assert.ok(
       s.db
         .prepare("SELECT name FROM sqlite_master WHERE name='local_bindings'")
@@ -268,14 +271,17 @@ test("ordered v5 and v6 migrations preserve history and clear the obsolete proje
     assert.equal(s.collections.default().name, "Inbox");
     s.close();
     s = new Store(path);
-    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 6);
+    assert.equal(
+      s.db.prepare("PRAGMA user_version").get()!.user_version,
+      STORE_VERSION,
+    );
   } finally {
     s.close();
     rmSync(dir, { recursive: true });
   }
 });
 
-test("v5 and v6 run after the ordered v4 migration and reject future databases", () => {
+test("v5, v6, and v7 run after the ordered v4 migration and reject future databases", () => {
   const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-failure-"));
   const path = join(dir, "db");
   const v3 = new DatabaseSync(path);
@@ -295,7 +301,7 @@ test("v5 and v6 run after the ordered v4 migration and reject future databases",
     const migrated = new Store(path);
     assert.equal(
       migrated.db.prepare("PRAGMA user_version").get()!.user_version,
-      6,
+      STORE_VERSION,
     );
     assert.equal(migrated.get("settings", "githubCredential"), undefined);
     assert.ok(
@@ -306,13 +312,13 @@ test("v5 and v6 run after the ordered v4 migration and reject future databases",
     assert.equal(migrated.collections.default().name, "Inbox");
     migrated.close();
     const check = new DatabaseSync(path);
-    check.exec("PRAGMA user_version=7");
+    check.exec(`PRAGMA user_version=${STORE_VERSION + 1}`);
     check.close();
     assert.throws(() => new Store(path), /更新的应用版本/);
     const finalCheck = new DatabaseSync(path);
     assert.equal(
       finalCheck.prepare("PRAGMA user_version").get()!.user_version,
-      7,
+      STORE_VERSION + 1,
     );
     finalCheck.close();
   } finally {

@@ -70,6 +70,11 @@ export class ContentCollections {
     return collection;
   }
 
+  findByName(nameInput: string) {
+    const key = collectionNameKey(nameInput);
+    return this.list().find((item) => collectionNameKey(item.name) === key);
+  }
+
   create(nameInput: string, now = new Date().toISOString()): Collection {
     const { name, key } = checkedName(nameInput);
     const collection = CollectionSchema.parse({
@@ -173,7 +178,11 @@ export class ContentCollections {
   assignToDefault(
     itemIds: string[],
     source: CollectionAssignmentSource,
-    options: { at?: string; batchId?: string } = {},
+    options: {
+      at?: string;
+      batchId?: string;
+      organizationState?: CollectionOrganizationState;
+    } = {},
   ) {
     return this.assign(itemIds, this.default().id, source, options);
   }

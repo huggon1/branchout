@@ -912,9 +912,9 @@ async function handle(raw: unknown) {
     case "setDefaultCollection":
       return store.collections.setDefault(c.id);
     case "deleteCollection":
-      return store.collections.delete(c.id);
+      return store.deleteCollection(c.id);
     case "moveCollectionItems":
-      return store.collections.assign(c.ids, c.collectionId, "manual");
+      return store.moveInboxItems(c.ids, c.collectionId);
     case "deleteInbox":
       active.get(c.id)?.cancel();
       active.get(`summary:${c.id}`)?.cancel();

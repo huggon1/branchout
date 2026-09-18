@@ -21,10 +21,12 @@ import {
 } from "./workspace-contracts.js";
 import { z } from "zod";
 import { ContentCollections } from "./content-collections.js";
+import { migrateContentCollectionsV6 } from "./migrations/v6-content-collections.js";
 import {
-  CONTENT_COLLECTIONS_VERSION,
-  migrateContentCollectionsV6,
-} from "./migrations/v6-content-collections.js";
+  BOT_ORGANIZATION_VERSION,
+  migrateBotOrganizationV7,
+} from "./migrations/v7-bot-organization.js";
+import { BotOrganizationSessions } from "./bot-organization.js";
 const LocalBinding = z.object({
   id: z.string(),
   rootPath: z.string().min(1),
@@ -33,7 +35,7 @@ const LocalBinding = z.object({
   linkedAt: z.string(),
 });
 export type LocalBinding = z.infer<typeof LocalBinding>;
-export const STORE_VERSION = CONTENT_COLLECTIONS_VERSION;
+export const STORE_VERSION = BOT_ORGANIZATION_VERSION;
 type WorkspaceTable =
   | "repos"
   | "understandings"
@@ -74,6 +76,7 @@ const migration = (version: number, run: () => void) => ({ version, run });
 export class Store {
   db: DatabaseSync;
   collections: ContentCollections;
+  botOrganizations: BotOrganizationSessions;
   constructor(path: string) {
     this.db = new DatabaseSync(path);
     this.db.exec(
@@ -194,6 +197,7 @@ export class Store {
             .run("githubCredential");
         }),
         migration(6, () => migrateContentCollectionsV6(this.db)),
+        migration(7, () => migrateBotOrganizationV7(this.db)),
       ];
       for (const step of migrations) if (version < step.version) step.run();
       this.db.exec(`PRAGMA user_version=${STORE_VERSION}; COMMIT;`);
@@ -203,12 +207,17 @@ export class Store {
       throw error;
     }
     this.collections = new ContentCollections(this.db);
+    this.botOrganizations = new BotOrganizationSessions(this.db);
   }
 
   assignInboxItems(
     ids: string[],
     source: "default" | "bot" | "manual" = "default",
-    options: { at?: string; batchId?: string } = {},
+    options: {
+      at?: string;
+      batchId?: string;
+      organizationState?: "pending" | "expired";
+    } = {},
   ) {
     return this.collections.assignToDefault(ids, source, options);
   }
@@ -230,6 +239,34 @@ export class Store {
           : undefined,
       },
     );
+  }
+  moveInboxItems(ids: string[], collectionId: string) {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const moved = this.collections.assign(ids, collectionId, "manual");
+      this.botOrganizations.completeFromDesktop(ids);
+      this.db.exec("COMMIT");
+      return moved;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  deleteCollection(id: string) {
+    const ids = this.collections
+      .assignments()
+      .filter((assignment) => assignment.collectionId === id)
+      .map((assignment) => assignment.itemId);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = this.collections.delete(id);
+      this.botOrganizations.completeFromDesktop(ids);
+      this.db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
   list<T>(
     table: WorkspaceTable | "tasks" | "runs" | "materials" | "feeds" | "inbox",
