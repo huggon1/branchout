@@ -13,11 +13,6 @@ import {
   normalizeXhsSearch,
   xhsImages,
 } from "../adapters/social.mjs";
-import {
-  readRepo,
-  readRepositorySnapshot,
-  repositoryClient,
-} from "../adapters/repository.mjs";
 import { configureNetwork } from "../adapters/network.mjs";
 import {
   hydrateCandidates,
@@ -411,20 +406,6 @@ port.on("message", async ({ data }: any) => {
       });
     } else if (data.type === "collect") result = await collect(data);
     else if (data.type === "parse") result = await parse(data);
-    else if (data.type === "repoMetadata")
-      result = await readRepo({ ...data, signal: controller.signal });
-    else if (data.type === "repoCheck") {
-      await repositoryClient({ token: data.token, signal: controller.signal })(
-        "/user",
-      );
-      result = { ok: true };
-    } else if (data.type === "repoSnapshot")
-      result = await readRepositorySnapshot({
-        ...data,
-        signal: controller.signal,
-        onProgress: (value: any) =>
-          port.postMessage({ type: "repoProgress", value }),
-      });
     else if (data.type === "readSource") {
       if (data.source.source === "github")
         result = {

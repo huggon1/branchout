@@ -13,7 +13,16 @@ import { templates } from "./templates.js";
 import { analyzeRepository } from "./repository-analysis.js";
 import { exploreRun, ExplorationControlError } from "./exploration.js";
 export interface WorkspaceDeps {
-  metadata: (name: string) => Promise<unknown>;
+  inspect: (
+    rootPath: string,
+    signal?: AbortSignal,
+  ) => Promise<{ rootPath: string; name: string; branch: string; oid: string }>;
+  continuity: (
+    rootPath: string,
+    boundary: string,
+    head: string,
+    signal?: AbortSignal,
+  ) => Promise<boolean>;
   read: (
     input: any,
     signal: AbortSignal,
@@ -54,17 +63,113 @@ export class WorkspaceService {
     private store: Store,
     private deps: WorkspaceDeps,
   ) {}
-  async bind(name: string) {
-    const repo = Repo.parse(await this.deps.metadata(name));
-    const prior = this.store.get<Repo>("repos", repo.id);
-    if (prior) return prior;
-    this.store.put("repos", repo);
+  async bindLocal(metadata: {
+    rootPath: string;
+    name: string;
+    branch: string;
+    oid: string;
+  }) {
+    const existing = this.store.findLocalBinding(metadata.rootPath);
+    if (existing) {
+      const repo = this.store.get<Repo>("repos", existing.id);
+      if (repo) return repo;
+      this.store.deleteLocalBinding(existing.id);
+    }
+    const id = randomUUID();
+    const repo = Repo.parse({
+      id,
+      fullName: metadata.name,
+      source: "local",
+      branch: metadata.branch,
+      headOid: metadata.oid,
+      createdAt: new Date().toISOString(),
+    });
+    this.store.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.store.put("repos", repo);
+      this.store.putLocalBinding({
+        id,
+        rootPath: metadata.rootPath,
+        branch: metadata.branch,
+        oid: metadata.oid,
+        linkedAt: repo.createdAt,
+      });
+      this.store.db.exec("COMMIT");
+    } catch (error) {
+      this.store.db.exec("ROLLBACK");
+      throw error;
+    }
     this.deps.notify();
     return repo;
   }
-  analyze(id: string, priorId?: string) {
+  async relinkLocal(
+    id: string,
+    metadata: {
+      rootPath: string;
+      name: string;
+      branch: string;
+      oid: string;
+    },
+  ) {
+    const repo = this.store.get<Repo>("repos", id);
+    if (!repo) throw Error("项目不存在");
+    const boundary =
+      repo.boundary ||
+      (repo.understandingId
+        ? this.store.get<Understanding>("understandings", repo.understandingId)
+            ?.commit
+        : undefined);
+    const continuous = boundary
+      ? await this.deps.continuity(metadata.rootPath, boundary, metadata.oid)
+      : false;
+    if (!continuous) {
+      const created = await this.bindLocal(metadata);
+      return { status: "created" as const, repo: created };
+    }
+    const updated = Repo.parse({
+      ...repo,
+      source: "local",
+      fullName: metadata.name,
+      branch: metadata.branch,
+      headOid: metadata.oid,
+    });
+    this.store.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.store.put("repos", updated);
+      this.store.putLocalBinding({
+        id,
+        rootPath: metadata.rootPath,
+        branch: metadata.branch,
+        oid: metadata.oid,
+        linkedAt: new Date().toISOString(),
+      });
+      this.store.db.exec("COMMIT");
+    } catch (error) {
+      this.store.db.exec("ROLLBACK");
+      throw error;
+    }
+    this.deps.notify();
+    return { status: "relinked" as const, repo: updated };
+  }
+  async inspect(id: string) {
+    const repo = this.store.get<Repo>("repos", id);
+    const binding = this.store.getLocalBinding(id);
+    if (!repo || !binding) throw Error("本地目录关联已失效，请重新关联");
+    const current = await this.deps.inspect(binding.rootPath);
+    return {
+      projectId: id,
+      boundBranch: binding.branch,
+      currentBranch: current.branch,
+      currentOid: current.oid,
+      branchChanged: current.branch !== binding.branch,
+      detached: current.branch === "detached HEAD",
+    };
+  }
+  async analyze(id: string, priorId?: string, confirmBranch?: string) {
     const repo = this.store.get<Repo>("repos", id);
     if (!repo) throw Error("仓库不存在");
+    if ((repo.source || "legacy-github") !== "local")
+      throw Error("旧 GitHub 项目为只读，请先关联本地目录");
     if (
       [...this.store.list<Analysis>("analyses")].some(
         (a) => a.repoId === id && a.state === "running",
@@ -82,6 +187,29 @@ export class WorkspaceService {
         repo.boundary
     )
       throw Error("分析基准已更新，请发起新分析");
+    let activeRepo = Repo.parse(repo);
+    let fixedOid = prior?.commit;
+    if (!prior) {
+      const binding = this.store.getLocalBinding(id);
+      if (!binding) throw Error("本地目录关联已失效，请重新关联");
+      const current = await this.deps.inspect(binding.rootPath);
+      if (current.branch !== binding.branch && confirmBranch !== current.branch)
+        throw Error(
+          `BRANCH_CHANGED|${encodeURIComponent(binding.branch)}|${encodeURIComponent(current.branch)}|${current.oid}`,
+        );
+      activeRepo = Repo.parse({
+        ...activeRepo,
+        branch: current.branch,
+        headOid: current.oid,
+      });
+      this.store.put("repos", activeRepo);
+      this.store.putLocalBinding({
+        ...binding,
+        branch: current.branch,
+        oid: current.oid,
+      });
+      fixedOid = current.oid;
+    }
     const startedAt = new Date().toISOString();
     const run: Analysis = prior
       ? { ...prior, state: "running", error: undefined, endedAt: undefined }
@@ -90,7 +218,11 @@ export class WorkspaceService {
           repoId: id,
           startedAt,
           base: repo.boundary,
-          branch: repo.branch,
+          commit: fixedOid,
+          revision: fixedOid
+            ? { oid: fixedOid, branch: activeRepo.branch }
+            : undefined,
+          branch: activeRepo.branch,
           since: new Date(Date.now() - 7 * 86400000).toISOString(),
           state: "running",
           phase: "正在读取固定仓库版本",
@@ -102,7 +234,7 @@ export class WorkspaceService {
     this.deps.notify();
     void analyzeRepository(
       this.store,
-      repo,
+      activeRepo,
       run,
       {
         read: this.deps.read,

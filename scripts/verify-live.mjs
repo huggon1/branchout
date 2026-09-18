@@ -1,10 +1,36 @@
-// Explicit real run; pass a public or authorized repository. Results stay in the chosen local workspace.
+// Explicit real run; pass an existing local Git checkout. Results stay in the chosen local workspace.
 import { _electron as electron } from "@playwright/test";
-const name = process.env.FEEDLOOM_VERIFY_REPO;
-if (!name)
+import { join } from "node:path";
+import { Store } from "../src/core/store.ts";
+import { inspectLocalRepository } from "../src/adapters/local-git.mjs";
+const rootPath = process.env.FEEDLOOM_VERIFY_REPO;
+const dataDir = process.env.FEEDLOOM_DATA_DIR;
+if (!rootPath || !dataDir)
   throw Error(
-    "Set FEEDLOOM_VERIFY_REPO=owner/repo; optionally FEEDLOOM_DATA_DIR for an isolated workspace",
+    "Set FEEDLOOM_VERIFY_REPO to a local Git directory and FEEDLOOM_DATA_DIR to an isolated workspace",
   );
+const local = await inspectLocalRepository(rootPath);
+const seed = new Store(join(dataDir, "feedloom.sqlite"));
+const binding = seed.findLocalBinding(local.rootPath);
+const seededRepo = binding
+  ? seed.get("repos", binding.id)
+  : {
+      id: crypto.randomUUID(),
+      fullName: local.name,
+      source: "local",
+      branch: local.branch,
+      headOid: local.oid,
+      createdAt: new Date().toISOString(),
+    };
+seed.put("repos", { ...seededRepo, branch: local.branch, headOid: local.oid });
+seed.putLocalBinding({
+  id: seededRepo.id,
+  rootPath: local.rootPath,
+  branch: local.branch,
+  oid: local.oid,
+  linkedAt: binding?.linkedAt || new Date().toISOString(),
+});
+seed.db.close();
 const platforms = (process.env.FEEDLOOM_VERIFY_PLATFORMS || "github").split(
   ",",
 );
@@ -31,13 +57,14 @@ try {
     }
     throw Error("Live verification timed out");
   };
+  const repo = (await command({ type: "state" })).repos.find(
+    (r) => r.id === seededRepo.id,
+  );
+  if (!repo) throw Error("Seeded local project was not loaded");
   const existing =
-    process.env.FEEDLOOM_VERIFY_REUSE === "1"
-      ? (await command({ type: "state" })).repos.find(
-          (r) => r.fullName === name && r.understandingId,
-        )
+    process.env.FEEDLOOM_VERIFY_REUSE === "1" && repo.understandingId
+      ? repo
       : undefined;
-  const repo = existing || (await command({ type: "bindRepo", name }));
   if (existing)
     console.log(
       JSON.stringify({

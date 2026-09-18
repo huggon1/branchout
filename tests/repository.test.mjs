@@ -1,104 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  readRepo,
-  readRepositorySnapshot,
-  repoName,
-} from "../src/adapters/repository.mjs";
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  symlinkSync,
+  realpathSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { publicURL, publicAddress } from "../src/adapters/public-url.mjs";
-const sha = "a".repeat(40),
-  repo = { fullName: "sample/reader", branch: "main" };
-const fake = (handler) => async (url, options) =>
-  new Response(
-    JSON.stringify(
-      handler(new URL(url).pathname, new URL(url).searchParams, options),
-    ),
-    { status: 200 },
-  );
-test("repository names cannot inject URLs or traversal", () => {
-  assert.equal(repoName("https://github.com/sample/reader"), "sample/reader");
-  for (const value of ["https://evil.invalid/a/b", "x/y/z", "a/../b"])
-    assert.throws(() => repoName(value));
-});
-test("private repo credentials are sent only to GitHub; normalized output omits credentials", async () => {
-  const result = await readRepo({
-    name: "sample/reader",
-    token: "test-only-token",
-    fetchImpl: fake((path, q, options) => {
-      assert.equal(options.headers.Authorization, "Bearer test-only-token");
-      return {
-        id: 3,
-        full_name: "sample/reader",
-        private: true,
-        default_branch: "main",
-      };
-    }),
-  });
-  assert.equal(result.private, true);
-  assert.equal("token" in result, false);
-});
-test("fixed snapshot reads files by blob SHA and does not use moving HEAD", async () => {
-  const calls = [];
-  const result = await readRepositorySnapshot({
-    repo,
-    since: "2026-09-08",
-    fixedCommit: sha,
-    fetchImpl: fake((path) => {
-      calls.push(path);
-      if (path.endsWith("/repos/sample/reader"))
-        return { default_branch: "main" };
-      if (path.endsWith("/commits/" + sha)) return { sha };
-      if (path.endsWith("/commits")) return [];
-      if (path.endsWith("/git/trees/" + sha))
-        return {
-          truncated: false,
-          tree: [{ path: "README.md", type: "blob", sha: "blob", size: 30 }],
-        };
-      if (path.endsWith("/git/blobs/blob"))
-        return {
-          encoding: "base64",
-          content: Buffer.from("Product: read saved links").toString("base64"),
-        };
-      throw Error("Unexpected request");
-    }),
-  });
-  assert.equal(result.commit, sha);
-  assert.equal(result.documents[0].text, "Product: read saved links");
-  assert.ok(calls.every((p) => !p.includes("/HEAD")));
-});
-test("diverged boundary and truncated tree fail rather than silently advance", async () => {
-  await assert.rejects(
-    readRepositorySnapshot({
-      repo,
-      base: "b".repeat(40),
-      since: "2026-09-08",
-      fetchImpl: fake((path) =>
-        path.includes("/compare/")
-          ? { status: "diverged", commits: [], total_commits: 1 }
-          : path.endsWith("/commits/main")
-            ? { sha }
-            : { default_branch: "main" },
-      ),
-    }),
-    /不连续/,
-  );
-  await assert.rejects(
-    readRepositorySnapshot({
-      repo,
-      since: "2026-09-08",
-      fetchImpl: fake((path) =>
-        path.includes("/git/trees/")
-          ? { truncated: true }
-          : path.endsWith("/commits/main")
-            ? { sha }
-            : path.endsWith("/commits")
-              ? []
-              : { default_branch: "main" },
-      ),
-    }),
-    /目录超过/,
-  );
-});
 test("public link guard rejects private, mapped, loopback and credential URLs", () => {
   for (const url of [
     "http://example.com",
@@ -116,46 +28,87 @@ test("public link guard rejects private, mapped, loopback and credential URLs", 
   assert.equal(publicAddress("8.8.8.8"), true);
 });
 
-test("new reader enumerates more than 25 changes by fixed compare pages", async () => {
-  const { repositoryRead } = await import(
-    "../src/adapters/repository-reader.mjs"
-  );
-  const calls = [];
-  const fetchImpl = fake((path, q) => {
-    calls.push(path);
-    return {
-      status: "ahead",
-      total_commits: 130,
-      commits: Array.from(
-        { length: q.get("page") === "1" ? 100 : 30 },
-        (_, i) => ({
-          sha: String(i + (q.get("page") === "1" ? 0 : 100)).padStart(40, "0"),
-          commit: {
-            message: "feature",
-            committer: { date: "2026-09-15T00:00:00Z" },
-          },
-        }),
-      ),
-    };
-  });
-  const first = await repositoryRead({
-    repo,
-    operation: "changes",
-    base: "b".repeat(40),
-    fixedCommit: sha,
-    page: 1,
-    fetchImpl,
-  });
-  const second = await repositoryRead({
-    repo,
-    operation: "changes",
-    base: "b".repeat(40),
-    fixedCommit: sha,
-    page: 2,
-    fetchImpl,
-  });
-  assert.equal(first.rows.length + second.rows.length, 130);
-  assert.equal(first.done, false);
-  assert.equal(second.done, true);
-  assert.ok(calls.every((p) => p.endsWith(sha)));
+test("local Git reader pins objects and excludes worktree, symlink and submodule content", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nature-feed-local-git-"));
+  const run = (...args) =>
+    String(execFileSync("git", args, { cwd: root })).trim();
+  try {
+    run("init", "-b", "main");
+    run("config", "user.name", "Fixture");
+    run("config", "user.email", "fixture@example.invalid");
+    writeFileSync(join(root, "README.md"), "first committed version\n");
+    run("add", "README.md");
+    run("commit", "-m", "first");
+    const first = run("rev-parse", "HEAD");
+    writeFileSync(join(root, "README.md"), "second committed version\n");
+    const outside = join(tmpdir(), "outside-secret");
+    symlinkSync(outside, join(root, "outside-link"));
+    run("add", "README.md", "outside-link");
+    run("commit", "-m", "second");
+    const second = run("rev-parse", "HEAD");
+    run(
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      `160000,${first},external-module`,
+    );
+    run("commit", "-m", "record submodule pointer");
+    const head = run("rev-parse", "HEAD");
+    writeFileSync(join(root, "untracked-private.txt"), "must never be read\n");
+
+    const {
+      inspectLocalRepository,
+      localRepositoryRead,
+      readFixedEvidence,
+      hasCommitContinuity,
+      createLocalRepositoryTools,
+    } = await import("../src/adapters/local-git.mjs");
+    const inspected = await inspectLocalRepository(root);
+    assert.equal(inspected.rootPath, realpathSync(root));
+    assert.equal(inspected.branch, "main");
+    assert.equal(inspected.oid, head);
+    const manifest = await localRepositoryRead({
+      rootPath: root,
+      repo: { branch: "main" },
+      operation: "manifest",
+      fixedCommit: head,
+    });
+    assert.deepEqual(
+      manifest.files.map((file) => file.path),
+      ["README.md"],
+    );
+    assert.equal(await hasCommitContinuity(root, first, head), true);
+    const detail = await localRepositoryRead({
+      rootPath: root,
+      repo: { branch: "main" },
+      operation: "detail",
+      fixedCommit: head,
+      sha: second,
+    });
+    assert.match(detail.files[0].patch, /second committed version/);
+    const tools = createLocalRepositoryTools({
+      repo: { id: "fixture-project", branch: "main" },
+      rootPath: root,
+      manifest,
+      changes: [detail],
+    });
+    assert.equal(JSON.stringify(tools.seed).includes(root), false);
+    assert.equal(tools.sources[0].locator.kind, "project-change");
+    const evidence = await readFixedEvidence(root, {
+      kind: "project-file",
+      projectId: "fixture-project",
+      revision: { oid: first, branch: "main" },
+      path: "README.md",
+    });
+    assert.equal(evidence.text, "first committed version\n");
+    const serialized = JSON.stringify({ manifest, detail, evidence });
+    assert.equal(serialized.includes(outside), false);
+    assert.equal(serialized.includes("untracked-private"), false);
+    run("checkout", "--detach", head);
+    const detached = await inspectLocalRepository(root);
+    assert.equal(detached.branch, "detached HEAD");
+    assert.equal(detached.oid, head);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

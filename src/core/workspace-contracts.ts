@@ -11,19 +11,56 @@ export const Chapter = Angle.or(z.literal("legacy"));
 export const Repo = z.object({
   id: z.string(),
   fullName: z.string(),
-  url: z.string().url(),
-  private: z.boolean(),
+  url: z.string().url().optional(),
+  private: z.boolean().optional(),
+  source: z.enum(["local", "legacy-github"]).default("legacy-github"),
   branch: z.string(),
+  headOid: z
+    .string()
+    .regex(/^[a-f0-9]{40,64}$/)
+    .optional(),
   createdAt: z.string(),
   understandingId: z.string().optional(),
   boundary: z.string().optional(),
 });
 export type Repo = z.infer<typeof Repo>;
-export const Citation = z.object({
-  path: z.string(),
-  excerpt: z.string().min(1),
-  url: z.string().url(),
+export const ProjectRevision = z.object({
+  oid: z.string().regex(/^[a-f0-9]{40,64}$/),
+  branch: z.string(),
 });
+export type ProjectRevision = z.infer<typeof ProjectRevision>;
+export const EvidenceLocator = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("project-file"),
+    projectId: z.string(),
+    revision: ProjectRevision,
+    path: z.string(),
+    line: z.number().int().positive().optional(),
+    endLine: z.number().int().positive().optional(),
+  }),
+  z.object({
+    kind: z.literal("project-change"),
+    projectId: z.string(),
+    revision: ProjectRevision,
+    commit: z.string().regex(/^[a-f0-9]{40,64}$/),
+    path: z.string().optional(),
+    line: z.number().int().positive().optional(),
+    endLine: z.number().int().positive().optional(),
+  }),
+]);
+export type EvidenceLocator = z.infer<typeof EvidenceLocator>;
+export const Citation = z
+  .object({
+    path: z.string(),
+    excerpt: z.string().min(1),
+    locator: EvidenceLocator.optional(),
+    webUrl: z.string().url().optional(),
+    // v1-v4 GitHub evidence remains readable without rewriting history.
+    url: z.string().url().optional(),
+  })
+  .refine((value) => value.locator || value.webUrl || value.url, {
+    message: "引用必须包含应用内定位或网页地址",
+  });
 export const UnderstandingContent = z.object({
   product: z.string().min(1).max(3000),
   useCases: z
@@ -109,6 +146,7 @@ export const Analysis = z.object({
   endedAt: z.string().optional(),
   base: z.string().optional(),
   commit: z.string().optional(),
+  revision: ProjectRevision.optional(),
   branch: z.string(),
   since: z.string(),
   state: z.enum([
@@ -301,12 +339,18 @@ export const DiscoveryMeta = z.object({
 export type DiscoveryMeta = z.infer<typeof DiscoveryMeta>;
 export const workspaceCommands = [
   z.object({
-    type: z.literal("bindRepo"),
-    name: z.string().trim().min(3).max(200),
+    type: z.literal("bindLocalRepo"),
   }),
+  z.object({ type: z.literal("relinkLocalRepo"), id: z.string() }),
+  z.object({ type: z.literal("inspectLocalRepo"), id: z.string() }),
+  z.object({
+    type: z.literal("analyzeRepo"),
+    id: z.string(),
+    confirmBranch: z.string().optional(),
+  }),
+  z.object({ type: z.literal("readEvidence"), locator: EvidenceLocator }),
   ...(
     [
-      "analyzeRepo",
       "cancelAnalysis",
       "retryAnalysis",
       "unbindRepo",
@@ -319,12 +363,6 @@ export const workspaceCommands = [
     ] as const
   ).map((type) => z.object({ type: z.literal(type), id: z.string() })),
   z.object({ type: z.literal("explore"), input: ExplorationInput }),
-  z.object({
-    type: z.literal("sourceKey"),
-    source: z.literal("github"),
-    value: z.string().max(2000),
-  }),
-  z.object({ type: z.literal("checkSource"), source: z.literal("github") }),
 ] as const;
 export const workspaceSchema = {
   repo: z.toJSONSchema(Repo),

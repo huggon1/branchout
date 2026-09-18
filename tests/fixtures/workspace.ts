@@ -8,6 +8,7 @@ import { templates } from "../../src/core/templates.js";
 export const repo: Repo = {
   id: "repo-one",
   fullName: "fictional/workspace",
+  source: "legacy-github",
   url: "https://github.com/fictional/workspace",
   private: false,
   branch: "main",

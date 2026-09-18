@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Store } from "../src/core/store.js";
 import {
   repo,
@@ -103,6 +105,54 @@ test("workspace input rejects duplicate choices and unsupported platform windows
     Understanding.safeParse({ ...understanding, evidence: [] }).success,
     false,
   );
+});
+test("local binding keeps paths private and branch changes require explicit confirmation", async () => {
+  const s = new Store(":memory:");
+  const privateRoot = join(tmpdir(), "fixture-project");
+  let current = {
+    rootPath: privateRoot,
+    name: "一个很长的中英混合项目-name",
+    branch: "main",
+    oid: "1".repeat(40),
+  };
+  const service = new WorkspaceService(s, {
+    inspect: async () => current,
+    continuity: async () => false,
+    read: async () => {
+      throw Error("stop after fixed revision");
+    },
+    agent: async () => {
+      throw Error("unused");
+    },
+    model: async () => "",
+    search: async () => [],
+    readSource: async () => source,
+    notify: () => {},
+  });
+  try {
+    const bound = await service.bindLocal(current);
+    assert.equal(bound.source, "local");
+    assert.notEqual(bound.id, current.oid);
+    assert.equal(JSON.stringify(s.state()).includes(privateRoot), false);
+    current = { ...current, branch: "feature/新分支", oid: "2".repeat(40) };
+    await assert.rejects(
+      service.analyze(bound.id),
+      /BRANCH_CHANGED\|main\|feature%2F%E6%96%B0%E5%88%86%E6%94%AF/,
+    );
+    assert.equal(s.getLocalBinding(bound.id)?.branch, "main");
+    const runId = await service.analyze(bound.id, undefined, "feature/新分支");
+    const analysis = s.get<any>("analyses", runId);
+    assert.equal(analysis.commit, current.oid);
+    assert.deepEqual(analysis.revision, {
+      oid: current.oid,
+      branch: current.branch,
+    });
+    assert.equal(s.getLocalBinding(bound.id)?.branch, current.branch);
+  } finally {
+    service.shutdown();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    s.close();
+  }
 });
 test("analysis commits version and boundary atomically; old version cannot be overwritten", () => {
   const s = new Store(":memory:");
@@ -502,7 +552,13 @@ test("batch materializes independent cross product without invoking repository a
     const hold = new Promise<void>((resolve) => (release = resolve));
     let reads = 0;
     const svc = new WorkspaceService(s, {
-      metadata: async () => repo,
+      inspect: async () => ({
+        rootPath: join(tmpdir(), "fixture"),
+        name: "fixture",
+        branch: "main",
+        oid: "a".repeat(40),
+      }),
+      continuity: async () => true,
       read: async () => {
         reads++;
         throw Error("must not analyze");
@@ -548,7 +604,13 @@ test("shutdown keeps the active and queued exploration runs resumable", async ()
     let release: () => void = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
     const svc = new WorkspaceService(s, {
-      metadata: async () => repo,
+      inspect: async () => ({
+        rootPath: join(tmpdir(), "fixture"),
+        name: "fixture",
+        branch: "main",
+        oid: "a".repeat(40),
+      }),
+      continuity: async () => true,
       read: async () => {
         throw Error("must not analyze");
       },

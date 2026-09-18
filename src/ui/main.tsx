@@ -138,7 +138,6 @@ function App() {
     sort: "",
   });
   const [chapters, setChapters] = useState<Record<string, string>>({});
-  const [githubKey, setGithubKey] = useState("");
   const [fromFeed, setFromFeed] = useState<string>();
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -198,7 +197,26 @@ function App() {
   const act = async (value: any) => {
     setError("");
     try {
-      const r = await window.feedloom.command(value);
+      let r = await window.feedloom.command(value);
+      if (
+        !r.ok &&
+        value.type === "analyzeRepo" &&
+        String(r.error).startsWith("BRANCH_CHANGED|")
+      ) {
+        const [, previousValue, currentValue, oid] = String(r.error).split("|");
+        const previous = decodeURIComponent(previousValue);
+        const current = decodeURIComponent(currentValue);
+        if (
+          !confirm(
+            `当前 checkout 已从 ${previous} 切换到 ${current}（${oid.slice(0, 12)}）。\n\n确认后，新分析会固定这个 commit；历史分析仍保留原版本。取消不会改变原关联。`,
+          )
+        )
+          return undefined;
+        r = await window.feedloom.command({
+          ...value,
+          confirmBranch: current,
+        });
+      }
       if (!r.ok) throw Error(r.error);
       await refresh();
       return r.value ?? null;
@@ -1275,8 +1293,6 @@ function App() {
             onDirty={setConnectionDirty}
             initialSection={connectionSection}
             act={act}
-            githubKey={githubKey}
-            setGithubKey={setGithubKey}
             setNotice={setNotice}
           />
         )}

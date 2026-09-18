@@ -71,7 +71,24 @@ function citations(refs: z.infer<typeof reference>[], sources: any[]) {
     }
     if (!excerpt || !s.text.includes(excerpt))
       throw Error(`引用 ${r.sourceId} 未逐字匹配，请改用sourceId与line行号`);
-    return { path: s.path, url: s.url, excerpt };
+    const locator = s.locator
+      ? {
+          ...s.locator,
+          ...(r.line !== undefined
+            ? {
+                line: (s.sourceStart || 1) + r.line - 1,
+                endLine: (s.sourceStart || 1) + (r.endLine ?? r.line) - 1,
+              }
+            : {}),
+        }
+      : undefined;
+    return {
+      path: s.path,
+      excerpt,
+      ...(locator ? { locator } : {}),
+      ...(s.webUrl ? { webUrl: s.webUrl } : {}),
+      ...(s.url ? { url: s.url } : {}),
+    };
   });
 }
 export function validateReviewBatch(
@@ -115,7 +132,12 @@ export function validateReviewBatch(
         sources.some(
           (s) =>
             s.sourceId === r.sourceId &&
-            e.commits.some((sha) => s.url.endsWith(`/commit/${sha}`)),
+            e.commits.some(
+              (sha) =>
+                (s.locator?.kind === "project-change" &&
+                  s.locator.commit === sha) ||
+                s.url?.endsWith(`/commit/${sha}`),
+            ),
         ),
       )
     )
@@ -181,7 +203,10 @@ export function curateProgress(
         ...new Map(
           rows
             .flatMap((e) => e.evidence)
-            .map((e) => [`${e.url}\n${e.excerpt}`, e]),
+            .map((e) => [
+              `${e.locator ? JSON.stringify(e.locator) : e.webUrl || e.url}\n${e.excerpt}`,
+              e,
+            ]),
         ).values(),
       ],
     });

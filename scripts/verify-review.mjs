@@ -1,29 +1,41 @@
-import { execFileSync } from "node:child_process";
 // Run with node --import tsx scripts/verify-review.mjs. Actual source/model output stays outside the checkout.
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Store } from "../src/core/store.ts";
 import { reviewRepository } from "../src/core/repository-review.ts";
-import { readRepo } from "../src/adapters/repository.mjs";
 import { repositoryRead } from "../src/adapters/repository-reader.mjs";
+import { inspectLocalRepository } from "../src/adapters/local-git.mjs";
 import { generateText } from "../src/adapters/model.mjs";
-import { configureNetwork } from "../src/adapters/network.mjs";
-configureNetwork();
 const dir = process.env.FEEDLOOM_REVIEW_OUTPUT;
 if (!dir || resolve(dir).startsWith(process.cwd() + "/"))
   throw Error("Set FEEDLOOM_REVIEW_OUTPUT outside the checkout");
 await mkdir(dir, { recursive: true, mode: 0o700 });
-const name = process.env.FEEDLOOM_VERIFY_REPO || "huggon1/feedloom";
+const rootPath = process.env.FEEDLOOM_VERIFY_REPO;
+if (!rootPath) throw Error("Set FEEDLOOM_VERIFY_REPO to a local Git directory");
 const store = new Store(join(dir, "feedloom.sqlite"));
-const token =
-  process.env.FEEDLOOM_GITHUB_TOKEN ||
-  (process.env.FEEDLOOM_USE_GH_AUTH === "1"
-    ? execFileSync("gh", ["auth", "token"], { encoding: "utf8" }).trim()
-    : undefined);
-const repo = await readRepo({ name, token });
-const existing = store.get("repos", repo.id);
-if (existing) Object.assign(repo, existing);
-else store.put("repos", repo);
+const local = await inspectLocalRepository(rootPath);
+const binding = store.findLocalBinding(local.rootPath);
+const existing = binding ? store.get("repos", binding.id) : undefined;
+const repo = existing
+  ? { ...existing, branch: local.branch, headOid: local.oid }
+  : {
+      id: crypto.randomUUID(),
+      fullName: local.name,
+      source: "local",
+      branch: local.branch,
+      headOid: local.oid,
+      createdAt: new Date().toISOString(),
+    };
+if (!existing) {
+  store.put("repos", repo);
+  store.putLocalBinding({
+    id: repo.id,
+    rootPath: local.rootPath,
+    branch: local.branch,
+    oid: local.oid,
+    linkedAt: repo.createdAt,
+  });
+}
 const old = store
   .list("analyses")
   .find((a) => a.repoId === repo.id && a.state !== "success");
@@ -37,6 +49,8 @@ const run = old || {
     process.env.FEEDLOOM_VERIFY_SINCE ||
     new Date(Date.now() - 7 * 86400000).toISOString(),
   state: "running",
+  commit: local.oid,
+  revision: { oid: local.oid, branch: local.branch },
   phase: "开始",
   changes: [],
 };
@@ -53,7 +67,12 @@ await reviewRepository(
   run,
   {
     read: (input, signal, onProgress) =>
-      repositoryRead({ ...input, token, signal, onProgress }),
+      repositoryRead({
+        ...input,
+        rootPath: local.rootPath,
+        signal,
+        onProgress,
+      }),
     agent: async (prompt, context, signal) => {
       const r = await generateText({
         dataDir: dir,
@@ -61,7 +80,7 @@ await reviewRepository(
         instruction: prompt,
         repository: ["edit", "curate"].includes(context.mode)
           ? undefined
-          : { ...context, token },
+          : { ...context, rootPath: local.rootPath },
         signal,
         ...(process.env.FEEDLOOM_VERIFY_MODEL
           ? { modelId: process.env.FEEDLOOM_VERIFY_MODEL }
