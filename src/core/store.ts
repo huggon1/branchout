@@ -20,6 +20,7 @@ import {
   Batch,
 } from "./workspace-contracts.js";
 import { z } from "zod";
+import { ContentCollections } from "./content-collections.js";
 const LocalBinding = z.object({
   id: z.string(),
   rootPath: z.string().min(1),
@@ -68,6 +69,7 @@ const legacyOutcome = (state: string) =>
 const migration = (version: number, run: () => void) => ({ version, run });
 export class Store {
   db: DatabaseSync;
+  collections?: ContentCollections;
   constructor(path: string) {
     this.db = new DatabaseSync(path);
     this.db.exec(
@@ -195,6 +197,43 @@ export class Store {
       this.db.close();
       throw error;
     }
+    if (
+      this.db
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='collections'",
+        )
+        .get()
+    )
+      this.collections = new ContentCollections(this.db);
+  }
+
+  assignInboxItems(
+    ids: string[],
+    source: "default" | "bot" | "manual" = "default",
+    options: { at?: string; batchId?: string } = {},
+  ) {
+    if (!this.collections) return 0;
+    return this.collections.assignToDefault(ids, source, options);
+  }
+
+  ensureInboxAssignment(item: Inbox) {
+    if (
+      !this.collections ||
+      this.collections
+        .assignments()
+        .some((assignment) => assignment.itemId === item.id)
+    )
+      return;
+    this.collections.assignToDefault(
+      [item.id],
+      item.origin ? "bot" : "default",
+      {
+        at: item.createdAt,
+        batchId: item.origin
+          ? `${item.origin.channel}:${item.origin.messageId}`
+          : undefined,
+      },
+    );
   }
   list<T>(
     table: WorkspaceTable | "tasks" | "runs" | "materials" | "feeds" | "inbox",
@@ -521,6 +560,8 @@ export class Store {
       materials: this.list<Material>("materials"),
       feeds: this.list<Feed>("feeds"),
       inbox: this.list<Inbox>("inbox"),
+      collections: this.collections?.list() || [],
+      collectionAssignments: this.collections?.assignments() || [],
       prompt:
         this.get<any>("settings", "prompt")?.value ||
         "用中文写一条有趣、具体的 Feed。说清它是什么、哪里值得关注，忠于素材，不要泛泛而谈。",

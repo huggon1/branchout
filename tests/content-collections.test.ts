@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Store } from "../src/core/store.js";
+import type { Inbox } from "../src/core/contracts.js";
 import {
   ContentCollections,
   collectionNameKey,
@@ -191,4 +196,43 @@ test("single and bulk assignment retain source, timestamp, batch, and bot state"
   assert.equal(moved.batchId, undefined);
   assert.equal(moved.organizationState, undefined);
   db.close();
+});
+
+test("v6 Store snapshots collections and assigns new inbox items durably", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nature-feed-collections-"));
+  const path = join(dir, "db");
+  let db = new DatabaseSync(path);
+  db.exec(
+    "PRAGMA foreign_keys=ON; CREATE TABLE inbox(id TEXT PRIMARY KEY,data TEXT NOT NULL); PRAGMA user_version=5;",
+  );
+  migrate(db);
+  db.close();
+  let store = new Store(path);
+  try {
+    const item = legacyItem("fresh", "2026-09-18T14:00:00.000Z") as Inbox;
+    store.put("inbox", item);
+    store.ensureInboxAssignment(item);
+    assert.equal(store.state().collections.length, 1);
+    assert.deepEqual(store.state().collectionAssignments[0], {
+      itemId: "fresh",
+      collectionId: store.state().collections[0].id,
+      assignedAt: "2026-09-18T14:00:00.000Z",
+      source: "default",
+      batchId: undefined,
+      organizationState: undefined,
+    });
+    const reading = store.collections!.create("稍后阅读");
+    store.collections!.assign(["fresh"], reading.id, "manual", {
+      at: "2026-09-18T15:00:00.000Z",
+    });
+    store.close();
+    store = new Store(path);
+    assert.equal(
+      store.state().collectionAssignments[0].collectionId,
+      reading.id,
+    );
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true });
+  }
 });

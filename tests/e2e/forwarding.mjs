@@ -2,9 +2,12 @@ import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { Store } from "../../src/core/store.ts";
+import { migrateContentCollectionsV6 } from "../../src/core/migrations/v6-content-collections.ts";
 const dir = await mkdtemp(join(tmpdir(), "feedloom-forward-"));
-const store = new Store(join(dir, "feedloom.sqlite"));
+const databasePath = join(dir, "feedloom.sqlite");
+let store = new Store(databasePath);
 store.put("inbox", {
   id: "readme",
   url: "https://github.com/example/demo",
@@ -34,6 +37,137 @@ store.put("inbox", {
   },
 });
 store.close();
+// Isolated v6 fixture: v4/v5 are owned by dependent PRs and intentionally not
+// copied here. The real ordered runner is registered only after they land.
+const fixtureDatabase = new DatabaseSync(databasePath);
+fixtureDatabase.exec("PRAGMA user_version=5; BEGIN IMMEDIATE");
+migrateContentCollectionsV6(fixtureDatabase, "2026-09-18T08:00:00.000Z");
+fixtureDatabase.exec("COMMIT");
+fixtureDatabase.close();
+store = new Store(databasePath);
+const readingCollection = store.collections.create("深度阅读 Deep Reading");
+const emptyCollection = store.collections.create("稍后整理");
+const inboxCollection = store.collections.default();
+const fixtureItems = [
+  {
+    id: "parsing",
+    url: "https://github.com/example/parsing",
+    createdAt: "2026-09-18T09:00:00.000Z",
+    state: "running",
+    summary: "",
+    summaryState: "pending",
+  },
+  {
+    id: "body-failed",
+    url: "https://github.com/example/body-failed",
+    createdAt: "2026-09-18T09:10:00.000Z",
+    state: "failed",
+    summary: "",
+    summaryState: "pending",
+    error: "测试：来源正文暂时无法读取",
+  },
+  {
+    id: "summary-failed",
+    url: "https://github.com/example/summary-failed",
+    createdAt: "2026-09-18T09:20:00.000Z",
+    state: "success",
+    summary: "",
+    summaryState: "failed",
+    error: "测试：摘要服务暂时不可用",
+    material: {
+      schemaVersion: 1,
+      source: "github",
+      sourceId: "example/summary-failed",
+      canonicalUrl: "https://github.com/example/summary-failed",
+      title: "中文与 Mixed-language 超长标题：摘要失败但原文仍然完整可读",
+      author: "example",
+      text: "# 原文仍然可读\n\n这是明确标记的虚构测试内容。",
+      completeness: "complete",
+      publishedAt: null,
+      images: [],
+      metrics: {},
+    },
+  },
+  {
+    id: "partial",
+    url: "https://github.com/example/partial",
+    createdAt: "2026-09-18T09:30:00.000Z",
+    state: "success",
+    summary: "当前只获取到部分正文。",
+    summaryState: "success",
+    material: {
+      schemaVersion: 1,
+      source: "github",
+      sourceId: "example/partial",
+      canonicalUrl: "https://github.com/example/partial",
+      title: "部分解析示例",
+      author: "example",
+      text: "# 部分正文\n\n这是明确标记的虚构测试内容。",
+      completeness: "partial",
+      publishedAt: null,
+      images: [],
+      metrics: {},
+    },
+  },
+  {
+    id: "pending-bot",
+    url: "https://github.com/example/pending-bot",
+    createdAt: "2026-09-18T09:40:00.000Z",
+    state: "success",
+    summary: "机器人整理回复尚未完成。",
+    summaryState: "success",
+    material: {
+      schemaVersion: 1,
+      source: "github",
+      sourceId: "example/pending-bot",
+      canonicalUrl: "https://github.com/example/pending-bot",
+      title: "等待机器人整理",
+      author: "example",
+      text: "测试正文",
+      completeness: "complete",
+      publishedAt: null,
+      images: [],
+      metrics: {},
+    },
+  },
+  {
+    id: "expired-bot",
+    url: "https://github.com/example/expired-bot",
+    createdAt: "2026-09-18T09:50:00.000Z",
+    state: "success",
+    summary: "机器人整理提示已过期。",
+    summaryState: "success",
+    material: {
+      schemaVersion: 1,
+      source: "github",
+      sourceId: "example/expired-bot",
+      canonicalUrl: "https://github.com/example/expired-bot",
+      title: "机器人整理已过期",
+      author: "example",
+      text: "测试正文",
+      completeness: "complete",
+      publishedAt: null,
+      images: [],
+      metrics: {},
+    },
+  },
+];
+for (const item of fixtureItems) store.put("inbox", item);
+store.collections.assign(
+  fixtureItems.map((item) => item.id),
+  inboxCollection.id,
+  "default",
+);
+store.collections.assign(["pending-bot"], inboxCollection.id, "bot", {
+  batchId: "fixture-pending",
+  organizationState: "pending",
+});
+store.collections.assign(["expired-bot"], inboxCollection.id, "bot", {
+  batchId: "fixture-expired",
+  organizationState: "expired",
+});
+store.collections.assign(["summary-failed"], readingCollection.id, "manual");
+store.close();
 let app;
 try {
   app = await electron.launch({
@@ -51,7 +185,7 @@ try {
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="100"><rect width="320" height="100" fill="#dcecff"/><text x="30" y="55" font-size="18">Fixture image</text></svg>',
     }),
   );
-  await page.getByRole("button", { name: "转发收件箱", exact: true }).click();
+  await page.getByRole("button", { name: "内容收集", exact: true }).click();
   await page.getByRole("button", { name: /README 图文阅读/ }).click();
   await expect(page.locator(".prose img")).toHaveCount(2);
   await expect(page.locator(".prose img").first()).toHaveAttribute(
@@ -76,18 +210,108 @@ try {
     [1440, 940],
   ]) {
     await page.setViewportSize({ width, height });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page
+      .locator(".collection-list-pane")
+      .evaluate((element) => (element.scrollTop = 0));
     await expect(
       page.getByRole("button", { name: "配置机器人" }),
     ).toBeVisible();
+    if (width === 1100) {
+      await expect(page.getByLabel("当前收藏夹")).toBeVisible();
+      await expect(page.locator(".collection-sidebar")).toBeHidden();
+    } else {
+      await expect(page.locator(".collection-sidebar")).toBeVisible();
+      const columns = await page
+        .locator(".collection-workspace")
+        .evaluate(
+          (element) =>
+            getComputedStyle(element).gridTemplateColumns.split(" ").length,
+        );
+      expect(columns).toBe(3);
+    }
+    const readerWidth = await page
+      .locator(".collection-reader")
+      .evaluate((element) => element.getBoundingClientRect().width);
+    if (readerWidth < 370)
+      throw Error(
+        "Reading pane squeezed at " + width + ": " + readerWidth + "px",
+      );
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
     );
     if (overflow) throw Error(`Horizontal overflow at ${width}`);
     await page.screenshot({
       path: `test-results/forwarding-${width}.png`,
-      fullPage: true,
     });
   }
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("button", { name: /body-failed/ }).click();
+  await expect(page.getByRole("alert")).toContainText("正文解析失败");
+  await page.getByRole("button", { name: /parsing/ }).click();
+  await expect(page.getByRole("status")).toContainText("解析被中断，可以继续");
+  await page.getByRole("button", { name: /部分解析示例/ }).click();
+  await expect(page.getByRole("status")).toContainText("部分解析");
+  await page.getByRole("button", { name: /深度阅读 Deep Reading/ }).click();
+  await page
+    .getByRole("button", { name: /摘要失败但原文仍然完整可读/ })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "正文已保存，AI 摘要失败",
+  );
+  await page.getByRole("button", { name: /Inbox/ }).click();
+  await page.getByPlaceholder("标题、正文或摘要").fill("不会匹配的筛选词");
+  await expect(page.getByText("没有匹配的内容", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "清除筛选" }).click();
+  await page.getByRole("button", { name: /稍后整理/ }).click();
+  await expect(
+    page.getByText("这个收藏夹还是空的", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("新收藏夹").fill("  产品   灵感  ");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "产品 灵感" })).toBeVisible();
+  await page.getByLabel("收藏夹操作").click();
+  await page.getByRole("button", { name: "重命名", exact: true }).click();
+  await page.getByLabel("收藏夹名称").fill("产品洞察 Product Notes");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "产品洞察 Product Notes" }),
+  ).toBeVisible();
+  await page.getByLabel("收藏夹操作").click();
+  await page.getByRole("button", { name: "设为默认", exact: true }).click();
+  await expect(
+    page.getByText("默认收藏夹已更新", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Inbox/ }).click();
+  await page.getByLabel("选择 部分解析示例").check();
+  await page.getByLabel("选择 https://github.com/example/body-failed").check();
+  await expect(page.getByText("已选 2 条", { exact: true })).toBeVisible();
+  await page.getByLabel("批量移动到").selectOption(readingCollection.id);
+  await page.getByRole("button", { name: "移动", exact: true }).click();
+  await expect(
+    page.getByText("已移动 2 条内容", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /深度阅读 Deep Reading/ }).click();
+  await expect(page.getByText("3 条内容", { exact: true })).toBeVisible();
+  await page.getByLabel("收藏夹操作").click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "删除收藏夹" }).click();
+  await expect(
+    page.getByText(/3 条内容已移到“产品洞察 Product Notes”/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Inbox/ }).click();
+  await page.getByRole("button", { name: /等待机器人整理/ }).click();
+  await expect(
+    page.locator(".collection-callout").getByText("等待机器人整理", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /机器人整理已过期/ }).click();
+  await expect(
+    page.locator(".collection-callout").getByText("机器人整理已过期", {
+      exact: true,
+    }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "配置机器人" }).click();
   await expect(page.getByRole("heading", { name: "转发机器人" })).toBeVisible();
   await expect(
