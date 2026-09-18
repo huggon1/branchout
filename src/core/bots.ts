@@ -3,6 +3,7 @@ import * as lark from "@larksuiteoapi/node-sdk";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import type { Store } from "./store.js";
 import type { Inbox } from "./contracts.js";
+import type { BotOrganizationSession } from "./bot-organization.js";
 import {
   extractLinks,
   telegramMessage,
@@ -53,6 +54,7 @@ export class BotHub {
   private pending = new Set<string>();
   private draining = false;
   private closed = false;
+  private expiryTimer?: ReturnType<typeof setInterval>;
   constructor(
     private store: Store,
     private encrypt: (s: string) => string,
@@ -82,6 +84,12 @@ export class BotHub {
           (item.state === "success" && item.error === "摘要被中断，可重新解析"))
       )
         this.pending.add(item.id);
+    this.store.botOrganizations.expirePending();
+    this.expiryTimer = setInterval(() => {
+      if (this.store.botOrganizations.expirePending()) this.notify();
+    }, 60000);
+    for (const session of this.store.botOrganizations.pendingWithoutReceipt())
+      void this.sendOrganizationPrompt(session);
     void this.drain();
   }
   snapshot() {
@@ -134,6 +142,10 @@ export class BotHub {
       };
     this.persist(c);
     void this.start(c);
+    for (const session of this.store.botOrganizations
+      .pendingWithoutReceipt()
+      .filter((session) => session.channel === c))
+      void this.sendOrganizationPrompt(session);
   }
   bind(c: Channel) {
     if (!this.configs[c]?.enabled) throw Error("请先保存并连接机器人");
@@ -160,6 +172,7 @@ export class BotHub {
   }
   close() {
     this.closed = true;
+    if (this.expiryTimer) clearInterval(this.expiryTimer);
     this.stop("telegram");
     this.stop("feishu");
   }
@@ -230,7 +243,7 @@ export class BotHub {
             if (!alive()) break;
             for (const update of updates) {
               const message = telegramMessage(update);
-              if (message) this.receive(c, message);
+              if (message) await this.receive(c, message);
               config.offset = update.update_id + 1;
               this.persist(c);
             }
@@ -303,7 +316,7 @@ export class BotHub {
             "im.message.receive_v1": (event: any) => {
               if (alive()) {
                 const message = feishuMessage(event);
-                if (message) this.receive(c, message);
+                if (message) void this.receive(c, message);
               }
             },
           }),
@@ -313,7 +326,110 @@ export class BotHub {
       }
     }
   }
-  receive(c: Channel, message: BotMessage) {
+  private eventKey(c: Channel, message: BotMessage, config: Config) {
+    return `bot-event:${c}:${createHash("sha256")
+      .update(
+        `${config.appId || config.secret.split(":")[0]}:${message.peer}:${message.id}`,
+      )
+      .digest("hex")}`;
+  }
+
+  private organizationMenu(session: BotOrganizationSession) {
+    const visible = session.menuOptions.slice(0, 20);
+    const choices = visible
+      .map((option, index) => `${index + 1}. ${option.name}`)
+      .join("\n");
+    const overflow =
+      session.menuOptions.length > visible.length
+        ? `\n另有 ${session.menuOptions.length - visible.length} 个收藏夹，可回复完整名称。`
+        : "";
+    return `${choices}${overflow}\n回复序号或完整名称移动整批；或回复“新建 收藏夹名称”。`;
+  }
+
+  private async sendOrganizationPrompt(session: BotOrganizationSession) {
+    const assignedCollectionId = this.store.collections
+      .assignments()
+      .find(
+        (assignment) => assignment.itemId === session.itemIds[0],
+      )?.collectionId;
+    const defaultName =
+      session.menuOptions.find(
+        (option) => option.collectionId === assignedCollectionId,
+      )?.name || this.store.collections.default().name;
+    const receipt = await this.reply(
+      session.channel,
+      session.peer,
+      `已保存 ${session.itemIds.length} 条到「${defaultName}」，正在解析。\n回复本消息整理：\n${this.organizationMenu(session)}`,
+    );
+    if (receipt) this.store.botOrganizations.setReceipt(session.id, receipt);
+    else this.store.botOrganizations.markPromptFailed(session.id);
+  }
+
+  private async organize(c: Channel, message: BotMessage, key: string) {
+    const now = new Date().toISOString();
+    let response = "";
+    this.store.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.store.botOrganizations.expirePending(now);
+      const current = this.store.botOrganizations.byReceipt(
+        c,
+        message.peer,
+        message.replyTo!,
+      )!;
+      if (current.state === "expired") {
+        response = `整理提示已过期；${current.itemIds.length} 条内容仍安全保存在收藏夹中。请在 nature-feed 桌面移动。`;
+      } else if (current.state === "completed") {
+        response = current.targetCollectionName
+          ? `这批内容已整理到「${current.targetCollectionName}」，无需重复操作。`
+          : "这批内容已在 nature-feed 桌面整理，无需重复操作。";
+      } else {
+        const text = message.text.trim();
+        const index = /^\d+$/.test(text) ? Number(text) - 1 : -1;
+        const chosen = index >= 0 ? current.menuOptions[index] : undefined;
+        const createMatch = text.match(/^新建\s+(.+)$/su);
+        let target = chosen
+          ? this.store.collections
+              .list()
+              .find((collection) => collection.id === chosen.collectionId)
+          : this.store.collections.findByName(text);
+        if (createMatch) {
+          target =
+            this.store.collections.findByName(createMatch[1]) ||
+            this.store.collections.create(createMatch[1], now);
+        }
+        if (!target) {
+          response = `没有这个选项。请回复有效序号、完整收藏夹名称，或回复“新建 收藏夹名称”。\n${this.organizationMenu(current)}`;
+        } else {
+          this.store.collections.assign(current.itemIds, target.id, "bot", {
+            at: now,
+            batchId: current.batchId,
+          });
+          if (
+            !this.store.botOrganizations.complete(
+              current.id,
+              target.id,
+              target.name,
+              message.id,
+              now,
+            )
+          )
+            throw Error("整理会话状态已改变");
+          response = `已将 ${current.itemIds.length} 条内容整理到「${target.name}」。`;
+        }
+      }
+      this.store.put("settings", { id: key });
+      this.store.db.exec("COMMIT");
+    } catch (error) {
+      this.store.db.exec("ROLLBACK");
+      response = /名称/.test(String(error))
+        ? `${error instanceof Error ? error.message : "收藏夹名称无效"}。请换一个名称后重试。`
+        : "这次整理没有完成。已保存的内容不会丢失，请在 nature-feed 桌面检查后重试。";
+    }
+    this.notify();
+    await this.reply(c, message.peer, response);
+  }
+
+  async receive(c: Channel, message: BotMessage) {
     const config = this.configs[c];
     if (!config?.enabled) return;
     const code = this.codes[c];
@@ -327,7 +443,7 @@ export class BotHub {
       this.persist(c);
       delete this.codes[c];
       this.notify();
-      void this.reply(
+      await this.reply(
         c,
         message.peer,
         "已绑定 nature-feed。发送 GitHub 仓库或小红书分享链接即可解析。",
@@ -336,21 +452,30 @@ export class BotHub {
     }
     if (message.peer !== config.peer || message.sender !== config.sender)
       return;
-    const key = `bot-event:${c}:${createHash("sha256")
-      .update(
-        `${config.appId || config.secret.split(":")[0]}:${message.peer}:${message.id}`,
-      )
-      .digest("hex")}`;
+    const key = this.eventKey(c, message, config);
     if (this.store.get("settings", key)) return;
+    if (message.replyTo) {
+      const session = this.store.botOrganizations.byReceipt(
+        c,
+        message.peer,
+        message.replyTo,
+      );
+      if (session) {
+        await this.organize(c, message, key);
+        return;
+      }
+    }
     const links = extractLinks(message.text);
     this.store.db.exec("BEGIN IMMEDIATE");
     const items: Inbox[] = [];
+    let session: BotOrganizationSession | undefined;
     try {
+      const now = new Date().toISOString();
       for (const url of links) {
         const item: Inbox = {
           id: randomUUID(),
           url,
-          createdAt: new Date().toISOString(),
+          createdAt: now,
           state: "pending",
           summary: "",
           summaryState: "pending",
@@ -366,8 +491,22 @@ export class BotHub {
           {
             at: items[0].createdAt,
             batchId: `${c}:${message.id}`,
+            organizationState: "pending",
           },
         );
+      if (items.length)
+        session = this.store.botOrganizations.create({
+          channel: c,
+          peer: message.peer,
+          sourceMessageId: message.id,
+          batchId: `${c}:${message.id}`,
+          itemIds: items.map((item) => item.id),
+          menuOptions: this.store.collections.list().map((collection) => ({
+            collectionId: collection.id,
+            name: collection.name,
+          })),
+          now,
+        });
       this.store.put("settings", { id: key });
       this.store.db.exec("COMMIT");
     } catch (e) {
@@ -376,13 +515,13 @@ export class BotHub {
     }
     this.states[c].lastReceived = new Date().toISOString();
     this.notify();
-    void this.reply(
-      c,
-      message.peer,
-      links.length
-        ? `已接收 ${links.length} 条链接，正在排队解析。完整内容请在 nature-feed 转发收件箱阅读。`
-        : "未发现支持的链接。请发送 GitHub 仓库首页或小红书分享文案；暂不解析截图、附件、聊天合并转发和其他平台。",
-    );
+    if (session) await this.sendOrganizationPrompt(session);
+    else
+      await this.reply(
+        c,
+        message.peer,
+        "未保存：没有发现支持的链接。请发送 GitHub 仓库首页或小红书分享文案；暂不解析截图、附件、聊天合并转发和其他平台。",
+      );
     for (const item of items) this.pending.add(item.id);
     void this.drain();
   }
@@ -416,13 +555,15 @@ export class BotHub {
     const config = this.configs[c];
     if (this.closed || !config?.enabled || config.peer !== peer) return;
     try {
-      if (c === "telegram")
-        await this.tg(config, "sendMessage", {
+      let messageId: string | undefined;
+      if (c === "telegram") {
+        const sent = await this.tg(config, "sendMessage", {
           chat_id: peer,
           text,
           link_preview_options: { is_disabled: true },
         });
-      else {
+        if (sent?.message_id !== undefined) messageId = String(sent.message_id);
+      } else {
         const auth = await this.request(
           "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
           {
@@ -453,10 +594,13 @@ export class BotHub {
             signal: AbortSignal.timeout(15000),
           },
         );
-        if (((await r.json()) as any).code !== 0) throw Error("send");
+        const sent = (await r.json()) as any;
+        if (sent.code !== 0) throw Error("send");
+        if (sent.data?.message_id) messageId = String(sent.data.message_id);
       }
       this.states[c].receiptError = undefined;
       this.notify();
+      return messageId;
     } catch {
       this.states[c].receiptError =
         "回执发送失败；接收记录已保留，请检查发送消息权限或网络";

@@ -4,6 +4,7 @@ export interface BotMessage {
   peer: string;
   sender: string;
   text: string;
+  replyTo?: string;
 }
 export function telegramMessage(update: any): BotMessage | undefined {
   const m = update?.message;
@@ -24,6 +25,9 @@ export function telegramMessage(update: any): BotMessage | undefined {
     peer: String(m.chat.id),
     sender: String(m.from.id),
     text: [text, ...links].join("\n"),
+    replyTo: m.reply_to_message?.message_id
+      ? String(m.reply_to_message.message_id)
+      : undefined,
   };
 }
 export function feishuMessage(event: any): BotMessage | undefined {
@@ -58,6 +62,7 @@ export function feishuMessage(event: any): BotMessage | undefined {
     peer: m.chat_id,
     sender: event.sender.sender_id.open_id,
     text: texts.join("\n"),
+    replyTo: m.parent_id || m.root_id || undefined,
   };
 }
 export function extractLinks(text: string) {
