@@ -136,8 +136,90 @@ export const Template = z.object({
   prompt: z.string(),
 });
 export type Template = z.infer<typeof Template>;
+export const RunLifecycle = z.enum([
+  "creating",
+  "queued",
+  "running",
+  "paused",
+  "completed",
+  "partial",
+  "blocked",
+  "user_stopped",
+  "safety_suspended",
+  "failed",
+  "resumable_after_restart",
+]);
+export type RunLifecycle = z.infer<typeof RunLifecycle>;
+export const RunOutcome = z.enum([
+  "pending",
+  "sufficient_coverage",
+  "no_results",
+  "partial_coverage",
+  "platform_blocked",
+  "failed",
+  "user_stopped",
+]);
+export type RunOutcome = z.infer<typeof RunOutcome>;
+export const RunStopReason = z.enum([
+  "coverage_sufficient",
+  "diminishing_yield",
+  "reasonable_strategies_exhausted",
+  "platform_blocked",
+  "user_paused",
+  "user_stopped",
+  "safety_repetition",
+  "safety_oscillation",
+  "safety_no_progress",
+  "restart_interrupted",
+  "provider_error",
+]);
+export type RunStopReason = z.infer<typeof RunStopReason>;
+export const RunTelemetry = z.object({
+  calls: z.number().int().min(0),
+  queries: z.number().int().min(0),
+  reads: z.number().int().min(0),
+  candidates: z.number().int().min(0),
+  providerTokens: z.discriminatedUnion("availability", [
+    z.object({ availability: z.literal("unavailable") }),
+    z.object({
+      availability: z.literal("reported"),
+      input: z.number().int().min(0),
+      output: z.number().int().min(0),
+      total: z.number().int().min(0),
+    }),
+  ]),
+});
+export type RunTelemetry = z.infer<typeof RunTelemetry>;
+export const RunProgress = z.object({
+  phase: z.enum([
+    "queued",
+    "planning",
+    "searching",
+    "reading",
+    "judging",
+    "saving",
+    "paused",
+    "finished",
+  ]),
+  currentAction: z.string().max(400),
+  recentDeltas: z.array(z.string().max(400)).max(20),
+  evidenceGaps: z.array(z.string().max(400)).max(12),
+  nextActionReason: z.string().max(600),
+  coverage: z.array(z.string().max(400)).max(12),
+  lastHeartbeatAt: z.string(),
+  lastCommittedProgressAt: z.string(),
+  stagnantActions: z.number().int().min(0),
+});
+export type RunProgress = z.infer<typeof RunProgress>;
+export const RunEvent = z.object({
+  at: z.string(),
+  kind: z.enum(["queued", "action", "evidence_delta", "blocker", "lifecycle"]),
+  message: z.string().min(1).max(500),
+  effective: z.boolean(),
+});
 export const ExplorationInput = z
   .object({
+    launchKey: z.string().min(8).max(100).optional(),
     repoIds: z.array(z.string()).min(1).max(10),
     angles: z.array(Angle).min(1).max(5),
     platforms: z
@@ -167,32 +249,24 @@ export const Exploration = z.object({
   period: z.enum(["daily", "weekly", "monthly"]),
   startedAt: z.string(),
   endedAt: z.string().optional(),
-  state: z.enum([
-    "pending",
-    "running",
-    "success",
-    "partial",
-    "no_results",
-    "failed",
-    "cancelled",
-    "interrupted",
-  ]),
-  events: z.array(z.object({ at: z.string(), message: z.string() })),
+  lifecycle: RunLifecycle,
+  outcome: RunOutcome,
+  stopCode: RunStopReason.optional(),
+  events: z.array(RunEvent),
+  progress: RunProgress,
   outcomes: z.record(
     z.string(),
     z.object({
-      state: z.enum(["pending", "success", "no_results", "failed"]),
+      state: z.enum(["pending", "success", "no_results", "blocked", "failed"]),
+      errorCode: z
+        .enum(["rate_limited", "login_required", "provider_error", "timeout"])
+        .optional(),
       error: z.string().optional(),
       queries: z.number(),
       count: z.number(),
     }),
   ),
-  usage: z.object({
-    queries: z.number(),
-    reads: z.number(),
-    modelCalls: z.number(),
-    candidates: z.number(),
-  }),
+  telemetry: RunTelemetry,
   stopReason: z.string().optional(),
   error: z.string().optional(),
   attempts: z.number().int().default(0),
@@ -200,18 +274,10 @@ export const Exploration = z.object({
 export type Exploration = z.infer<typeof Exploration>;
 export const Batch = z.object({
   id: z.string(),
+  launchKey: z.string().optional(),
   createdAt: z.string(),
   runIds: z.array(z.string()),
-  state: z.enum([
-    "pending",
-    "running",
-    "success",
-    "partial",
-    "no_results",
-    "failed",
-    "cancelled",
-    "interrupted",
-  ]),
+  lifecycle: RunLifecycle,
   attempts: z.number().int().default(0),
 });
 export type Batch = z.infer<typeof Batch>;
@@ -245,6 +311,10 @@ export const workspaceCommands = [
       "retryAnalysis",
       "unbindRepo",
       "cancelBatch",
+      "pauseBatch",
+      "resumeBatch",
+      "pauseExploration",
+      "resumeExploration",
       "retryExploration",
     ] as const
   ).map((type) => z.object({ type: z.literal(type), id: z.string() })),

@@ -208,11 +208,24 @@ export async function generateText({
       .join("")
       .trim();
     if (!output) throw new ModelError("empty_response", "模型没有返回内容");
+    const reported = last?.usage;
+    const inputTokens = reported?.inputTokens ?? reported?.input;
+    const outputTokens = reported?.outputTokens ?? reported?.output;
+    const total = reported?.totalTokens ?? reported?.total;
+    const tokenUsage =
+      Number.isFinite(inputTokens) && Number.isFinite(outputTokens)
+        ? {
+            input: inputTokens,
+            output: outputTokens,
+            total: Number.isFinite(total) ? total : inputTokens + outputTokens,
+          }
+        : undefined;
     return {
       text: output,
       model: model.id,
       provider,
       tools: session.getActiveToolNames(),
+      ...(tokenUsage ? { tokenUsage } : {}),
       ...(reader ? { sources: reader.sources, usage: reader.usage() } : {}),
     };
   } catch (error) {

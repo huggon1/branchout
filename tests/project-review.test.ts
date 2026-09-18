@@ -266,8 +266,8 @@ test("exploration reads short project handles, preserves evidence and stops repe
       },
       new AbortController().signal,
     );
-    assert.equal(run.state, "success");
-    assert.equal(run.usage.queries, 3);
+    assert.equal(run.lifecycle, "completed");
+    assert.equal(run.telemetry.queries, 3);
     assert.match(run.stopReason!, /连续两次/);
     assert.deepEqual(run.progressReadIds, ["progress-one"]);
     assert.equal(
