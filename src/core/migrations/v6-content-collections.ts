@@ -4,23 +4,11 @@ import type { DatabaseSync } from "node:sqlite";
 export const CONTENT_COLLECTIONS_VERSION = 6;
 export const INITIAL_COLLECTION_NAME = "Inbox";
 
-/**
- * Store migration v6. The caller owns the surrounding transaction so the
- * ordered migration runner can roll v4-v6 back as one unit after dependencies
- * land. This module deliberately refuses to skip the reserved v4/v5 steps.
- */
+/** Store migration v6. The ordered Store runner owns the transaction/version. */
 export function migrateContentCollectionsV6(
   db: DatabaseSync,
   now = new Date().toISOString(),
 ) {
-  const version = Number(
-    (db.prepare("PRAGMA user_version").get() as { user_version: number })
-      .user_version,
-  );
-  if (version === CONTENT_COLLECTIONS_VERSION) return;
-  if (version !== 5)
-    throw Error(`内容收集迁移需要数据库版本 5，当前为 ${version}`);
-
   const collectionId = randomUUID();
   db.exec(`
     CREATE TABLE collections(
@@ -58,5 +46,4 @@ export function migrateContentCollectionsV6(
     ) SELECT id,?,COALESCE(json_extract(data,'$.createdAt'),?),'migration'
       FROM inbox`,
   ).run(collectionId, now);
-  db.exec(`PRAGMA user_version=${CONTENT_COLLECTIONS_VERSION}`);
 }

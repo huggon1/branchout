@@ -2,9 +2,7 @@ import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { Store } from "../../src/core/store.ts";
-import { migrateContentCollectionsV6 } from "../../src/core/migrations/v6-content-collections.ts";
 const dir = await mkdtemp(join(tmpdir(), "feedloom-forward-"));
 const databasePath = join(dir, "feedloom.sqlite");
 let store = new Store(databasePath);
@@ -36,14 +34,8 @@ store.put("inbox", {
     },
   },
 });
+store.ensureInboxAssignment(store.get("inbox", "readme"));
 store.close();
-// Isolated v6 fixture: v4/v5 are owned by dependent PRs and intentionally not
-// copied here. The real ordered runner is registered only after they land.
-const fixtureDatabase = new DatabaseSync(databasePath);
-fixtureDatabase.exec("PRAGMA user_version=5; BEGIN IMMEDIATE");
-migrateContentCollectionsV6(fixtureDatabase, "2026-09-18T08:00:00.000Z");
-fixtureDatabase.exec("COMMIT");
-fixtureDatabase.close();
 store = new Store(databasePath);
 const readingCollection = store.collections.create("深度阅读 Deep Reading");
 const emptyCollection = store.collections.create("稍后整理");
