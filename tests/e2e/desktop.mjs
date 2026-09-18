@@ -319,6 +319,7 @@ try {
   await expect(
     page.getByRole("heading", { name: "素材库", exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".workspace-nav-button")).toHaveCount(4);
   await expect(page.locator(".materialrow")).toHaveCount(1);
   await page.getByLabel("选择 example/reader").first().check();
   await expect(page.getByText("已选 1 条", { exact: true })).toBeVisible();
@@ -377,7 +378,8 @@ try {
     if (titleWidth < 150)
       throw Error(`Generation title squeezed at ${width}: ${titleWidth}px`);
   }
-  await page.locator("nav").getByRole("button", { name: "我的 Feed" }).click();
+  await page.locator("nav").getByRole("button", { name: "Feed 创作" }).click();
+  await page.locator("nav").getByRole("button", { name: "Feed 历史" }).click();
   await page.getByRole("button", { name: /示例 Feed · 部分成功/ }).click();
   await page.getByRole("button", { name: "复制可用内容" }).click();
   await expect(page.getByText("已复制", { exact: true })).toBeVisible();
@@ -390,8 +392,12 @@ try {
   )
     throw Error("Copy contract failed");
   await page.screenshot({ path: "test-results/feed.png" });
-  await page.getByRole("button", { name: "查看来源依据" }).first().click();
+  const sourceEvidenceButton = page
+    .getByRole("button", { name: "查看来源依据" })
+    .first();
+  await sourceEvidenceButton.click();
   await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("button", { name: "关闭", exact: true })).toBeFocused();
   await expect(
     page
       .getByRole("dialog")
@@ -406,16 +412,15 @@ try {
     page.getByRole("dialog").getByText("提供离线阅读功能"),
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(sourceEvidenceButton).toBeFocused();
   await page.getByRole("button", { name: "修改提示词重新生成" }).click();
   await expect(page.getByText("沿用原 Feed 的来源依据")).toBeVisible();
   await expect(page.getByLabel("全选当前结果")).toHaveCount(0);
   await page.getByRole("button", { name: "改为重新选材" }).click();
   await expect(page.getByLabel("全选当前结果")).toBeVisible();
   await expect(page.getByText("已选 0 条", { exact: true })).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: "历史收集", exact: true })
-    .click();
+  await page.locator("nav").getByRole("button", { name: "素材探索" }).click();
+  await page.locator("nav").getByRole("button", { name: "历史收集" }).click();
   await expect(
     page.getByText(
       "历史任务只读保留。新发现请使用探索，历史素材仍可生成 Feed。",
@@ -428,10 +433,8 @@ try {
   await expect(
     page.getByRole("button", { name: "保存任务", exact: true }),
   ).toHaveCount(0);
-  await page
-    .locator("nav")
-    .getByRole("button", { name: "项目回顾", exact: true })
-    .click();
+  await page.locator("nav").getByRole("button", { name: "项目理解" }).click();
+  await expect(page.getByRole("heading", { name: "项目理解", exact: true })).toBeFocused();
   await expect(page.getByText(/AI 分析 · v1/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "看看最近进展", exact: true }),
@@ -482,10 +485,8 @@ try {
     )
       throw Error(`Project review overflows at ${width}`);
   }
-  await page
-    .locator("nav")
-    .getByRole("button", { name: "探索", exact: true })
-    .click();
+  await page.locator("nav").getByRole("button", { name: "素材探索" }).click();
+  await page.locator("nav").getByRole("button", { name: "新建探索" }).click();
   await expect(
     page.getByText("仓库理解 v1", { exact: true }).first(),
   ).toBeVisible();
@@ -547,6 +548,11 @@ try {
     page.getByText("执行阶段 · 暂停等待", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("最近事实事件", { exact: true })).toBeVisible();
+  await page.locator("nav").getByRole("button", { name: "Feed 创作" }).click();
+  await page.locator("nav").getByRole("button", { name: "素材探索" }).click();
+  await expect(
+    page.getByRole("heading", { name: "任务队列", exact: true }),
+  ).toBeVisible();
   for (const [width, height] of [
     [1100, 720],
     [1280, 800],
@@ -570,10 +576,7 @@ try {
   }
   await page.getByRole("button", { name: "返回探索", exact: true }).click();
   await page.screenshot({ path: "test-results/tasks.png" });
-  await page
-    .locator("nav")
-    .getByRole("button", { name: "素材库", exact: true })
-    .click();
+  await page.locator("nav").getByRole("button", { name: "素材库", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   for (const [width, height] of [
     [1100, 720],

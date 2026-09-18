@@ -29,6 +29,12 @@ try {
   await expect(
     page.getByRole("button", { name: "虚构的加载测试素材", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByText("还没有可用于探索的项目", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "前往项目理解", exact: true }),
+  ).toBeVisible();
   await app.evaluate(() => globalThis.workspaceLoadingTest.refresh());
   await expect
     .poll(() => app.evaluate(() => globalThis.workspaceLoadingTest.requests))
@@ -40,8 +46,12 @@ try {
     page.getByText("正在打开本地工作空间…", { exact: true }),
   ).toHaveCount(0);
   await app.evaluate(() => globalThis.workspaceLoadingTest.resolve(true));
+  await page.getByRole("button", { name: "前往项目理解", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "项目理解", exact: true }),
+  ).toBeFocused();
   console.log(
-    "Workspace loading passed: delayed first state, error/retry, no false empty library, background refresh preserves content",
+    "Workspace loading passed: delayed first state, error/retry, dependency recovery, no false empty library, background refresh preserves content",
   );
 } finally {
   await app.close();

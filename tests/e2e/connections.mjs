@@ -118,7 +118,7 @@ try {
     "fixture-draft",
   );
   page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("button", { name: "素材库", exact: true }).click();
+  await page.getByRole("button", { name: "素材探索", exact: true }).click();
   await expect(page.getByLabel("模型名称", { exact: true })).toHaveValue(
     "fixture-draft",
   );
