@@ -604,7 +604,13 @@ test("shutdown keeps the active and queued exploration runs resumable", async ()
     let release: () => void = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
     const svc = new WorkspaceService(s, {
-      metadata: async () => repo,
+      inspect: async () => ({
+        rootPath: join(tmpdir(), "fixture"),
+        name: "fixture",
+        branch: "main",
+        oid: "a".repeat(40),
+      }),
+      continuity: async () => true,
       read: async () => {
         throw Error("must not analyze");
       },
