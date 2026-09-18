@@ -11,6 +11,7 @@
   "scripts": {
     "test": "node --import tsx --test tests/*.test.mjs tests/*.test.ts",
     "check:docs": "node scripts/check-docs.mjs",
+    "contracts:write": "node --import tsx scripts/export-contracts.mjs",
     "check": "npm test && npm run typecheck && npm run build && npm run check:docs && git diff --check",
     "probe:github": "node scripts/probe-github.mjs",
     "probe:model": "node scripts/with-system-proxy.mjs node scripts/probe-model.mjs",

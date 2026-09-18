@@ -36,6 +36,26 @@ const workspaceSchemas = {
   discoveries: Discovery,
   candidates: ExplorationCandidate,
 };
+const legacyLifecycle = (state: string) =>
+  ({
+    pending: "queued",
+    running: "resumable_after_restart",
+    success: "completed",
+    partial: "partial",
+    no_results: "completed",
+    failed: "failed",
+    cancelled: "user_stopped",
+    interrupted: "resumable_after_restart",
+  })[state] || "failed";
+const legacyOutcome = (state: string) =>
+  ({
+    success: "sufficient_coverage",
+    partial: "partial_coverage",
+    no_results: "no_results",
+    failed: "failed",
+    cancelled: "user_stopped",
+  })[state] || "pending";
+const migration = (version: number, run: () => void) => ({ version, run });
 export class Store {
   db: DatabaseSync;
   constructor(path: string) {
@@ -45,7 +65,7 @@ export class Store {
     );
     const version = (this.db.prepare("PRAGMA user_version").get() as any)
       .user_version;
-    if (version > 3) {
+    if (version > 4) {
       this.db.close();
       throw Error("数据库来自更新的应用版本，请使用新版应用");
     }
@@ -62,30 +82,96 @@ export class Store {
         this.db.exec(
           `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
         );
-      if (version < 2) {
-        // Only live task configuration changes. Historical runs and Feed evidence
-        // must continue to describe the exact inputs used before the upgrade.
-        for (const row of this.db.prepare("SELECT id,data FROM tasks").all()) {
-          const task = JSON.parse(String(row.data));
-          if (task.collectionMode === undefined) {
-            task.collectionMode = "keyword";
+      const migrations = [
+        migration(2, () => {
+          // Only live task configuration changes. Historical runs and Feed evidence
+          // must continue to describe the exact inputs used before the upgrade.
+          for (const row of this.db
+            .prepare("SELECT id,data FROM tasks")
+            .all()) {
+            const task = JSON.parse(String(row.data));
+            if (task.collectionMode === undefined) {
+              task.collectionMode = "keyword";
+              this.db
+                .prepare("UPDATE tasks SET data=? WHERE id=?")
+                .run(JSON.stringify(task), row.id);
+            }
+          }
+        }),
+        migration(3, () => {
+          for (const row of this.db
+            .prepare("SELECT id,data FROM tasks")
+            .all()) {
+            const task = JSON.parse(String(row.data));
+            task.paused = true;
+            task.nextDue = null;
+            delete task.missedAt;
             this.db
               .prepare("UPDATE tasks SET data=? WHERE id=?")
               .run(JSON.stringify(task), row.id);
           }
-        }
-      }
-      if (version < 3)
-        for (const row of this.db.prepare("SELECT id,data FROM tasks").all()) {
-          const task = JSON.parse(String(row.data));
-          task.paused = true;
-          task.nextDue = null;
-          delete task.missedAt;
-          this.db
-            .prepare("UPDATE tasks SET data=? WHERE id=?")
-            .run(JSON.stringify(task), row.id);
-        }
-      this.db.exec("PRAGMA user_version=3; COMMIT;");
+        }),
+        migration(4, () => {
+          const now = new Date().toISOString();
+          for (const row of this.db
+            .prepare("SELECT id,data FROM explorations")
+            .all()) {
+            const item = JSON.parse(String(row.data));
+            if (item.lifecycle) continue;
+            item.lifecycle = legacyLifecycle(item.state);
+            item.outcome = legacyOutcome(item.state);
+            item.stopCode = ["pending", "running", "interrupted"].includes(
+              item.state,
+            )
+              ? "restart_interrupted"
+              : undefined;
+            item.events = (item.events || []).map((event: any) => ({
+              at: event.at,
+              kind: "action",
+              message: event.message,
+              effective: false,
+            }));
+            item.progress = {
+              phase:
+                item.lifecycle === "completed" || item.lifecycle === "partial"
+                  ? "finished"
+                  : "queued",
+              currentAction: item.stopReason || "等待继续",
+              recentDeltas: [],
+              evidenceGaps: [],
+              nextActionReason: "",
+              coverage: [],
+              lastHeartbeatAt: item.endedAt || item.startedAt || now,
+              lastCommittedProgressAt: item.startedAt || now,
+              stagnantActions: 0,
+            };
+            item.telemetry = {
+              calls: item.usage?.modelCalls || 0,
+              queries: item.usage?.queries || 0,
+              reads: item.usage?.reads || 0,
+              candidates: item.usage?.candidates || 0,
+              providerTokens: { availability: "unavailable" },
+            };
+            delete item.state;
+            delete item.usage;
+            this.db
+              .prepare("UPDATE explorations SET data=? WHERE id=?")
+              .run(JSON.stringify(item), row.id);
+          }
+          for (const row of this.db
+            .prepare("SELECT id,data FROM batches")
+            .all()) {
+            const item = JSON.parse(String(row.data));
+            if (!item.lifecycle) item.lifecycle = legacyLifecycle(item.state);
+            delete item.state;
+            this.db
+              .prepare("UPDATE batches SET data=? WHERE id=?")
+              .run(JSON.stringify(item), row.id);
+          }
+        }),
+      ];
+      for (const step of migrations) if (version < step.version) step.run();
+      this.db.exec("PRAGMA user_version=4; COMMIT;");
     } catch (error) {
       this.db.exec("ROLLBACK");
       this.db.close();
@@ -317,7 +403,30 @@ export class Store {
     ] as const) {
       for (const item of this.list<any>(table)) {
         let changed = false;
-        if (item.state === "running" || item.state === "pending") {
+        if (
+          table === "explorations" &&
+          ["creating", "queued", "running"].includes(item.lifecycle)
+        ) {
+          item.lifecycle = "resumable_after_restart";
+          item.stopCode = "restart_interrupted";
+          item.stopReason = "应用已重新打开，确认后可从已保存进度继续";
+          item.progress.phase = "paused";
+          item.progress.currentAction = "等待手动继续";
+          item.progress.nextActionReason = "应用重启后不会自动继续探索";
+          item.events.push({
+            at: new Date().toISOString(),
+            kind: "lifecycle",
+            message: "应用重启，探索已安全暂停",
+            effective: false,
+          });
+          changed = true;
+        } else if (
+          table === "batches" &&
+          ["creating", "queued", "running"].includes(item.lifecycle)
+        ) {
+          item.lifecycle = "resumable_after_restart";
+          changed = true;
+        } else if (item.state === "running" || item.state === "pending") {
           item.state = "interrupted";
           for (const sub of item.items || item.platforms || [])
             if (sub.state === "running" || sub.state === "pending")

@@ -11,7 +11,7 @@ import {
 import type { SourceMaterial } from "./contracts.js";
 import { templates } from "./templates.js";
 import { analyzeRepository } from "./repository-analysis.js";
-import { exploreRun } from "./exploration.js";
+import { exploreRun, ExplorationControlError } from "./exploration.js";
 export interface WorkspaceDeps {
   metadata: (name: string) => Promise<unknown>;
   read: (
@@ -26,7 +26,17 @@ export interface WorkspaceDeps {
     signal: AbortSignal,
     progress?: (message: string) => void,
   ) => Promise<any>;
-  model: (key: string, prompt: string, signal: AbortSignal) => Promise<string>;
+  model: (
+    key: string,
+    prompt: string,
+    signal: AbortSignal,
+  ) => Promise<
+    | string
+    | {
+        text: string;
+        usage?: { input: number; output: number; total: number };
+      }
+  >;
   search: (
     run: Exploration,
     platform: string,
@@ -39,6 +49,7 @@ export interface WorkspaceDeps {
 }
 export class WorkspaceService {
   controllers = new Map<string, AbortController>();
+  private runControllers = new Map<string, AbortController>();
   constructor(
     private store: Store,
     private deps: WorkspaceDeps,
@@ -98,7 +109,10 @@ export class WorkspaceService {
         agent: this.deps.agent
           ? (p, c, s, progress) => this.deps.agent!(run.id, p, c, s, progress)
           : undefined,
-        model: (prompt, signal) => this.deps.model(run.id, prompt, signal),
+        model: async (prompt, signal) => {
+          const result = await this.deps.model(run.id, prompt, signal);
+          return typeof result === "string" ? result : result.text;
+        },
         notify: this.deps.notify,
       },
       controller.signal,
@@ -125,6 +139,12 @@ export class WorkspaceService {
   }
   explore(input: unknown) {
     const value = ExplorationInput.parse(input);
+    if (value.launchKey) {
+      const existing = this.store
+        .list<Batch>("batches")
+        .find((batch) => batch.launchKey === value.launchKey);
+      if (existing) return existing.id;
+    }
     if (value.repoIds.length * value.angles.length > 10)
       throw Error("每批最多 10 项探索，请减少仓库或角度");
     const id = randomUUID(),
@@ -162,19 +182,45 @@ export class WorkspaceService {
             platforms: value.platforms,
             period: value.period,
             startedAt: createdAt,
-            state: "pending",
-            events: [],
+            lifecycle: "queued",
+            outcome: "pending",
+            events: [
+              {
+                at: createdAt,
+                kind: "queued",
+                message: "探索任务已创建，等待执行",
+                effective: false,
+              },
+            ],
+            progress: {
+              phase: "queued",
+              currentAction: "等待执行",
+              recentDeltas: [],
+              evidenceGaps: [],
+              nextActionReason: "将从仓库理解与探索角度生成第一项行动",
+              coverage: [],
+              lastHeartbeatAt: createdAt,
+              lastCommittedProgressAt: createdAt,
+              stagnantActions: 0,
+            },
             outcomes: {},
-            usage: { queries: 0, reads: 0, modelCalls: 0, candidates: 0 },
+            telemetry: {
+              calls: 0,
+              queries: 0,
+              reads: 0,
+              candidates: 0,
+              providerTokens: { availability: "unavailable" },
+            },
             attempts: 0,
           }),
         );
     }
     const batch: Batch = {
       id,
+      launchKey: value.launchKey,
       createdAt,
       runIds: runs.map((r) => r.id),
-      state: "pending",
+      lifecycle: "queued",
       attempts: 0,
     };
     this.store.db.exec("BEGIN IMMEDIATE");
@@ -194,88 +240,185 @@ export class WorkspaceService {
     if (!run) throw Error("探索记录不存在");
     const batch = this.store.get<Batch>("batches", run.batchId)!;
     if (this.controllers.has(batch.id)) throw Error("请等待当前批次结束");
-    if (["success", "no_results"].includes(run.state))
-      throw Error("已完成探索请重新发起");
+    if (run.lifecycle === "completed") throw Error("已完成探索请重新发起");
     this.start(batch, [run]);
     return batch.id;
   }
   private start(batch: Batch, runs: Exploration[]) {
     const controller = new AbortController();
     this.controllers.set(batch.id, controller);
-    batch.state = "running";
+    batch.lifecycle = "running";
     batch.attempts++;
     this.store.put("batches", batch);
     this.deps.notify();
-    const start = Date.now();
-    const totals = () =>
-      batch.runIds
-        .map((id) => this.store.get<Exploration>("explorations", id)!)
-        .reduce(
-          (v, r) => ({ q: v.q + r.usage.queries, m: v.m + r.usage.modelCalls }),
-          { q: 0, m: 0 },
-        );
-    const before = totals();
     void (async () => {
       try {
         for (const run of runs) {
           if (controller.signal.aborted) {
-            run.state = "cancelled";
-            run.stopReason = "用户取消批次";
+            const control = controller.signal.reason;
+            const action =
+              control instanceof ExplorationControlError
+                ? control.control
+                : "stop";
+            run.lifecycle =
+              action === "pause"
+                ? "paused"
+                : action === "restart"
+                  ? "resumable_after_restart"
+                  : "user_stopped";
+            run.outcome =
+              run.lifecycle === "user_stopped" ? "user_stopped" : "pending";
+            run.stopCode =
+              action === "pause"
+                ? "user_paused"
+                : action === "restart"
+                  ? "restart_interrupted"
+                  : "user_stopped";
+            run.stopReason =
+              action === "pause"
+                ? "批次已暂停，进度与证据均已保存"
+                : action === "restart"
+                  ? "应用重启中，进度与证据均已保存，可手动继续"
+                  : "用户已结束本次批次";
+            run.progress.phase = "paused";
+            run.progress.currentAction =
+              action === "pause"
+                ? "等待手动继续"
+                : action === "restart"
+                  ? "重启后等待手动继续"
+                  : "已由用户结束";
             this.store.put("explorations", run);
             continue;
           }
-          const use = totals();
-          if (
-            use.q - before.q >= 40 ||
-            use.m - before.m >= 120 ||
-            Date.now() - start >= 1800000
-          ) {
-            run.state = "interrupted";
-            run.stopReason = "批次预算用尽，可手动重试本项";
-            this.store.put("explorations", run);
-            continue;
-          }
+          if (["completed", "user_stopped"].includes(run.lifecycle)) continue;
+          const runController = new AbortController();
+          this.runControllers.set(run.id, runController);
+          const signal = AbortSignal.any([
+            controller.signal,
+            runController.signal,
+          ]);
           await exploreRun(
             this.store,
             run,
             {
-              model: (p, s) => {
-                if (totals().m - before.m > 120)
-                  throw Error("批次模型预算用尽");
-                return this.deps.model(run.id, p, s);
-              },
-              search: async (p, q, l, s) => {
-                if (totals().q - before.q > 40) throw Error("批次查询预算用尽");
-                return this.deps.search(run, p, q, l, s);
-              },
+              model: (p, s) => this.deps.model(run.id, p, s),
+              search: (p, q, l, s) => this.deps.search(run, p, q, l, s),
               read: this.deps.readSource,
               notify: this.deps.notify,
             },
-            controller.signal,
+            signal,
           );
+          this.runControllers.delete(run.id);
         }
       } finally {
         const all = batch.runIds.map(
           (id) => this.store.get<Exploration>("explorations", id)!,
         );
-        batch.state = controller.signal.aborted
-          ? "cancelled"
-          : all.every((r) => r.state === "no_results")
-            ? "no_results"
-            : all.every((r) => ["success", "no_results"].includes(r.state))
-              ? "success"
-              : all.some((r) =>
-                    ["success", "partial", "no_results"].includes(r.state),
-                  )
-                ? "partial"
-                : "failed";
+        const activeStates = new Set(all.map((run) => run.lifecycle));
+        batch.lifecycle = activeStates.has("paused")
+          ? "paused"
+          : activeStates.has("resumable_after_restart")
+            ? "resumable_after_restart"
+            : activeStates.has("safety_suspended")
+              ? "safety_suspended"
+              : all.every((run) => run.lifecycle === "completed")
+                ? "completed"
+                : all.every((run) => run.lifecycle === "user_stopped")
+                  ? "user_stopped"
+                  : all.some((run) =>
+                        ["completed", "partial"].includes(run.lifecycle),
+                      )
+                    ? "partial"
+                    : activeStates.has("blocked")
+                      ? "blocked"
+                      : "failed";
         this.store.put("batches", batch);
         this.controllers.delete(batch.id);
         this.deps.notify();
       }
     })();
   }
+  pauseBatch(id: string) {
+    const batch = this.store.get<Batch>("batches", id);
+    if (!batch || batch.lifecycle !== "running")
+      throw Error("此批次当前不能暂停");
+    this.controllers.get(id)?.abort(new ExplorationControlError("pause"));
+  }
+  resumeBatch(id: string) {
+    const batch = this.store.get<Batch>("batches", id);
+    if (!batch) throw Error("探索批次不存在");
+    if (this.controllers.has(id)) throw Error("此批次仍在执行");
+    const runs = batch.runIds
+      .map((runId) => this.store.get<Exploration>("explorations", runId))
+      .filter(
+        (run): run is Exploration =>
+          !!run &&
+          ["paused", "resumable_after_restart"].includes(run.lifecycle),
+      );
+    if (!runs.length) throw Error("此批次没有可继续的任务");
+    this.start(batch, runs);
+    return batch.id;
+  }
+  pauseRun(id: string) {
+    const run = this.store.get<Exploration>("explorations", id);
+    if (!run || !["queued", "running"].includes(run.lifecycle))
+      throw Error("此探索当前不能暂停");
+    const controller = this.runControllers.get(id);
+    if (controller) controller.abort(new ExplorationControlError("pause"));
+    else {
+      run.lifecycle = "paused";
+      run.stopCode = "user_paused";
+      run.stopReason = "已暂停，进度与证据均已保存";
+      run.progress.phase = "paused";
+      run.progress.currentAction = "等待手动继续";
+      this.store.put("explorations", run);
+      this.deps.notify();
+    }
+  }
+  resumeRun(id: string) {
+    const run = this.store.get<Exploration>("explorations", id);
+    if (!run) throw Error("探索记录不存在");
+    if (
+      ![
+        "paused",
+        "safety_suspended",
+        "resumable_after_restart",
+        "blocked",
+        "partial",
+        "failed",
+      ].includes(run.lifecycle)
+    )
+      throw Error("此探索当前不能继续");
+    const batch = this.store.get<Batch>("batches", run.batchId);
+    if (!batch || this.controllers.has(batch.id))
+      throw Error("请等待当前批次结束");
+    run.progress.stagnantActions = 0;
+    this.start(batch, [run]);
+    return batch.id;
+  }
+  stopBatch(id: string) {
+    const batch = this.store.get<Batch>("batches", id);
+    if (!batch) throw Error("探索批次不存在");
+    const controller = this.controllers.get(id);
+    if (controller) controller.abort(new ExplorationControlError("stop"));
+    else {
+      for (const runId of batch.runIds) {
+        const run = this.store.get<Exploration>("explorations", runId);
+        if (!run || ["completed", "user_stopped"].includes(run.lifecycle))
+          continue;
+        run.lifecycle = "user_stopped";
+        run.outcome = "user_stopped";
+        run.stopCode = "user_stopped";
+        run.stopReason = "用户已结束本次批次";
+        this.store.put("explorations", run);
+      }
+      batch.lifecycle = "user_stopped";
+      this.store.put("batches", batch);
+      this.deps.notify();
+    }
+  }
   shutdown() {
-    for (const c of this.controllers.values()) c.abort();
+    for (const c of this.controllers.values())
+      c.abort(new ExplorationControlError("restart"));
   }
 }

@@ -17,6 +17,7 @@ import {
   judgedCandidate,
   activity,
   safeSearchContext,
+  ExplorationControlError,
 } from "../src/core/exploration.js";
 import {
   validateAnalysis,
@@ -363,11 +364,20 @@ test("multi-step search uses rejected evidence to change language/query and pres
                       reason: "排除硬件读卡器",
                       coverage: ["需要软件"],
                     }
-                  : {
-                      action: "stop",
-                      reason: "已核实具体软件，新增方向有限",
-                      coverage: ["产品替代方案已覆盖"],
-                    },
+                  : plans <= 4
+                    ? {
+                        action: "search",
+                        platform: "github",
+                        query: `offline reading workflow ${plans}`,
+                        language: "en",
+                        reason: "核对边际收益",
+                        coverage: ["产品替代方案已覆盖"],
+                      }
+                    : {
+                        action: "stop",
+                        reason: "已核实具体软件，新增方向有限",
+                        coverage: ["产品替代方案已覆盖"],
+                      },
             );
           }
           judgments++;
@@ -393,8 +403,13 @@ test("multi-step search uses rejected evidence to change language/query and pres
       },
       new AbortController().signal,
     );
-    assert.equal(r.state, "success");
-    assert.deepEqual(queries, ["reader", "offline reading saved links"]);
+    assert.equal(r.lifecycle, "completed");
+    assert.deepEqual(queries, [
+      "reader",
+      "offline reading saved links",
+      "offline reading workflow 3",
+      "offline reading workflow 4",
+    ]);
     assert.ok(
       prompts.some(
         (p) => p.startsWith("你负责") && p.includes("硬件读卡器无关"),
@@ -443,8 +458,8 @@ test("platform failure is not an empty result; cancelling retains accepted mater
       },
       new AbortController().signal,
     );
-    assert.equal(r.state, "failed");
-    assert.equal(r.outcomes.github.state, "failed");
+    assert.equal(r.lifecycle, "blocked");
+    assert.equal(r.outcomes.github.state, "blocked");
     assert.equal(s.list("materials").length, 0);
   } finally {
     s.close();
@@ -501,19 +516,72 @@ test("batch materializes independent cross product without invoking repository a
       readSource: async () => source,
       notify: () => {},
     });
-    const id = svc.explore({
+    const input = {
+      launchKey: "launch-key-fixture",
       repoIds: ["repo-1", "repo-2"],
       angles: ["alternatives", "needs", "experience"],
       platforms: ["github"],
-    });
+    };
+    const id = svc.explore(input);
+    assert.equal(svc.explore(input), id);
     assert.equal(s.list("explorations").length, 6);
+    assert.equal(s.list("batches").length, 1);
     assert.equal(reads, 0);
-    svc.cancel(id);
+    svc.stopBatch(id);
     release();
     await new Promise((r) => setTimeout(r, 30));
-    assert.equal(s.get<any>("batches", id).state, "cancelled");
+    assert.equal(s.get<any>("batches", id).lifecycle, "user_stopped");
     assert.equal(
-      s.list<any>("explorations").every((r) => r.state === "cancelled"),
+      s.list<any>("explorations").every((r) => r.lifecycle === "user_stopped"),
+      true,
+    );
+  } finally {
+    s.close();
+  }
+});
+
+test("shutdown keeps the active and queued exploration runs resumable", async () => {
+  const s = new Store(":memory:");
+  try {
+    s.put("repos", { ...repo, understandingId: understanding.id });
+    s.put("understandings", understanding);
+    let release: () => void = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    const svc = new WorkspaceService(s, {
+      metadata: async () => repo,
+      read: async () => {
+        throw Error("must not analyze");
+      },
+      model: async (_key, _prompt, signal) => {
+        await hold;
+        signal.throwIfAborted();
+        throw Error("unexpected continuation");
+      },
+      search: async () => [],
+      readSource: async () => source,
+      notify: () => {},
+    });
+    const id = svc.explore({
+      repoIds: [repo.id],
+      angles: ["alternatives", "needs"],
+      platforms: ["github"],
+    });
+    svc.shutdown();
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(
+      s.get<any>("batches", id).lifecycle,
+      "resumable_after_restart",
+    );
+    assert.equal(
+      s
+        .list<any>("explorations")
+        .every(
+          (item) =>
+            item.lifecycle === "resumable_after_restart" &&
+            item.stopCode === "restart_interrupted" &&
+            item.outcome === "pending",
+        ),
       true,
     );
   } finally {
@@ -589,7 +657,7 @@ test("GitHub query repair happens before search and late cancelled judgments nev
       controller.signal,
     );
     assert.deepEqual(queries, ["offline reader"]);
-    assert.equal(run.state, "cancelled");
+    assert.equal(run.lifecycle, "user_stopped");
     assert.equal(s.list("materials").length, 0);
     assert.equal(s.list("discoveries").length, 0);
   } finally {
@@ -619,11 +687,20 @@ test("a malformed quotation gets one bounded correction with no ungrounded mater
                     reason: "find alternatives",
                     coverage: [],
                   }
-                : {
-                    action: "stop",
-                    reason: "covered",
-                    coverage: ["alternatives"],
-                  },
+                : plans <= 3
+                  ? {
+                      action: "search",
+                      platform: "github",
+                      query: `reader evidence ${plans}`,
+                      language: "en",
+                      reason: "核对边际收益",
+                      coverage: ["alternatives"],
+                    }
+                  : {
+                      action: "stop",
+                      reason: "covered",
+                      coverage: ["alternatives"],
+                    },
             );
           judgments++;
           return JSON.stringify({
@@ -641,14 +718,307 @@ test("a malformed quotation gets one bounded correction with no ungrounded mater
       },
       new AbortController().signal,
     );
-    assert.equal(run.state, "success");
+    assert.equal(run.lifecycle, "completed");
     assert.equal(judgments, 2);
-    assert.equal(run.usage.modelCalls, 4);
+    assert.equal(run.telemetry.calls, 5);
     assert.equal(run.outcomes.github.count, 1);
     assert.equal(s.list("discoveries").length, 1);
     assert.deepEqual(s.list<Discovery>("discoveries")[0].excerpts, [
       "offline reading",
     ]);
+  } finally {
+    s.close();
+  }
+});
+
+test("progress-driven exploration completes no-results only after distinct successful strategies", async () => {
+  const s = new Store(":memory:");
+  try {
+    const run = exploration("no-results");
+    let plans = 0;
+    await exploreRun(
+      s,
+      run,
+      {
+        model: async () =>
+          JSON.stringify(
+            ++plans <= 2
+              ? {
+                  action: "search",
+                  platform: "github",
+                  query: `distinct strategy ${plans}`,
+                  language: "en",
+                  reason: "尝试不同表达",
+                  coverage: [],
+                  gaps: ["缺少近期来源"],
+                }
+              : {
+                  action: "stop",
+                  reason: "不同策略均正常完成但没有候选",
+                  coverage: ["已核对两种不同表达"],
+                  gaps: ["未发现近期来源"],
+                },
+          ),
+        search: async () => [],
+        read: async () => source,
+        notify: () => {},
+      },
+      new AbortController().signal,
+    );
+    assert.equal(run.lifecycle, "completed");
+    assert.equal(run.outcome, "no_results");
+    assert.equal(run.stopCode, "reasonable_strategies_exhausted");
+    assert.equal(run.telemetry.queries, 2);
+  } finally {
+    s.close();
+  }
+});
+
+test("repeated actions suspend safely instead of reporting success or failure", async () => {
+  const s = new Store(":memory:");
+  try {
+    const run = exploration("repetition");
+    await exploreRun(
+      s,
+      run,
+      {
+        model: async () =>
+          JSON.stringify({
+            action: "project_search",
+            query: "重复",
+            reason: "重复检查",
+            coverage: [],
+            gaps: ["仍缺外部证据"],
+          }),
+        search: async () => [],
+        read: async () => source,
+        notify: () => {},
+      },
+      new AbortController().signal,
+    );
+    assert.equal(run.lifecycle, "safety_suspended");
+    assert.equal(run.stopCode, "safety_repetition");
+    assert.match(run.stopReason!, /安全暂停/);
+  } finally {
+    s.close();
+  }
+});
+
+test("oscillation and prolonged no-progress have distinct recoverable safety reasons", async () => {
+  for (const mode of ["oscillation", "no-progress"] as const) {
+    const s = new Store(":memory:");
+    try {
+      const run = exploration(mode);
+      let calls = 0;
+      await exploreRun(
+        s,
+        run,
+        {
+          model: async () => {
+            calls++;
+            return JSON.stringify({
+              action: "project_search",
+              query:
+                mode === "oscillation"
+                  ? calls % 2
+                    ? "状态 A"
+                    : "状态 B"
+                  : `无进展动作 ${calls}`,
+              reason: "检查本地历史",
+              coverage: [],
+              gaps: [],
+            });
+          },
+          search: async () => [],
+          read: async () => source,
+          notify: () => {},
+        },
+        new AbortController().signal,
+      );
+      assert.equal(run.lifecycle, "safety_suspended");
+      assert.equal(
+        run.stopCode,
+        mode === "oscillation" ? "safety_oscillation" : "safety_no_progress",
+      );
+    } finally {
+      s.close();
+    }
+  }
+});
+
+test("blocked and failed providers remain distinct from empty results", async () => {
+  const s = new Store(":memory:");
+  try {
+    const partial = {
+      ...exploration("partial"),
+      platforms: ["github", "x"] as ("github" | "x")[],
+    };
+    let plan = 0;
+    await exploreRun(
+      s,
+      partial,
+      {
+        model: async (prompt) => {
+          if (!prompt.startsWith("你负责"))
+            return JSON.stringify({
+              status: "accepted",
+              reason: "提供可核验的离线阅读流程",
+              excerpts: ["offline reading"],
+              summary: "离线阅读",
+            });
+          plan++;
+          if (plan <= 3)
+            return JSON.stringify({
+              action: "search",
+              platform: "github",
+              query: `reader ${plan}`,
+              language: "en",
+              reason: "核对 GitHub 覆盖",
+              coverage: ["GitHub 替代方案"],
+              gaps: ["X 用户表达"],
+            });
+          if (plan === 4)
+            return JSON.stringify({
+              action: "search",
+              platform: "x",
+              query: "offline reading pain",
+              language: "en",
+              reason: "核对用户表达",
+              coverage: ["GitHub 替代方案"],
+              gaps: ["X 用户表达"],
+            });
+          return JSON.stringify({
+            action: "stop",
+            reason: "X 受阻",
+            coverage: ["GitHub 替代方案"],
+            gaps: ["X 用户表达"],
+          });
+        },
+        search: async (platform) => {
+          if (platform === "x") throw Error("429 rate limited");
+          return [source];
+        },
+        read: async () => source,
+        notify: () => {},
+      },
+      new AbortController().signal,
+    );
+    assert.equal(partial.lifecycle, "partial");
+    assert.equal(partial.outcome, "partial_coverage");
+    assert.equal(partial.outcomes.x.errorCode, "rate_limited");
+
+    const failed = exploration("failed");
+    let failedPlans = 0;
+    await exploreRun(
+      s,
+      failed,
+      {
+        model: async () =>
+          JSON.stringify(
+            ++failedPlans === 1
+              ? {
+                  action: "search",
+                  platform: "github",
+                  query: "reader failure",
+                  language: "en",
+                  reason: "核对服务商执行",
+                  coverage: [],
+                  gaps: ["服务商结果"],
+                }
+              : {
+                  action: "stop",
+                  reason: "服务商失败",
+                  coverage: [],
+                  gaps: ["服务商结果"],
+                },
+          ),
+        search: async () => {
+          throw Error("unexpected provider response");
+        },
+        read: async () => source,
+        notify: () => {},
+      },
+      new AbortController().signal,
+    );
+    assert.equal(failed.lifecycle, "failed");
+    assert.equal(failed.outcome, "failed");
+    assert.equal(failed.outcomes.github.state, "failed");
+    assert.equal(failed.outcomes.github.errorCode, "provider_error");
+  } finally {
+    s.close();
+  }
+});
+
+test("pause is recoverable and provider token telemetry is reported only when supplied", async () => {
+  const s = new Store(":memory:");
+  try {
+    const paused = exploration("paused");
+    const controller = new AbortController();
+    const promise = exploreRun(
+      s,
+      paused,
+      {
+        model: async (_prompt, signal) =>
+          new Promise<string>((_resolve, reject) =>
+            signal.addEventListener("abort", () => reject(signal.reason), {
+              once: true,
+            }),
+          ),
+        search: async () => [],
+        read: async () => source,
+        notify: () => {},
+      },
+      controller.signal,
+    );
+    controller.abort(new ExplorationControlError("pause"));
+    await promise;
+    assert.equal(paused.lifecycle, "paused");
+    assert.equal(paused.outcome, "pending");
+    assert.deepEqual(paused.telemetry.providerTokens, {
+      availability: "unavailable",
+    });
+
+    const measured = exploration("measured");
+    let plans = 0;
+    await exploreRun(
+      s,
+      measured,
+      {
+        model: async (prompt) => ({
+          text: prompt.startsWith("你负责")
+            ? JSON.stringify(
+                ++plans <= 2
+                  ? {
+                      action: "search",
+                      platform: "github",
+                      query: `empty ${plans}`,
+                      language: "en",
+                      reason: "核对",
+                      coverage: [],
+                      gaps: [],
+                    }
+                  : {
+                      action: "stop",
+                      reason: "已完成",
+                      coverage: ["两种表达已核对"],
+                      gaps: [],
+                    },
+              )
+            : "{}",
+          usage: { input: 10, output: 2, total: 12 },
+        }),
+        search: async () => [],
+        read: async () => source,
+        notify: () => {},
+      },
+      new AbortController().signal,
+    );
+    assert.deepEqual(measured.telemetry.providerTokens, {
+      availability: "reported",
+      input: 30,
+      output: 6,
+      total: 36,
+    });
   } finally {
     s.close();
   }

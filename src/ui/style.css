@@ -1109,6 +1109,227 @@ legend {
     display: none;
   }
 }
+
+.exploration-detail {
+  display: grid;
+  gap: var(--space-6);
+}
+.run-toolbar,
+.run-title,
+.run-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.run-toolbar {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.run-heading {
+  flex: 1;
+  min-width: 0;
+}
+.run-heading h2,
+.run-title h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.run-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.3fr) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+.run-queue {
+  position: sticky;
+  top: var(--space-4);
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-surface);
+  background: var(--color-surface);
+}
+.run-queue h3,
+.run-queue p {
+  margin-top: 0;
+}
+.run-queue > button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  width: 100%;
+  margin-top: 6px;
+  padding: 11px 10px;
+  border-color: transparent;
+  text-align: left;
+}
+.run-queue > button > span {
+  grid-row: 1 / span 2;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.run-queue > button strong,
+.run-queue > button small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.run-queue > button small {
+  margin-top: 3px;
+  color: var(--color-muted);
+}
+.run-queue > button.selected {
+  border-color: var(--color-line);
+  background: var(--color-selected);
+}
+.run-content {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+.run-now-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.run-phase {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.run-events p small {
+  display: inline-block;
+  margin-left: var(--space-2);
+  color: var(--color-success);
+  font-size: 12px;
+  font-weight: 650;
+}
+.run-title {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.run-title p {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+.run-now,
+.run-facts > section,
+.run-events,
+.run-results,
+.run-blocker {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-surface);
+  background: var(--color-surface);
+}
+.run-now h3 {
+  margin: 14px 0 7px;
+  font-size: 19px;
+}
+.run-now p:last-child {
+  margin-bottom: 0;
+}
+.run-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr);
+  gap: 18px;
+}
+.run-facts h3,
+.run-events h3,
+.run-results h3,
+.run-blocker h3 {
+  margin-top: 0;
+}
+.run-facts li {
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+.telemetry {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+.telemetry div {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.telemetry dt {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.telemetry dd {
+  margin: 3px 0 0;
+  font-size: 19px;
+  font-weight: 670;
+  font-variant-numeric: tabular-nums;
+}
+.run-blocker {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+.run-events article {
+  display: grid;
+  grid-template-columns: 155px minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.run-events time,
+.run-results small {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.run-events p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.run-results > div:first-child {
+  margin-bottom: var(--space-3);
+}
+.run-results > div:first-child p {
+  margin-bottom: 0;
+}
+.run-results article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: start;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.run-results h4 {
+  margin: 5px 0 8px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.run-results article p {
+  max-width: 72ch;
+}
+.status.paused,
+.status.safety_suspended,
+.status.resumable_after_restart,
+.status.blocked {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+@media (max-width: 1250px) {
+  .run-layout {
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .run-facts {
+    grid-template-columns: 1fr;
+  }
+  .run-toolbar {
+    flex-wrap: wrap;
+  }
+  .run-toolbar .actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
 @media (max-width: 1000px) {
   .generation {
     grid-template-columns: minmax(0, 1fr);

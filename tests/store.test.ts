@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Store } from "../src/core/store.js";
 import { SourceMaterial, TaskInput } from "../src/core/contracts.js";
+import { exploration } from "./fixtures/workspace.js";
 const fixture = {
   schemaVersion: 1 as const,
   source: "github" as const,
@@ -262,7 +263,7 @@ test("migration preserves historical bytes, legacy modes and retires task schedu
     assert.equal(s.get<any>("tasks", "task").nextDue, null);
     assert.equal(s.db.prepare("SELECT data FROM runs").get()!.data, run);
     assert.equal(s.db.prepare("SELECT data FROM feeds").get()!.data, feed);
-    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 3);
+    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 4);
     s.close();
     s = new Store(path);
     assert.equal(s.get<any>("tasks", "task").collectionMode, "keyword");
@@ -294,16 +295,68 @@ test("migration failure rolls back earlier rows and schema version; future datab
         .get(),
       undefined,
     );
-    check.exec("PRAGMA user_version=4");
+    check.exec("PRAGMA user_version=5");
     check.close();
     assert.throws(() => new Store(path), /更新的应用版本/);
     const finalCheck = new DatabaseSync(path);
     assert.equal(
       finalCheck.prepare("PRAGMA user_version").get()!.user_version,
-      4,
+      5,
     );
     finalCheck.close();
   } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test("v4 migration preserves legacy exploration evidence and makes interrupted work resumable", () => {
+  const dir = mkdtempSync(join(tmpdir(), "feedloom-v4-migration-"));
+  const path = join(dir, "db");
+  const db = new DatabaseSync(path);
+  db.exec(
+    "CREATE TABLE explorations(id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE batches(id TEXT PRIMARY KEY,data TEXT NOT NULL); PRAGMA user_version=3;",
+  );
+  const oldRun = {
+    ...exploration("legacy-exploration"),
+    state: "running",
+    events: [{ at: "2026-09-15T00:01:00Z", message: "正在搜索" }],
+    usage: { queries: 3, reads: 1, modelCalls: 5, candidates: 7 },
+  } as any;
+  delete oldRun.lifecycle;
+  delete oldRun.outcome;
+  delete oldRun.progress;
+  delete oldRun.telemetry;
+  db.prepare("INSERT INTO explorations VALUES(?,?)").run(
+    oldRun.id,
+    JSON.stringify(oldRun),
+  );
+  db.prepare("INSERT INTO batches VALUES(?,?)").run(
+    "legacy-batch",
+    JSON.stringify({
+      id: "legacy-batch",
+      createdAt: oldRun.startedAt,
+      runIds: [oldRun.id],
+      state: "running",
+      attempts: 1,
+    }),
+  );
+  db.close();
+  const store = new Store(path);
+  try {
+    const migrated = store.get<any>("explorations", oldRun.id);
+    assert.equal(migrated.lifecycle, "resumable_after_restart");
+    assert.equal(migrated.stopCode, "restart_interrupted");
+    assert.equal(migrated.telemetry.queries, 3);
+    assert.deepEqual(migrated.telemetry.providerTokens, {
+      availability: "unavailable",
+    });
+    assert.equal(migrated.events[0].message, "正在搜索");
+    assert.equal(
+      store.get<any>("batches", "legacy-batch").lifecycle,
+      "resumable_after_restart",
+    );
+  } finally {
+    store.close();
     rmSync(dir, { recursive: true });
   }
 });

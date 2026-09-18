@@ -11,19 +11,25 @@ import { templates } from "../core/templates.js";
 import { Markdown } from "./Markdown.js";
 const time = (s: string) => new Date(s).toLocaleString("zh-CN");
 const names: Record<string, string> = {
-  pending: "等待中",
+  creating: "正在创建",
+  queued: "排队中",
   running: "进行中",
-  success: "已完成",
+  completed: "已完成",
+  paused: "已暂停",
   partial: "部分成功",
+  blocked: "平台受阻",
   failed: "失败",
+  user_stopped: "已结束",
+  safety_suspended: "为保护进度已暂停",
+  resumable_after_restart: "重启后待继续",
+  pending: "等待结果",
+  success: "成功",
   no_results: "无结果",
-  cancelled: "已取消",
-  interrupted: "已中断",
 };
 type Props = {
   state: any;
   act: (v: any) => Promise<any>;
-  navigate: (p: string) => void;
+  navigate: (p: string, id?: string) => void;
 };
 export function RepoReview({ state, act, navigate }: Props) {
   const [name, setName] = useState(""),
@@ -400,7 +406,8 @@ export function Explorer({ state, act, navigate }: Props) {
     [platforms, setPlatforms] = useState<string[]>(["github"]),
     [period, setPeriod] = useState("weekly"),
     [starting, setStarting] = useState(false),
-    [focused, setFocused] = useState("");
+    [creationNote, setCreationNote] = useState(""),
+    [launchKey] = useState(() => crypto.randomUUID());
   const toggle = (values: string[], id: string) =>
     values.includes(id) ? values.filter((v) => v !== id) : [...values, id];
   const count = repos.length * angles.length;
@@ -502,43 +509,46 @@ export function Explorer({ state, act, navigate }: Props) {
           <b>{count} 项探索</b>。最多 10 项，逐项运行；不自动更新仓库理解。
         </p>
         <p className="muted">
-          每项最多 8 次查询、8 次补读、60 个候选、24 次模型调用和 5
-          分钟；每批最多 40 次查询、120 次模型调用。预算用尽会标记覆盖有限。
+          证据继续增长时就继续探索；覆盖充分且新增价值趋少后结束。平台受阻、无结果与安全暂停会分别说明。
         </p>
         <button
           className="primary"
           disabled={starting || !count || count > 10 || !platforms.length}
           onClick={async () => {
             setStarting(true);
+            setCreationNote("正在保存探索批次…");
             try {
               const id = await act({
                 type: "explore",
-                input: { repoIds: repos, angles, platforms, period },
+                input: {
+                  repoIds: repos,
+                  angles,
+                  platforms,
+                  period,
+                  launchKey,
+                },
               });
-              if (id) setFocused(id);
+              if (id) navigate("探索运行", id);
             } finally {
               setStarting(false);
+              setCreationNote("");
             }
           }}
         >
-          开始探索
+          {starting ? "批次已接收，正在打开…" : "开始探索"}
         </button>
+        {creationNote && <p role="status">{creationNote}</p>}
       </section>
-      <h2>探索批次</h2>
+      <h2>探索历史</h2>
       {(state.batches || []).map((b: Batch) => (
-        <section
-          className={`panel batch ${b.id === focused ? "focused" : ""}`}
-          key={b.id}
-        >
+        <section className="panel batch" key={b.id}>
           <div className="actions">
             <strong>
-              {time(b.createdAt)} · {b.runIds.length} 项 · {names[b.state]}
+              {time(b.createdAt)} · {b.runIds.length} 项 · {names[b.lifecycle]}
             </strong>
-            {b.state === "running" && (
-              <button onClick={() => act({ type: "cancelBatch", id: b.id })}>
-                取消批次
-              </button>
-            )}
+            <button onClick={() => navigate("探索运行", b.id)}>
+              查看运行详情
+            </button>
           </div>
           {b.runIds.map((id) => {
             const r: Exploration | undefined = state.explorations.find(
@@ -548,14 +558,14 @@ export function Explorer({ state, act, navigate }: Props) {
             return (
               <details key={id} className="exploration-run">
                 <summary>
-                  {r.repoName} · {r.template.title} · {names[r.state]}
+                  {r.repoName} · {r.template.title} · {names[r.lifecycle]}
                 </summary>
                 <Version understanding={r.understanding} />
                 <p>{r.stopReason}</p>
                 {r.error && <p className="warning">{r.error}</p>}
                 <p>
-                  累计 {r.usage.queries} 查询 · {r.usage.reads} 补读 ·{" "}
-                  {r.usage.candidates} 候选 · {r.usage.modelCalls} 模型调用
+                  累计 {r.telemetry.queries} 查询 · {r.telemetry.reads} 补读 ·{" "}
+                  {r.telemetry.candidates} 候选 · {r.telemetry.calls} 模型调用
                 </p>
                 {Object.entries(r.outcomes).map(([p, o]) => (
                   <p key={p}>
@@ -604,16 +614,13 @@ export function Explorer({ state, act, navigate }: Props) {
                       </article>
                     ))}
                 </details>
-                {b.state !== "running" &&
-                  !["success", "no_results"].includes(r.state) && (
-                    <button
-                      onClick={() =>
-                        act({ type: "retryExploration", id: r.id })
-                      }
-                    >
-                      重试本项（沿用原版本）
-                    </button>
-                  )}
+                {b.lifecycle !== "running" && r.lifecycle !== "completed" && (
+                  <button
+                    onClick={() => act({ type: "retryExploration", id: r.id })}
+                  >
+                    重试本项（沿用原版本）
+                  </button>
+                )}
               </details>
             );
           })}

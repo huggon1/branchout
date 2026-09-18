@@ -157,14 +157,95 @@ store.saveDiscovery({
 store.put("explorations", {
   ...exploration("ui-exploration"),
   batchId: "ui-batch",
-  state: "partial",
+  lifecycle: "resumable_after_restart",
+  outcome: "partial_coverage",
+  stopCode: "restart_interrupted",
   stopReason: "平台覆盖有限",
+  progress: {
+    ...exploration("ui-exploration").progress,
+    phase: "paused",
+    currentAction: "重启后等待手动继续",
+    nextActionReason: "需要核对一个长中文与 mixed-language evidence gap",
+    coverage: ["已确认离线阅读场景", "已核对 GitHub 来源"],
+    evidenceGaps: ["小红书正文尚未取得，不能判断为无结果"],
+    recentDeltas: ["已确认相关来源：example/reader"],
+  },
+  events: [
+    {
+      at: "2026-09-15T00:01:00Z",
+      kind: "action",
+      message: "GitHub · en · offline reader",
+      effective: false,
+    },
+    {
+      at: "2026-09-15T00:02:00Z",
+      kind: "evidence_delta",
+      message: "发现新的规范来源：example/reader",
+      effective: true,
+    },
+    {
+      at: "2026-09-15T00:03:00Z",
+      kind: "evidence_delta",
+      message: "已确认相关来源：example/reader",
+      effective: true,
+    },
+  ],
+  telemetry: {
+    calls: 3,
+    queries: 2,
+    reads: 1,
+    candidates: 3,
+    providerTokens: { availability: "unavailable" },
+  },
+});
+store.put("explorations", {
+  ...exploration("ui-exploration-complete"),
+  batchId: "ui-batch",
+  repoName:
+    "fictional/a-deliberately-long-mixed-language-repository-name-for-queue-wrapping-验证队列长名称",
+  template: templates[1],
+  lifecycle: "completed",
+  outcome: "sufficient_coverage",
+  stopCode: "diminishing_yield",
+  stopReason: "覆盖已充分，继续搜索未带来新的证据增量",
+  progress: {
+    ...exploration("ui-exploration-complete").progress,
+    phase: "finished",
+    currentAction: "已完成探索",
+    nextActionReason: "",
+    coverage: ["已核对替代产品定位"],
+    recentDeltas: ["已确认替代产品定位"],
+  },
+  events: [
+    {
+      at: "2026-09-15T00:04:00Z",
+      kind: "evidence_delta",
+      message: "已确认替代产品定位",
+      effective: true,
+    },
+  ],
+});
+store.put("candidates", {
+  id: "ui-exploration:github:example/reader",
+  runId: "ui-exploration",
+  source: raw,
+  round: 1,
+  query: "offline reader",
+  language: "en",
+  readState: "read",
+  judgmentState: "complete",
+  status: "accepted",
+  reason: "与保存链接后离线阅读的具体场景有关，可直接核对原始实现与近期活动。",
+  excerpts: ["离线阅读"],
+  activityAt: "2026-09-14T12:00:00Z",
+  activityBasis: "仓库最近推送（不代表功能发布）",
+  materialId: b.id,
 });
 store.put("batches", {
   id: "ui-batch",
   createdAt: "2026-09-15T00:00:00Z",
-  runIds: ["ui-exploration"],
-  state: "partial",
+  runIds: ["ui-exploration", "ui-exploration-complete"],
+  lifecycle: "resumable_after_restart",
   attempts: 1,
 });
 store.close();
@@ -246,7 +327,6 @@ try {
     if (titleWidth < 150)
       throw Error(`Generation title squeezed at ${width}: ${titleWidth}px`);
   }
-
   await page.locator("nav").getByRole("button", { name: "我的 Feed" }).click();
   await page.getByRole("button", { name: /示例 Feed · 部分成功/ }).click();
   await page.getByRole("button", { name: "复制可用内容" }).click();
@@ -347,6 +427,52 @@ try {
     )
       throw Error(`Exploration overflow ${width}`);
   }
+  await page.getByRole("button", { name: "查看运行详情", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "任务队列", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("服务商未报告 token 用量", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "已完成结果", exact: true }),
+  ).toBeVisible();
+  const queueItem = page.locator(".run-queue > button").first();
+  await queueItem.focus();
+  await expect(queueItem).toBeFocused();
+  const completedQueueItem = page.locator(".run-queue > button").nth(1);
+  await completedQueueItem.click();
+  await expect(
+    page.getByText("执行阶段 · 执行结束", { exact: true }),
+  ).toBeVisible();
+  await expect(completedQueueItem).toHaveAttribute("aria-pressed", "true");
+  await queueItem.click();
+  await expect(
+    page.getByText("执行阶段 · 暂停等待", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("最近事实事件", { exact: true })).toBeVisible();
+  for (const [width, height] of [
+    [1100, 720],
+    [1280, 800],
+    [1440, 940],
+  ]) {
+    await application.evaluate(
+      ({ BrowserWindow }, size) =>
+        BrowserWindow.getAllWindows()[0].setContentSize(...size),
+      [width, height],
+    );
+    await page.screenshot({
+      path: `test-results/exploration-run-${width}.png`,
+      fullPage: true,
+    });
+    if (
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      )
+    )
+      throw Error(`Exploration run overflow ${width}`);
+  }
+  await page.getByRole("button", { name: "返回探索", exact: true }).click();
   await page.screenshot({ path: "test-results/tasks.png" });
   await page
     .locator("nav")
@@ -442,8 +568,8 @@ try {
   await expect
     .poll(async () => {
       const s = await command({ type: "state" });
-      return ["cancelled", "failed"].includes(
-        s.batches.find((b) => b.id === batch).state,
+      return ["user_stopped", "failed"].includes(
+        s.batches.find((b) => b.id === batch).lifecycle,
       );
     })
     .toBe(true);

@@ -154,6 +154,7 @@ for (const protocol of ["openai-completions", "openai-responses"])
       assert.equal(result.text, "OK");
       assert.equal(result.model, "fictional/custom-v7");
       assert.deepEqual(result.tools, []);
+      assert.deepEqual(result.tokenUsage, { input: 10, output: 1, total: 11 });
       assert.equal(requests.length, 1);
       assert.equal(requests[0].auth, "Bearer fictional-test-key");
       assert.equal(requests[0].body.model, "fictional/custom-v7");

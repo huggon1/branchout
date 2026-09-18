@@ -819,8 +819,18 @@ async function handle(raw: unknown) {
     case "explore":
       return workspace.explore(c.input);
     case "cancelBatch":
-      workspace.cancel(c.id);
+      workspace.stopBatch(c.id);
       break;
+    case "pauseBatch":
+      workspace.pauseBatch(c.id);
+      break;
+    case "resumeBatch":
+      return workspace.resumeBatch(c.id);
+    case "pauseExploration":
+      workspace.pauseRun(c.id);
+      break;
+    case "resumeExploration":
+      return workspace.resumeRun(c.id);
     case "retryExploration":
       return workspace.retry(c.id);
     case "sourceKey": {
@@ -1156,8 +1166,13 @@ app.whenReady().then(async () => {
           : { ...context, token: githubToken() },
         (_phase, message) => progress?.(message),
       ),
-    model: async (key, prompt, signal) =>
-      (await model(key, "", prompt, signal)).text,
+    model: async (key, prompt, signal) => {
+      const result = await model(key, "", prompt, signal);
+      return {
+        text: result.text,
+        ...(result.tokenUsage ? { usage: result.tokenUsage } : {}),
+      };
+    },
     search: async (run, platform, query, language, signal) =>
       work(
         run.id,

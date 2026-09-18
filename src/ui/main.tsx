@@ -13,6 +13,7 @@ import { BrandMark, Icon } from "./Icons.js";
 import { Markdown, SourceImage, resourceUrl } from "./Markdown.js";
 import { Connections } from "./Connections.js";
 import { RepoReview, Explorer } from "./Workspace.js";
+import { ExplorationRunDetail } from "./ExplorationRunDetail.js";
 import { templates, chapterTitle } from "../core/templates.js";
 import { groupedItems, copyFeed } from "../core/feed-layout.js";
 import { RunResearch, phaseLabels } from "./RunResearch.js";
@@ -83,11 +84,12 @@ function App() {
     prompt: "",
   });
   const [page, setPage] = useState("素材库");
+  const [explorationBatch, setExplorationBatch] = useState<string>();
   const [taskDirty, setTaskDirty] = useState(false);
   const [connectionDirty, setConnectionDirty] = useState(false);
   const [pendingRun, setPendingRun] = useState<string>();
   const [connectionSection, setConnectionSection] = useState<string>();
-  const navigate = (next: string, section?: string) => {
+  const navigate = (next: string, detailId?: string) => {
     if (next === page) return;
     if (
       page === "连接与模型" &&
@@ -105,7 +107,8 @@ function App() {
       setTask(undefined);
       setTaskDirty(false);
     }
-    setConnectionSection(section);
+    setConnectionSection(next === "连接与模型" ? detailId : undefined);
+    if (next === "探索运行") setExplorationBatch(detailId);
     setPage(next);
   };
   const chooseTask = (next: Task) => {
@@ -644,8 +647,16 @@ function App() {
           ].map((p, i) => (
             <button
               key={p}
-              className={page === p ? "active" : ""}
-              aria-current={page === p ? "page" : undefined}
+              className={
+                page === p || (p === "探索" && page === "探索运行")
+                  ? "active"
+                  : ""
+              }
+              aria-current={
+                page === p || (p === "探索" && page === "探索运行")
+                  ? "page"
+                  : undefined
+              }
               onClick={() => navigate(p)}
             >
               <span className="navicon" aria-hidden="true">
@@ -690,6 +701,7 @@ function App() {
                     转发收件箱: "留住一条链接，慢慢读。",
                     项目回顾: "看懂产品，回顾值得深入理解的变化。",
                     探索: "基于已有仓库理解，按预设角度发现内容。",
+                    探索运行: "看清每一步有效进展，随时暂停并从证据继续。",
                     历史收集: "旧任务与来源依据只读保留，定时执行已停用。",
                     素材库: "看看原始信号，选出你想继续读的内容。",
                     "Feed 生成": "你选素材，nature-feed 帮你组织表达。",
@@ -875,6 +887,14 @@ function App() {
         )}
         {page === "探索" && (
           <Explorer state={state} act={act} navigate={navigate} />
+        )}
+        {page === "探索运行" && (
+          <ExplorationRunDetail
+            state={state}
+            act={act}
+            navigate={navigate}
+            batchId={explorationBatch}
+          />
         )}
         {page === "历史收集" && (
           <section className="panel">
