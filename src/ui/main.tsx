@@ -17,6 +17,7 @@ import { ExplorationRunDetail } from "./ExplorationRunDetail.js";
 import { templates, chapterTitle } from "../core/templates.js";
 import { groupedItems, copyFeed } from "../core/feed-layout.js";
 import { RunResearch, phaseLabels } from "./RunResearch.js";
+import { ContentCollection } from "./ContentCollection.js";
 declare global {
   interface Window {
     feedloom: {
@@ -655,7 +656,7 @@ function App() {
         <div className="tagline">把关注织成见解</div>
         <nav aria-label="主导航">
           {[
-            "转发收件箱",
+            "内容收集",
             "项目回顾",
             "探索",
             "素材库",
@@ -716,7 +717,7 @@ function App() {
               {
                 (
                   {
-                    转发收件箱: "留住一条链接，慢慢读。",
+                    内容收集: "把转发内容放进合适的收藏夹，随时回来阅读。",
                     项目回顾: "看懂产品，回顾值得深入理解的变化。",
                     探索: "基于已有仓库理解，按预设角度发现内容。",
                     探索运行: "看清每一步有效进展，随时暂停并从证据继续。",
@@ -943,7 +944,18 @@ function App() {
         {state.buildLabel?.includes("测试版") && (
           <p className="preview-label">{state.buildLabel}</p>
         )}
-        {page === "转发收件箱" && (
+        {page === "内容收集" && (
+          <ContentCollection
+            collections={state.collections || []}
+            assignments={state.collectionAssignments || []}
+            items={state.inbox}
+            bots={state.bots}
+            act={act}
+            openSettings={() => navigate("连接与模型", "bots")}
+            notice={setNotice}
+          />
+        )}
+        {page === "legacy-inbox" && (
           <>
             <div className="inbox-capabilities panel">
               <div>

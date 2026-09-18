@@ -20,6 +20,11 @@ import {
   Batch,
 } from "./workspace-contracts.js";
 import { z } from "zod";
+import { ContentCollections } from "./content-collections.js";
+import {
+  CONTENT_COLLECTIONS_VERSION,
+  migrateContentCollectionsV6,
+} from "./migrations/v6-content-collections.js";
 const LocalBinding = z.object({
   id: z.string(),
   rootPath: z.string().min(1),
@@ -28,7 +33,7 @@ const LocalBinding = z.object({
   linkedAt: z.string(),
 });
 export type LocalBinding = z.infer<typeof LocalBinding>;
-export const STORE_VERSION = 5;
+export const STORE_VERSION = CONTENT_COLLECTIONS_VERSION;
 type WorkspaceTable =
   | "repos"
   | "understandings"
@@ -68,6 +73,7 @@ const legacyOutcome = (state: string) =>
 const migration = (version: number, run: () => void) => ({ version, run });
 export class Store {
   db: DatabaseSync;
+  collections: ContentCollections;
   constructor(path: string) {
     this.db = new DatabaseSync(path);
     this.db.exec(
@@ -187,6 +193,7 @@ export class Store {
             .prepare("DELETE FROM settings WHERE id=?")
             .run("githubCredential");
         }),
+        migration(6, () => migrateContentCollectionsV6(this.db)),
       ];
       for (const step of migrations) if (version < step.version) step.run();
       this.db.exec(`PRAGMA user_version=${STORE_VERSION}; COMMIT;`);
@@ -195,6 +202,34 @@ export class Store {
       this.db.close();
       throw error;
     }
+    this.collections = new ContentCollections(this.db);
+  }
+
+  assignInboxItems(
+    ids: string[],
+    source: "default" | "bot" | "manual" = "default",
+    options: { at?: string; batchId?: string } = {},
+  ) {
+    return this.collections.assignToDefault(ids, source, options);
+  }
+
+  ensureInboxAssignment(item: Inbox) {
+    if (
+      this.collections
+        .assignments()
+        .some((assignment) => assignment.itemId === item.id)
+    )
+      return;
+    this.collections.assignToDefault(
+      [item.id],
+      item.origin ? "bot" : "default",
+      {
+        at: item.createdAt,
+        batchId: item.origin
+          ? `${item.origin.channel}:${item.origin.messageId}`
+          : undefined,
+      },
+    );
   }
   list<T>(
     table: WorkspaceTable | "tasks" | "runs" | "materials" | "feeds" | "inbox",
@@ -521,6 +556,8 @@ export class Store {
       materials: this.list<Material>("materials"),
       feeds: this.list<Feed>("feeds"),
       inbox: this.list<Inbox>("inbox"),
+      collections: this.collections.list(),
+      collectionAssignments: this.collections.assignments(),
       prompt:
         this.get<any>("settings", "prompt")?.value ||
         "用中文写一条有趣、具体的 Feed。说清它是什么、哪里值得关注，忠于素材，不要泛泛而谈。",

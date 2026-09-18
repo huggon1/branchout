@@ -221,7 +221,7 @@ test("Feed research evidence remains a deep snapshot after source and run change
   }
 });
 
-test("isolated v5 migration preserves history and clears the obsolete project credential", () => {
+test("ordered v5 and v6 migrations preserve history and clear the obsolete project credential", () => {
   const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-"));
   const path = join(dir, "db");
   const v4 = new DatabaseSync(path);
@@ -259,22 +259,23 @@ test("isolated v5 migration preserves history and clears the obsolete project cr
       legacyRepo,
     );
     assert.equal(s.get("settings", "githubCredential"), undefined);
-    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 5);
+    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 6);
     assert.ok(
       s.db
         .prepare("SELECT name FROM sqlite_master WHERE name='local_bindings'")
         .get(),
     );
+    assert.equal(s.collections.default().name, "Inbox");
     s.close();
     s = new Store(path);
-    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 5);
+    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 6);
   } finally {
     s.close();
     rmSync(dir, { recursive: true });
   }
 });
 
-test("v5 runs after the ordered v4 migration and rejects future databases", () => {
+test("v5 and v6 run after the ordered v4 migration and reject future databases", () => {
   const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-failure-"));
   const path = join(dir, "db");
   const v3 = new DatabaseSync(path);
@@ -294,7 +295,7 @@ test("v5 runs after the ordered v4 migration and rejects future databases", () =
     const migrated = new Store(path);
     assert.equal(
       migrated.db.prepare("PRAGMA user_version").get()!.user_version,
-      5,
+      6,
     );
     assert.equal(migrated.get("settings", "githubCredential"), undefined);
     assert.ok(
@@ -302,15 +303,16 @@ test("v5 runs after the ordered v4 migration and rejects future databases", () =
         .prepare("SELECT name FROM sqlite_master WHERE name='local_bindings'")
         .get(),
     );
+    assert.equal(migrated.collections.default().name, "Inbox");
     migrated.close();
     const check = new DatabaseSync(path);
-    check.exec("PRAGMA user_version=6");
+    check.exec("PRAGMA user_version=7");
     check.close();
     assert.throws(() => new Store(path), /更新的应用版本/);
     const finalCheck = new DatabaseSync(path);
     assert.equal(
       finalCheck.prepare("PRAGMA user_version").get()!.user_version,
-      6,
+      7,
     );
     finalCheck.close();
   } finally {

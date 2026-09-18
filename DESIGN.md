@@ -22,36 +22,36 @@ colors:
   danger-bg: "#f9eeeb"
 typography:
   brand:
-    fontFamily: "\"Newsreader\", serif"
+    fontFamily: '"Newsreader", serif'
     fontSize: "23px"
     fontWeight: 600
     letterSpacing: "-0.03em"
   headline:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif"
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "28px"
     fontWeight: 700
     lineHeight: 1.25
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif"
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "19px"
     fontWeight: 670
   reading-title:
-    fontFamily: "\"Newsreader\", \"Songti SC\", \"Noto Serif CJK SC\", serif"
+    fontFamily: '"Newsreader", "Songti SC", "Noto Serif CJK SC", serif'
     fontSize: "28px"
     fontWeight: 600
     lineHeight: 1.5
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif"
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "14px"
     fontWeight: 400
   reading-body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif"
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.9
   label:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif"
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "12px"
 rounded:
   control: "10px"
@@ -101,6 +101,7 @@ components:
     rounded: "{rounded.surface}"
     padding: "25px"
 ---
+
 # Design System: nature-feed
 
 ## Overview
@@ -147,6 +148,8 @@ Newsreader 字体随应用打包，授权见 [字体许可证](src/ui/fonts/OFL-
 当前实现采用固定左侧目录和可伸缩工作区。默认侧栏为 208px，主区内边距为 36px 40px 64px，最大宽度为 1900px；这些是现有外壳尺寸，不是对未来页面构图的授权限制。
 
 列表与详情、探索配置、素材与编排分别采用适合任务的网格。通用间距变量以 4px 为起点，组件中仍存在 9px、10px、13px、18px、20px、25px 等情境值，不能宣称所有距离都遵循单一倍数。筛选区以细线分隔，默认四列，生成页三列。
+
+内容收集是操作与阅读并重的任务面：1280px 及以上使用收藏夹导航、内容列表、阅读详情三栏，收藏夹和列表保持紧凑，详情承担长文阅读；1200px 以下把收藏夹导航折叠为内容区整行选择器，并保留列表与详情两栏。常驻三栏使用平面边界，不以嵌套卡片制造层级；选择、状态与移动控件在列表内就地反馈。
 
 在 1250px 以下，侧栏为 190px，主区横向留白为 24px，顶部为 32px，通用面板内边距为 21px；连接设置在 1150px 以下收紧目录和内边距。1000px 以下生成页转为单列、编排取消粘性定位，部分表格辅助列隐藏。这些是窗口收缩策略；首版验收仍为桌面，尺寸与页面职责见 [页面设计入口](docs/design/README.md)。
 

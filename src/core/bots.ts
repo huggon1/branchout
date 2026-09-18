@@ -79,8 +79,7 @@ export class BotHub {
       if (
         item.origin &&
         (["pending", "interrupted"].includes(item.state) ||
-          (item.state === "success" &&
-            item.error === "摘要被中断，可重新解析"))
+          (item.state === "success" && item.error === "摘要被中断，可重新解析"))
       )
         this.pending.add(item.id);
     void this.drain();
@@ -360,6 +359,15 @@ export class BotHub {
         this.store.put("inbox", item);
         items.push(item);
       }
+      if (items.length)
+        this.store.assignInboxItems(
+          items.map((item) => item.id),
+          "bot",
+          {
+            at: items[0].createdAt,
+            batchId: `${c}:${message.id}`,
+          },
+        );
       this.store.put("settings", { id: key });
       this.store.db.exec("COMMIT");
     } catch (e) {

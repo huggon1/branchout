@@ -618,6 +618,7 @@ async function parseInbox(item: Inbox, wait = false) {
   item.state = "running";
   item.error = undefined;
   store.put("inbox", item);
+  store.ensureInboxAssignment(item);
   notify();
   const completion = (async () => {
     try {
@@ -904,6 +905,16 @@ async function handle(raw: unknown) {
       if (!i) throw Error("记录不存在");
       return parseInbox(i);
     }
+    case "createCollection":
+      return store.collections.create(c.name);
+    case "renameCollection":
+      return store.collections.rename(c.id, c.name);
+    case "setDefaultCollection":
+      return store.collections.setDefault(c.id);
+    case "deleteCollection":
+      return store.collections.delete(c.id);
+    case "moveCollectionItems":
+      return store.collections.assign(c.ids, c.collectionId, "manual");
     case "deleteInbox":
       active.get(c.id)?.cancel();
       active.get(`summary:${c.id}`)?.cancel();
