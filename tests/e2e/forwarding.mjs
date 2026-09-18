@@ -245,18 +245,52 @@ try {
       path: `test-results/forwarding-${width}.png`,
     });
   }
+  await page.setViewportSize({ width: 1100, height: 720 });
+  const compactCollection = page.getByLabel("当前收藏夹");
+  await compactCollection.focus();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "新建收藏夹", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(page.getByLabel("新收藏夹名称")).toBeFocused();
+  await page.keyboard.type("键盘创建 Keyboard");
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "创建", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "键盘创建 Keyboard" }),
+  ).toBeVisible();
+  await page.getByLabel("收藏夹操作").click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "删除收藏夹" }).click();
+  await expect(compactCollection).toBeFocused();
+  await compactCollection.selectOption(inboxCollection.id);
+  await page.getByLabel(/移动 README 图文阅读/).selectOption(readingCollection.id);
+  await expect(page.getByText("已移动 1 条内容", { exact: true })).toBeVisible();
+  await expect(compactCollection).toBeFocused();
+  await compactCollection.selectOption(readingCollection.id);
+  await page.getByLabel(/移动 README 图文阅读/).selectOption(inboxCollection.id);
+  await expect(compactCollection).toBeFocused();
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("button", { name: /Inbox/ }).click();
   await page.getByRole("button", { name: /body-failed/ }).click();
   await expect(page.getByRole("alert")).toContainText("正文解析失败");
   await page.getByRole("button", { name: /parsing/ }).click();
-  await expect(page.getByRole("status")).toContainText("解析被中断，可以继续");
+  await expect(page.locator(".collection-reading [role='status']")).toContainText(
+    "解析被中断，可以继续",
+  );
   await page.getByRole("button", { name: /部分解析示例/ }).click();
-  await expect(page.getByRole("status")).toContainText("部分解析");
+  await expect(page.locator(".collection-reading [role='status']")).toContainText(
+    "部分解析",
+  );
   await page.getByRole("button", { name: /深度阅读 Deep Reading/ }).click();
   await page
     .getByRole("button", { name: /摘要失败但原文仍然完整可读/ })
     .click();
-  await expect(page.getByRole("status")).toContainText(
+  await expect(page.locator(".collection-reading [role='status']")).toContainText(
     "正文已保存，AI 摘要失败",
   );
   await page.getByRole("button", { name: /Inbox/ }).click();
@@ -291,6 +325,7 @@ try {
   await expect(
     page.getByText("已移动 2 条内容", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: /Inbox/ })).toBeFocused();
   await page.getByRole("button", { name: /深度阅读 Deep Reading/ }).click();
   await expect(page.getByText("3 条内容", { exact: true })).toBeVisible();
   await page.getByLabel("收藏夹操作").click();

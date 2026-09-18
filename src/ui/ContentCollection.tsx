@@ -61,7 +61,10 @@ export function ContentCollection(props: Props) {
   const [rename, setRename] = useState("");
   const [link, setLink] = useState("");
   const [moveTarget, setMoveTarget] = useState("");
+  const [compactCreate, setCompactCreate] = useState(false);
   const addInput = useRef<HTMLInputElement>(null);
+  const compactAddInput = useRef<HTMLInputElement>(null);
+  const compactSelect = useRef<HTMLSelectElement>(null);
   const currentButton = useRef<HTMLButtonElement>(null);
   const manage = useRef<HTMLDetailsElement>(null);
   const assigned = useMemo(
@@ -121,6 +124,12 @@ export function ContentCollection(props: Props) {
 
   const count = (id: string) =>
     assignments.filter((item) => item.collectionId === id).length;
+  const restoreCollectionFocus = () =>
+    requestAnimationFrame(() => {
+      if (window.matchMedia("(max-width: 1200px)").matches)
+        compactSelect.current?.focus();
+      else currentButton.current?.focus();
+    });
   const chooseCollection = (id: string) => {
     if (manage.current) manage.current.open = false;
     setCollectionId(id);
@@ -140,13 +149,14 @@ export function ContentCollection(props: Props) {
     setChecked([]);
     setMoveTarget("");
     props.notice("已移动 " + ids.length + " 条内容");
-    currentButton.current?.focus();
+    restoreCollectionFocus();
   };
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
     const result = await act({ type: "createCollection", name: newName });
     if (!result) return;
     setNewName("");
+    setCompactCreate(false);
     chooseCollection(result.id);
     props.notice("已创建收藏夹“" + result.name + "”");
   };
@@ -207,22 +217,51 @@ export function ContentCollection(props: Props) {
       </form>
 
       {!!collections.length && (
-        <label className="collection-mobile-select">
-          当前收藏夹
-          <select
-            value={collectionId}
-            onChange={(event) => chooseCollection(event.target.value)}
+        <div className="collection-mobile-select">
+          <label>
+            当前收藏夹
+            <select
+              ref={compactSelect}
+              value={collectionId}
+              onChange={(event) => chooseCollection(event.target.value)}
+            >
+              {collections.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name +
+                    " · " +
+                    count(item.id) +
+                    (item.isDefault ? " · 默认" : "")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            aria-expanded={compactCreate}
+            onClick={() => {
+              setCompactCreate((open) => !open);
+              requestAnimationFrame(() => compactAddInput.current?.focus());
+            }}
           >
-            {collections.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name +
-                  " · " +
-                  count(item.id) +
-                  (item.isDefault ? " · 默认" : "")}
-              </option>
-            ))}
-          </select>
-        </label>
+            {compactCreate ? "取消新建" : "新建收藏夹"}
+          </button>
+          {compactCreate && (
+            <form onSubmit={create}>
+              <label htmlFor="compact-new-collection">新收藏夹名称</label>
+              <input
+                ref={compactAddInput}
+                id="compact-new-collection"
+                maxLength={40}
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+                placeholder="例如：产品灵感"
+              />
+              <button className="primary" disabled={!newName.trim()}>
+                创建
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
       <div className="collection-workspace">
@@ -343,6 +382,7 @@ export function ContentCollection(props: Props) {
                           }).then((result) => {
                             if (!result) return;
                             chooseCollection(defaults.id);
+                            restoreCollectionFocus();
                             props.notice(
                               result.moved
                                 ? "已删除收藏夹，" +

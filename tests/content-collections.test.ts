@@ -198,7 +198,7 @@ test("single and bulk assignment retain source, timestamp, batch, and bot state"
   db.close();
 });
 
-test("v6 Store snapshots collections and assigns new inbox items durably", () => {
+test("v6 Store persists collection CRUD, default, bulk move, and deletion across restart", () => {
   const dir = mkdtempSync(join(tmpdir(), "nature-feed-collections-"));
   const path = join(dir, "db");
   let db = new DatabaseSync(path);
@@ -209,27 +209,42 @@ test("v6 Store snapshots collections and assigns new inbox items durably", () =>
   db.close();
   let store = new Store(path);
   try {
-    const item = legacyItem("fresh", "2026-09-18T14:00:00.000Z") as Inbox;
-    store.put("inbox", item);
-    store.ensureInboxAssignment(item);
+    const items = [
+      legacyItem("fresh", "2026-09-18T14:00:00.000Z"),
+      legacyItem("fresh-two", "2026-09-18T14:05:00.000Z"),
+    ] as Inbox[];
+    for (const item of items) {
+      store.put("inbox", item);
+      store.ensureInboxAssignment(item);
+    }
     assert.equal(store.state().collections.length, 1);
-    assert.deepEqual(store.state().collectionAssignments[0], {
-      itemId: "fresh",
-      collectionId: store.state().collections[0].id,
-      assignedAt: "2026-09-18T14:00:00.000Z",
-      source: "default",
-      batchId: undefined,
-      organizationState: undefined,
-    });
     const reading = store.collections!.create("稍后阅读");
-    store.collections!.assign(["fresh"], reading.id, "manual", {
+    const temporary = store.collections!.create("待删除");
+    store.collections!.rename(reading.id, "深度阅读 Deep Reading");
+    store.collections!.setDefault(reading.id);
+    store.collections!.assign(items.map((item) => item.id), temporary.id, "manual", {
       at: "2026-09-18T15:00:00.000Z",
     });
+    assert.equal(store.collections!.delete(temporary.id).moved, 2);
     store.close();
     store = new Store(path);
-    assert.equal(
-      store.state().collectionAssignments[0].collectionId,
-      reading.id,
+    assert.deepEqual(
+      store.state().collections.map((collection: any) => ({
+        name: collection.name,
+        isDefault: collection.isDefault,
+      })),
+      [
+        { name: "深度阅读 Deep Reading", isDefault: true },
+        { name: "Inbox", isDefault: false },
+      ],
+    );
+    assert.equal(store.state().collectionAssignments.length, 2);
+    assert.ok(
+      store
+        .state()
+        .collectionAssignments.every(
+          (assignment: any) => assignment.collectionId === reading.id,
+        ),
     );
   } finally {
     store.close();
