@@ -221,87 +221,96 @@ test("Feed research evidence remains a deep snapshot after source and run change
   }
 });
 
-function legacyDb(path: string) {
-  const db = new DatabaseSync(path);
-  db.exec(
-    "CREATE TABLE tasks(id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE runs(id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE feeds(id TEXT PRIMARY KEY,data TEXT NOT NULL); PRAGMA user_version=1;",
-  );
-  return db;
-}
-
-test("migration preserves historical bytes, legacy modes and retires task scheduling", () => {
+test("isolated v5 migration preserves history and clears the obsolete project credential", () => {
   const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-"));
   const path = join(dir, "db");
-  const legacy = legacyDb(path);
-  const task = {
-    id: "task",
-    name: "Legacy",
-    sources: [{ platform: "github", period: "daily", limit: 5 }],
-  };
-  const run = JSON.stringify({ id: "run", config: task, state: "success" });
-  const feed = JSON.stringify({
-    id: "feed",
-    items: [{ evidence: { runs: [JSON.parse(run)], material: fixture } }],
+  const v4 = new DatabaseSync(path);
+  v4.exec(`
+    CREATE TABLE runs(id TEXT PRIMARY KEY,data TEXT NOT NULL);
+    CREATE TABLE feeds(id TEXT PRIMARY KEY,data TEXT NOT NULL);
+    CREATE TABLE settings(id TEXT PRIMARY KEY,data TEXT NOT NULL);
+    CREATE TABLE repos(id TEXT PRIMARY KEY,data TEXT NOT NULL);
+    PRAGMA user_version=4;
+  `);
+  const run = JSON.stringify({ id: "run", state: "success", evidence: "kept" });
+  const feed = JSON.stringify({ id: "feed", items: [{ evidence: "kept" }] });
+  const legacyRepo = JSON.stringify({
+    id: "legacy",
+    fullName: "fictional/legacy",
+    url: "https://github.com/fictional/legacy",
+    private: true,
+    branch: "main",
+    createdAt: "2026-09-01T00:00:00Z",
   });
-  legacy
-    .prepare("INSERT INTO tasks VALUES(?,?)")
-    .run("task", JSON.stringify(task));
-  legacy
-    .prepare("INSERT INTO tasks VALUES(?,?)")
-    .run(
-      "intent",
-      JSON.stringify({ ...task, id: "intent", collectionMode: "intent" }),
-    );
-  legacy.prepare("INSERT INTO runs VALUES(?,?)").run("run", run);
-  legacy.prepare("INSERT INTO feeds VALUES(?,?)").run("feed", feed);
-  legacy.close();
+  v4.prepare("INSERT INTO runs VALUES(?,?)").run("run", run);
+  v4.prepare("INSERT INTO feeds VALUES(?,?)").run("feed", feed);
+  v4.prepare("INSERT INTO repos VALUES(?,?)").run("legacy", legacyRepo);
+  v4.prepare("INSERT INTO settings VALUES(?,?)").run(
+    "githubCredential",
+    JSON.stringify({ id: "githubCredential", encrypted: "obsolete" }),
+  );
+  v4.close();
   let s = new Store(path);
   try {
-    assert.equal(s.get<any>("tasks", "task").collectionMode, "keyword");
-    assert.equal(s.get<any>("tasks", "intent").collectionMode, "intent");
-    assert.equal(s.get<any>("tasks", "task").paused, true);
-    assert.equal(s.get<any>("tasks", "task").nextDue, null);
     assert.equal(s.db.prepare("SELECT data FROM runs").get()!.data, run);
     assert.equal(s.db.prepare("SELECT data FROM feeds").get()!.data, feed);
-    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 4);
+    assert.equal(
+      s.db.prepare("SELECT data FROM repos WHERE id='legacy'").get()!.data,
+      legacyRepo,
+    );
+    assert.equal(s.get("settings", "githubCredential"), undefined);
+    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 5);
+    assert.ok(
+      s.db
+        .prepare("SELECT name FROM sqlite_master WHERE name='local_bindings'")
+        .get(),
+    );
     s.close();
     s = new Store(path);
-    assert.equal(s.get<any>("tasks", "task").collectionMode, "keyword");
+    assert.equal(s.db.prepare("PRAGMA user_version").get()!.user_version, 5);
   } finally {
     s.close();
     rmSync(dir, { recursive: true });
   }
 });
 
-test("migration failure rolls back earlier rows and schema version; future databases are refused", () => {
+test("v5 runs after the ordered v4 migration and rejects future databases", () => {
   const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-failure-"));
   const path = join(dir, "db");
-  const legacy = legacyDb(path);
-  const original = JSON.stringify({ id: "good", name: "unchanged" });
-  legacy.prepare("INSERT INTO tasks VALUES(?,?)").run("good", original);
-  legacy.prepare("INSERT INTO tasks VALUES(?,?)").run("bad", "{broken");
-  legacy.close();
+  const v3 = new DatabaseSync(path);
+  v3.exec(
+    "CREATE TABLE settings(id TEXT PRIMARY KEY,data TEXT NOT NULL); PRAGMA user_version=3;",
+  );
+  const credential = JSON.stringify({
+    id: "githubCredential",
+    encrypted: "must-remain",
+  });
+  v3.prepare("INSERT INTO settings VALUES(?,?)").run(
+    "githubCredential",
+    credential,
+  );
+  v3.close();
   try {
-    assert.throws(() => new Store(path));
-    const check = new DatabaseSync(path);
+    const migrated = new Store(path);
     assert.equal(
-      check.prepare("SELECT data FROM tasks WHERE id='good'").get()!.data,
-      original,
+      migrated.db.prepare("PRAGMA user_version").get()!.user_version,
+      5,
     );
-    assert.equal(check.prepare("PRAGMA user_version").get()!.user_version, 1);
-    assert.equal(
-      check
-        .prepare("SELECT name FROM sqlite_master WHERE name='materials'")
+    assert.equal(migrated.get("settings", "githubCredential"), undefined);
+    assert.ok(
+      migrated.db
+        .prepare("SELECT name FROM sqlite_master WHERE name='local_bindings'")
         .get(),
-      undefined,
     );
-    check.exec("PRAGMA user_version=5");
+    migrated.close();
+    const check = new DatabaseSync(path);
+    check.exec("PRAGMA user_version=6");
     check.close();
     assert.throws(() => new Store(path), /更新的应用版本/);
     const finalCheck = new DatabaseSync(path);
     assert.equal(
       finalCheck.prepare("PRAGMA user_version").get()!.user_version,
-      5,
+      6,
     );
     finalCheck.close();
   } finally {

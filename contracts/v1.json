@@ -18,8 +18,20 @@
         "private": {
           "type": "boolean"
         },
+        "source": {
+          "default": "legacy-github",
+          "type": "string",
+          "enum": [
+            "local",
+            "legacy-github"
+          ]
+        },
         "branch": {
           "type": "string"
+        },
+        "headOid": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
         },
         "createdAt": {
           "type": "string"
@@ -31,7 +43,13 @@
           "type": "string"
         }
       },
-      "required": ["id", "fullName", "url", "private", "branch", "createdAt"],
+      "required": [
+        "id",
+        "fullName",
+        "source",
+        "branch",
+        "createdAt"
+      ],
       "additionalProperties": false
     },
     "understanding": {
@@ -66,7 +84,11 @@
                 "maxLength": 600
               }
             },
-            "required": ["situation", "need", "experience"],
+            "required": [
+              "situation",
+              "need",
+              "experience"
+            ],
             "additionalProperties": false
           }
         },
@@ -121,12 +143,125 @@
                 "type": "string",
                 "minLength": 1
               },
+              "locator": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "project-file"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "object",
+                        "properties": {
+                          "oid": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{40,64}$"
+                          },
+                          "branch": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "oid",
+                          "branch"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "endLine": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "projectId",
+                      "revision",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "project-change"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "object",
+                        "properties": {
+                          "oid": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{40,64}$"
+                          },
+                          "branch": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "oid",
+                          "branch"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "commit": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{40,64}$"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "endLine": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "projectId",
+                      "revision",
+                      "commit"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "webUrl": {
+                "type": "string",
+                "format": "uri"
+              },
               "url": {
                 "type": "string",
                 "format": "uri"
               }
             },
-            "required": ["path", "excerpt", "url"],
+            "required": [
+              "path",
+              "excerpt"
+            ],
             "additionalProperties": false
           }
         },
@@ -160,7 +295,12 @@
               }
             }
           },
-          "required": ["product", "users", "problems", "scenarios"],
+          "required": [
+            "product",
+            "users",
+            "problems",
+            "scenarios"
+          ],
           "additionalProperties": false
         },
         "analysisVersion": {
@@ -236,6 +376,23 @@
         "commit": {
           "type": "string"
         },
+        "revision": {
+          "type": "object",
+          "properties": {
+            "oid": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40,64}$"
+            },
+            "branch": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "oid",
+            "branch"
+          ],
+          "additionalProperties": false
+        },
         "branch": {
           "type": "string"
         },
@@ -299,12 +456,125 @@
                       "type": "string",
                       "minLength": 1
                     },
+                    "locator": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "project-file"
+                            },
+                            "projectId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "object",
+                              "properties": {
+                                "oid": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "oid",
+                                "branch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endLine": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "projectId",
+                            "revision",
+                            "path"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "project-change"
+                            },
+                            "projectId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "object",
+                              "properties": {
+                                "oid": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "oid",
+                                "branch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "commit": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{40,64}$"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endLine": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "projectId",
+                            "revision",
+                            "commit"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "webUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
                     "url": {
                       "type": "string",
                       "format": "uri"
                     }
                   },
-                  "required": ["path", "excerpt", "url"],
+                  "required": [
+                    "path",
+                    "excerpt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -330,7 +600,10 @@
             "properties": {
               "significance": {
                 "type": "string",
-                "enum": ["milestone", "supporting"]
+                "enum": [
+                  "milestone",
+                  "supporting"
+                ]
               },
               "id": {
                 "type": "string"
@@ -385,12 +658,125 @@
                       "type": "string",
                       "minLength": 1
                     },
+                    "locator": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "project-file"
+                            },
+                            "projectId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "object",
+                              "properties": {
+                                "oid": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "oid",
+                                "branch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endLine": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "projectId",
+                            "revision",
+                            "path"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "project-change"
+                            },
+                            "projectId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "object",
+                              "properties": {
+                                "oid": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "oid",
+                                "branch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "commit": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{40,64}$"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endLine": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "projectId",
+                            "revision",
+                            "commit"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "webUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
                     "url": {
                       "type": "string",
                       "format": "uri"
                     }
                   },
-                  "required": ["path", "excerpt", "url"],
+                  "required": [
+                    "path",
+                    "excerpt"
+                  ],
                   "additionalProperties": false
                 }
               },
@@ -454,7 +840,10 @@
                 "properties": {
                   "significance": {
                     "type": "string",
-                    "enum": ["milestone", "supporting"]
+                    "enum": [
+                      "milestone",
+                      "supporting"
+                    ]
                   },
                   "id": {
                     "type": "string"
@@ -509,12 +898,125 @@
                           "type": "string",
                           "minLength": 1
                         },
+                        "locator": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "project-file"
+                                },
+                                "projectId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "object",
+                                  "properties": {
+                                    "oid": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{40,64}$"
+                                    },
+                                    "branch": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "oid",
+                                    "branch"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "line": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "endLine": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "revision",
+                                "path"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "project-change"
+                                },
+                                "projectId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "object",
+                                  "properties": {
+                                    "oid": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{40,64}$"
+                                    },
+                                    "branch": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "oid",
+                                    "branch"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "commit": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "line": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "endLine": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "revision",
+                                "commit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "webUrl": {
+                          "type": "string",
+                          "format": "uri"
+                        },
                         "url": {
                           "type": "string",
                           "format": "uri"
                         }
                       },
-                      "required": ["path", "excerpt", "url"],
+                      "required": [
+                        "path",
+                        "excerpt"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -556,7 +1058,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["sha", "reason"],
+                "required": [
+                  "sha",
+                  "reason"
+                ],
                 "additionalProperties": false
               }
             },
@@ -571,7 +1076,11 @@
             },
             "overviewState": {
               "type": "string",
-              "enum": ["pending", "success", "failed"]
+              "enum": [
+                "pending",
+                "success",
+                "failed"
+              ]
             },
             "overviewError": {
               "type": "string"
@@ -609,7 +1118,10 @@
             "properties": {
               "significance": {
                 "type": "string",
-                "enum": ["milestone", "supporting"]
+                "enum": [
+                  "milestone",
+                  "supporting"
+                ]
               },
               "id": {
                 "type": "string"
@@ -664,12 +1176,125 @@
                       "type": "string",
                       "minLength": 1
                     },
+                    "locator": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "project-file"
+                            },
+                            "projectId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "object",
+                              "properties": {
+                                "oid": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "oid",
+                                "branch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endLine": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "projectId",
+                            "revision",
+                            "path"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "project-change"
+                            },
+                            "projectId": {
+                              "type": "string"
+                            },
+                            "revision": {
+                              "type": "object",
+                              "properties": {
+                                "oid": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "oid",
+                                "branch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "commit": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{40,64}$"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endLine": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "projectId",
+                            "revision",
+                            "commit"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "webUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
                     "url": {
                       "type": "string",
                       "format": "uri"
                     }
                   },
-                  "required": ["path", "excerpt", "url"],
+                  "required": [
+                    "path",
+                    "excerpt"
+                  ],
                   "additionalProperties": false
                 }
               },
@@ -754,7 +1379,11 @@
                     "maxLength": 600
                   }
                 },
-                "required": ["situation", "need", "experience"],
+                "required": [
+                  "situation",
+                  "need",
+                  "experience"
+                ],
                 "additionalProperties": false
               }
             },
@@ -809,12 +1438,125 @@
                     "type": "string",
                     "minLength": 1
                   },
+                  "locator": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "project-file"
+                          },
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "object",
+                            "properties": {
+                              "oid": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{40,64}$"
+                              },
+                              "branch": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "oid",
+                              "branch"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "endLine": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "projectId",
+                          "revision",
+                          "path"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "project-change"
+                          },
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "object",
+                            "properties": {
+                              "oid": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{40,64}$"
+                              },
+                              "branch": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "oid",
+                              "branch"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "commit": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{40,64}$"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "endLine": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "projectId",
+                          "revision",
+                          "commit"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "webUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
                   "url": {
                     "type": "string",
                     "format": "uri"
                   }
                 },
-                "required": ["path", "excerpt", "url"],
+                "required": [
+                  "path",
+                  "excerpt"
+                ],
                 "additionalProperties": false
               }
             },
@@ -848,7 +1590,12 @@
                   }
                 }
               },
-              "required": ["product", "users", "problems", "scenarios"],
+              "required": [
+                "product",
+                "users",
+                "problems",
+                "scenarios"
+              ],
               "additionalProperties": false
             },
             "analysisVersion": {
@@ -927,19 +1674,32 @@
               "type": "string"
             }
           },
-          "required": ["id", "version", "title", "prompt"],
+          "required": [
+            "id",
+            "version",
+            "title",
+            "prompt"
+          ],
           "additionalProperties": false
         },
         "platforms": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["github", "xiaohongshu", "x"]
+            "enum": [
+              "github",
+              "xiaohongshu",
+              "x"
+            ]
           }
         },
         "period": {
           "type": "string",
-          "enum": ["daily", "weekly", "monthly"]
+          "enum": [
+            "daily",
+            "weekly",
+            "monthly"
+          ]
         },
         "startedAt": {
           "type": "string"
@@ -1018,7 +1778,12 @@
                 "type": "boolean"
               }
             },
-            "required": ["at", "kind", "message", "effective"],
+            "required": [
+              "at",
+              "kind",
+              "message",
+              "effective"
+            ],
             "additionalProperties": false
           }
         },
@@ -1132,7 +1897,11 @@
                 "type": "number"
               }
             },
-            "required": ["state", "queries", "count"],
+            "required": [
+              "state",
+              "queries",
+              "count"
+            ],
             "additionalProperties": false
           }
         },
@@ -1169,7 +1938,9 @@
                       "const": "unavailable"
                     }
                   },
-                  "required": ["availability"],
+                  "required": [
+                    "availability"
+                  ],
                   "additionalProperties": false
                 },
                 {
@@ -1195,7 +1966,12 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["availability", "input", "output", "total"],
+                  "required": [
+                    "availability",
+                    "input",
+                    "output",
+                    "total"
+                  ],
                   "additionalProperties": false
                 }
               ]
@@ -1285,7 +2061,13 @@
           "maximum": 9007199254740991
         }
       },
-      "required": ["id", "createdAt", "runIds", "lifecycle", "attempts"],
+      "required": [
+        "id",
+        "createdAt",
+        "runIds",
+        "lifecycle",
+        "attempts"
+      ],
       "additionalProperties": false
     },
     "template": {
@@ -1314,7 +2096,12 @@
           "type": "string"
         }
       },
-      "required": ["id", "version", "title", "prompt"],
+      "required": [
+        "id",
+        "version",
+        "title",
+        "prompt"
+      ],
       "additionalProperties": false
     },
     "input": {
@@ -1355,16 +2142,29 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["github", "xiaohongshu", "x"]
+            "enum": [
+              "github",
+              "xiaohongshu",
+              "x"
+            ]
           }
         },
         "period": {
           "default": "weekly",
           "type": "string",
-          "enum": ["daily", "weekly", "monthly"]
+          "enum": [
+            "daily",
+            "weekly",
+            "monthly"
+          ]
         }
       },
-      "required": ["repoIds", "angles", "platforms", "period"],
+      "required": [
+        "repoIds",
+        "angles",
+        "platforms",
+        "period"
+      ],
       "additionalProperties": false
     }
   },
@@ -1379,7 +2179,10 @@
           "properties": {
             "significance": {
               "type": "string",
-              "enum": ["milestone", "supporting"]
+              "enum": [
+                "milestone",
+                "supporting"
+              ]
             },
             "id": {
               "type": "string"
@@ -1434,12 +2237,125 @@
                     "type": "string",
                     "minLength": 1
                   },
+                  "locator": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "project-file"
+                          },
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "object",
+                            "properties": {
+                              "oid": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{40,64}$"
+                              },
+                              "branch": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "oid",
+                              "branch"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "endLine": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "projectId",
+                          "revision",
+                          "path"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "project-change"
+                          },
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "revision": {
+                            "type": "object",
+                            "properties": {
+                              "oid": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{40,64}$"
+                              },
+                              "branch": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "oid",
+                              "branch"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "commit": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{40,64}$"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "endLine": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "projectId",
+                          "revision",
+                          "commit"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "webUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
                   "url": {
                     "type": "string",
                     "format": "uri"
                   }
                 },
-                "required": ["path", "excerpt", "url"],
+                "required": [
+                  "path",
+                  "excerpt"
+                ],
                 "additionalProperties": false
               }
             },
@@ -1518,7 +2434,11 @@
                   "maxLength": 600
                 }
               },
-              "required": ["situation", "need", "experience"],
+              "required": [
+                "situation",
+                "need",
+                "experience"
+              ],
               "additionalProperties": false
             }
           },
@@ -1573,12 +2493,125 @@
                   "type": "string",
                   "minLength": 1
                 },
+                "locator": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "project-file"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "object",
+                          "properties": {
+                            "oid": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{40,64}$"
+                            },
+                            "branch": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "oid",
+                            "branch"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "line": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endLine": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "projectId",
+                        "revision",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "project-change"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "object",
+                          "properties": {
+                            "oid": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{40,64}$"
+                            },
+                            "branch": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "oid",
+                            "branch"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "commit": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{40,64}$"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "line": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endLine": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "projectId",
+                        "revision",
+                        "commit"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "webUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
                 "url": {
                   "type": "string",
                   "format": "uri"
                 }
               },
-              "required": ["path", "excerpt", "url"],
+              "required": [
+                "path",
+                "excerpt"
+              ],
               "additionalProperties": false
             }
           },
@@ -1612,7 +2645,12 @@
                 }
               }
             },
-            "required": ["product", "users", "problems", "scenarios"],
+            "required": [
+              "product",
+              "users",
+              "problems",
+              "scenarios"
+            ],
             "additionalProperties": false
           },
           "analysisVersion": {
@@ -1691,7 +2729,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "version", "title", "prompt"],
+        "required": [
+          "id",
+          "version",
+          "title",
+          "prompt"
+        ],
         "additionalProperties": false
       },
       "reason": {
@@ -1725,7 +2768,11 @@
           },
           "source": {
             "type": "string",
-            "enum": ["github", "xiaohongshu", "x"]
+            "enum": [
+              "github",
+              "xiaohongshu",
+              "x"
+            ]
           },
           "sourceId": {
             "type": "string",
@@ -1753,7 +2800,10 @@
           },
           "completeness": {
             "type": "string",
-            "enum": ["partial", "complete"]
+            "enum": [
+              "partial",
+              "complete"
+            ]
           },
           "publishedAt": {
             "anyOf": [
@@ -1858,7 +2908,11 @@
           },
           "source": {
             "type": "string",
-            "enum": ["github", "xiaohongshu", "x"]
+            "enum": [
+              "github",
+              "xiaohongshu",
+              "x"
+            ]
           },
           "sourceId": {
             "type": "string",
@@ -1886,7 +2940,10 @@
           },
           "completeness": {
             "type": "string",
-            "enum": ["partial", "complete"]
+            "enum": [
+              "partial",
+              "complete"
+            ]
           },
           "publishedAt": {
             "anyOf": [
@@ -1965,11 +3022,18 @@
       },
       "status": {
         "type": "string",
-        "enum": ["accepted", "rejected", "uncertain"]
+        "enum": [
+          "accepted",
+          "rejected",
+          "uncertain"
+        ]
       },
       "judgmentState": {
         "type": "string",
-        "enum": ["complete", "pending"]
+        "enum": [
+          "complete",
+          "pending"
+        ]
       },
       "reason": {
         "type": "string"
@@ -1992,11 +3056,18 @@
       },
       "language": {
         "type": "string",
-        "enum": ["zh", "en"]
+        "enum": [
+          "zh",
+          "en"
+        ]
       },
       "readState": {
         "type": "string",
-        "enum": ["pending", "read", "failed"]
+        "enum": [
+          "pending",
+          "read",
+          "failed"
+        ]
       },
       "activityAt": {
         "type": "string"
@@ -2029,7 +3100,11 @@
       },
       "source": {
         "type": "string",
-        "enum": ["github", "xiaohongshu", "x"]
+        "enum": [
+          "github",
+          "xiaohongshu",
+          "x"
+        ]
       },
       "sourceId": {
         "type": "string",
@@ -2057,7 +3132,10 @@
       },
       "completeness": {
         "type": "string",
-        "enum": ["partial", "complete"]
+        "enum": [
+          "partial",
+          "complete"
+        ]
       },
       "publishedAt": {
         "anyOf": [
@@ -2144,7 +3222,10 @@
           },
           "collectionMode": {
             "type": "string",
-            "enum": ["intent", "keyword"]
+            "enum": [
+              "intent",
+              "keyword"
+            ]
           },
           "budget": {
             "type": "object",
@@ -2198,7 +3279,11 @@
               "properties": {
                 "platform": {
                   "type": "string",
-                  "enum": ["github", "xiaohongshu", "x"]
+                  "enum": [
+                    "github",
+                    "xiaohongshu",
+                    "x"
+                  ]
                 },
                 "keyword": {
                   "default": "",
@@ -2207,11 +3292,18 @@
                 },
                 "searchMode": {
                   "type": "string",
-                  "enum": ["trending", "search"]
+                  "enum": [
+                    "trending",
+                    "search"
+                  ]
                 },
                 "period": {
                   "type": "string",
-                  "enum": ["daily", "weekly", "monthly"]
+                  "enum": [
+                    "daily",
+                    "weekly",
+                    "monthly"
+                  ]
                 },
                 "limit": {
                   "type": "integer",
@@ -2243,7 +3335,12 @@
           "schedule": {
             "default": "manual",
             "type": "string",
-            "enum": ["manual", "hourly", "daily", "weekly"]
+            "enum": [
+              "manual",
+              "hourly",
+              "daily",
+              "weekly"
+            ]
           },
           "time": {
             "default": "09:00",
@@ -2288,7 +3385,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "createdAt", "nextDue"],
+        "required": [
+          "id",
+          "createdAt",
+          "nextDue"
+        ],
         "additionalProperties": false
       }
     ]
@@ -2321,7 +3422,10 @@
           },
           "collectionMode": {
             "type": "string",
-            "enum": ["intent", "keyword"]
+            "enum": [
+              "intent",
+              "keyword"
+            ]
           },
           "budget": {
             "type": "object",
@@ -2375,7 +3479,11 @@
               "properties": {
                 "platform": {
                   "type": "string",
-                  "enum": ["github", "xiaohongshu", "x"]
+                  "enum": [
+                    "github",
+                    "xiaohongshu",
+                    "x"
+                  ]
                 },
                 "keyword": {
                   "default": "",
@@ -2384,11 +3492,18 @@
                 },
                 "searchMode": {
                   "type": "string",
-                  "enum": ["trending", "search"]
+                  "enum": [
+                    "trending",
+                    "search"
+                  ]
                 },
                 "period": {
                   "type": "string",
-                  "enum": ["daily", "weekly", "monthly"]
+                  "enum": [
+                    "daily",
+                    "weekly",
+                    "monthly"
+                  ]
                 },
                 "limit": {
                   "type": "integer",
@@ -2420,7 +3535,12 @@
           "schedule": {
             "default": "manual",
             "type": "string",
-            "enum": ["manual", "hourly", "daily", "weekly"]
+            "enum": [
+              "manual",
+              "hourly",
+              "daily",
+              "weekly"
+            ]
           },
           "time": {
             "default": "09:00",
@@ -2464,7 +3584,10 @@
           },
           {
             "type": "string",
-            "enum": ["partial", "no_results"]
+            "enum": [
+              "partial",
+              "no_results"
+            ]
           }
         ]
       },
@@ -2487,7 +3610,11 @@
                 },
                 "platform": {
                   "type": "string",
-                  "enum": ["github", "xiaohongshu", "x"]
+                  "enum": [
+                    "github",
+                    "xiaohongshu",
+                    "x"
+                  ]
                 },
                 "phase": {
                   "type": "string",
@@ -2510,7 +3637,12 @@
                   "type": "string"
                 }
               },
-              "required": ["id", "at", "phase", "message"],
+              "required": [
+                "id",
+                "at",
+                "phase",
+                "message"
+              ],
               "additionalProperties": false
             }
           },
@@ -2531,7 +3663,11 @@
                     },
                     "source": {
                       "type": "string",
-                      "enum": ["github", "xiaohongshu", "x"]
+                      "enum": [
+                        "github",
+                        "xiaohongshu",
+                        "x"
+                      ]
                     },
                     "sourceId": {
                       "type": "string",
@@ -2559,7 +3695,10 @@
                     },
                     "completeness": {
                       "type": "string",
-                      "enum": ["partial", "complete"]
+                      "enum": [
+                        "partial",
+                        "complete"
+                      ]
                     },
                     "publishedAt": {
                       "anyOf": [
@@ -2638,11 +3777,18 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": ["accepted", "rejected", "uncertain"]
+                  "enum": [
+                    "accepted",
+                    "rejected",
+                    "uncertain"
+                  ]
                 },
                 "judgmentState": {
                   "type": "string",
-                  "enum": ["complete", "pending"]
+                  "enum": [
+                    "complete",
+                    "pending"
+                  ]
                 },
                 "reason": {
                   "type": "string"
@@ -2692,14 +3838,22 @@
                 "maximum": 9007199254740991
               }
             },
-            "required": ["queries", "modelCalls", "candidates"],
+            "required": [
+              "queries",
+              "modelCalls",
+              "candidates"
+            ],
             "additionalProperties": false
           },
           "stopReason": {
             "type": "string"
           }
         },
-        "required": ["events", "candidates", "usage"],
+        "required": [
+          "events",
+          "candidates",
+          "usage"
+        ],
         "additionalProperties": false
       },
       "platforms": {
@@ -2709,7 +3863,11 @@
           "properties": {
             "platform": {
               "type": "string",
-              "enum": ["github", "xiaohongshu", "x"]
+              "enum": [
+                "github",
+                "xiaohongshu",
+                "x"
+              ]
             },
             "state": {
               "anyOf": [
@@ -2765,7 +3923,11 @@
               "type": "string"
             }
           },
-          "required": ["platform", "state", "count"],
+          "required": [
+            "platform",
+            "state",
+            "count"
+          ],
           "additionalProperties": false
         }
       }
@@ -2791,7 +3953,11 @@
       },
       "source": {
         "type": "string",
-        "enum": ["github", "xiaohongshu", "x"]
+        "enum": [
+          "github",
+          "xiaohongshu",
+          "x"
+        ]
       },
       "sourceId": {
         "type": "string",
@@ -2819,7 +3985,10 @@
       },
       "completeness": {
         "type": "string",
-        "enum": ["partial", "complete"]
+        "enum": [
+          "partial",
+          "complete"
+        ]
       },
       "publishedAt": {
         "anyOf": [
@@ -2957,7 +4126,11 @@
           },
           "source": {
             "type": "string",
-            "enum": ["github", "xiaohongshu", "x"]
+            "enum": [
+              "github",
+              "xiaohongshu",
+              "x"
+            ]
           },
           "sourceId": {
             "type": "string",
@@ -2985,7 +4158,10 @@
           },
           "completeness": {
             "type": "string",
-            "enum": ["partial", "complete"]
+            "enum": [
+              "partial",
+              "complete"
+            ]
           },
           "publishedAt": {
             "anyOf": [
@@ -3139,7 +4315,10 @@
                 },
                 "collectionMode": {
                   "type": "string",
-                  "enum": ["intent", "keyword"]
+                  "enum": [
+                    "intent",
+                    "keyword"
+                  ]
                 },
                 "budget": {
                   "type": "object",
@@ -3193,7 +4372,11 @@
                     "properties": {
                       "platform": {
                         "type": "string",
-                        "enum": ["github", "xiaohongshu", "x"]
+                        "enum": [
+                          "github",
+                          "xiaohongshu",
+                          "x"
+                        ]
                       },
                       "keyword": {
                         "default": "",
@@ -3202,11 +4385,18 @@
                       },
                       "searchMode": {
                         "type": "string",
-                        "enum": ["trending", "search"]
+                        "enum": [
+                          "trending",
+                          "search"
+                        ]
                       },
                       "period": {
                         "type": "string",
-                        "enum": ["daily", "weekly", "monthly"]
+                        "enum": [
+                          "daily",
+                          "weekly",
+                          "monthly"
+                        ]
                       },
                       "limit": {
                         "type": "integer",
@@ -3238,7 +4428,12 @@
                 "schedule": {
                   "default": "manual",
                   "type": "string",
-                  "enum": ["manual", "hourly", "daily", "weekly"]
+                  "enum": [
+                    "manual",
+                    "hourly",
+                    "daily",
+                    "weekly"
+                  ]
                 },
                 "time": {
                   "default": "09:00",
@@ -3282,7 +4477,10 @@
                 },
                 {
                   "type": "string",
-                  "enum": ["partial", "no_results"]
+                  "enum": [
+                    "partial",
+                    "no_results"
+                  ]
                 }
               ]
             },
@@ -3305,7 +4503,11 @@
                       },
                       "platform": {
                         "type": "string",
-                        "enum": ["github", "xiaohongshu", "x"]
+                        "enum": [
+                          "github",
+                          "xiaohongshu",
+                          "x"
+                        ]
                       },
                       "phase": {
                         "type": "string",
@@ -3328,7 +4530,12 @@
                         "type": "string"
                       }
                     },
-                    "required": ["id", "at", "phase", "message"],
+                    "required": [
+                      "id",
+                      "at",
+                      "phase",
+                      "message"
+                    ],
                     "additionalProperties": false
                   }
                 },
@@ -3349,7 +4556,11 @@
                           },
                           "source": {
                             "type": "string",
-                            "enum": ["github", "xiaohongshu", "x"]
+                            "enum": [
+                              "github",
+                              "xiaohongshu",
+                              "x"
+                            ]
                           },
                           "sourceId": {
                             "type": "string",
@@ -3377,7 +4588,10 @@
                           },
                           "completeness": {
                             "type": "string",
-                            "enum": ["partial", "complete"]
+                            "enum": [
+                              "partial",
+                              "complete"
+                            ]
                           },
                           "publishedAt": {
                             "anyOf": [
@@ -3456,11 +4670,18 @@
                       },
                       "status": {
                         "type": "string",
-                        "enum": ["accepted", "rejected", "uncertain"]
+                        "enum": [
+                          "accepted",
+                          "rejected",
+                          "uncertain"
+                        ]
                       },
                       "judgmentState": {
                         "type": "string",
-                        "enum": ["complete", "pending"]
+                        "enum": [
+                          "complete",
+                          "pending"
+                        ]
                       },
                       "reason": {
                         "type": "string"
@@ -3510,14 +4731,22 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["queries", "modelCalls", "candidates"],
+                  "required": [
+                    "queries",
+                    "modelCalls",
+                    "candidates"
+                  ],
                   "additionalProperties": false
                 },
                 "stopReason": {
                   "type": "string"
                 }
               },
-              "required": ["events", "candidates", "usage"],
+              "required": [
+                "events",
+                "candidates",
+                "usage"
+              ],
               "additionalProperties": false
             },
             "platforms": {
@@ -3527,7 +4756,11 @@
                 "properties": {
                   "platform": {
                     "type": "string",
-                    "enum": ["github", "xiaohongshu", "x"]
+                    "enum": [
+                      "github",
+                      "xiaohongshu",
+                      "x"
+                    ]
                   },
                   "state": {
                     "anyOf": [
@@ -3583,7 +4816,11 @@
                     "type": "string"
                   }
                 },
-                "required": ["platform", "state", "count"],
+                "required": [
+                  "platform",
+                  "state",
+                  "count"
+                ],
                 "additionalProperties": false
               }
             }
@@ -3612,7 +4849,10 @@
                 "properties": {
                   "significance": {
                     "type": "string",
-                    "enum": ["milestone", "supporting"]
+                    "enum": [
+                      "milestone",
+                      "supporting"
+                    ]
                   },
                   "id": {
                     "type": "string"
@@ -3667,12 +4907,125 @@
                           "type": "string",
                           "minLength": 1
                         },
+                        "locator": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "project-file"
+                                },
+                                "projectId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "object",
+                                  "properties": {
+                                    "oid": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{40,64}$"
+                                    },
+                                    "branch": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "oid",
+                                    "branch"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "line": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "endLine": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "revision",
+                                "path"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "project-change"
+                                },
+                                "projectId": {
+                                  "type": "string"
+                                },
+                                "revision": {
+                                  "type": "object",
+                                  "properties": {
+                                    "oid": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{40,64}$"
+                                    },
+                                    "branch": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "oid",
+                                    "branch"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "commit": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{40,64}$"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "line": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "endLine": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "projectId",
+                                "revision",
+                                "commit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "webUrl": {
+                          "type": "string",
+                          "format": "uri"
+                        },
                         "url": {
                           "type": "string",
                           "format": "uri"
                         }
                       },
-                      "required": ["path", "excerpt", "url"],
+                      "required": [
+                        "path",
+                        "excerpt"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -3751,7 +5104,11 @@
                         "maxLength": 600
                       }
                     },
-                    "required": ["situation", "need", "experience"],
+                    "required": [
+                      "situation",
+                      "need",
+                      "experience"
+                    ],
                     "additionalProperties": false
                   }
                 },
@@ -3806,12 +5163,125 @@
                         "type": "string",
                         "minLength": 1
                       },
+                      "locator": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "project-file"
+                              },
+                              "projectId": {
+                                "type": "string"
+                              },
+                              "revision": {
+                                "type": "object",
+                                "properties": {
+                                  "oid": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{40,64}$"
+                                  },
+                                  "branch": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "oid",
+                                  "branch"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "endLine": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "projectId",
+                              "revision",
+                              "path"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "project-change"
+                              },
+                              "projectId": {
+                                "type": "string"
+                              },
+                              "revision": {
+                                "type": "object",
+                                "properties": {
+                                  "oid": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{40,64}$"
+                                  },
+                                  "branch": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "oid",
+                                  "branch"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "commit": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{40,64}$"
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "endLine": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "projectId",
+                              "revision",
+                              "commit"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "webUrl": {
+                        "type": "string",
+                        "format": "uri"
+                      },
                       "url": {
                         "type": "string",
                         "format": "uri"
                       }
                     },
-                    "required": ["path", "excerpt", "url"],
+                    "required": [
+                      "path",
+                      "excerpt"
+                    ],
                     "additionalProperties": false
                   }
                 },
@@ -3845,7 +5315,12 @@
                       }
                     }
                   },
-                  "required": ["product", "users", "problems", "scenarios"],
+                  "required": [
+                    "product",
+                    "users",
+                    "problems",
+                    "scenarios"
+                  ],
                   "additionalProperties": false
                 },
                 "analysisVersion": {
@@ -3924,7 +5399,12 @@
                   "type": "string"
                 }
               },
-              "required": ["id", "version", "title", "prompt"],
+              "required": [
+                "id",
+                "version",
+                "title",
+                "prompt"
+              ],
               "additionalProperties": false
             },
             "reason": {
@@ -3958,7 +5438,11 @@
                 },
                 "source": {
                   "type": "string",
-                  "enum": ["github", "xiaohongshu", "x"]
+                  "enum": [
+                    "github",
+                    "xiaohongshu",
+                    "x"
+                  ]
                 },
                 "sourceId": {
                   "type": "string",
@@ -3986,7 +5470,10 @@
                 },
                 "completeness": {
                   "type": "string",
-                  "enum": ["partial", "complete"]
+                  "enum": [
+                    "partial",
+                    "complete"
+                  ]
                 },
                 "publishedAt": {
                   "anyOf": [
@@ -4077,7 +5564,10 @@
         }
       }
     },
-    "required": ["material", "runs"],
+    "required": [
+      "material",
+      "runs"
+    ],
     "additionalProperties": false
   },
   "generation": {
@@ -4101,7 +5591,10 @@
         "type": "string"
       }
     },
-    "required": ["ids", "prompt"],
+    "required": [
+      "ids",
+      "prompt"
+    ],
     "additionalProperties": false
   },
   "feed": {
@@ -4160,7 +5653,11 @@
                     },
                     "source": {
                       "type": "string",
-                      "enum": ["github", "xiaohongshu", "x"]
+                      "enum": [
+                        "github",
+                        "xiaohongshu",
+                        "x"
+                      ]
                     },
                     "sourceId": {
                       "type": "string",
@@ -4188,7 +5685,10 @@
                     },
                     "completeness": {
                       "type": "string",
-                      "enum": ["partial", "complete"]
+                      "enum": [
+                        "partial",
+                        "complete"
+                      ]
                     },
                     "publishedAt": {
                       "anyOf": [
@@ -4342,7 +5842,10 @@
                           },
                           "collectionMode": {
                             "type": "string",
-                            "enum": ["intent", "keyword"]
+                            "enum": [
+                              "intent",
+                              "keyword"
+                            ]
                           },
                           "budget": {
                             "type": "object",
@@ -4396,7 +5899,11 @@
                               "properties": {
                                 "platform": {
                                   "type": "string",
-                                  "enum": ["github", "xiaohongshu", "x"]
+                                  "enum": [
+                                    "github",
+                                    "xiaohongshu",
+                                    "x"
+                                  ]
                                 },
                                 "keyword": {
                                   "default": "",
@@ -4405,11 +5912,18 @@
                                 },
                                 "searchMode": {
                                   "type": "string",
-                                  "enum": ["trending", "search"]
+                                  "enum": [
+                                    "trending",
+                                    "search"
+                                  ]
                                 },
                                 "period": {
                                   "type": "string",
-                                  "enum": ["daily", "weekly", "monthly"]
+                                  "enum": [
+                                    "daily",
+                                    "weekly",
+                                    "monthly"
+                                  ]
                                 },
                                 "limit": {
                                   "type": "integer",
@@ -4441,7 +5955,12 @@
                           "schedule": {
                             "default": "manual",
                             "type": "string",
-                            "enum": ["manual", "hourly", "daily", "weekly"]
+                            "enum": [
+                              "manual",
+                              "hourly",
+                              "daily",
+                              "weekly"
+                            ]
                           },
                           "time": {
                             "default": "09:00",
@@ -4485,7 +6004,10 @@
                           },
                           {
                             "type": "string",
-                            "enum": ["partial", "no_results"]
+                            "enum": [
+                              "partial",
+                              "no_results"
+                            ]
                           }
                         ]
                       },
@@ -4508,7 +6030,11 @@
                                 },
                                 "platform": {
                                   "type": "string",
-                                  "enum": ["github", "xiaohongshu", "x"]
+                                  "enum": [
+                                    "github",
+                                    "xiaohongshu",
+                                    "x"
+                                  ]
                                 },
                                 "phase": {
                                   "type": "string",
@@ -4531,7 +6057,12 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["id", "at", "phase", "message"],
+                              "required": [
+                                "id",
+                                "at",
+                                "phase",
+                                "message"
+                              ],
                               "additionalProperties": false
                             }
                           },
@@ -4552,7 +6083,11 @@
                                     },
                                     "source": {
                                       "type": "string",
-                                      "enum": ["github", "xiaohongshu", "x"]
+                                      "enum": [
+                                        "github",
+                                        "xiaohongshu",
+                                        "x"
+                                      ]
                                     },
                                     "sourceId": {
                                       "type": "string",
@@ -4580,7 +6115,10 @@
                                     },
                                     "completeness": {
                                       "type": "string",
-                                      "enum": ["partial", "complete"]
+                                      "enum": [
+                                        "partial",
+                                        "complete"
+                                      ]
                                     },
                                     "publishedAt": {
                                       "anyOf": [
@@ -4659,11 +6197,18 @@
                                 },
                                 "status": {
                                   "type": "string",
-                                  "enum": ["accepted", "rejected", "uncertain"]
+                                  "enum": [
+                                    "accepted",
+                                    "rejected",
+                                    "uncertain"
+                                  ]
                                 },
                                 "judgmentState": {
                                   "type": "string",
-                                  "enum": ["complete", "pending"]
+                                  "enum": [
+                                    "complete",
+                                    "pending"
+                                  ]
                                 },
                                 "reason": {
                                   "type": "string"
@@ -4713,14 +6258,22 @@
                                 "maximum": 9007199254740991
                               }
                             },
-                            "required": ["queries", "modelCalls", "candidates"],
+                            "required": [
+                              "queries",
+                              "modelCalls",
+                              "candidates"
+                            ],
                             "additionalProperties": false
                           },
                           "stopReason": {
                             "type": "string"
                           }
                         },
-                        "required": ["events", "candidates", "usage"],
+                        "required": [
+                          "events",
+                          "candidates",
+                          "usage"
+                        ],
                         "additionalProperties": false
                       },
                       "platforms": {
@@ -4730,7 +6283,11 @@
                           "properties": {
                             "platform": {
                               "type": "string",
-                              "enum": ["github", "xiaohongshu", "x"]
+                              "enum": [
+                                "github",
+                                "xiaohongshu",
+                                "x"
+                              ]
                             },
                             "state": {
                               "anyOf": [
@@ -4786,7 +6343,11 @@
                               "type": "string"
                             }
                           },
-                          "required": ["platform", "state", "count"],
+                          "required": [
+                            "platform",
+                            "state",
+                            "count"
+                          ],
                           "additionalProperties": false
                         }
                       }
@@ -4815,7 +6376,10 @@
                           "properties": {
                             "significance": {
                               "type": "string",
-                              "enum": ["milestone", "supporting"]
+                              "enum": [
+                                "milestone",
+                                "supporting"
+                              ]
                             },
                             "id": {
                               "type": "string"
@@ -4870,12 +6434,125 @@
                                     "type": "string",
                                     "minLength": 1
                                   },
+                                  "locator": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "project-file"
+                                          },
+                                          "projectId": {
+                                            "type": "string"
+                                          },
+                                          "revision": {
+                                            "type": "object",
+                                            "properties": {
+                                              "oid": {
+                                                "type": "string",
+                                                "pattern": "^[a-f0-9]{40,64}$"
+                                              },
+                                              "branch": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "oid",
+                                              "branch"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          "path": {
+                                            "type": "string"
+                                          },
+                                          "line": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "endLine": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "projectId",
+                                          "revision",
+                                          "path"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "project-change"
+                                          },
+                                          "projectId": {
+                                            "type": "string"
+                                          },
+                                          "revision": {
+                                            "type": "object",
+                                            "properties": {
+                                              "oid": {
+                                                "type": "string",
+                                                "pattern": "^[a-f0-9]{40,64}$"
+                                              },
+                                              "branch": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "oid",
+                                              "branch"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          "commit": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{40,64}$"
+                                          },
+                                          "path": {
+                                            "type": "string"
+                                          },
+                                          "line": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "endLine": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "projectId",
+                                          "revision",
+                                          "commit"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  },
+                                  "webUrl": {
+                                    "type": "string",
+                                    "format": "uri"
+                                  },
                                   "url": {
                                     "type": "string",
                                     "format": "uri"
                                   }
                                 },
-                                "required": ["path", "excerpt", "url"],
+                                "required": [
+                                  "path",
+                                  "excerpt"
+                                ],
                                 "additionalProperties": false
                               }
                             },
@@ -4954,7 +6631,11 @@
                                   "maxLength": 600
                                 }
                               },
-                              "required": ["situation", "need", "experience"],
+                              "required": [
+                                "situation",
+                                "need",
+                                "experience"
+                              ],
                               "additionalProperties": false
                             }
                           },
@@ -5009,12 +6690,125 @@
                                   "type": "string",
                                   "minLength": 1
                                 },
+                                "locator": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "kind": {
+                                          "type": "string",
+                                          "const": "project-file"
+                                        },
+                                        "projectId": {
+                                          "type": "string"
+                                        },
+                                        "revision": {
+                                          "type": "object",
+                                          "properties": {
+                                            "oid": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{40,64}$"
+                                            },
+                                            "branch": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "oid",
+                                            "branch"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "path": {
+                                          "type": "string"
+                                        },
+                                        "line": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "endLine": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "projectId",
+                                        "revision",
+                                        "path"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "kind": {
+                                          "type": "string",
+                                          "const": "project-change"
+                                        },
+                                        "projectId": {
+                                          "type": "string"
+                                        },
+                                        "revision": {
+                                          "type": "object",
+                                          "properties": {
+                                            "oid": {
+                                              "type": "string",
+                                              "pattern": "^[a-f0-9]{40,64}$"
+                                            },
+                                            "branch": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "oid",
+                                            "branch"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "commit": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{40,64}$"
+                                        },
+                                        "path": {
+                                          "type": "string"
+                                        },
+                                        "line": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "endLine": {
+                                          "type": "integer",
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 9007199254740991
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "projectId",
+                                        "revision",
+                                        "commit"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                },
+                                "webUrl": {
+                                  "type": "string",
+                                  "format": "uri"
+                                },
                                 "url": {
                                   "type": "string",
                                   "format": "uri"
                                 }
                               },
-                              "required": ["path", "excerpt", "url"],
+                              "required": [
+                                "path",
+                                "excerpt"
+                              ],
                               "additionalProperties": false
                             }
                           },
@@ -5132,7 +6926,12 @@
                             "type": "string"
                           }
                         },
-                        "required": ["id", "version", "title", "prompt"],
+                        "required": [
+                          "id",
+                          "version",
+                          "title",
+                          "prompt"
+                        ],
                         "additionalProperties": false
                       },
                       "reason": {
@@ -5166,7 +6965,11 @@
                           },
                           "source": {
                             "type": "string",
-                            "enum": ["github", "xiaohongshu", "x"]
+                            "enum": [
+                              "github",
+                              "xiaohongshu",
+                              "x"
+                            ]
                           },
                           "sourceId": {
                             "type": "string",
@@ -5194,7 +6997,10 @@
                           },
                           "completeness": {
                             "type": "string",
-                            "enum": ["partial", "complete"]
+                            "enum": [
+                              "partial",
+                              "complete"
+                            ]
                           },
                           "publishedAt": {
                             "anyOf": [
@@ -5285,7 +7091,10 @@
                   }
                 }
               },
-              "required": ["material", "runs"],
+              "required": [
+                "material",
+                "runs"
+              ],
               "additionalProperties": false
             },
             "chapter": {
@@ -5325,12 +7134,24 @@
               "type": "string"
             }
           },
-          "required": ["id", "evidence", "state", "text"],
+          "required": [
+            "id",
+            "evidence",
+            "state",
+            "text"
+          ],
           "additionalProperties": false
         }
       }
     },
-    "required": ["id", "title", "createdAt", "prompt", "state", "items"],
+    "required": [
+      "id",
+      "title",
+      "createdAt",
+      "prompt",
+      "state",
+      "items"
+    ],
     "additionalProperties": false
   },
   "inbox": {
@@ -5342,7 +7163,10 @@
         "properties": {
           "channel": {
             "type": "string",
-            "enum": ["telegram", "feishu"]
+            "enum": [
+              "telegram",
+              "feishu"
+            ]
           },
           "messageId": {
             "type": "string"
@@ -5351,7 +7175,11 @@
             "type": "string"
           }
         },
-        "required": ["channel", "messageId", "peer"],
+        "required": [
+          "channel",
+          "messageId",
+          "peer"
+        ],
         "additionalProperties": false
       },
       "id": {
@@ -5385,7 +7213,11 @@
           },
           "source": {
             "type": "string",
-            "enum": ["github", "xiaohongshu", "x"]
+            "enum": [
+              "github",
+              "xiaohongshu",
+              "x"
+            ]
           },
           "sourceId": {
             "type": "string",
@@ -5413,7 +7245,10 @@
           },
           "completeness": {
             "type": "string",
-            "enum": ["partial", "complete"]
+            "enum": [
+              "partial",
+              "complete"
+            ]
           },
           "publishedAt": {
             "anyOf": [
@@ -5501,7 +7336,14 @@
         "type": "string"
       }
     },
-    "required": ["id", "url", "createdAt", "state", "summary", "summaryState"],
+    "required": [
+      "id",
+      "url",
+      "createdAt",
+      "state",
+      "summary",
+      "summaryState"
+    ],
     "additionalProperties": false
   }
 }

@@ -19,6 +19,16 @@ import {
   Exploration,
   Batch,
 } from "./workspace-contracts.js";
+import { z } from "zod";
+const LocalBinding = z.object({
+  id: z.string(),
+  rootPath: z.string().min(1),
+  branch: z.string(),
+  oid: z.string().regex(/^[a-f0-9]{40,64}$/),
+  linkedAt: z.string(),
+});
+export type LocalBinding = z.infer<typeof LocalBinding>;
+export const STORE_VERSION = 5;
 type WorkspaceTable =
   | "repos"
   | "understandings"
@@ -65,7 +75,7 @@ export class Store {
     );
     const version = (this.db.prepare("PRAGMA user_version").get() as any)
       .user_version;
-    if (version > 4) {
+    if (version > STORE_VERSION) {
       this.db.close();
       throw Error("数据库来自更新的应用版本，请使用新版应用");
     }
@@ -169,9 +179,17 @@ export class Store {
               .run(JSON.stringify(item), row.id);
           }
         }),
+        migration(5, () => {
+          this.db.exec(
+            "CREATE TABLE IF NOT EXISTS local_bindings(id TEXT PRIMARY KEY, data TEXT NOT NULL)",
+          );
+          this.db
+            .prepare("DELETE FROM settings WHERE id=?")
+            .run("githubCredential");
+        }),
       ];
       for (const step of migrations) if (version < step.version) step.run();
-      this.db.exec("PRAGMA user_version=4; COMMIT;");
+      this.db.exec(`PRAGMA user_version=${STORE_VERSION}; COMMIT;`);
     } catch (error) {
       this.db.exec("ROLLBACK");
       this.db.close();
@@ -243,11 +261,39 @@ export class Store {
       .run(item.id, JSON.stringify(stored));
     return item;
   }
+  getLocalBinding(id: string): LocalBinding | undefined {
+    const row = this.db
+      .prepare("SELECT data FROM local_bindings WHERE id=?")
+      .get(id) as any;
+    return row ? LocalBinding.parse(JSON.parse(row.data)) : undefined;
+  }
+  findLocalBinding(rootPath: string): LocalBinding | undefined {
+    for (const row of this.db
+      .prepare("SELECT data FROM local_bindings")
+      .all()) {
+      const value = LocalBinding.parse(JSON.parse(String((row as any).data)));
+      if (value.rootPath === rootPath) return value;
+    }
+    return undefined;
+  }
+  putLocalBinding(binding: LocalBinding) {
+    const value = LocalBinding.parse(binding);
+    this.db
+      .prepare(
+        "INSERT INTO local_bindings(id,data) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+      )
+      .run(value.id, JSON.stringify(value));
+    return value;
+  }
+  deleteLocalBinding(id: string) {
+    this.db.prepare("DELETE FROM local_bindings WHERE id=?").run(id);
+  }
   delete(
     table: "repos" | "tasks" | "materials" | "feeds" | "inbox",
     id: string,
   ) {
     this.db.prepare(`DELETE FROM ${table} WHERE id=?`).run(id);
+    if (table === "repos") this.deleteLocalBinding(id);
   }
   saveTask(
     input: unknown,

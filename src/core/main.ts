@@ -25,6 +25,7 @@ import {
   Menu,
   nativeImage,
   powerMonitor,
+  dialog,
 } from "electron";
 import {
   mkdir,
@@ -53,6 +54,11 @@ import { chapterTitle, templates } from "./templates.js";
 import { publicURL } from "../adapters/public-url.mjs";
 import { collectIntent } from "./collection.js";
 import { awaitWithSignal } from "./abort.js";
+import {
+  inspectLocalRepository,
+  hasCommitContinuity,
+  readFixedEvidence,
+} from "../adapters/local-git.mjs";
 import {
   Command,
   TaskInput,
@@ -152,11 +158,6 @@ async function modelPayload(connection: ModelConnection, draftKey?: string) {
   };
 }
 let workspace: WorkspaceService;
-let githubEncrypted: string | undefined;
-const githubToken = () =>
-  githubEncrypted
-    ? safeStorage.decryptString(Buffer.from(githubEncrypted, "base64"))
-    : undefined;
 const runtime = app.isPackaged
   ? join(process.resourcesPath, ".runtime")
   : join(app.getAppPath(), ".runtime");
@@ -328,8 +329,7 @@ async function work(
     };
     const timer = setTimeout(
       () => finish(Error("执行超时，请缩小本轮数量后重试")),
-      ["collect", "repoSnapshot", "repoRead"].includes(payload.type) ||
-        payload.repository
+      ["collect", "repoRead"].includes(payload.type) || payload.repository
         ? 900000
         : 120000,
     );
@@ -773,7 +773,6 @@ async function handle(raw: unknown) {
         modelSettings: publicModelSettings(settings),
         connections: { x: !!x.authToken && !!x.ct0, xiaohongshu: xhsLoggedIn },
         busy: [...active.keys(), ...workspace.controllers.keys()],
-        hasGithubToken: !!githubEncrypted,
         templates,
       };
     }
@@ -804,10 +803,33 @@ async function handle(raw: unknown) {
         );
       return ids[0];
     }
-    case "bindRepo":
-      return workspace.bind(c.name);
+    case "bindLocalRepo": {
+      const picked = await dialog.showOpenDialog(win, {
+        title: "选择本地 Git 项目",
+        properties: ["openDirectory"],
+        buttonLabel: "关联这个项目",
+      });
+      if (picked.canceled || !picked.filePaths[0]) return null;
+      return workspace.bindLocal(
+        await inspectLocalRepository(picked.filePaths[0]),
+      );
+    }
+    case "relinkLocalRepo": {
+      const picked = await dialog.showOpenDialog(win, {
+        title: "为旧项目选择本地 Git 目录",
+        properties: ["openDirectory"],
+        buttonLabel: "验证并关联",
+      });
+      if (picked.canceled || !picked.filePaths[0]) return null;
+      return workspace.relinkLocal(
+        c.id,
+        await inspectLocalRepository(picked.filePaths[0]),
+      );
+    }
+    case "inspectLocalRepo":
+      return workspace.inspect(c.id);
     case "analyzeRepo":
-      return workspace.analyze(c.id);
+      return workspace.analyze(c.id, undefined, c.confirmBranch);
     case "retryAnalysis":
       return workspace.retryAnalysis(c.id);
     case "cancelAnalysis":
@@ -833,21 +855,10 @@ async function handle(raw: unknown) {
       return workspace.resumeRun(c.id);
     case "retryExploration":
       return workspace.retry(c.id);
-    case "sourceKey": {
-      if (c.value && !safeStorage.isEncryptionAvailable())
-        throw Error("系统安全存储不可用");
-      githubEncrypted = c.value
-        ? safeStorage.encryptString(c.value.trim()).toString("base64")
-        : undefined;
-      store.put("settings", {
-        id: "githubCredential",
-        encrypted: githubEncrypted,
-      } as any);
-      break;
-    }
-    case "checkSource": {
-      if (!githubToken()) throw Error("请先保存 GitHub 只读 Token");
-      return work("github-check", { type: "repoCheck", token: githubToken() });
+    case "readEvidence": {
+      const binding = store.getLocalBinding(c.locator.projectId);
+      if (!binding) throw Error("这个项目尚未关联本地目录");
+      return readFixedEvidence(binding.rootPath, c.locator);
     }
     case "saveTask":
     case "deleteTask":
@@ -1144,28 +1155,36 @@ app.whenReady().then(async () => {
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
   store = new Store(join(dataDir, "feedloom.sqlite"));
   store.recover();
-  githubEncrypted = store.get<any>("settings", "githubCredential")?.encrypted;
   workspace = new WorkspaceService(store, {
-    metadata: (name) =>
-      work("repo-bind", { type: "repoMetadata", name, token: githubToken() }),
-    read: (input, signal, onProgress) =>
-      work(
+    inspect: inspectLocalRepository,
+    continuity: hasCommitContinuity,
+    read: (input, signal, onProgress) => {
+      const binding = store.getLocalBinding(input.repo.id);
+      if (!binding) throw Error("本地目录关联已失效，请重新关联");
+      return work(
         `repo:${input.repo.id}`,
-        { type: "repoRead", ...input, token: githubToken() },
+        { type: "repoRead", ...input, rootPath: binding.rootPath },
         signal,
         onProgress as any,
-      ),
+      );
+    },
     agent: (key, prompt, context, signal, progress) =>
-      model(
-        key,
-        "",
-        prompt,
-        signal,
-        ["edit", "curate"].includes(context.mode)
-          ? undefined
-          : { ...context, token: githubToken() },
-        (_phase, message) => progress?.(message),
-      ),
+      (() => {
+        if (["edit", "curate"].includes(context.mode))
+          return model(key, "", prompt, signal, undefined, (_phase, message) =>
+            progress?.(message),
+          );
+        const binding = store.getLocalBinding(context.repo.id);
+        if (!binding) throw Error("本地目录关联已失效，请重新关联");
+        return model(
+          key,
+          "",
+          prompt,
+          signal,
+          { ...context, rootPath: binding.rootPath },
+          (_phase, message) => progress?.(message),
+        );
+      })(),
     model: async (key, prompt, signal) => {
       const result = await model(key, "", prompt, signal);
       return {
