@@ -7345,5 +7345,80 @@
       "summaryState"
     ],
     "additionalProperties": false
+  },
+  "collection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "isDefault": {
+        "type": "boolean"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "isDefault",
+      "createdAt",
+      "updatedAt"
+    ],
+    "additionalProperties": false
+  },
+  "collectionAssignment": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "itemId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "collectionId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "assignedAt": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "migration",
+          "default",
+          "manual",
+          "bot"
+        ]
+      },
+      "batchId": {
+        "type": "string"
+      },
+      "organizationState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "expired"
+        ]
+      }
+    },
+    "required": [
+      "itemId",
+      "collectionId",
+      "assignedAt",
+      "source"
+    ],
+    "additionalProperties": false
   }
 }

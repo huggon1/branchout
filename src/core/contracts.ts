@@ -207,6 +207,36 @@ export interface Inbox {
   summaryState: ResultState;
   error?: string;
 }
+export const CollectionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(40),
+  isDefault: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Collection = z.infer<typeof CollectionSchema>;
+export const CollectionAssignmentSourceSchema = z.enum([
+  "migration",
+  "default",
+  "manual",
+  "bot",
+]);
+export type CollectionAssignmentSource = z.infer<
+  typeof CollectionAssignmentSourceSchema
+>;
+export const CollectionOrganizationStateSchema = z.enum(["pending", "expired"]);
+export type CollectionOrganizationState = z.infer<
+  typeof CollectionOrganizationStateSchema
+>;
+export const CollectionAssignmentSchema = z.object({
+  itemId: z.string().min(1),
+  collectionId: z.string().min(1),
+  assignedAt: z.string(),
+  source: CollectionAssignmentSourceSchema,
+  batchId: z.string().optional(),
+  organizationState: CollectionOrganizationStateSchema.optional(),
+});
+export type CollectionAssignment = z.infer<typeof CollectionAssignmentSchema>;
 export const ExplorationCandidate = CandidateDecisionSchema.extend({
   runId: z.string(),
   language: z.enum(["zh", "en"]),
@@ -236,6 +266,22 @@ export const Command = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("parseText"),
     text: z.string().min(1).max(20000),
+  }),
+  z.object({
+    type: z.literal("createCollection"),
+    name: z.string().max(200),
+  }),
+  z.object({
+    type: z.literal("renameCollection"),
+    id: z.string(),
+    name: z.string().max(200),
+  }),
+  z.object({ type: z.literal("setDefaultCollection"), id: z.string() }),
+  z.object({ type: z.literal("deleteCollection"), id: z.string() }),
+  z.object({
+    type: z.literal("moveCollectionItems"),
+    ids: z.array(z.string()).min(1).max(500),
+    collectionId: z.string(),
   }),
   z.object({ type: z.literal("state") }),
   z.object({
@@ -410,4 +456,6 @@ export const contractSchema = {
   generation: z.toJSONSchema(GenerationSchema),
   feed: z.toJSONSchema(FeedSchema),
   inbox: z.toJSONSchema(InboxSchema),
+  collection: z.toJSONSchema(CollectionSchema),
+  collectionAssignment: z.toJSONSchema(CollectionAssignmentSchema),
 };
