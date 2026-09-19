@@ -43,7 +43,7 @@ app
         );
     }
     const tray =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 32"><path fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 27V16C6 7 12 4 23 5v8c0 9-7 13-17 10M6 23 19 10M11 18h8M15 14V8"/></svg>';
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><g stroke="black" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15h20M4 20h16M4 25h12" fill="none" stroke-width="2.2"/><path d="M14 15c0-4 1-8 4-11" fill="none" stroke-width="2.2"/><path d="M14 11C12 7 8 6 4 7c1 4 4.5 6.2 10 5Z"/><path d="M15 9c1-4 5-6 9-5-.5 4.5-3.5 7-9 7Z"/></g></svg>';
     for (const scale of [1, 2]) {
       const img = await render(tray, 18 * scale);
       await fs.writeFile(
