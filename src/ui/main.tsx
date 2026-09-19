@@ -18,11 +18,7 @@ import { templates, chapterTitle } from "../core/templates.js";
 import { groupedItems, copyFeed } from "../core/feed-layout.js";
 import { RunResearch, phaseLabels } from "./RunResearch.js";
 import { ContentCollection } from "./ContentCollection.js";
-import {
-  WorkspaceContext,
-  WorkspaceLocation,
-  WorkspaceNavigation,
-} from "./WorkspaceNavigation.js";
+import { WorkspaceNavigation } from "./WorkspaceNavigation.js";
 import {
   type AppPage,
   type WorkspaceId,
@@ -110,7 +106,7 @@ function App() {
     const next = nextValue as AppPage;
     if (next === page && (!detailId || detailId === explorationBatch)) return;
     if (
-      page === "连接与模型" &&
+      page === "设置" &&
       connectionDirty &&
       !confirm("连接有未保存的修改，离开并放弃这些修改？")
     )
@@ -129,7 +125,7 @@ function App() {
     const nextWorkspace = workspaceForPage(next);
     if (nextWorkspace) lastPages.current[nextWorkspace.id] = next;
     navigationRequested.current = true;
-    setConnectionSection(next === "连接与模型" ? detailId : undefined);
+    setConnectionSection(next === "设置" ? detailId : undefined);
     if (next === "探索运行" && detailId) setExplorationBatch(detailId);
     setPage(next);
   };
@@ -167,7 +163,10 @@ function App() {
   useEffect(() => {
     setNotice("");
     const frame = requestAnimationFrame(() => {
-      window.scrollTo({ top: scrollPositions.current[page] || 0, behavior: "auto" });
+      window.scrollTo({
+        top: scrollPositions.current[page] || 0,
+        behavior: "auto",
+      });
       if (navigationRequested.current) {
         pageHeading.current?.focus({ preventScroll: true });
         navigationRequested.current = false;
@@ -200,9 +199,11 @@ function App() {
       if (e.key !== "Tab") return;
       const modal = document.querySelector(".modal");
       if (!modal) return;
-      const focusable = [...modal.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )];
+      const focusable = [
+        ...modal.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ];
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -238,14 +239,14 @@ function App() {
     try {
       if (!window.feedloom) throw Error("请通过桌面应用打开 nature-feed");
       const r = await window.feedloom.command({ type: "state" });
-      if (!r.ok) throw Error(r.error || "无法读取本地工作空间");
+      if (!r.ok) throw Error(r.error || "无法读取应用数据");
       setState(r.value);
       setPrompt((v) => v || r.value.prompt);
       initialized.current = true;
       setReady(true);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
-      if (initialized.current) setError(`工作空间刷新失败：${message}`);
+      if (initialized.current) setError(`数据刷新失败：${message}`);
       else setOpeningError(message);
     } finally {
       setOpening(false);
@@ -418,7 +419,7 @@ function App() {
         </div>
         {openingError ? (
           <section className="panel" role="alert">
-            <h2>暂时无法打开本地工作空间</h2>
+            <h2>暂时无法打开数据</h2>
             <p className="muted">{openingError}</p>
             <button
               className="primary"
@@ -429,143 +430,158 @@ function App() {
             </button>
           </section>
         ) : (
-          <p role="status">正在打开本地工作空间…</p>
+          <p role="status">正在打开 nature-feed…</p>
         )}
       </div>
     );
   function materialTable() {
     const activeFilterCount = Object.values(filter).filter(Boolean).length;
+    if (!state.materials.length)
+      return (
+        <Empty
+          title="还没有素材"
+          text="完成一次素材探索后，结果会出现在这里。"
+          action={() => navigate("探索")}
+          label="新建探索"
+        />
+      );
     return (
       <>
-        <details className="filter-disclosure" open={page === "素材库" ? true : undefined}>
+        <details className="filter-disclosure">
           <summary>
             <span>筛选与排序</span>
             <small>
-              {activeFilterCount ? `${activeFilterCount} 项条件` : `${rows.length} 条结果`}
+              {activeFilterCount
+                ? `${activeFilterCount} 项条件`
+                : `${rows.length} 条结果`}
             </small>
           </summary>
           <div className="filters">
-          <label>
-            <span>平台筛选</span>
-            <select
-              aria-label="平台筛选"
-              value={filter.platform}
-              onChange={(e) =>
-                setFilter({ ...filter, platform: e.target.value, sort: "" })
-              }
-            >
-              <option value="">所有平台</option>
-              {Object.entries(platforms).map(([id, name]) => (
-                <option value={id} key={id}>
-                  {name as string}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>任务筛选</span>
-            <select
-              aria-label="任务筛选"
-              value={filter.task}
-              onChange={(e) =>
-                setFilter({ ...filter, task: e.target.value, run: "" })
-              }
-            >
-              <option value="">全部任务</option>
-              {state.tasks.map((t: Task) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>仓库筛选</span>
-            <select
-              aria-label="仓库筛选"
-              value={filter.repo}
-              onChange={(e) => setFilter({ ...filter, repo: e.target.value })}
-            >
-              <option value="">全部仓库</option>
-              {(state.repos || []).map((r: any) => (
-                <option key={r.id} value={r.id}>
-                  {r.fullName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>角度筛选</span>
-            <select
-              aria-label="角度筛选"
-              value={filter.angle}
-              onChange={(e) => setFilter({ ...filter, angle: e.target.value })}
-            >
-              <option value="">全部角度</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>批次筛选</span>
-            <select
-              aria-label="批次筛选"
-              value={filter.batch}
-              onChange={(e) => setFilter({ ...filter, batch: e.target.value })}
-            >
-              <option value="">全部批次</option>
-              {(state.batches || []).map((b: any) => (
-                <option key={b.id} value={b.id}>
-                  {date(b.createdAt)} · {b.runIds.length} 项
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>起始收集日期</span>
-            <input
-              aria-label="起始收集日期"
-              type="date"
-              value={filter.date}
-              onChange={(e) => setFilter({ ...filter, date: e.target.value })}
-            />
-          </label>
-          <label>
-            <span>使用状态</span>
-            <select
-              aria-label="使用状态"
-              value={filter.used}
-              onChange={(e) => setFilter({ ...filter, used: e.target.value })}
-            >
-              <option value="">全部使用状态</option>
-              <option value="no">未用于生成</option>
-              <option value="yes">已用于生成</option>
-            </select>
-          </label>
-          <label>
-            <span>素材排序</span>
-            <select
-              aria-label="素材排序"
-              value={filter.sort}
-              onChange={(e) => setFilter({ ...filter, sort: e.target.value })}
-            >
-              <option value="">收集时间 · 最新优先</option>
-              {filter.platform &&
-                (filter.platform === "github"
-                  ? ["stars", "forks", "periodStars"]
-                  : filter.platform === "x"
-                    ? ["likes", "comments", "reposts"]
-                    : ["likes", "comments", "favorites"]
-                ).map((m) => (
-                  <option key={m} value={m}>
-                    {metricNames[m]} · 从高到低
+            <label>
+              <span>平台筛选</span>
+              <select
+                aria-label="平台筛选"
+                value={filter.platform}
+                onChange={(e) =>
+                  setFilter({ ...filter, platform: e.target.value, sort: "" })
+                }
+              >
+                <option value="">所有平台</option>
+                {Object.entries(platforms).map(([id, name]) => (
+                  <option value={id} key={id}>
+                    {name as string}
                   </option>
                 ))}
-            </select>
-          </label>
+              </select>
+            </label>
+            <label>
+              <span>任务筛选</span>
+              <select
+                aria-label="任务筛选"
+                value={filter.task}
+                onChange={(e) =>
+                  setFilter({ ...filter, task: e.target.value, run: "" })
+                }
+              >
+                <option value="">全部任务</option>
+                {state.tasks.map((t: Task) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>仓库筛选</span>
+              <select
+                aria-label="仓库筛选"
+                value={filter.repo}
+                onChange={(e) => setFilter({ ...filter, repo: e.target.value })}
+              >
+                <option value="">全部仓库</option>
+                {(state.repos || []).map((r: any) => (
+                  <option key={r.id} value={r.id}>
+                    {r.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>角度筛选</span>
+              <select
+                aria-label="角度筛选"
+                value={filter.angle}
+                onChange={(e) =>
+                  setFilter({ ...filter, angle: e.target.value })
+                }
+              >
+                <option value="">全部角度</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>批次筛选</span>
+              <select
+                aria-label="批次筛选"
+                value={filter.batch}
+                onChange={(e) =>
+                  setFilter({ ...filter, batch: e.target.value })
+                }
+              >
+                <option value="">全部批次</option>
+                {(state.batches || []).map((b: any) => (
+                  <option key={b.id} value={b.id}>
+                    {date(b.createdAt)} · {b.runIds.length} 项
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>起始收集日期</span>
+              <input
+                aria-label="起始收集日期"
+                type="date"
+                value={filter.date}
+                onChange={(e) => setFilter({ ...filter, date: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>使用状态</span>
+              <select
+                aria-label="使用状态"
+                value={filter.used}
+                onChange={(e) => setFilter({ ...filter, used: e.target.value })}
+              >
+                <option value="">全部使用状态</option>
+                <option value="no">未用于生成</option>
+                <option value="yes">已用于生成</option>
+              </select>
+            </label>
+            <label>
+              <span>素材排序</span>
+              <select
+                aria-label="素材排序"
+                value={filter.sort}
+                onChange={(e) => setFilter({ ...filter, sort: e.target.value })}
+              >
+                <option value="">收集时间 · 最新优先</option>
+                {filter.platform &&
+                  (filter.platform === "github"
+                    ? ["stars", "forks", "periodStars"]
+                    : filter.platform === "x"
+                      ? ["likes", "comments", "reposts"]
+                      : ["likes", "comments", "favorites"]
+                  ).map((m) => (
+                    <option key={m} value={m}>
+                      {metricNames[m]} · 从高到低
+                    </option>
+                  ))}
+              </select>
+            </label>
           </div>
         </details>
         {filter.run && (
@@ -579,7 +595,7 @@ function App() {
             </button>
           </p>
         )}
-        <div className="selection">
+        {!!rows.length && <div className="selection">
           <label>
             <input
               ref={all}
@@ -611,17 +627,25 @@ function App() {
               去生成 Feed · {selected.length}
             </button>
           )}
-        </div>
+        </div>}
         {!rows.length ? (
           <Empty
-            title={state.materials.length ? "没有匹配的素材" : "还没有素材"}
-            text={
-              state.materials.length
-                ? "换一组筛选条件试试。"
-                : "先绑定仓库并生成理解，再按角度探索素材。"
+            title="没有匹配的素材"
+            text="换一组筛选条件试试。"
+            action={() =>
+              setFilter({
+                run: "",
+                platform: "",
+                task: "",
+                repo: "",
+                angle: "",
+                batch: "",
+                date: "",
+                used: "",
+                sort: "",
+              })
             }
-            action={() => navigate("探索")}
-            label="前往探索"
+            label="清除筛选"
           />
         ) : (
           <div className="table">
@@ -700,19 +724,28 @@ function App() {
                   ))}
                 </div>
                 <span className="muted">{date(m.updatedAt)}</span>
-                <button
-                  className="quiet"
-                  aria-label={`删除 ${m.title}`}
-                  onClick={() =>
-                    remove(
-                      "deleteMaterial",
-                      m.id,
-                      "删除这条素材？已有 Feed 保持不变。",
-                    )
-                  }
-                >
-                  删除
-                </button>
+                <details className="row-more">
+                  <summary
+                    className="icon-button"
+                    aria-label={`更多操作 ${m.title}`}
+                  >
+                    <Icon name="more" />
+                  </summary>
+                  <div>
+                    <button
+                      className="danger-action"
+                      onClick={() =>
+                        remove(
+                          "deleteMaterial",
+                          m.id,
+                          "删除这条素材？已有 Feed 保持不变。",
+                        )
+                      }
+                    >
+                      删除素材
+                    </button>
+                  </div>
+                </details>
               </div>
             ))}
           </div>
@@ -722,37 +755,49 @@ function App() {
   }
   return (
     <div className="app">
+      <a className="skip-link" href="#main-content">
+        跳到主要内容
+      </a>
       <aside>
-        <div className="brand">
-          <span className="mark">
-            <BrandMark />
-          </span>
-          nature-feed
+        <div className="brand-lockup">
+          <div className="brand">
+            <span className="mark">
+              <BrandMark />
+            </span>
+            <strong>nature-feed</strong>
+          </div>
         </div>
-        <div className="tagline">把关注织成见解</div>
         <WorkspaceNavigation
           page={page}
-          state={state}
-          selectedCount={selected.length}
           lastPages={lastPages.current}
           navigate={navigate}
         />
         <button
-          className={`settings ${page === "连接与模型" ? "active" : ""}`}
-          aria-current={page === "连接与模型" ? "page" : undefined}
-          onClick={() => navigate("连接与模型")}
+          className={`settings ${page === "设置" ? "active" : ""}`}
+          aria-current={page === "设置" ? "page" : undefined}
+          onClick={() => navigate("设置")}
         >
-          <Icon name="settings" /> 连接与模型
+          <Icon name="settings" /> 设置
         </button>
-        <div className="local">
-          <span className="local-dot" aria-hidden="true" />
-          本地工作空间
-        </div>
       </aside>
-      <main>
-        <header>
+      <main
+        id="main-content"
+        className={
+          page === "设置"
+            ? "settings-page"
+            : page === "内容收集"
+              ? "collection-page"
+              : undefined
+        }
+      >
+        <header
+          className={
+            ["设置", "内容收集"].includes(page)
+              ? "compact-page-header"
+              : undefined
+          }
+        >
           <div>
-            <WorkspaceLocation page={page} />
             <h1 ref={pageHeading} tabIndex={-1}>
               {
                 (
@@ -763,41 +808,15 @@ function App() {
                     探索运行: "探索运行",
                     素材库: "素材库",
                     历史收集: "历史收集",
-                    "Feed 生成": "Feed 创作",
+                    "Feed 生成": "内容创作",
                     "我的 Feed": "Feed 历史",
-                    连接与模型: "连接与模型",
+                    设置: "设置",
                   } as Record<AppPage, string>
                 )[page]
               }
             </h1>
-            <p>
-              {
-                (
-                  {
-                    内容收集: "把转发内容放进合适的收藏夹，随时回来阅读。",
-                    项目回顾: "固定项目版本，理解产品并回顾值得关注的变化。",
-                    探索: "选择已有项目理解与探索角度，开始一批可恢复的探索。",
-                    探索运行: "看清每一步有效进展，随时暂停并从证据继续。",
-                    历史收集: "旧任务与来源依据只读保留，定时执行已停用。",
-                    素材库: "核对原始信号与发现理由，选出真正值得写的内容。",
-                    "Feed 生成": "核对素材、章节与提示词，再生成一份可追溯的 Feed。",
-                    "我的 Feed": "阅读、复制或沿用历史依据重新生成。",
-                    连接与模型: "连接你的来源，选择生成所用的模型。",
-                  } as any
-                )[page]
-              }
-            </p>
           </div>
-          <span className="localbadge">
-            <span /> 个人工作空间
-          </span>
         </header>
-        <WorkspaceContext
-          page={page}
-          state={state}
-          selectedCount={selected.length}
-          navigate={navigate}
-        />
         {error && (
           <div role="alert" className="error">
             {error}
@@ -813,7 +832,22 @@ function App() {
           </div>
         )}
         {page === "素材库" && materialTable()}
-        {page === "Feed 生成" && (
+        {page === "Feed 生成" && !state.materials.length && !fromFeed ? (
+          <Empty
+            title="还没有可用于创作的素材"
+            text="完成素材探索并选择内容后，再开始创作。"
+            action={() => navigate("探索")}
+            label="新建探索"
+          />
+        ) : page === "Feed 生成" && !fromFeed && !selectedRows.length ? (
+          <section className="feed-select-stage">
+            <div className="step-indicator" aria-label="创作进度">
+              <strong><span>1</span> 选择素材</strong>
+              <span><b>2</b> 编排与生成</span>
+            </div>
+            {materialTable()}
+          </section>
+        ) : page === "Feed 生成" ? (
           <div className="generation">
             <section>
               {fromFeed ? (
@@ -861,9 +895,6 @@ function App() {
             </section>
             <section className="panel composer">
               <h2>这次生成</h2>
-              <p className="muted">
-                按下列章节归属和顺序逐条生成；同章保持选择顺序，不合并来源。
-              </p>
               {fromFeed ? (
                 <p>使用原 Feed 的 {sourceItems.length} 条来源快照</p>
               ) : (
@@ -964,7 +995,7 @@ function App() {
               )}
             </section>
           </div>
-        )}
+        ) : null}
         {page === "项目回顾" && (
           <RepoReview state={state} act={act} navigate={navigate} />
         )}
@@ -979,9 +1010,15 @@ function App() {
             batchId={explorationBatch}
           />
         )}
-        {page === "历史收集" && (
+        {page === "历史收集" && !state.tasks.length ? (
+          <Empty
+            title="没有历史收集"
+            text="新的内容从素材探索开始。"
+            action={() => navigate("探索")}
+            label="新建探索"
+          />
+        ) : page === "历史收集" ? (
           <section className="panel">
-            <p>历史任务只读保留。新发现请使用探索，历史素材仍可生成 Feed。</p>
             {state.tasks.map((t: Task) => (
               <details key={t.id}>
                 <summary>{t.name}</summary>
@@ -1004,7 +1041,7 @@ function App() {
               </details>
             ))}
           </section>
-        )}
+        ) : null}
         {state.buildLabel?.includes("测试版") && (
           <p className="preview-label">{state.buildLabel}</p>
         )}
@@ -1015,7 +1052,7 @@ function App() {
             items={state.inbox}
             bots={state.bots}
             act={act}
-            openSettings={() => navigate("连接与模型", "bots")}
+            openSettings={() => navigate("设置", "bots")}
             notice={setNotice}
           />
         )}
@@ -1044,7 +1081,7 @@ function App() {
                     )
                     .join(" · ")}
                 </p>
-                <button onClick={() => navigate("连接与模型", "bots")}>
+                <button onClick={() => navigate("设置", "bots")}>
                   配置机器人
                 </button>
               </div>
@@ -1145,7 +1182,14 @@ function App() {
             </div>
           </>
         )}
-        {page === "我的 Feed" && (
+        {page === "我的 Feed" && !state.feeds.length ? (
+          <Empty
+            title="还没有 Feed"
+            text="从素材库选择内容，开始第一份创作。"
+            action={() => navigate("素材库")}
+            label="前往素材库"
+          />
+        ) : page === "我的 Feed" ? (
           <div className="split">
             <section className="panel list">
               {state.feeds.map((f: Feed) => (
@@ -1361,8 +1405,8 @@ function App() {
               )}
             </section>
           </div>
-        )}
-        {page === "连接与模型" && (
+        ) : null}
+        {page === "设置" && (
           <Connections
             state={state}
             refresh={refresh}

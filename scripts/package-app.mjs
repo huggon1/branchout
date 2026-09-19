@@ -54,7 +54,7 @@ try {
     out: "build",
     overwrite: true,
     ignore:
-      /^\/(tests|test-results|playwright-report|docs|scripts|src|build|\.runtime|\.impeccable|\.git)/,
+      /^\/(tests|test-results|playwright-report|docs|design-system|scripts|src|build|\.runtime|\.git)/,
   });
   for (const output of outputs) {
     const bundle = join(output, `${name}.app`);

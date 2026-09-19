@@ -48,7 +48,7 @@ export function ExplorationRunDetail({ state, act, navigate, batchId }: Props) {
     return (
       <section className="panel empty">
         <h2>找不到这次探索</h2>
-        <p>它可能尚未完成创建，或本地记录已不可用。</p>
+        <p>它可能尚未完成创建，或保存记录已不可用。</p>
         <button onClick={() => navigate("探索")}>返回探索</button>
       </section>
     );

@@ -2,5 +2,5 @@
   "origin": "authored-vector",
   "source": "assets/brand.svg",
   "renderer": "scripts/build-icons.cjs",
-  "description": "nature-feed folded leaf; deterministic Electron rasterization, not AI-generated imagery"
+  "description": "nature-feed content sprout; deterministic Electron rasterization, not AI-generated imagery"
 }

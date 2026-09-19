@@ -806,7 +806,7 @@ async function handle(raw: unknown) {
     }
     case "bindLocalRepo": {
       const picked = await dialog.showOpenDialog(win, {
-        title: "选择本地 Git 项目",
+        title: "选择 Git 项目",
         properties: ["openDirectory"],
         buttonLabel: "关联这个项目",
       });
@@ -817,7 +817,7 @@ async function handle(raw: unknown) {
     }
     case "relinkLocalRepo": {
       const picked = await dialog.showOpenDialog(win, {
-        title: "为旧项目选择本地 Git 目录",
+        title: "为旧项目选择目录",
         properties: ["openDirectory"],
         buttonLabel: "验证并关联",
       });

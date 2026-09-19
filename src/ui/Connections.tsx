@@ -36,6 +36,15 @@ const sources = [
     capabilities: "在独立登录窗口完成登录后，可按关键词收集公开帖子。",
   },
 ];
+type SettingsCategory = "sources" | "forwarding" | "models" | "local";
+
+const categoryForSelection = (selection?: string): SettingsCategory => {
+  if (selection === "bots") return "forwarding";
+  if (selection?.startsWith("source-")) return "sources";
+  if (selection?.startsWith("local-")) return "local";
+  if (selection) return "models";
+  return "sources";
+};
 export function Connections({
   state,
   refresh,
@@ -49,9 +58,14 @@ export function Connections({
     connections: [defaultConnection],
   };
   const connections: PublicConnection[] = settings.connections;
-  const [selected, setSelected] = useState(initialSection || settings.activeId);
+  const [category, setCategory] = useState<SettingsCategory>(() =>
+    categoryForSelection(initialSection),
+  );
+  const [selected, setSelected] = useState(initialSection || "");
   const [draft, setDraft] = useState<PublicConnection>(
-    () => connections.find((c) => c.id === selected) || connections[0],
+    () =>
+      connections.find((c) => c.id === (initialSection || settings.activeId)) ||
+      connections[0],
   );
   const [baseline, setBaseline] = useState(() => JSON.stringify(draft));
   const [key, setKey] = useState("");
@@ -64,11 +78,14 @@ export function Connections({
   const [qr, setQr] = useState("");
   const [adding, setAdding] = useState(false);
   const botSelected = selected === "bots";
+  const localSelected = selected.startsWith("local-");
   const source = sources.find((p) => selected === `source-${p.id}`);
   const saved = connections.find((c) => c.id === draft.id);
   const dirty =
+    Boolean(selected) &&
     !source &&
     !botSelected &&
+    !localSelected &&
     (JSON.stringify(draft) !== baseline || Boolean(key) || !saved);
   const anyDirty = dirty;
   useEffect(() => {
@@ -111,7 +128,14 @@ export function Connections({
     }
   };
   useEffect(() => {
-    if (!source && !botSelected && draft.mode === "codex" && !catalog)
+    if (
+      selected &&
+      !source &&
+      !botSelected &&
+      !localSelected &&
+      draft.mode === "codex" &&
+      !catalog
+    )
       void loadModels().catch((e) => setError(e.message));
   }, [selected]);
   const edit = (patch: Partial<PublicConnection>) => {
@@ -133,6 +157,17 @@ export function Connections({
       setDraft(next);
       setBaseline(JSON.stringify(next));
     }
+  };
+  const chooseCategory = (next: SettingsCategory) => {
+    if (busy || loadingModels) return;
+    if (dirty && !confirm("连接有未保存的修改，切换并放弃这些修改？")) return;
+    setCategory(next);
+    setSelected("");
+    setKey("");
+    setError("");
+    setMessage("");
+    setTest(undefined);
+    setQr("");
   };
   const add = (mode: "api" | "codex") => {
     setAdding(false);
@@ -167,115 +202,176 @@ export function Connections({
     baseUrl: draft.baseUrl,
     protocol: draft.protocol,
   });
+  const categoryTitle: Record<SettingsCategory, string> = {
+    sources: "来源平台",
+    forwarding: "转发接入",
+    models: "模型服务",
+    local: "数据与隐私",
+  };
+  const settingsRows =
+    category === "sources"
+      ? sources.map((item) => ({
+          id: `source-${item.id}`,
+          name: item.name,
+          mark: item.id === "github" ? "G" : item.id === "x" ? "X" : "红",
+          description: item.description,
+          status:
+            item.id === "github"
+              ? "可用"
+              : state.connections[item.id]
+                ? "已连接"
+                : "需要登录",
+          ok: item.id === "github" || Boolean(state.connections[item.id]),
+        }))
+      : category === "forwarding"
+        ? [
+            {
+              id: "bots",
+              name: "转发机器人",
+              mark: "转",
+              description: "Telegram 与飞书私聊接收",
+              status: Object.values(state.bots || {}).some(
+                (bot: any) => bot.bound && bot.enabled,
+              )
+                ? "已连接"
+                : "未连接",
+              ok: Object.values(state.bots || {}).some(
+                (bot: any) => bot.bound && bot.enabled,
+              ),
+            },
+          ]
+        : category === "models"
+          ? connections.map((item) => ({
+              id: item.id,
+              connection: item,
+              name: item.name,
+              mark: item.mode === "codex" ? "C" : "A",
+              description:
+                item.mode === "codex"
+                  ? `${item.model} · Codex 订阅`
+                  : `${item.model || "未选择模型"} · 自定义 API`,
+              status: settings.activeId === item.id ? "使用中" : "已保存",
+              ok: true,
+            }))
+          : [
+              {
+                id: "local-data",
+                name: "数据存储",
+                mark: "D",
+                description: "数据、登录状态与缓存",
+                status: "仅此设备",
+                ok: true,
+              },
+            ];
   return (
     <div className="connections-layout">
       <div
-        className="connection-list panel"
+        className="settings-categories"
         role="complementary"
-        aria-label="连接列表"
+        aria-label="设置分类"
       >
-        <div className="connection-list-title">
-          <h2>模型服务</h2>
+        {(
+          [
+            ["sources", "source", "来源平台"],
+            ["forwarding", "send", "转发接入"],
+            ["models", "sparkle", "模型服务"],
+            ["local", "local", "数据与隐私"],
+          ] as const
+        ).map(([id, icon, label]) => (
           <button
-            aria-label="添加连接"
-            onClick={() => setAdding(!adding)}
-            disabled={controlsDisabled}
+            key={id}
+            className={category === id ? "active" : ""}
+            aria-current={category === id ? "page" : undefined}
+            onClick={() => chooseCategory(id)}
           >
-            <Icon name="plus" />
-          </button>
-        </div>
-        {adding && (
-          <div
-            className="connection-add-options"
-            role="group"
-            aria-label="连接类型"
-          >
-            <button onClick={() => add("api")}>自定义 API</button>
-            <button onClick={() => add("codex")}>Codex 订阅</button>
-          </div>
-        )}
-        <p className="connection-hint">选择一个服务用于所有 Agent 功能</p>
-        {connections.map((c) => (
-          <button
-            key={c.id}
-            className={`connection-choice ${selected === c.id ? "selected" : ""}`}
-            onClick={() => choose(c.id, c)}
-            disabled={controlsDisabled}
-          >
-            <span className="connection-avatar">
-              {c.mode === "codex" ? "C" : "A"}
-            </span>
-            <span className="connection-choice-text">
-              <strong>{c.name}</strong>
-              <small>
-                {c.mode === "codex" ? "订阅 · Codex" : "自定义 API"}
-              </small>
-            </span>
-            {settings.activeId === c.id && (
-              <span className="connection-tag">使用中</span>
-            )}
+            <Icon name={icon} />
+            <span>{label}</span>
           </button>
         ))}
-        {!saved && !source && !botSelected && (
-          <div className="connection-choice selected">
-            <span className="connection-avatar">A</span>
-            <span className="connection-choice-text">
-              <strong>{draft.name || "新连接"}</strong>
-              <small>尚未保存</small>
-            </span>
-          </div>
-        )}
-        <h2 className="source-list-title">来源平台</h2>
-        {sources.map((p) => (
-          <button
-            key={p.id}
-            className={`connection-choice ${selected === `source-${p.id}` ? "selected" : ""}`}
-            onClick={() => choose(`source-${p.id}`)}
-            disabled={controlsDisabled}
-          >
-            <span className="connection-avatar">
-              {p.id === "github" ? "G" : p.id === "x" ? "X" : "红"}
-            </span>
-            <span className="connection-choice-text">
-              <strong>{p.name}</strong>
-              <small>
-                {p.id === "github"
-                  ? "公开来源可用"
-                  : state.connections[p.id]
-                    ? "已连接"
-                    : "未连接或待检查"}
-              </small>
-            </span>
-          </button>
-        ))}
-        <h2 className="source-list-title">转发接入</h2>
-        <button
-          className={`connection-choice ${botSelected ? "selected" : ""}`}
-          onClick={() => choose("bots")}
-          disabled={controlsDisabled}
-        >
-          <span className="connection-avatar">
-            <Icon name="inbox" />
-          </span>
-          <span className="connection-choice-text">
-            <strong>转发机器人</strong>
-            <small>Telegram · 飞书</small>
-          </span>
-        </button>
       </div>
-      {botSelected ? (
-        <BotSettings bots={state.bots} act={act} />
+      {!selected ? (
+        <section
+          className="settings-index"
+          aria-labelledby="settings-category-title"
+        >
+          <header className="settings-index-header">
+            <h2 id="settings-category-title">{categoryTitle[category]}</h2>
+            {category === "models" && (
+              <button
+                className="icon-button"
+                aria-label="添加连接"
+                aria-expanded={adding}
+                onClick={() => setAdding((value) => !value)}
+              >
+                <Icon name="plus" />
+              </button>
+            )}
+          </header>
+          {adding && category === "models" && (
+            <div
+              className="connection-add-options"
+              role="group"
+              aria-label="连接类型"
+            >
+              <button onClick={() => add("api")}>自定义 API</button>
+              <button onClick={() => add("codex")}>Codex 订阅</button>
+            </div>
+          )}
+          <div className="settings-row-list">
+            {settingsRows.map((item: any) => (
+              <button
+                key={item.id}
+                className="settings-row"
+                onClick={() => choose(item.id, item.connection)}
+              >
+                <span className="connection-avatar">{item.mark}</span>
+                <span className="connection-choice-text">
+                  <strong>{item.name}</strong>
+                  <small>{item.description}</small>
+                </span>
+                <span
+                  className={`connection-status-pill ${item.ok ? "ok" : ""}`}
+                >
+                  {item.status}
+                </span>
+                <Icon name="chevron" />
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : botSelected ? (
+        <section className="settings-bot-detail">
+          <button className="settings-back" onClick={() => setSelected("")}>
+            <Icon name="back" /> {categoryTitle[category]}
+          </button>
+          <BotSettings bots={state.bots} act={act} />
+        </section>
+      ) : localSelected ? (
+        <section className="panel connection-detail settings-static-detail">
+          <button className="settings-back" onClick={() => setSelected("")}>
+            <Icon name="back" /> {categoryTitle[category]}
+          </button>
+          <header className="connection-detail-header">
+            <div>
+              <h2>数据存储</h2>
+            </div>
+            <span className="connection-status">仅此设备</span>
+          </header>
+          <div className="connection-note">
+            <strong>不会自动同步</strong>
+            <p>
+              仓库内容仅在执行分析时按需发送给你配置的模型服务；不会发送给搜索平台。
+            </p>
+          </div>
+        </section>
       ) : (
         <section className="panel connection-detail">
+          <button className="settings-back" onClick={() => setSelected("")}>
+            <Icon name="back" /> {categoryTitle[category]}
+          </button>
           <header className="connection-detail-header">
             <div>
               <h2>{source?.name || draft.name || "新建连接"}</h2>
-              <p className="muted">
-                {source?.description ||
-                  (draft.mode === "codex"
-                    ? "使用订阅登录，选择可用模型。"
-                    : "连接 OpenAI 兼容服务，使用你自己的模型与 API Key。")}
-              </p>
             </div>
             <span className={`connection-status ${dirty ? "draft" : ""}`}>
               {source

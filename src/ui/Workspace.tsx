@@ -155,42 +155,44 @@ export function RepoReview({ state, act, navigate }: Props) {
       ))}
     </details>
   );
+  const bindRepo = async () => {
+    setBinding(true);
+    try {
+      const result = await act({ type: "bindLocalRepo" });
+      if (result) {
+        setSelected(result.id);
+        setVisible(10);
+      }
+    } finally {
+      setBinding(false);
+    }
+  };
+  if (!(state.repos || []).length)
+    return (
+      <section className="first-run" aria-labelledby="project-first-title">
+        <span className="first-run-icon" aria-hidden="true">
+          <Icon name="repo" />
+        </span>
+        <h2 id="project-first-title">添加第一个项目</h2>
+        <p>选择一个 Git 项目，建立可用于探索的项目理解。</p>
+        <button className="primary" disabled={binding} onClick={bindRepo}>
+          {binding ? "正在验证…" : "选择项目"}
+        </button>
+      </section>
+    );
   return (
     <>
       <section className="local-project-picker">
         <div>
-          <h2>从当前 checkout 认识项目</h2>
-          <p>
-            只读取已提交的固定 commit；未提交内容、外部 submodule
-            和本机绝对路径不会进入分析。
-          </p>
+          <h2>项目</h2>
+          <p>{state.repos.length} 个已添加项目</p>
         </div>
-        <button
-          className="primary"
-          disabled={binding}
-          onClick={async () => {
-            setBinding(true);
-            try {
-              const r = await act({ type: "bindLocalRepo" });
-              if (r) {
-                setSelected(r.id);
-                setVisible(10);
-              }
-            } finally {
-              setBinding(false);
-            }
-          }}
-        >
-          {binding ? "正在验证目录…" : "选择本地 Git 目录"}
+        <button disabled={binding} onClick={bindRepo}>
+          <Icon name="plus" /> {binding ? "正在验证…" : "添加项目"}
         </button>
       </section>
       <div className="split">
         <section className="panel list">
-          {!(state.repos || []).length && (
-            <p className="empty compact">
-              还没有项目。选择一个本地 Git 目录后，应用会固定当前 commit。
-            </p>
-          )}
           {(state.repos || []).map((r: Repo) => (
             <button
               key={r.id}
@@ -203,7 +205,7 @@ export function RepoReview({ state, act, navigate }: Props) {
             >
               <strong>{r.fullName}</strong>
               <small>
-                {r.source === "local" ? "本地 Git" : "旧 GitHub · 只读"} ·{" "}
+                {r.source === "local" ? "Git 项目" : "旧 GitHub · 只读"} ·{" "}
                 {r.branch} · {r.understandingId ? "已有概览" : "等待认识"}
               </small>
             </button>
@@ -213,29 +215,29 @@ export function RepoReview({ state, act, navigate }: Props) {
           {repo ? (
             <div className="panel reading project-review">
               <div className="actions">
-                <button
-                  className="primary"
-                  disabled={!!active || !local}
-                  onClick={() =>
-                    act(
-                      unfinished
-                        ? { type: "retryAnalysis", id: unfinished.id }
-                        : { type: "analyzeRepo", id: repo.id },
-                    )
-                  }
-                >
-                  {!local
-                    ? "旧项目只读"
-                    : active
+                {local ? (
+                  <button
+                    className="primary"
+                    disabled={!!active}
+                    onClick={() =>
+                      act(
+                        unfinished
+                          ? { type: "retryAnalysis", id: unfinished.id }
+                          : { type: "analyzeRepo", id: repo.id },
+                      )
+                    }
+                  >
+                    {active
                       ? "正在分析…"
                       : unfinished
                         ? "继续分析"
                         : understanding
                           ? "看看最近进展"
                           : "看看这个项目"}
-                </button>
-                {!local && (
+                  </button>
+                ) : (
                   <button
+                    className="primary"
                     disabled={binding}
                     onClick={async () => {
                       setBinding(true);
@@ -253,26 +255,31 @@ export function RepoReview({ state, act, navigate }: Props) {
                     {binding ? "正在核对历史…" : "关联本地目录"}
                   </button>
                 )}
-                <button
-                  disabled={!understanding}
-                  onClick={() => navigate("探索")}
-                >
-                  前往探索
-                </button>
-                <button
-                  disabled={!!active}
-                  onClick={() => {
-                    if (confirm("解除仓库绑定？历史素材与 Feed 依据保留。"))
-                      void act({ type: "unbindRepo", id: repo.id });
-                  }}
-                >
-                  解除绑定
-                </button>
+                <details className="project-actions-menu">
+                  <summary className="icon-button" aria-label="更多项目操作">
+                    <Icon name="more" />
+                  </summary>
+                  <div>
+                    <button
+                      disabled={!understanding}
+                      onClick={() => navigate("探索")}
+                    >
+                      前往探索
+                    </button>
+                    <button
+                      className="danger-action"
+                      disabled={!!active}
+                      onClick={() => {
+                        if (confirm("解除仓库绑定？历史素材与 Feed 依据保留。"))
+                          void act({ type: "unbindRepo", id: repo.id });
+                      }}
+                    >
+                      解除绑定
+                    </button>
+                  </div>
+                </details>
               </div>
               <h2>{repo.fullName}</h2>
-              <p className="muted">
-                认识项目，整理进展，为下一次探索保留上下文。
-              </p>
               {!local && (
                 <div className="review-status legacy-project" role="status">
                   <strong>旧 GitHub 项目以只读方式保留</strong>
@@ -410,9 +417,16 @@ export function RepoReview({ state, act, navigate }: Props) {
                     </details>
                   </>
                 ) : (
-                  <p className="empty">
-                    点击“看看这个项目”，读取文档与实现，建立第一份项目概览。
-                  </p>
+                  <div className="inline-empty">
+                    <p>还没有项目概览。</p>
+                    <button
+                      className="primary"
+                      disabled={!!active || !local}
+                      onClick={() => act({ type: "analyzeRepo", id: repo.id })}
+                    >
+                      看看这个项目
+                    </button>
+                  </div>
                 )}
               </section>
               <section className="review-timeline">
@@ -525,12 +539,7 @@ export function RepoReview({ state, act, navigate }: Props) {
                 ))}
               </details>
             </div>
-          ) : (
-            <div className="empty">
-              <h2>从一个本地项目开始</h2>
-              <p>选择目录并固定当前 commit，再整理概览与开发进展。</p>
-            </div>
-          )}
+          ) : null}
         </section>
       </div>
       {evidenceView && (
@@ -569,17 +578,27 @@ export function Explorer({ state, act, navigate }: Props) {
   const toggle = (values: string[], id: string) =>
     values.includes(id) ? values.filter((v) => v !== id) : [...values, id];
   const count = repos.length * angles.length;
+  if (!(state.repos || []).length)
+    return (
+      <section className="first-run" aria-labelledby="explore-first-title">
+        <span className="first-run-icon" aria-hidden="true">
+          <Icon name="explore" />
+        </span>
+        <h2 id="explore-first-title">先添加一个项目</h2>
+        <p>素材探索需要一个已经完成理解的项目。</p>
+        <button className="primary" onClick={() => navigate("项目回顾")}>
+          前往项目理解
+        </button>
+      </section>
+    );
   return (
     <>
-      <div className="explore-config">
-        <section className="panel">
-          <h2>选择仓库</h2>
-          {!(state.repos || []).length && (
-            <p>
-              先在项目回顾绑定并分析仓库。
-              <button onClick={() => navigate("项目回顾")}>前往项目回顾</button>
-            </p>
-          )}
+      <div className="explore-flow">
+        <section className="setup-section" aria-labelledby="explore-projects">
+          <header>
+            <span>1</span>
+            <h2 id="explore-projects">选择项目</h2>
+          </header>
           {(state.repos || []).map((r: Repo) => {
             const u: Understanding | undefined = state.understandings.find(
               (u: Understanding) => u.id === r.understandingId,
@@ -604,9 +623,11 @@ export function Explorer({ state, act, navigate }: Props) {
             );
           })}
         </section>
-        <section className="panel">
-          <h2>探索角度</h2>
-          <p className="muted">内置启动提示词，暂不支持修改。</p>
+        <section className="setup-section" aria-labelledby="explore-angles">
+          <header>
+            <span>2</span>
+            <h2 id="explore-angles">选择探索角度</h2>
+          </header>
           {templates.map((t) => (
             <div className="angle-choice" key={t.id}>
               <label>
@@ -615,18 +636,25 @@ export function Explorer({ state, act, navigate }: Props) {
                   checked={angles.includes(t.id)}
                   onChange={() => setAngles(toggle(angles, t.id))}
                 />
-                {t.title}
+                <span>{t.title}</span>
               </label>
-              <details>
-                <summary>收集范围</summary>
+              <details className="angle-help">
+                <summary aria-label={`了解${t.title}`}>
+                  <Icon name="info" />
+                </summary>
                 <p>{t.prompt}</p>
               </details>
             </div>
           ))}
         </section>
-      </div>
-      <section className="panel exploration-launch">
-        <h2>本次探索</h2>
+        <section
+          className="setup-section exploration-launch"
+          aria-labelledby="explore-sources"
+        >
+          <header>
+            <span>3</span>
+            <h2 id="explore-sources">来源与时间</h2>
+          </header>
         <div className="actions">
           {[
             ["github", "GitHub"],
@@ -662,12 +690,8 @@ export function Explorer({ state, act, navigate }: Props) {
             </select>
           </label>
         </div>
-        <p>
-          将执行 {repos.length} 个仓库 × {angles.length} 个角度 ={" "}
-          <b>{count} 项探索</b>。最多 10 项，逐项运行；不自动更新仓库理解。
-        </p>
-        <p className="muted">
-          证据继续增长时就继续探索；覆盖充分且新增价值趋少后结束。平台受阻、无结果与安全暂停会分别说明。
+        <p className="exploration-count" role="status">
+          {count ? `${count} 项探索` : "请选择项目和角度"}
         </p>
         <button
           className="primary"
@@ -696,8 +720,9 @@ export function Explorer({ state, act, navigate }: Props) {
           {starting ? "批次已接收，正在打开…" : "开始探索"}
         </button>
         {creationNote && <p role="status">{creationNote}</p>}
-      </section>
-      <h2>探索历史</h2>
+        </section>
+      </div>
+      {!!(state.batches || []).length && <h2>探索历史</h2>}
       {(state.batches || []).map((b: Batch) => (
         <section className="panel batch" key={b.id}>
           <div className="actions">

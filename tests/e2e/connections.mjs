@@ -70,7 +70,8 @@ try {
   const page = await app.firstWindow();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.getByRole("button", { name: "连接与模型", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: "模型服务", exact: true }).click();
   await page.getByLabel("添加连接").click();
   await page
     .getByRole("group", { name: "连接类型" })
