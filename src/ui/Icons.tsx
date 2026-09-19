@@ -67,6 +67,8 @@ const paths: Record<string, React.ReactNode> = {
       <circle cx="10" cy="18" r="2" />
     </>
   ),
+  arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
+  chevron: <path d="m9 6 6 6-6 6" />,
 };
 export function Icon({ name }: { name: string }) {
   return (

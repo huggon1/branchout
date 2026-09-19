@@ -18,6 +18,16 @@ import { templates, chapterTitle } from "../core/templates.js";
 import { groupedItems, copyFeed } from "../core/feed-layout.js";
 import { RunResearch, phaseLabels } from "./RunResearch.js";
 import { ContentCollection } from "./ContentCollection.js";
+import {
+  WorkspaceContext,
+  WorkspaceLocation,
+  WorkspaceNavigation,
+} from "./WorkspaceNavigation.js";
+import {
+  type AppPage,
+  type WorkspaceId,
+  workspaceForPage,
+} from "./navigation.js";
 declare global {
   interface Window {
     feedloom: {
@@ -84,14 +94,21 @@ function App() {
     busy: [],
     prompt: "",
   });
-  const [page, setPage] = useState("素材库");
+  const [page, setPage] = useState<AppPage>("素材库");
   const [explorationBatch, setExplorationBatch] = useState<string>();
   const [taskDirty, setTaskDirty] = useState(false);
   const [connectionDirty, setConnectionDirty] = useState(false);
   const [pendingRun, setPendingRun] = useState<string>();
   const [connectionSection, setConnectionSection] = useState<string>();
-  const navigate = (next: string, detailId?: string) => {
-    if (next === page) return;
+  const lastPages = useRef<Partial<Record<WorkspaceId, AppPage>>>({
+    exploration: "素材库",
+  });
+  const scrollPositions = useRef<Partial<Record<AppPage, number>>>({});
+  const navigationRequested = useRef(false);
+  const pageHeading = useRef<HTMLHeadingElement>(null);
+  const navigate = (nextValue: string, detailId?: string) => {
+    const next = nextValue as AppPage;
+    if (next === page && (!detailId || detailId === explorationBatch)) return;
     if (
       page === "连接与模型" &&
       connectionDirty &&
@@ -108,8 +125,12 @@ function App() {
       setTask(undefined);
       setTaskDirty(false);
     }
+    scrollPositions.current[page] = window.scrollY;
+    const nextWorkspace = workspaceForPage(next);
+    if (nextWorkspace) lastPages.current[nextWorkspace.id] = next;
+    navigationRequested.current = true;
     setConnectionSection(next === "连接与模型" ? detailId : undefined);
-    if (next === "探索运行") setExplorationBatch(detailId);
+    if (next === "探索运行" && detailId) setExplorationBatch(detailId);
     setPage(next);
   };
   const chooseTask = (next: Task) => {
@@ -123,6 +144,8 @@ function App() {
   const [selected, setSelected] = useState<string[]>([]);
   const [prompt, setPrompt] = useState("");
   const [detail, setDetail] = useState<any>();
+  const detailReturnFocus = useRef<HTMLElement | null>(null);
+  const detailWasOpen = useRef(false);
   const [task, setTask] = useState<Task | undefined>();
   const [feed, setFeed] = useState<string>();
   const [inbox, setInbox] = useState<string>();
@@ -140,9 +163,17 @@ function App() {
   });
   const [chapters, setChapters] = useState<Record<string, string>>({});
   const [fromFeed, setFromFeed] = useState<string>();
+  const [creatingFeed, setCreatingFeed] = useState(false);
   useEffect(() => {
-    window.scrollTo(0, 0);
     setNotice("");
+    const frame = requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollPositions.current[page] || 0, behavior: "auto" });
+      if (navigationRequested.current) {
+        pageHeading.current?.focus({ preventScroll: true });
+        navigationRequested.current = false;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [page]);
   useEffect(() => {
     if (!pendingRun) return;
@@ -166,10 +197,39 @@ function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setDetail(undefined);
+      if (e.key !== "Tab") return;
+      const modal = document.querySelector(".modal");
+      if (!modal) return;
+      const focusable = [...modal.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  useEffect(() => {
+    if (detail && !detailWasOpen.current) {
+      detailReturnFocus.current = document.activeElement as HTMLElement;
+      detailWasOpen.current = true;
+      requestAnimationFrame(() => {
+        (document.querySelector(".modal .close") as HTMLButtonElement)?.focus();
+      });
+    } else if (!detail && detailWasOpen.current) {
+      detailWasOpen.current = false;
+      detailReturnFocus.current?.focus();
+      detailReturnFocus.current = null;
+    }
+  }, [detail]);
   const refresh = async () => {
     if (!initialized.current) {
       setOpening(true);
@@ -325,19 +385,26 @@ function App() {
     setNotice("已复制");
   };
   const generate = async () => {
-    const id = await act({
-      type: "generate",
-      ids: fromFeed
-        ? sourceItems.map((i) => i.evidence.material.id) || selected
-        : selected,
-      prompt,
-      fromFeed,
-      chapters,
-    });
-    if (id) {
-      setFeed(id);
-      navigate("我的 Feed");
-      setFromFeed(undefined);
+    if (creatingFeed) return;
+    setCreatingFeed(true);
+    setNotice("正在创建 Feed，完成后会打开生成记录…");
+    try {
+      const id = await act({
+        type: "generate",
+        ids: fromFeed
+          ? sourceItems.map((i) => i.evidence.material.id) || selected
+          : selected,
+        prompt,
+        fromFeed,
+        chapters,
+      });
+      if (id) {
+        setFeed(id);
+        navigate("我的 Feed");
+        setFromFeed(undefined);
+      }
+    } finally {
+      setCreatingFeed(false);
     }
   };
   if (!ready)
@@ -367,9 +434,17 @@ function App() {
       </div>
     );
   function materialTable() {
+    const activeFilterCount = Object.values(filter).filter(Boolean).length;
     return (
       <>
-        <div className="filters">
+        <details className="filter-disclosure" open={page === "素材库" ? true : undefined}>
+          <summary>
+            <span>筛选与排序</span>
+            <small>
+              {activeFilterCount ? `${activeFilterCount} 项条件` : `${rows.length} 条结果`}
+            </small>
+          </summary>
+          <div className="filters">
           <label>
             <span>平台筛选</span>
             <select
@@ -491,7 +566,8 @@ function App() {
                 ))}
             </select>
           </label>
-        </div>
+          </div>
+        </details>
         {filter.run && (
           <p className="muted">
             正在查看本次收集关联的素材{" "}
@@ -654,49 +730,13 @@ function App() {
           nature-feed
         </div>
         <div className="tagline">把关注织成见解</div>
-        <nav aria-label="主导航">
-          {[
-            "内容收集",
-            "项目回顾",
-            "探索",
-            "素材库",
-            "Feed 生成",
-            "我的 Feed",
-            "历史收集",
-          ].map((p, i) => (
-            <button
-              key={p}
-              className={
-                page === p || (p === "探索" && page === "探索运行")
-                  ? "active"
-                  : ""
-              }
-              aria-current={
-                page === p || (p === "探索" && page === "探索运行")
-                  ? "page"
-                  : undefined
-              }
-              onClick={() => navigate(p)}
-            >
-              <span className="navicon" aria-hidden="true">
-                <Icon
-                  name={
-                    [
-                      "inbox",
-                      "repo",
-                      "explore",
-                      "library",
-                      "compose",
-                      "feed",
-                      "history",
-                    ][i]
-                  }
-                />
-              </span>
-              {p}
-            </button>
-          ))}
-        </nav>
+        <WorkspaceNavigation
+          page={page}
+          state={state}
+          selectedCount={selected.length}
+          lastPages={lastPages.current}
+          navigate={navigate}
+        />
         <button
           className={`settings ${page === "连接与模型" ? "active" : ""}`}
           aria-current={page === "连接与模型" ? "page" : undefined}
@@ -712,19 +752,36 @@ function App() {
       <main>
         <header>
           <div>
-            <h1>{page}</h1>
+            <WorkspaceLocation page={page} />
+            <h1 ref={pageHeading} tabIndex={-1}>
+              {
+                (
+                  {
+                    内容收集: "内容收集",
+                    项目回顾: "项目理解",
+                    探索: "新建素材探索",
+                    探索运行: "探索运行",
+                    素材库: "素材库",
+                    历史收集: "历史收集",
+                    "Feed 生成": "Feed 创作",
+                    "我的 Feed": "Feed 历史",
+                    连接与模型: "连接与模型",
+                  } as Record<AppPage, string>
+                )[page]
+              }
+            </h1>
             <p>
               {
                 (
                   {
                     内容收集: "把转发内容放进合适的收藏夹，随时回来阅读。",
-                    项目回顾: "看懂产品，回顾值得深入理解的变化。",
-                    探索: "基于已有仓库理解，按预设角度发现内容。",
+                    项目回顾: "固定项目版本，理解产品并回顾值得关注的变化。",
+                    探索: "选择已有项目理解与探索角度，开始一批可恢复的探索。",
                     探索运行: "看清每一步有效进展，随时暂停并从证据继续。",
                     历史收集: "旧任务与来源依据只读保留，定时执行已停用。",
-                    素材库: "看看原始信号，选出你想继续读的内容。",
-                    "Feed 生成": "你选素材，nature-feed 帮你组织表达。",
-                    "我的 Feed": "值得留下的发现，都在这里。",
+                    素材库: "核对原始信号与发现理由，选出真正值得写的内容。",
+                    "Feed 生成": "核对素材、章节与提示词，再生成一份可追溯的 Feed。",
+                    "我的 Feed": "阅读、复制或沿用历史依据重新生成。",
                     连接与模型: "连接你的来源，选择生成所用的模型。",
                   } as any
                 )[page]
@@ -735,6 +792,12 @@ function App() {
             <span /> 个人工作空间
           </span>
         </header>
+        <WorkspaceContext
+          page={page}
+          state={state}
+          selectedCount={selected.length}
+          navigate={navigate}
+        />
         {error && (
           <div role="alert" className="error">
             {error}
@@ -879,6 +942,7 @@ function App() {
               <button
                 className="primary full"
                 disabled={
+                  creatingFeed ||
                   !prompt.trim() ||
                   (!selectedRows.length && !fromFeed) ||
                   (!!fromFeed && !sourceFeed) ||
@@ -886,7 +950,7 @@ function App() {
                 }
                 onClick={generate}
               >
-                生成并保存 Feed
+                {creatingFeed ? "正在创建 Feed…" : "生成并保存 Feed"}
               </button>
               {fromFeed && (
                 <button
