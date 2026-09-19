@@ -181,6 +181,10 @@ test("an existing v7 database keeps retired bot rows and collection data untouch
         .all(),
       before.retired,
     );
+    assert.equal(
+      "organizationState" in store.state().collectionAssignments[0],
+      false,
+    );
   } finally {
     store.close();
     rmSync(dir, { recursive: true });
@@ -324,7 +328,7 @@ test("collection commands preserve one default and move nonempty deletion atomic
   }
 });
 
-test("single and bulk assignment retain source, timestamp, batch, and bot state", () => {
+test("single and bulk assignment retain source, timestamp, and batch", () => {
   const store = freshStore();
   try {
     const collections = store.collections;
@@ -332,7 +336,6 @@ test("single and bulk assignment retain source, timestamp, batch, and bot state"
     collections.assign(["one", "two"], target.id, "bot", {
       at: "2026-09-18T12:00:00.000Z",
       batchId: "fixture-batch",
-      organizationState: "pending",
     });
     assert.deepEqual(
       collections.assignments().map((item) => ({
@@ -340,14 +343,12 @@ test("single and bulk assignment retain source, timestamp, batch, and bot state"
         assignedAt: item.assignedAt,
         source: item.source,
         batchId: item.batchId,
-        organizationState: item.organizationState,
       })),
       ["one", "two"].map(() => ({
         collectionId: target.id,
         assignedAt: "2026-09-18T12:00:00.000Z",
         source: "bot",
         batchId: "fixture-batch",
-        organizationState: "pending",
       })),
     );
     collections.assign(["one"], collections.default().id, "manual", {
@@ -358,7 +359,6 @@ test("single and bulk assignment retain source, timestamp, batch, and bot state"
       .find((item) => item.itemId === "one")!;
     assert.equal(moved.source, "manual");
     assert.equal(moved.batchId, undefined);
-    assert.equal(moved.organizationState, undefined);
   } finally {
     store.close();
   }

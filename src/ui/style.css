@@ -2934,10 +2934,6 @@ button > svg {
   color: var(--color-danger);
   background: var(--color-danger-bg);
 }
-.collection-organization-state {
-  color: var(--color-warning);
-  font-size: 12px;
-}
 .collection-item-move {
   grid-column: 2;
   width: 100%;

@@ -101,48 +101,6 @@ const fixtureItems = [
       metrics: {},
     },
   },
-  {
-    id: "pending-bot",
-    url: "https://github.com/example/pending-bot",
-    createdAt: "2026-09-18T09:40:00.000Z",
-    state: "success",
-    summary: "机器人整理回复尚未完成。",
-    summaryState: "success",
-    material: {
-      schemaVersion: 1,
-      source: "github",
-      sourceId: "example/pending-bot",
-      canonicalUrl: "https://github.com/example/pending-bot",
-      title: "等待机器人整理",
-      author: "example",
-      text: "测试正文",
-      completeness: "complete",
-      publishedAt: null,
-      images: [],
-      metrics: {},
-    },
-  },
-  {
-    id: "expired-bot",
-    url: "https://github.com/example/expired-bot",
-    createdAt: "2026-09-18T09:50:00.000Z",
-    state: "success",
-    summary: "机器人整理提示已过期。",
-    summaryState: "success",
-    material: {
-      schemaVersion: 1,
-      source: "github",
-      sourceId: "example/expired-bot",
-      canonicalUrl: "https://github.com/example/expired-bot",
-      title: "机器人整理已过期",
-      author: "example",
-      text: "测试正文",
-      completeness: "complete",
-      publishedAt: null,
-      images: [],
-      metrics: {},
-    },
-  },
 ];
 for (const item of fixtureItems) store.put("inbox", item);
 store.collections.assign(
@@ -150,14 +108,6 @@ store.collections.assign(
   inboxCollection.id,
   "default",
 );
-store.collections.assign(["pending-bot"], inboxCollection.id, "bot", {
-  batchId: "fixture-pending",
-  organizationState: "pending",
-});
-store.collections.assign(["expired-bot"], inboxCollection.id, "bot", {
-  batchId: "fixture-expired",
-  organizationState: "expired",
-});
 store.collections.assign(["summary-failed"], readingCollection.id, "manual");
 store.close();
 let app;
@@ -333,19 +283,6 @@ try {
   await page.getByRole("button", { name: "删除收藏夹" }).click();
   await expect(
     page.getByText(/3 条内容已移到“产品洞察 Product Notes”/),
-  ).toBeVisible();
-  await page.getByRole("button", { name: /Inbox/ }).click();
-  await page.getByRole("button", { name: /等待机器人整理/ }).click();
-  await expect(
-    page.locator(".collection-callout").getByText("等待机器人整理", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: /机器人整理已过期/ }).click();
-  await expect(
-    page.locator(".collection-callout").getByText("机器人整理已过期", {
-      exact: true,
-    }),
   ).toBeVisible();
   await page.getByRole("button", { name: "配置机器人" }).click();
   await expect(page.getByRole("heading", { name: "转发机器人" })).toBeVisible();
