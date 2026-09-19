@@ -330,14 +330,16 @@ try {
   await expect(allResults).not.toBeChecked();
   await page.keyboard.press("Space");
   await expect(allResults).toBeChecked();
+  await page.getByText("筛选与排序", { exact: true }).click();
   const platformSelect = page.getByLabel("平台筛选");
   await platformSelect.click();
   expect(await platformSelect.evaluate((el) => el.matches(":open"))).toBe(true);
   await page.keyboard.press("Escape");
   await page.getByLabel("平台筛选").selectOption("x");
   await expect(page.getByText("没有匹配的素材", { exact: true })).toBeVisible();
-  await expect(page.getByText("已选 1 条", { exact: true })).toBeVisible();
+  await expect(page.getByText("已选 1 条", { exact: true })).toHaveCount(0);
   await page.getByLabel("平台筛选").selectOption("");
+  await expect(page.getByText("已选 1 条", { exact: true })).toBeVisible();
   await expect(page.getByLabel("全选当前结果")).toHaveJSProperty(
     "indeterminate",
     false,
@@ -378,7 +380,7 @@ try {
     if (titleWidth < 150)
       throw Error(`Generation title squeezed at ${width}: ${titleWidth}px`);
   }
-  await page.locator("nav").getByRole("button", { name: "Feed 创作" }).click();
+  await page.locator("nav").getByRole("button", { name: "内容创作" }).click();
   await page.locator("nav").getByRole("button", { name: "Feed 历史" }).click();
   await page.getByRole("button", { name: /示例 Feed · 部分成功/ }).click();
   await page.getByRole("button", { name: "复制可用内容" }).click();
@@ -397,7 +399,9 @@ try {
     .first();
   await sourceEvidenceButton.click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("button", { name: "关闭", exact: true })).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "关闭", exact: true }),
+  ).toBeFocused();
   await expect(
     page
       .getByRole("dialog")
@@ -421,11 +425,7 @@ try {
   await expect(page.getByText("已选 0 条", { exact: true })).toBeVisible();
   await page.locator("nav").getByRole("button", { name: "素材探索" }).click();
   await page.locator("nav").getByRole("button", { name: "历史收集" }).click();
-  await expect(
-    page.getByText(
-      "历史任务只读保留。新发现请使用探索，历史素材仍可生成 Feed。",
-    ),
-  ).toBeVisible();
+  await expect(page.getByText(task.name, { exact: true })).toBeVisible();
   await page.getByText(task.name, { exact: true }).click();
   await page.getByText("候选与筛选依据", { exact: false }).click();
   await page.getByRole("button", { name: "已排除 1", exact: true }).click();
@@ -434,7 +434,9 @@ try {
     page.getByRole("button", { name: "保存任务", exact: true }),
   ).toHaveCount(0);
   await page.locator("nav").getByRole("button", { name: "项目理解" }).click();
-  await expect(page.getByRole("heading", { name: "项目理解", exact: true })).toBeFocused();
+  await expect(
+    page.getByRole("heading", { name: "项目理解", exact: true }),
+  ).toBeFocused();
   await expect(page.getByText(/AI 分析 · v1/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "看看最近进展", exact: true }),
@@ -548,7 +550,7 @@ try {
     page.getByText("执行阶段 · 暂停等待", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("最近事实事件", { exact: true })).toBeVisible();
-  await page.locator("nav").getByRole("button", { name: "Feed 创作" }).click();
+  await page.locator("nav").getByRole("button", { name: "内容创作" }).click();
   await page.locator("nav").getByRole("button", { name: "素材探索" }).click();
   await expect(
     page.getByRole("heading", { name: "任务队列", exact: true }),
@@ -576,7 +578,10 @@ try {
   }
   await page.getByRole("button", { name: "返回探索", exact: true }).click();
   await page.screenshot({ path: "test-results/tasks.png" });
-  await page.locator("nav").getByRole("button", { name: "素材库", exact: true }).click();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "素材库", exact: true })
+    .click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   for (const [width, height] of [
     [1100, 720],
@@ -606,12 +611,12 @@ try {
     if (overlaps) throw Error(`Library columns overlap at ${width}`);
   }
 
-  await page.getByRole("button", { name: "连接与模型" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
   await expect(
-    page.getByRole("heading", { name: "模型服务", exact: true }),
+    page.getByRole("heading", { name: "来源平台", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: /GitHub/ }).click();
-  await expect(page.getByText("公开来源可用", { exact: true })).toBeVisible();
+  await expect(page.getByText("无需登录", { exact: true })).toBeVisible();
   await expect(page.getByLabel("GitHub 只读 Token")).toHaveCount(0);
   for (const [width, height] of [
     [1100, 720],

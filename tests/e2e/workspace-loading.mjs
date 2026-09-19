@@ -9,7 +9,7 @@ const app = await electron.launch({
 });
 try {
   const page = await app.firstWindow();
-  await expect(page.getByRole("status")).toHaveText("正在打开本地工作空间…");
+  await expect(page.getByRole("status")).toHaveText("正在打开 nature-feed…");
   await expect(page.getByText("还没有素材", { exact: true })).toHaveCount(0);
   await expect(page.locator(".materialrow")).toHaveCount(0);
   await expect
@@ -21,7 +21,7 @@ try {
   );
   await expect(page.getByText("还没有素材", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "重新加载", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("正在打开本地工作空间…");
+  await expect(page.getByRole("status")).toHaveText("正在打开 nature-feed…");
   await expect
     .poll(() => app.evaluate(() => globalThis.workspaceLoadingTest.requests))
     .toBe(2);
@@ -29,8 +29,10 @@ try {
   await expect(
     page.getByRole("button", { name: "虚构的加载测试素材", exact: true }),
   ).toBeVisible();
+  await page.locator("nav").getByRole("button", { name: "素材探索" }).click();
+  await page.locator("nav").getByRole("button", { name: "新建探索" }).click();
   await expect(
-    page.getByText("还没有可用于探索的项目", { exact: true }),
+    page.getByText("先添加一个项目", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "前往项目理解", exact: true }),
@@ -40,10 +42,10 @@ try {
     .poll(() => app.evaluate(() => globalThis.workspaceLoadingTest.requests))
     .toBe(3);
   await expect(
-    page.getByRole("button", { name: "虚构的加载测试素材", exact: true }),
+    page.getByText("先添加一个项目", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("正在打开本地工作空间…", { exact: true }),
+    page.getByText("正在打开 nature-feed…", { exact: true }),
   ).toHaveCount(0);
   await app.evaluate(() => globalThis.workspaceLoadingTest.resolve(true));
   await page.getByRole("button", { name: "前往项目理解", exact: true }).click();

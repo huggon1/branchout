@@ -62,11 +62,15 @@ export function ContentCollection(props: Props) {
   const [link, setLink] = useState("");
   const [moveTarget, setMoveTarget] = useState("");
   const [compactCreate, setCompactCreate] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selecting, setSelecting] = useState(false);
   const addInput = useRef<HTMLInputElement>(null);
   const compactAddInput = useRef<HTMLInputElement>(null);
   const compactSelect = useRef<HTMLSelectElement>(null);
   const currentButton = useRef<HTMLButtonElement>(null);
   const manage = useRef<HTMLDetailsElement>(null);
+  const toolbarManage = useRef<HTMLDetailsElement>(null);
   const assigned = useMemo(
     () => new Map(assignments.map((item) => [item.itemId, item])),
     [assignments],
@@ -122,9 +126,7 @@ export function ContentCollection(props: Props) {
     assignments.filter((item) => item.collectionId === id).length;
   const restoreCollectionFocus = () =>
     requestAnimationFrame(() => {
-      if (window.matchMedia("(max-width: 1200px)").matches)
-        compactSelect.current?.focus();
-      else currentButton.current?.focus();
+      compactSelect.current?.focus();
     });
   const chooseCollection = (id: string) => {
     if (manage.current) manage.current.open = false;
@@ -133,6 +135,7 @@ export function ContentCollection(props: Props) {
     setSource("");
     setStatus("");
     setChecked([]);
+    setSelecting(false);
   };
   const move = async (ids: string[], target: string) => {
     if (!ids.length || !target) return;
@@ -173,53 +176,13 @@ export function ContentCollection(props: Props) {
 
   return (
     <div className="content-collection">
-      <form
-        className="collection-capture"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void act({ type: "parseText", text: link }).then((id) => {
-            if (!id) return;
-            setLink("");
-            setActiveId(id);
-            if (defaults) chooseCollection(defaults.id);
-          });
-        }}
-      >
-        <label htmlFor="collection-link">保存一条链接或分享文案</label>
-        <div>
-          <input
-            id="collection-link"
-            required
-            value={link}
-            onChange={(event) => setLink(event.target.value)}
-            placeholder="粘贴 GitHub 仓库链接或整段小红书分享文案"
-          />
-          <button className="primary">保存并解析</button>
-        </div>
-        <p>
-          新内容先进入默认收藏夹{defaults ? "“" + defaults.name + "”" : ""}。
-          Telegram / 飞书
-          {props.bots &&
-          Object.values(props.bots).some((bot: any) => bot.bound && bot.enabled)
-            ? " 已连接"
-            : " 尚未连接"}
-          。{" "}
-          <button
-            type="button"
-            className="text-action"
-            onClick={props.openSettings}
-          >
-            配置机器人
-          </button>
-        </p>
-      </form>
-
       {!!collections.length && (
-        <div className="collection-mobile-select">
-          <label>
-            当前收藏夹
+        <div className="collection-toolbar">
+          <label className="collection-folder-select">
+            <span className="sr-only">当前收藏夹</span>
             <select
               ref={compactSelect}
+              aria-label="当前收藏夹"
               value={collectionId}
               onChange={(event) => chooseCollection(event.target.value)}
             >
@@ -233,36 +196,191 @@ export function ContentCollection(props: Props) {
               ))}
             </select>
           </label>
+          {!!items.length && (
+            <>
+              <label className="collection-toolbar-search">
+                <Icon name="search" />
+                <span className="sr-only">搜索内容</span>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="标题、正文或摘要"
+                />
+              </label>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="筛选内容"
+                title="筛选"
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen((open) => !open)}
+              >
+                <Icon name="filter" />
+              </button>
+              <button
+                type="button"
+                className={`icon-button ${selecting ? "active" : ""}`}
+                aria-label={selecting ? "退出批量选择" : "选择内容"}
+                title={selecting ? "退出批量选择" : "批量选择"}
+                aria-pressed={selecting}
+                onClick={() => {
+                  setSelecting((value) => !value);
+                  setChecked([]);
+                }}
+              >
+                <Icon name="check" />
+              </button>
+            </>
+          )}
           <button
             type="button"
-            aria-expanded={compactCreate}
-            onClick={() => {
-              setCompactCreate((open) => !open);
-              requestAnimationFrame(() => compactAddInput.current?.focus());
-            }}
+            className="primary collection-save-trigger"
+            aria-expanded={captureOpen}
+            onClick={() => setCaptureOpen((open) => !open)}
           >
-            {compactCreate ? "取消新建" : "新建收藏夹"}
+            <Icon name="plus" /> 保存内容
           </button>
-          {compactCreate && (
-            <form onSubmit={create}>
-              <label htmlFor="compact-new-collection">新收藏夹名称</label>
-              <input
-                ref={compactAddInput}
-                id="compact-new-collection"
-                maxLength={40}
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-                placeholder="例如：产品灵感"
-              />
-              <button className="primary" disabled={!newName.trim()}>
-                创建
+          <details ref={toolbarManage} className="collection-manage-menu">
+            <summary className="icon-button" aria-label="管理收藏夹">
+              <Icon name="more" />
+            </summary>
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (toolbarManage.current) toolbarManage.current.open = false;
+                  setCompactCreate(true);
+                  requestAnimationFrame(() => compactAddInput.current?.focus());
+                }}
+              >
+                新建收藏夹
               </button>
-            </form>
-          )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (toolbarManage.current) toolbarManage.current.open = false;
+                  setRename(current?.name || "");
+                }}
+              >
+                重命名当前收藏夹
+              </button>
+              <button
+                type="button"
+                disabled={current?.isDefault}
+                onClick={() =>
+                  void act({
+                    type: "setDefaultCollection",
+                    id: collectionId,
+                  }).then((result) => {
+                    if (result !== undefined) {
+                      if (toolbarManage.current)
+                        toolbarManage.current.open = false;
+                      props.notice("默认收藏夹已更新");
+                      restoreCollectionFocus();
+                    }
+                  })
+                }
+              >
+                设为默认
+              </button>
+              <button
+                type="button"
+                className="danger-action"
+                disabled={current?.isDefault}
+                onClick={() => {
+                  if (!current || !defaults) return;
+                  const amount = count(current.id);
+                  const message = amount
+                    ? `删除“${current.name}”？其中 ${amount} 条内容会移到当前默认收藏夹“${defaults.name}”。`
+                    : `删除空收藏夹“${current.name}”？`;
+                  if (!window.confirm(message)) return;
+                  void act({ type: "deleteCollection", id: current.id }).then(
+                    (result) => {
+                      if (!result) return;
+                      if (toolbarManage.current)
+                        toolbarManage.current.open = false;
+                      chooseCollection(defaults.id);
+                      restoreCollectionFocus();
+                      props.notice(
+                        result.moved
+                          ? `已删除收藏夹，${result.moved} 条内容已移到“${defaults.name}”`
+                          : "已删除空收藏夹",
+                      );
+                    },
+                  );
+                }}
+              >
+                删除收藏夹
+              </button>
+            </div>
+          </details>
         </div>
       )}
 
-      <div className="collection-workspace">
+      {captureOpen && (
+        <form
+          className="collection-capture collection-disclosure"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void act({ type: "parseText", text: link }).then((id) => {
+              if (!id) return;
+              setLink("");
+              setCaptureOpen(false);
+              setActiveId(id);
+              if (defaults) chooseCollection(defaults.id);
+            });
+          }}
+        >
+          <label htmlFor="collection-link">链接或分享文案</label>
+          <div>
+            <input
+              id="collection-link"
+              autoFocus
+              required
+              value={link}
+              onChange={(event) => setLink(event.target.value)}
+              placeholder="粘贴 GitHub 仓库链接或整段小红书分享文案"
+            />
+            <button className="primary">保存并解析</button>
+          </div>
+          <p>
+            新内容进入默认收藏夹{defaults ? `“${defaults.name}”` : ""}。
+            <button
+              type="button"
+              className="text-action"
+              onClick={props.openSettings}
+            >
+              配置转发接入
+            </button>
+          </p>
+        </form>
+      )}
+
+      {compactCreate && (
+        <form
+          className="collection-create-popover collection-disclosure"
+          onSubmit={create}
+        >
+          <label htmlFor="compact-new-collection">新收藏夹名称</label>
+          <input
+            ref={compactAddInput}
+            id="compact-new-collection"
+            maxLength={40}
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            placeholder="例如：产品灵感"
+          />
+          <button className="primary" disabled={!newName.trim()}>
+            创建
+          </button>
+          <button type="button" onClick={() => setCompactCreate(false)}>
+            取消
+          </button>
+        </form>
+      )}
+
+      <div className={`collection-workspace ${items.length ? "" : "is-empty"}`}>
         <section className="collection-sidebar" aria-label="收藏夹">
           <div className="collection-section-heading">
             <h2>收藏夹</h2>
@@ -407,44 +525,85 @@ export function ContentCollection(props: Props) {
                 )}
               </div>
 
-              <div className="collection-filters" role="search">
-                <label>
-                  搜索
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="标题、正文或摘要"
-                  />
-                </label>
-                <label>
-                  来源
-                  <select
-                    value={source}
-                    onChange={(event) => setSource(event.target.value)}
-                  >
-                    <option value="">全部来源</option>
-                    <option value="github">GitHub</option>
-                    <option value="xiaohongshu">小红书</option>
-                  </select>
-                </label>
-                <label>
-                  状态
-                  <select
-                    value={status}
-                    onChange={(event) => setStatus(event.target.value)}
-                  >
-                    <option value="">全部状态</option>
-                    <option value="processing">解析中</option>
-                    <option value="interrupted">可重新解析</option>
-                    <option value="partial">部分解析</option>
-                    <option value="body-failed">正文失败</option>
-                    <option value="summary-failed">摘要失败</option>
-                  </select>
-                </label>
-              </div>
+              {filtersOpen && (
+                <div
+                  className="collection-filters collection-filter-popover"
+                  role="search"
+                >
+                  <label>
+                    来源
+                    <select
+                      value={source}
+                      onChange={(event) => setSource(event.target.value)}
+                    >
+                      <option value="">全部来源</option>
+                      <option value="github">GitHub</option>
+                      <option value="xiaohongshu">小红书</option>
+                    </select>
+                  </label>
+                  <label>
+                    状态
+                    <select
+                      value={status}
+                      onChange={(event) => setStatus(event.target.value)}
+                    >
+                      <option value="">全部状态</option>
+                      <option value="processing">解析中</option>
+                      <option value="interrupted">可重新解析</option>
+                      <option value="partial">部分解析</option>
+                      <option value="body-failed">正文失败</option>
+                      <option value="summary-failed">摘要失败</option>
+                    </select>
+                  </label>
+                  <div className="collection-filter-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSource("");
+                        setStatus("");
+                      }}
+                    >
+                      清除
+                    </button>
+                    <button
+                      className="primary"
+                      type="button"
+                      onClick={() => setFiltersOpen(false)}
+                    >
+                      应用
+                    </button>
+                  </div>
+                </div>
+              )}
 
-              {!!visible.length && (
+              {(source || status) && (
+                <div
+                  className="collection-active-filters"
+                  aria-label="已启用筛选"
+                >
+                  {source && (
+                    <button onClick={() => setSource("")}>
+                      {sources[source]} <Icon name="close" />
+                    </button>
+                  )}
+                  {status && (
+                    <button onClick={() => setStatus("")}>
+                      {status === "processing"
+                        ? "解析中"
+                        : status === "interrupted"
+                          ? "可重新解析"
+                          : status === "partial"
+                            ? "部分解析"
+                            : status === "body-failed"
+                              ? "正文失败"
+                              : "摘要失败"}
+                      <Icon name="close" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!!visible.length && selecting && (
                 <div className="collection-bulkbar">
                   <label>
                     <input
@@ -462,7 +621,9 @@ export function ContentCollection(props: Props) {
                         );
                       }}
                     />
-                    {checked.length ? "已选 " + checked.length + " 条" : "选择"}
+                    {checked.length
+                      ? "已选 " + checked.length + " 条"
+                      : "全选当前内容"}
                   </label>
                   {!!checked.length && (
                     <>
@@ -503,6 +664,7 @@ export function ContentCollection(props: Props) {
                     collectionId={collectionId}
                     active={activeId === item.id}
                     checked={checked.includes(item.id)}
+                    selecting={selecting}
                     inspect={() => setActiveId(item.id)}
                     check={(value) =>
                       setChecked((prior) =>
@@ -518,12 +680,15 @@ export function ContentCollection(props: Props) {
 
               {items.length === 0 ? (
                 <CollectionEmpty
-                  title="先收下一条值得回看的内容"
-                  text="粘贴链接或通过机器人转发。原文、摘要和解析状态会留在本地工作空间。"
-                  action="聚焦链接输入"
-                  onAction={() =>
-                    document.getElementById("collection-link")?.focus()
-                  }
+                  title="保存第一条内容"
+                  text="粘贴一个链接，稍后回来阅读。"
+                  action="保存内容"
+                  onAction={() => {
+                    setCaptureOpen(true);
+                    requestAnimationFrame(() =>
+                      document.getElementById("collection-link")?.focus(),
+                    );
+                  }}
                 />
               ) : allInCollection.length === 0 ? (
                 <CollectionEmpty
@@ -546,7 +711,7 @@ export function ContentCollection(props: Props) {
           )}
         </section>
 
-        <section className="collection-reader" aria-label="阅读详情">
+        {!!items.length && <section className="collection-reader" aria-label="阅读详情">
           {active ? (
             <CollectionReader
               item={active}
@@ -577,7 +742,7 @@ export function ContentCollection(props: Props) {
               text="原文和 AI 摘要分开呈现；部分解析与失败状态会保留明确说明。"
             />
           )}
-        </section>
+        </section>}
       </div>
     </div>
   );
@@ -589,6 +754,7 @@ function CollectionRow(props: {
   collectionId: string;
   active: boolean;
   checked: boolean;
+  selecting: boolean;
   inspect: () => void;
   check: (value: boolean) => void;
   move: (id: string) => void;
@@ -596,13 +762,21 @@ function CollectionRow(props: {
   const { item } = props;
   const processing = ["pending", "running"].includes(item.state);
   return (
-    <div className={"collection-item " + (props.active ? "selected" : "")}>
-      <input
-        type="checkbox"
-        checked={props.checked}
-        aria-label={"选择 " + (item.material?.title || item.url)}
-        onChange={(event) => props.check(event.target.checked)}
-      />
+    <div
+      className={
+        "collection-item " +
+        (props.active ? "selected " : "") +
+        (props.selecting ? "selecting" : "")
+      }
+    >
+      {props.selecting && (
+        <input
+          type="checkbox"
+          checked={props.checked}
+          aria-label={"选择 " + (item.material?.title || item.url)}
+          onChange={(event) => props.check(event.target.checked)}
+        />
+      )}
       <button
         className="collection-item-main"
         aria-pressed={props.active}
@@ -636,18 +810,30 @@ function CollectionRow(props: {
               : item.summary || snippet(item.material?.text)}
         </p>
       </button>
-      <select
-        className="collection-item-move"
-        value={props.collectionId}
-        aria-label={"移动 " + (item.material?.title || item.url)}
-        onChange={(event) => props.move(event.target.value)}
-      >
-        {props.collections.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.name}
-          </option>
-        ))}
-      </select>
+      {!props.selecting && (
+        <details className="collection-item-actions">
+          <summary
+            className="icon-button"
+            aria-label={"更多操作 " + (item.material?.title || item.url)}
+          >
+            <Icon name="more" />
+          </summary>
+          <label>
+            移动到
+            <select
+              value={props.collectionId}
+              aria-label={"移动 " + (item.material?.title || item.url)}
+              onChange={(event) => props.move(event.target.value)}
+            >
+              {props.collections.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </details>
+      )}
     </div>
   );
 }
@@ -663,12 +849,19 @@ function CollectionReader(props: {
   return (
     <article className="collection-reading">
       <div className="collection-reading-actions">
-        <button disabled={processing} onClick={() => void props.retry()}>
-          重新解析
-        </button>
-        <button className="danger-action" onClick={props.remove}>
-          删除
-        </button>
+        <details>
+          <summary className="icon-button" aria-label="更多阅读操作">
+            <Icon name="more" />
+          </summary>
+          <div>
+            <button disabled={processing} onClick={() => void props.retry()}>
+              重新解析
+            </button>
+            <button className="danger-action" onClick={props.remove}>
+              删除
+            </button>
+          </div>
+        </details>
       </div>
       <h2>{item.material?.title || "链接解析"}</h2>
       <p className="collection-reading-meta">

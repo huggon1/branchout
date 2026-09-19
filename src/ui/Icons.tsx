@@ -67,6 +67,50 @@ const paths: Record<string, React.ReactNode> = {
       <circle cx="10" cy="18" r="2" />
     </>
   ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </>
+  ),
+  source: (
+    <>
+      <path d="M5 9a10 10 0 0 1 14 0M8 12a6 6 0 0 1 8 0M11 15a2 2 0 0 1 2 0" />
+      <circle cx="12" cy="19" r="1" />
+    </>
+  ),
+  send: <path d="m22 2-7 20-4-9-9-4 20-7ZM11 13 22 2" />,
+  local: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M7 9h10M7 13h6" />
+    </>
+  ),
+  back: <path d="m15 18-6-6 6-6M9 12h10" />,
+  filter: (
+    <>
+      <path d="M4 6h16M7 12h10M10 18h4" />
+    </>
+  ),
+  check: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+      <path d="m8 12 3 3 5-6" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
   arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
   chevron: <path d="m9 6 6 6-6 6" />,
 };
@@ -88,23 +132,30 @@ export function Icon({ name }: { name: string }) {
   );
 }
 
-/** A folded leaf: collected knowledge, growing from one shared stem. */
+/** Content layers growing into a leaf: collect, understand, and create. */
 export function BrandMark() {
   return (
     <svg
       width="28"
-      height="32"
-      viewBox="0 0 28 32"
+      height="28"
+      viewBox="0 0 28 28"
       fill="none"
       aria-hidden="true"
     >
-      <path
-        d="M6 27V16C6 7 12 4 23 5v8c0 9-7 13-17 10M6 23 19 10M11 18h8M15 14V8"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 15h20M4 20h16M4 25h12" strokeWidth="2.2" />
+        <path d="M14 15c0-4 1-8 4-11" strokeWidth="2.2" />
+        <path
+          d="M14 11C12 7 8 6 4 7c1 4 4.5 6.2 10 5Z"
+          fill="currentColor"
+          stroke="none"
+        />
+        <path
+          d="M15 9c1-4 5-6 9-5-.5 4.5-3.5 7-9 7Z"
+          fill="currentColor"
+          stroke="none"
+        />
+      </g>
     </svg>
   );
 }

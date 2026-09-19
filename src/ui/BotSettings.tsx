@@ -7,22 +7,53 @@ export function BotSettings({
   bots: any;
   act: (c: any) => Promise<any>;
 }) {
+  const [selected, setSelected] = useState<"telegram" | "feishu" | null>(null);
   return (
     <section className="panel bot-settings">
-      <h2>转发机器人</h2>
-      <p>
-        仅接收已绑定的本人私聊。应用运行且电脑清醒时接收，关窗后可继续驻留；退出或睡眠期间不保证补收。
-      </p>
-      <div className="bot-grid">
-        {(["telegram", "feishu"] as const).map((channel) => (
+      {selected ? (
+        <>
+          <button
+            className="settings-back bot-channel-back"
+            onClick={() => setSelected(null)}
+          >
+            返回转发接入
+          </button>
           <BotCard
-            key={channel}
-            channel={channel}
-            status={bots?.[channel] || {}}
+            channel={selected}
+            status={bots?.[selected] || {}}
             act={act}
           />
-        ))}
-      </div>
+        </>
+      ) : (
+        <>
+          <h2>转发机器人</h2>
+          <div className="settings-row-list bot-channel-list">
+            {(["telegram", "feishu"] as const).map((channel) => {
+              const status = bots?.[channel] || {};
+              return (
+                <button
+                  className="settings-row"
+                  key={channel}
+                  onClick={() => setSelected(channel)}
+                >
+                  <span className="connection-avatar">
+                    {channel === "telegram" ? "T" : "飞"}
+                  </span>
+                  <span className="connection-choice-text">
+                    <strong>{names[channel]}</strong>
+                    <small>接收本人私聊中的支持链接</small>
+                  </span>
+                  <span
+                    className={`connection-status-pill ${status.bound && status.enabled ? "ok" : ""}`}
+                  >
+                    {status.bound && status.enabled ? "已连接" : "未连接"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </section>
   );
 }
