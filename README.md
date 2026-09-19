@@ -31,11 +31,10 @@ Telegram 使用长轮询，飞书使用官方 SDK 长连接，无需公网接收
 
 ## 开发与验证
 
-使用 Node.js 24。平台组件需要先下载；准备脚本固定版本并校验二进制和归档 SHA-256，浏览器由上游组件校验后随包携带。
+使用 Node.js 24。`npm start` 会在平台组件缺失时调用准备脚本；准备脚本固定版本并校验二进制和归档 SHA-256，浏览器由上游组件校验后随包携带。也可单独运行 `npm run prepare:runtime` 预先准备。
 
 ```sh
 npm install
-npm run prepare:runtime
 npm start
 npm run check
 npm run test:desktop
