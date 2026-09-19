@@ -18,7 +18,7 @@
     "probe:desktop": "electron src/desktop/probe.cjs --model",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs && vite build",
-    "start": "npm run build && electron .",
+    "start": "node scripts/ensure-runtime.mjs && npm run build && electron .",
     "prepare:runtime": "node scripts/with-system-proxy.mjs node scripts/prepare-runtime.mjs",
     "package:app": "npm run build && node scripts/with-system-proxy.mjs node scripts/package-app.mjs",
     "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node tests/e2e/connections.mjs && node tests/e2e/codex-connection.mjs && node --import tsx tests/e2e/forwarding.mjs",
