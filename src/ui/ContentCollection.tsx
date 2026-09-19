@@ -83,7 +83,6 @@ export function ContentCollection(props: Props) {
     (item) => assigned.get(item.id)?.collectionId === collectionId,
   );
   const visible = allInCollection.filter((item) => {
-    const assignment = assigned.get(item.id);
     const text = [
       item.material?.title,
       item.material?.author,
@@ -106,10 +105,7 @@ export function ContentCollection(props: Props) {
       (status === "body-failed" && item.state === "failed") ||
       (status === "summary-failed" &&
         item.state === "success" &&
-        item.summaryState === "failed") ||
-      (status === "pending-bot" &&
-        assignment?.organizationState === "pending") ||
-      (status === "expired-bot" && assignment?.organizationState === "expired");
+        item.summaryState === "failed");
     return (
       text.includes(query.trim().toLocaleLowerCase("zh-CN")) &&
       (!source || item.material?.source === source) &&
@@ -444,8 +440,6 @@ export function ContentCollection(props: Props) {
                     <option value="partial">部分解析</option>
                     <option value="body-failed">正文失败</option>
                     <option value="summary-failed">摘要失败</option>
-                    <option value="pending-bot">等待机器人整理</option>
-                    <option value="expired-bot">机器人整理已过期</option>
                   </select>
                 </label>
               </div>
@@ -505,7 +499,6 @@ export function ContentCollection(props: Props) {
                   <CollectionRow
                     key={item.id}
                     item={item}
-                    assignment={assigned.get(item.id)}
                     collections={collections}
                     collectionId={collectionId}
                     active={activeId === item.id}
@@ -557,7 +550,6 @@ export function ContentCollection(props: Props) {
           {active ? (
             <CollectionReader
               item={active}
-              assignment={assigned.get(active.id)}
               retry={() => act({ type: "retryInbox", id: active.id })}
               remove={() => {
                 if (
@@ -593,7 +585,6 @@ export function ContentCollection(props: Props) {
 
 function CollectionRow(props: {
   item: Inbox;
-  assignment?: CollectionAssignment;
   collections: Collection[];
   collectionId: string;
   active: boolean;
@@ -602,7 +593,7 @@ function CollectionRow(props: {
   check: (value: boolean) => void;
   move: (id: string) => void;
 }) {
-  const { item, assignment } = props;
+  const { item } = props;
   const processing = ["pending", "running"].includes(item.state);
   return (
     <div className={"collection-item " + (props.active ? "selected" : "")}>
@@ -644,13 +635,6 @@ function CollectionRow(props: {
               ? item.error || "正文解析失败，可以重新解析。"
               : item.summary || snippet(item.material?.text)}
         </p>
-        {assignment?.organizationState && (
-          <span className="collection-organization-state">
-            {assignment.organizationState === "pending"
-              ? "等待机器人整理，可先在桌面移动"
-              : "机器人整理已过期，内容仍安全保存在这里"}
-          </span>
-        )}
       </button>
       <select
         className="collection-item-move"
@@ -670,12 +654,11 @@ function CollectionRow(props: {
 
 function CollectionReader(props: {
   item: Inbox;
-  assignment?: CollectionAssignment;
   retry: () => Promise<any>;
   remove: () => void;
   open: (url: string) => Promise<any>;
 }) {
-  const { item, assignment } = props;
+  const { item } = props;
   const processing = ["pending", "running"].includes(item.state);
   return (
     <article className="collection-reading">
@@ -692,26 +675,6 @@ function CollectionReader(props: {
         {when(item.createdAt) + " · " + (names[item.state] || item.state)}
         {item.material ? " · " + sources[item.material.source] : ""}
       </p>
-      {assignment?.organizationState && (
-        <div
-          className={
-            "collection-callout " +
-            (assignment.organizationState === "expired" ? "warning" : "")
-          }
-          role="status"
-        >
-          <strong>
-            {assignment.organizationState === "pending"
-              ? "等待机器人整理"
-              : "机器人整理已过期"}
-          </strong>
-          <p>
-            {assignment.organizationState === "pending"
-              ? "回复尚未完成；内容已保存在默认收藏夹，也可以现在手动移动。"
-              : "原内容没有丢失。请在桌面选择新的收藏夹。"}
-          </p>
-        </div>
-      )}
       {processing && (
         <div className="collection-reader-loading" role="status">
           <span aria-hidden="true" />

@@ -6,7 +6,6 @@ import {
   type Collection,
   type CollectionAssignment,
   type CollectionAssignmentSource,
-  type CollectionOrganizationState,
 } from "./contracts.js";
 
 export const COLLECTION_NAME_MAX_LENGTH = 40;
@@ -50,8 +49,7 @@ export class ContentCollections {
     return this.db
       .prepare(
         `SELECT item_id AS itemId,collection_id AS collectionId,
-          assigned_at AS assignedAt,source,batch_id AS batchId,
-          organization_state AS organizationState
+          assigned_at AS assignedAt,source,batch_id AS batchId
          FROM collection_assignments ORDER BY assigned_at DESC, rowid DESC`,
       )
       .all()
@@ -59,7 +57,6 @@ export class ContentCollections {
         CollectionAssignmentSchema.parse({
           ...row,
           batchId: row.batchId || undefined,
-          organizationState: row.organizationState || undefined,
         }),
       );
   }
@@ -130,7 +127,6 @@ export class ContentCollections {
     options: {
       at?: string;
       batchId?: string;
-      organizationState?: CollectionOrganizationState;
     } = {},
   ) {
     const ids = [...new Set(itemIds)];
@@ -146,14 +142,13 @@ export class ContentCollections {
       const inbox = this.db.prepare("SELECT 1 FROM inbox WHERE id=?");
       const statement = this.db.prepare(
         `INSERT INTO collection_assignments(
-          item_id,collection_id,assigned_at,source,batch_id,organization_state
-        ) VALUES(?,?,?,?,?,?)
+          item_id,collection_id,assigned_at,source,batch_id
+        ) VALUES(?,?,?,?,?)
         ON CONFLICT(item_id) DO UPDATE SET
           collection_id=excluded.collection_id,
           assigned_at=excluded.assigned_at,
           source=excluded.source,
-          batch_id=excluded.batch_id,
-          organization_state=excluded.organization_state`,
+          batch_id=excluded.batch_id`,
       );
       for (const itemId of ids) {
         if (!inbox.get(itemId)) throw Error("内容不存在");
@@ -163,7 +158,6 @@ export class ContentCollections {
           at,
           source,
           options.batchId || null,
-          options.organizationState || null,
         );
       }
     });
@@ -190,7 +184,7 @@ export class ContentCollections {
         .prepare(
           `UPDATE collection_assignments
            SET collection_id=?,assigned_at=?,source='manual',
-             batch_id=NULL,organization_state=NULL
+             batch_id=NULL
            WHERE collection_id=?`,
         )
         .run(currentDefault.id, new Date().toISOString(), id);

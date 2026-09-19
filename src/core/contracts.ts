@@ -224,17 +224,12 @@ export const CollectionAssignmentSourceSchema = z.enum([
 export type CollectionAssignmentSource = z.infer<
   typeof CollectionAssignmentSourceSchema
 >;
-export const CollectionOrganizationStateSchema = z.enum(["pending", "expired"]);
-export type CollectionOrganizationState = z.infer<
-  typeof CollectionOrganizationStateSchema
->;
 export const CollectionAssignmentSchema = z.object({
   itemId: z.string().min(1),
   collectionId: z.string().min(1),
   assignedAt: z.string(),
   source: CollectionAssignmentSourceSchema,
   batchId: z.string().optional(),
-  organizationState: CollectionOrganizationStateSchema.optional(),
 });
 export type CollectionAssignment = z.infer<typeof CollectionAssignmentSchema>;
 export const ExplorationCandidate = CandidateDecisionSchema.extend({

@@ -21,10 +21,11 @@ import {
 } from "./workspace-contracts.js";
 import { z } from "zod";
 import { ContentCollections } from "./content-collections.js";
+import { migrateContentCollectionsV6 } from "./migrations/v6-content-collections.js";
 import {
-  CONTENT_COLLECTIONS_VERSION,
-  migrateContentCollectionsV6,
-} from "./migrations/v6-content-collections.js";
+  STORE_COMPATIBILITY_VERSION,
+  migrateRetiredBotOrganizationV7,
+} from "./migrations/v7-retired-bot-organization.js";
 const LocalBinding = z.object({
   id: z.string(),
   rootPath: z.string().min(1),
@@ -33,7 +34,7 @@ const LocalBinding = z.object({
   linkedAt: z.string(),
 });
 export type LocalBinding = z.infer<typeof LocalBinding>;
-export const STORE_VERSION = CONTENT_COLLECTIONS_VERSION;
+export const STORE_VERSION = STORE_COMPATIBILITY_VERSION;
 type WorkspaceTable =
   | "repos"
   | "understandings"
@@ -194,6 +195,7 @@ export class Store {
             .run("githubCredential");
         }),
         migration(6, () => migrateContentCollectionsV6(this.db)),
+        migration(7, () => migrateRetiredBotOrganizationV7(this.db)),
       ];
       for (const step of migrations) if (version < step.version) step.run();
       this.db.exec(`PRAGMA user_version=${STORE_VERSION}; COMMIT;`);

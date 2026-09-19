@@ -43,6 +43,54 @@ test("share text supports multiple sources, hidden links and ignores lookalike/u
   });
   assert.equal(extractLinks(fs!.text).length, 1);
 });
+
+test("numbers and collection names remain ordinary unsupported messages", async () => {
+  const store = new Store(":memory:");
+  const sent: string[] = [];
+  const hub = new BotHub(
+    store,
+    (value) => value,
+    (value) => value,
+    (async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body || "{}"));
+      if (body.text) sent.push(body.text);
+      return new Response(JSON.stringify({ ok: true, result: {} }));
+    }) as typeof fetch,
+    () => {},
+    async () => {},
+  );
+  hub.configs.telegram = {
+    secret: "123:fixture",
+    enabled: true,
+    peer: "owner",
+    sender: "owner",
+  };
+
+  hub.receive("telegram", {
+    id: "number",
+    peer: "owner",
+    sender: "owner",
+    text: "1",
+  });
+  hub.receive("telegram", {
+    id: "collection-name",
+    peer: "owner",
+    sender: "owner",
+    text: "新建 产品灵感",
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.equal(store.list("inbox").length, 0);
+  assert.deepEqual(
+    store.collections.list().map((item) => item.name),
+    ["Inbox"],
+  );
+  assert.equal(sent.length, 2);
+  assert.ok(sent.every((message) => message.includes("未发现支持的链接")));
+  hub.close();
+  store.close();
+});
+
 test("only bound private sender may enqueue; duplicate delivery remains deduped after delete and restart", async () => {
   const store = new Store(":memory:");
   const parsed: string[] = [];
