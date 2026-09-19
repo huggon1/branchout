@@ -62,7 +62,7 @@ function freshStore(items = [legacyItem("one"), legacyItem("two")]) {
   return store;
 }
 
-test("ordered Store migration v6 preserves every legacy inbox payload byte", () => {
+test("ordered Store migration through v7 preserves every legacy inbox payload byte", () => {
   const dir = mkdtempSync(join(tmpdir(), "nature-feed-v6-bytes-"));
   const path = join(dir, "db");
   seedDatabase(path, 5);
@@ -108,25 +108,102 @@ test("ordered Store migration v6 preserves every legacy inbox payload byte", () 
   }
 });
 
-test("real v3 to v4 to v5 to v6 migration retains each earlier capability", () => {
+test("an existing v7 database keeps retired bot rows and collection data untouched", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nature-feed-v7-compat-"));
+  const path = join(dir, "db");
+  const item = legacyItem("compatibility");
+  seedDatabase(path, 5, [item]);
+  let store = new Store(path);
+  store.db
+    .prepare(
+      `UPDATE collection_assignments
+       SET organization_state='pending' WHERE item_id=?`,
+    )
+    .run(item.id);
+  store.db
+    .prepare(
+      `INSERT INTO bot_organization_sessions(
+        id,channel,peer,source_message_id,receipt_message_id,batch_id,
+        item_ids,menu_options,state,prompt_state,created_at,expires_at
+      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .run(
+      "retired-session",
+      "telegram",
+      "fixture-peer",
+      "fixture-source",
+      "fixture-receipt",
+      "fixture-batch",
+      JSON.stringify([item.id]),
+      "[]",
+      "pending",
+      "sent",
+      "2026-09-18T08:00:00.000Z",
+      "2026-09-25T08:00:00.000Z",
+    );
+  const before = {
+    inbox: store.db.prepare("SELECT id,data FROM inbox ORDER BY id").all(),
+    collections: store.db
+      .prepare("SELECT * FROM collections ORDER BY id")
+      .all(),
+    assignments: store.db
+      .prepare("SELECT * FROM collection_assignments ORDER BY item_id")
+      .all(),
+    retired: store.db
+      .prepare("SELECT * FROM bot_organization_sessions ORDER BY id")
+      .all(),
+  };
+  store.close();
+
+  try {
+    store = new Store(path);
+    assert.equal(
+      (store.db.prepare("PRAGMA user_version").get() as any).user_version,
+      STORE_VERSION,
+    );
+    assert.deepEqual(
+      store.db.prepare("SELECT id,data FROM inbox ORDER BY id").all(),
+      before.inbox,
+    );
+    assert.deepEqual(
+      store.db.prepare("SELECT * FROM collections ORDER BY id").all(),
+      before.collections,
+    );
+    assert.deepEqual(
+      store.db
+        .prepare("SELECT * FROM collection_assignments ORDER BY item_id")
+        .all(),
+      before.assignments,
+    );
+    assert.deepEqual(
+      store.db
+        .prepare("SELECT * FROM bot_organization_sessions ORDER BY id")
+        .all(),
+      before.retired,
+    );
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test("real v3 to v4 to v5 to v6 to v7 migration retains each earlier capability", () => {
   const dir = mkdtempSync(join(tmpdir(), "nature-feed-v3-v6-"));
   const path = join(dir, "db");
   const item = legacyItem("legacy");
   seedDatabase(path, 3, [item]);
   const legacy = new DatabaseSync(path);
-  legacy
-    .prepare("INSERT INTO explorations(id,data) VALUES(?,?)")
-    .run(
-      "exploration",
-      JSON.stringify({
-        id: "exploration",
-        state: "success",
-        events: [],
-        usage: { modelCalls: 1, queries: 2, reads: 3, candidates: 4 },
-        startedAt: "2026-09-18T08:00:00.000Z",
-        endedAt: "2026-09-18T09:00:00.000Z",
-      }),
-    );
+  legacy.prepare("INSERT INTO explorations(id,data) VALUES(?,?)").run(
+    "exploration",
+    JSON.stringify({
+      id: "exploration",
+      state: "success",
+      events: [],
+      usage: { modelCalls: 1, queries: 2, reads: 3, candidates: 4 },
+      startedAt: "2026-09-18T08:00:00.000Z",
+      endedAt: "2026-09-18T09:00:00.000Z",
+    }),
+  );
   legacy
     .prepare("INSERT INTO batches(id,data) VALUES(?,?)")
     .run("batch", JSON.stringify({ id: "batch", state: "success" }));
@@ -142,13 +219,15 @@ test("real v3 to v4 to v5 to v6 migration retains each earlier capability", () =
   try {
     assert.equal(
       (store.db.prepare("PRAGMA user_version").get() as any).user_version,
-      6,
+      STORE_VERSION,
     );
     const exploration = JSON.parse(
       String(
-        (store.db
-          .prepare("SELECT data FROM explorations WHERE id='exploration'")
-          .get() as any).data,
+        (
+          store.db
+            .prepare("SELECT data FROM explorations WHERE id='exploration'")
+            .get() as any
+        ).data,
       ),
     );
     assert.equal(exploration.lifecycle, "completed");
@@ -163,8 +242,11 @@ test("real v3 to v4 to v5 to v6 migration retains each earlier capability", () =
     assert.equal(store.collections.default().name, "Inbox");
     assert.equal(store.collections.assignments()[0].itemId, item.id);
     assert.equal(
-      (store.db.prepare("SELECT data FROM inbox WHERE id=?").get(item.id) as any)
-        .data,
+      (
+        store.db
+          .prepare("SELECT data FROM inbox WHERE id=?")
+          .get(item.id) as any
+      ).data,
       JSON.stringify(item),
     );
   } finally {
@@ -282,7 +364,7 @@ test("single and bulk assignment retain source, timestamp, batch, and bot state"
   }
 });
 
-test("fresh v6 Store persists collection CRUD, bulk move, and deletion across restart", () => {
+test("fresh v7 Store persists collection CRUD, bulk move, and deletion across restart", () => {
   const dir = mkdtempSync(join(tmpdir(), "nature-feed-collections-"));
   const path = join(dir, "db");
   let store = new Store(path);
@@ -290,7 +372,7 @@ test("fresh v6 Store persists collection CRUD, bulk move, and deletion across re
     assert.equal(store.collections.default().name, "Inbox");
     assert.equal(
       (store.db.prepare("PRAGMA user_version").get() as any).user_version,
-      6,
+      STORE_VERSION,
     );
     const items = [
       legacyItem("fresh", "2026-09-18T14:00:00.000Z"),
