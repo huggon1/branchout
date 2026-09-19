@@ -60,7 +60,7 @@ docs/project-plan.md 保存 huggon1 已确认的产品方向、交付阶段、�
 
 [产品上下文](../PRODUCT.md) 是设计工具的项目入口，保存用户、用途、使用情境和设计需遵守的产品原则；功能清单、运行事实和验收规则通过链接引用其负责文档。正文使用中文，工具识别字段保留约定值。
 
-[MVP PRD](mvp-prd.md) 保存产品术语、使用规则和验收场景，[页面设计](design/README.md) 提供视觉参考；技术方案不能改变这些已确认行为。
+[MVP PRD](mvp-prd.md) 保存产品术语、使用规则和验收场景，[UI UX Pro Max 设计系统](../design-system/nature-feed/MASTER.md) 提供视觉与交互实现依据；技术方案不能改变这些已确认行为。
 
 [技术架构](technical-architecture.md) 保存已确认的目标技术选型、模块职责、数据流、运行边界和实施验证要求。
 
@@ -96,4 +96,4 @@ README 和 AGENTS.md 按合并后的当前状态书写，不使用工作日志�
 
 ## 视觉规范
 
-[DESIGN.md](../DESIGN.md) 记录当前实现的视觉系统；[设计流程](design/workflow.md) 规定如何复用、扩展和验收。设计变量以 [tokens.css](../src/ui/tokens.css) 为运行时来源；规范和变量变更在同一个 PR 更新。页面截图是实现证据，不是下一页的固定布局模板。
+[UI UX Pro Max 设计系统](../design-system/nature-feed/MASTER.md) 记录当前界面的视觉令牌、组件建议与交付检查；[tokens.css](../src/ui/tokens.css) 是运行时来源。界面变更先从产品类型、使用场景与技术栈生成或检索设计依据，再以真实 Electron 页面验证；截图只作为实现证据。
