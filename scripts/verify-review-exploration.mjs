@@ -9,14 +9,14 @@ import { generateText } from "../src/adapters/model.mjs";
 import { fetchReadme } from "../src/adapters/readme.mjs";
 import { configureNetwork } from "../src/adapters/network.mjs";
 configureNetwork();
-const dir = process.env.FEEDLOOM_REVIEW_OUTPUT;
-if (!dir) throw Error("Set FEEDLOOM_REVIEW_OUTPUT");
+const dir = process.env.BRANCHOUT_REVIEW_OUTPUT;
+if (!dir) throw Error("Set BRANCHOUT_REVIEW_OUTPUT");
 const result = JSON.parse(await readFile(join(dir, "result.json"), "utf8"));
 if (result.analysis.state !== "success") throw Error("Complete review first");
 const understanding = result.understandings.find(
   (u) => u.id === result.repo.understandingId,
 );
-const previous = process.env.FEEDLOOM_REPLAY_VARIANT
+const previous = process.env.BRANCHOUT_REPLAY_VARIANT
   ? JSON.parse(await readFile(join(dir, "exploration-replay.json"), "utf8"))
   : undefined;
 const source =
@@ -30,11 +30,11 @@ const meta = JSON.parse(
 source.context = { ...source.context, pushedAt: meta.pushed_at };
 const outputs = previous
   ? previous.outputs.filter(
-      (o) => o.variant !== process.env.FEEDLOOM_REPLAY_VARIANT,
+      (o) => o.variant !== process.env.BRANCHOUT_REPLAY_VARIANT,
     )
   : [];
-for (const variant of process.env.FEEDLOOM_REPLAY_VARIANT
-  ? [process.env.FEEDLOOM_REPLAY_VARIANT]
+for (const variant of process.env.BRANCHOUT_REPLAY_VARIANT
+  ? [process.env.BRANCHOUT_REPLAY_VARIANT]
   : ["overview", "with-progress"]) {
   const s = new Store(":memory:");
   const run = {

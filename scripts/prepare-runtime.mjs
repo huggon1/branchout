@@ -60,7 +60,7 @@ const browser = join(
 try {
   await access(browser);
 } catch {
-  const tmp = await mkdtemp(join(tmpdir(), "feedloom-browser-"));
+  const tmp = await mkdtemp(join(tmpdir(), "branchout-browser-"));
   const child = spawn(join(root, "xiaohongshu-mcp"), ["-port", "127.0.0.1:0"], {
     cwd: tmp,
     env: { ...process.env, COOKIES_PATH: join(tmp, "cookies.json") },

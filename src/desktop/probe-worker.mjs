@@ -19,8 +19,8 @@ port.on('message', async ({ data }) => {
     port.postMessage({ type: 'stage', stage: 'github', success: results.github });
     if (data.model) {
       let streamed = false;
-      const result = await generateText({ text: 'Fictional integration test.', instruction: 'Reply exactly FEEDLOOM_OK.', dataDir: data.dataDir, onProgress: () => { streamed = true; } });
-      results.model = result.text === 'FEEDLOOM_OK' && result.tools.length === 0;
+      const result = await generateText({ text: 'Fictional integration test.', instruction: 'Reply exactly BRANCHOUT_OK.', dataDir: data.dataDir, onProgress: () => { streamed = true; } });
+      results.model = result.text === 'BRANCHOUT_OK' && result.tools.length === 0;
       results.streamed = streamed;
       port.postMessage({ type: 'stage', stage: 'model', success: results.model, streamed, model: result.model });
     }

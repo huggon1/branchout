@@ -3,12 +3,12 @@ import { readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Store } from "../src/core/store.ts";
 import { _electron as electron, expect } from "@playwright/test";
-const source = process.env.FEEDLOOM_REVIEW_OUTPUT;
-if (!source) throw Error("Set FEEDLOOM_REVIEW_OUTPUT");
+const source = process.env.BRANCHOUT_REVIEW_OUTPUT;
+if (!source) throw Error("Set BRANCHOUT_REVIEW_OUTPUT");
 const dir = join(source, "desktop");
 await mkdir(dir, { recursive: true });
 const result = JSON.parse(await readFile(join(source, "result.json"), "utf8"));
-const store = new Store(join(dir, "feedloom.sqlite"));
+const store = new Store(join(dir, "branchout.sqlite"));
 store.put("repos", result.repo);
 for (const u of result.understandings)
   if (!store.get("understandings", u.id)) store.put("understandings", u);
@@ -18,8 +18,8 @@ const app = await electron.launch({
   args: ["."],
   env: {
     ...process.env,
-    FEEDLOOM_DATA_DIR: dir,
-    FEEDLOOM_SKIP_AUTO_CONNECT: "1",
+    BRANCHOUT_DATA_DIR: dir,
+    BRANCHOUT_SKIP_AUTO_CONNECT: "1",
   },
 });
 try {
@@ -34,7 +34,7 @@ try {
   await expect(
     page.getByRole("button", { name: "看看最近进展", exact: true }),
   ).toBeEnabled();
-  if (process.env.FEEDLOOM_RUN_REVIEW === "1") {
+  if (process.env.BRANCHOUT_RUN_REVIEW === "1") {
     await page
       .getByRole("button", { name: "看看最近进展", exact: true })
       .click();
@@ -45,7 +45,7 @@ try {
       page.getByRole("button", { name: "看看最近进展", exact: true }),
     ).toBeEnabled({ timeout: 600000 });
     const current = await page.evaluate(async () => {
-      const r = await window.feedloom.command({ type: "state" });
+      const r = await window.branchout.command({ type: "state" });
       return r.value;
     });
     const latest = current.analyses.sort((a, b) =>

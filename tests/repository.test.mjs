@@ -29,7 +29,7 @@ test("public link guard rejects private, mapped, loopback and credential URLs", 
 });
 
 test("local Git reader pins objects and excludes worktree, symlink and submodule content", async () => {
-  const root = mkdtempSync(join(tmpdir(), "nature-feed-local-git-"));
+  const root = mkdtempSync(join(tmpdir(), "branchout-local-git-"));
   const run = (...args) =>
     String(execFileSync("git", args, { cwd: root })).trim();
   try {

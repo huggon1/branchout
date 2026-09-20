@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-contextBridge.exposeInMainWorld("feedloom", {
+contextBridge.exposeInMainWorld("branchout", {
   command: (value: unknown) => ipcRenderer.invoke("command", value),
   onChange: (fn: () => void) => {
     const listener = () => fn();

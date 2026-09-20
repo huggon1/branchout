@@ -26,7 +26,7 @@ import {
 } from "./navigation.js";
 declare global {
   interface Window {
-    feedloom: {
+    branchout: {
       command: (v: any) => Promise<any>;
       onChange: (fn: () => void) => () => void;
     };
@@ -237,8 +237,8 @@ function App() {
       setOpeningError("");
     }
     try {
-      if (!window.feedloom) throw Error("请通过桌面应用打开 nature-feed");
-      const r = await window.feedloom.command({ type: "state" });
+      if (!window.branchout) throw Error("请通过桌面应用打开 Branchout");
+      const r = await window.branchout.command({ type: "state" });
       if (!r.ok) throw Error(r.error || "无法读取应用数据");
       setState(r.value);
       setPrompt((v) => v || r.value.prompt);
@@ -254,12 +254,12 @@ function App() {
   };
   useEffect(() => {
     void refresh();
-    return window.feedloom?.onChange(() => void refresh());
+    return window.branchout?.onChange(() => void refresh());
   }, []);
   const act = async (value: any) => {
     setError("");
     try {
-      let r = await window.feedloom.command(value);
+      let r = await window.branchout.command(value);
       if (
         !r.ok &&
         value.type === "analyzeRepo" &&
@@ -274,7 +274,7 @@ function App() {
           )
         )
           return undefined;
-        r = await window.feedloom.command({
+        r = await window.branchout.command({
           ...value,
           confirmBranch: current,
         });
@@ -415,7 +415,7 @@ function App() {
           <span className="mark">
             <BrandMark />
           </span>
-          nature-feed
+          Branchout
         </div>
         {openingError ? (
           <section className="panel" role="alert">
@@ -430,7 +430,7 @@ function App() {
             </button>
           </section>
         ) : (
-          <p role="status">正在打开 nature-feed…</p>
+          <p role="status">正在打开 Branchout…</p>
         )}
       </div>
     );
@@ -764,7 +764,7 @@ function App() {
             <span className="mark">
               <BrandMark />
             </span>
-            <strong>nature-feed</strong>
+            <strong>Branchout</strong>
           </div>
         </div>
         <WorkspaceNavigation

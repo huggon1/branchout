@@ -1,9 +1,9 @@
 {
-  "name": "nature-feed",
+  "name": "branchout",
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Personal desktop collection and Feed workspace",
+  "description": "Discover, collect, and understand information to grow your project ideas",
   "main": "dist/main/main.js",
   "engines": {
     "node": ">=22.19.0"
@@ -11,6 +11,7 @@
   "scripts": {
     "test": "node --import tsx --test tests/*.test.mjs tests/*.test.ts",
     "check:docs": "node scripts/check-docs.mjs",
+    "screenshots": "npm run build && node --import tsx scripts/capture-readme.mjs",
     "contracts:write": "node --import tsx scripts/export-contracts.mjs",
     "check": "npm test && npm run typecheck && npm run build && npm run check:docs && git diff --check",
     "probe:github": "node scripts/probe-github.mjs",

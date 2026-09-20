@@ -48,7 +48,7 @@ test("Codex protocol adapter cannot run an agent, handles split frames and cance
   await assert.rejects(client.request("model/list", {}), /取消/);
 });
 test("owned auth is refreshed only by official client and discovery never returns account data", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "feedloom-codex-fixture-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "branchout-codex-fixture-"));
   try {
     await mkdir(join(dataDir, "codex-connection"));
     await writeFile(join(dataDir, "codex-connection/auth.json"), "{}");
@@ -87,7 +87,7 @@ test("owned auth is refreshed only by official client and discovery never return
   }
 });
 test("independent login uses only browser auth, validates URL and completes from official notification", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "feedloom-login-fixture-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "branchout-login-fixture-"));
   try {
     let options,
       opened = false,

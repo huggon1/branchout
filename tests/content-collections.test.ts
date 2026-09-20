@@ -63,7 +63,7 @@ function freshStore(items = [legacyItem("one"), legacyItem("two")]) {
 }
 
 test("ordered Store migration through v7 preserves every legacy inbox payload byte", () => {
-  const dir = mkdtempSync(join(tmpdir(), "nature-feed-v6-bytes-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-v6-bytes-"));
   const path = join(dir, "db");
   seedDatabase(path, 5);
   const beforeDb = new DatabaseSync(path);
@@ -109,7 +109,7 @@ test("ordered Store migration through v7 preserves every legacy inbox payload by
 });
 
 test("an existing v7 database keeps retired bot rows and collection data untouched", () => {
-  const dir = mkdtempSync(join(tmpdir(), "nature-feed-v7-compat-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-v7-compat-"));
   const path = join(dir, "db");
   const item = legacyItem("compatibility");
   seedDatabase(path, 5, [item]);
@@ -192,7 +192,7 @@ test("an existing v7 database keeps retired bot rows and collection data untouch
 });
 
 test("real v3 to v4 to v5 to v6 to v7 migration retains each earlier capability", () => {
-  const dir = mkdtempSync(join(tmpdir(), "nature-feed-v3-v6-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-v3-v6-"));
   const path = join(dir, "db");
   const item = legacyItem("legacy");
   seedDatabase(path, 3, [item]);
@@ -260,7 +260,7 @@ test("real v3 to v4 to v5 to v6 to v7 migration retains each earlier capability"
 });
 
 test("v6 failure rolls back schema, assignments, and Store version", () => {
-  const dir = mkdtempSync(join(tmpdir(), "nature-feed-v6-rollback-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-v6-rollback-"));
   const path = join(dir, "db");
   const db = new DatabaseSync(path);
   db.exec(
@@ -365,7 +365,7 @@ test("single and bulk assignment retain source, timestamp, and batch", () => {
 });
 
 test("fresh v7 Store persists collection CRUD, bulk move, and deletion across restart", () => {
-  const dir = mkdtempSync(join(tmpdir(), "nature-feed-collections-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-collections-"));
   const path = join(dir, "db");
   let store = new Store(path);
   try {

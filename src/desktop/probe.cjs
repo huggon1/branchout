@@ -11,12 +11,12 @@ async function finish(code) {
   app.exit(code);
 }
 app.whenReady().then(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), 'feedloom-desktop-'));
+  dataDir = await mkdtemp(join(tmpdir(), 'branchout-desktop-'));
   const env = { ...process.env, NODE_USE_ENV_PROXY: '1' };
   const proxy = await session.defaultSession.resolveProxy('https://chatgpt.com');
   const match = proxy.match(/(?:^|;\s*)PROXY\s+([^;]+)/);
   if (match) env.HTTPS_PROXY = env.HTTP_PROXY = `http://${match[1]}`;
-  child = utilityProcess.fork(join(__dirname, 'probe-worker.mjs'), [], { env, stdio: 'ignore', serviceName: 'nature-feed integration probe' });
+  child = utilityProcess.fork(join(__dirname, 'probe-worker.mjs'), [], { env, stdio: 'ignore', serviceName: 'branchout integration probe' });
   timer = setTimeout(() => { console.log(JSON.stringify({ type: 'failed', code: 'desktop_timeout' })); void finish(1); }, 120_000);
   child.on('message', message => {
     console.log(JSON.stringify({ packaged: app.isPackaged, ...message }));

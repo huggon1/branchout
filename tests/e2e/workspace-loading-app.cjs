@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const { join } = require("node:path");
-app.setPath("userData", process.env.FEEDLOOM_UI_TEST_DIR);
+app.setPath("userData", process.env.BRANCHOUT_UI_TEST_DIR);
 const state = {
   tasks: [],
   runs: [],

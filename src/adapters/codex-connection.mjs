@@ -134,7 +134,7 @@ export function createCodexClient({
     close,
     async initialize() {
       await request("initialize", {
-        clientInfo: { name: "feedloom", version: "0.2.0" },
+        clientInfo: { name: "branchout", version: "0.2.0" },
         capabilities: {},
       });
       child.stdin.write(
@@ -201,7 +201,7 @@ export async function readCodexConnection(options) {
         runtime.getModels("openai-codex").map((m) => m.id),
       ),
       home: location.home,
-      source: location.owned ? "nature-feed 独立登录" : "本机 Codex 文件登录",
+      source: location.owned ? "Branchout 独立登录" : "本机 Codex 文件登录",
       checkedAt: new Date().toISOString(),
     };
   } finally {

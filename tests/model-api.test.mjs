@@ -139,7 +139,7 @@ for (const protocol of ["openai-completions", "openai-responses"])
       }
     });
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const dataDir = await mkdtemp(join(tmpdir(), "feedloom-provider-test-"));
+    const dataDir = await mkdtemp(join(tmpdir(), "branchout-provider-test-"));
     try {
       const result = await generateText({
         mode: "api",

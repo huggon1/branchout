@@ -3,8 +3,8 @@ import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store } from "../../src/core/store.ts";
-const dir = await mkdtemp(join(tmpdir(), "feedloom-forward-"));
-const databasePath = join(dir, "feedloom.sqlite");
+const dir = await mkdtemp(join(tmpdir(), "branchout-forward-"));
+const databasePath = join(dir, "branchout.sqlite");
 let store = new Store(databasePath);
 store.put("inbox", {
   id: "readme",
@@ -116,8 +116,8 @@ try {
     args: ["."],
     env: {
       ...process.env,
-      FEEDLOOM_DATA_DIR: dir,
-      FEEDLOOM_SKIP_AUTO_CONNECT: "1",
+      BRANCHOUT_DATA_DIR: dir,
+      BRANCHOUT_SKIP_AUTO_CONNECT: "1",
     },
   });
   const page = await app.firstWindow();

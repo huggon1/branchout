@@ -3,14 +3,14 @@ import { join } from "node:path";
 const application = await electron.launch({
   executablePath: join(
     process.cwd(),
-    "build/nature-feed-darwin-arm64/nature-feed.app/Contents/MacOS/nature-feed",
+    "build/Branchout-darwin-arm64/Branchout.app/Contents/MacOS/Branchout",
   ),
 });
 try {
   const page = await application.firstWindow();
-  await page.waitForFunction(() => Boolean(window.feedloom));
+  await page.waitForFunction(() => Boolean(window.branchout));
   const command = async (value) => {
-    const r = await page.evaluate((v) => window.feedloom.command(v), value);
+    const r = await page.evaluate((v) => window.branchout.command(v), value);
     if (!r.ok) throw Error(r.error);
     return r.value;
   };

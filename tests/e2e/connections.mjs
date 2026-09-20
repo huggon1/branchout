@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-const dir = await mkdtemp(join(tmpdir(), "feedloom-connections-ui-"));
+const dir = await mkdtemp(join(tmpdir(), "branchout-connections-ui-"));
 const requests = [];
 const server = createServer(async (req, res) => {
   let raw = "";
@@ -62,8 +62,8 @@ const app = await electron.launch({
   args: ["."],
   env: {
     ...process.env,
-    FEEDLOOM_DATA_DIR: dir,
-    FEEDLOOM_SKIP_AUTO_CONNECT: "1",
+    BRANCHOUT_DATA_DIR: dir,
+    BRANCHOUT_SKIP_AUTO_CONNECT: "1",
   },
 });
 try {
@@ -90,7 +90,7 @@ try {
   expect(requests).toEqual(["fixture-new-model"]);
   const state = () =>
     page.evaluate(
-      async () => (await window.feedloom.command({ type: "state" })).value,
+      async () => (await window.branchout.command({ type: "state" })).value,
     );
   expect((await state()).modelSettings.connections).toHaveLength(1);
   await page.getByRole("button", { name: "保存配置", exact: true }).click();
@@ -113,7 +113,7 @@ try {
   await page.getByLabel("模型名称", { exact: true }).fill("fixture-draft");
   // Background state refresh must not reset the form.
   await page.evaluate(() =>
-    window.feedloom.command({ type: "modelSettings", mode: "api" }),
+    window.branchout.command({ type: "modelSettings", mode: "api" }),
   );
   await expect(page.getByLabel("模型名称", { exact: true })).toHaveValue(
     "fixture-draft",

@@ -72,7 +72,7 @@ export function TaskEditor({
         <div>
           <h2>{task.id ? "编辑任务" : "新建收集任务"}</h2>
           <p className="muted">
-            告诉 nature-feed 你想找到什么，再选择发现它的地方。
+            告诉 Branchout 你想找到什么，再选择发现它的地方。
           </p>
         </div>
         <span className={`status ${dirty ? "partial" : "success"}`}>

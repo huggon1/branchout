@@ -2,11 +2,11 @@ const { app, session } = require('electron');
 const { join, isAbsolute } = require('node:path');
 const { homedir } = require('node:os');
 const { spawn } = require('node:child_process');
-app.setPath('userData', join(homedir(), 'Library', 'Application Support', 'Feedloom'));
+app.setPath('userData', join(homedir(), 'Library', 'Application Support', 'Branchout'));
 app.whenReady().then(async () => {
-  const runtime = process.env.FEEDLOOM_X_RUNTIME;
+  const runtime = process.env.BRANCHOUT_X_RUNTIME;
   if (!runtime || !isAbsolute(runtime)) throw Error('runtime_required');
-  const isolated = session.fromPartition('persist:feedloom-x');
+  const isolated = session.fromPartition('persist:branchout-x');
   const cookies = await isolated.cookies.get({ url: 'https://x.com' });
   const token = cookies.find(c => c.name === 'auth_token')?.value;
   const csrf = cookies.find(c => c.name === 'ct0')?.value;

@@ -463,8 +463,8 @@ test("public context rejects repository identifiers before a new overview can be
   assert.throws(
     () =>
       validatePublicContext(
-        { product: "Feedloom helps readers" },
-        "huggon1/feedloom",
+        { product: "Branchout helps readers" },
+        "huggon1/branchout",
       ),
     /公开搜索上下文/,
   );
@@ -472,14 +472,14 @@ test("public context rejects repository identifiers before a new overview can be
     () =>
       validatePublicContext(
         { product: "See https://private.example" },
-        "huggon1/feedloom",
+        "huggon1/branchout",
       ),
     /公开搜索上下文/,
   );
   assert.deepEqual(
     validatePublicContext(
       { product: "Save interesting links for later reading" },
-      "huggon1/feedloom",
+      "huggon1/branchout",
     ),
     { product: "Save interesting links for later reading" },
   );
