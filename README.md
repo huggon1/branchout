@@ -1,104 +1,105 @@
-# nature-feed
+![Branchout — Grow your ideas. Build with confidence.](assets/hero.png)
 
-个人桌面收集与阅读工具：在「内容收集、项目理解、素材探索、内容创作」四个模块中留存链接、固定项目上下文、探索素材并生成可追溯的 Feed。
+# Branchout
 
-## 使用
+**Grow your ideas. Build with confidence.**
 
-首版支持 macOS Apple Silicon。打开本地构建的 `build/nature-feed-darwin-arm64/nature-feed.app`，在「设置」中连接小红书和 X。模型服务支持 Codex 订阅和自定义 OpenAI 兼容 API，可保存多个连接并明确启用其中一个。原有配置升级时保留模型与计费方式，应用不会自动切换。
+English · [简体中文](README.zh-CN.md) · [Get started](#-get-started) · [Inside the app](#-inside-the-app)
 
-版本号含 `preview` 时构建为独立的 `nature-feed Preview.app`，界面标记测试版，数据位于 `~/Library/Application Support/Feedloom Preview`，不与稳定版数据库或机器人连接共用。
+Building a project isn't always about knowing how to code. Sometimes you're unsure what's worth pursuing. Sometimes you already have an idea, but the references, context, and insights that could help you develop it are scattered everywhere.
 
-- **内容收集**：粘贴分享文案或通过 Telegram／飞书机器人接收本人私聊的 GitHub 仓库、小红书链接。机器人把内容保存到当时的默认收藏夹并回复解析结果；收藏夹创建、移动、删除和整理只在桌面完成。原文、图片与明确标识的 AI 摘要独立保存，不进入素材库或 Feed。
-- **项目理解**：从本机选择已有 Git 工作目录，手动运行分析。每次运行固定当前分支和 commit，只读取该 commit 的 Git 对象；产品理解、近期变化、版本与依据在同一工作空间查看。
-- **素材探索**：包含新建探索、持久运行详情、素材库和只读历史收集。探索固定已有项目理解，不自动代办分析；提交后立即保存并打开运行详情。素材库保留来源、多个发现理由和当时的理解版本，选材跨筛选保持。
-- **内容创作**：包含 Feed 编排生成和 Feed 历史。用户核对素材快照、章节、顺序与提示词后逐条生成；同来源只生成一次，依据不足、失败和可阅读内容分别保留，支持复制、单条替换及沿用历史依据重新生成。
+**Branchout is a project companion for independent developers.** Grounded in your project, it helps you discover, collect, and understand useful information—turning scattered findings into perspectives and evidence you can build on. Whether you're exploring a new direction or developing an existing idea, the goal is the same: a clearer picture and more confidence to move forward.
 
-侧栏只显示这四个顶层模块，模块内再显示当前可用的子入口。切换模块会回到上次停留的页面并保留页面选择与滚动位置；空状态在当前操作位置提供一个直接恢复入口，不会自动开始分析或探索。「设置」是独立入口，不构成第五个业务模块。
+## 🌱 What makes Branchout different
 
-同来源同日覆盖，跨日采集记录仍保留；发现关系独立保存来源、摘录和仓库/模板快照。Feed 固定正文、发现关系、章节和提示词，后续理解更新或素材删除不改变其依据。关闭窗口可驻留完成手动任务，退出后停止；重启把未完成探索标为“重启后待继续”，不会自动运行。
+### Grounded in your project
 
-项目路径仅保存在主进程私有映射中，不进入业务状态、模型提示、日志或测试快照。旧版 GitHub 项目仍可只读查看历史理解和证据，重新分析前需选择本机目录；只有旧边界 commit 可从新目录当前版本到达时才沿用原项目，否则创建独立项目。GitHub 公开能力继续用于转发解析和外部探索，无需项目仓库 Token。
+Your code and commit history provide a meaningful starting point. Branchout uses them to understand what your project does and how it's evolving, so exploration starts with context rather than a blank prompt.
 
-## 机器人配置与验收
+### Exploration, ready to use
 
-在「设置 → 转发接入」中打开转发机器人配置。Telegram 需要 BotFather 创建的专用机器人 Token；飞书需要启用机器人的企业自建应用 App ID／App Secret，开通单聊接收与机器人发送权限，启用长连接并订阅 `im.message.receive_v1`，发布应用并将本人加入可用范围。保存并连接后生成绑定码，在机器人私聊中发送完整命令；绑定码十分钟有效，只有绑定身份可以提交内容。密钥在本机加密保存。
+Research methods, exploration angles, and platform connections are already assembled. Choose from the available directions and start exploring—without designing a research workflow or writing prompts yourself.
 
-Telegram 使用长轮询，飞书使用官方 SDK 长连接，无需公网接收服务。应用退出或电脑睡眠不保证接收和补收；Telegram 待消费消息最多保留 24 小时。连接成功仍需真实消息验证权限。接收后先原子保存到当时的默认收藏夹并回复接收结果，再串行解析并回复简短摘要；已经收到但解析中断的记录可在重启后继续处理。机器人不处理收藏夹命令，回执失败仍保留桌面记录。停用停止接收和回执，保留配置与已有记录。
+### Perspective for what you're building
 
-首版支持文本、Telegram 隐藏链接与飞书富文本中的链接；小红书分享文案支持 `xhslink.cn`、`xhslink.com` 短链及笔记原始链接，保留跳转后的访问参数；截图、附件、合并聊天记录、群聊及非支持平台不解析。小红书仍需在来源连接中登录。README 回退读取不能固定版本时会提示，正文超过 500,000 字符标为部分解析，远程图片不保证离线可读。
+Discover new possibilities and deepen ideas you already have. Bring useful information into focus, keep the context behind it, and develop a more informed view of where your project could go.
 
-测试版验收：完成两个机器人的配置和绑定，各发送 GitHub 仓库与小红书分享文案；核对接收回执、桌面原文／图片和 AI 摘要，再检查重连与失败重试。自动化覆盖消息归一化、绑定限制、去重、README 获取和安全渲染，真实机器人权限及平台链路以本机配置后的验收为准。
+## 🚀 Get started
 
-## 开发与验证
-
-使用 Node.js 24。`npm start` 会在平台组件缺失时调用准备脚本；准备脚本固定版本并校验二进制和归档 SHA-256，浏览器由上游组件校验后随包携带。也可单独运行 `npm run prepare:runtime` 预先准备。
+Currently supported: **macOS on Apple Silicon**. The interface is currently in Chinese. Development requires **Node.js 22.19.0 or later** and Git.
 
 ```sh
-npm install
+git clone https://github.com/huggon1/branchout.git
+cd branchout
+npm ci
 npm start
-npm run check
-npm run test:desktop
+```
+
+The first start downloads the required platform runtimes if they're missing.
+
+1. Open **Settings (设置)** and choose a Codex or OpenAI-compatible model connection. Model access requires your own account or API credentials and may incur provider charges.
+2. In **Project understanding (项目理解)**, select a local Git project and run its initial analysis.
+3. In **Material exploration (素材探索)**, choose the project, an exploration angle, platforms, and a time range. Review the resulting material and its relevance to your project.
+
+Connect Xiaohongshu or X when you want to use those sources. Telegram and Feishu bots are optional ways to forward links; you can also paste links directly into the app.
+
+## 🔎 Inside the app
+
+All screenshots below are captured from the actual application using fictional projects and content in an isolated demo workspace. They contain no personal projects, accounts, or live research results.
+
+### Understand the project you already have
+
+Read a project overview, meaningful recent changes, and the code evidence behind them. Analysis is tied to a specific commit; you decide when to update it.
+
+![Project overview and development timeline for the fictional Sproutboard project](assets/screenshots/project.png)
+
+### Explore with a starting point
+
+Built-in angles currently cover comparable products, user needs, product experience, acquisition and pricing, and relevant tools or capabilities. Explore GitHub, Xiaohongshu, and X; inspect sources and why they matter instead of receiving an unexplained list of links.
+
+![Project, exploration angles, platforms, and time-range selection](assets/screenshots/exploration.png)
+
+<details>
+<summary>See the material library</summary>
+
+Filter discoveries by project, angle, platform, or exploration run. Sources and their relationships to different projects remain distinct.
+
+![Four fictional discoveries with summaries and relevance to the demo project](assets/screenshots/materials.png)
+
+</details>
+
+### Keep the ideas you find along the way
+
+Paste GitHub or Xiaohongshu links, or forward them through a connected Telegram or Feishu bot. Branchout parses the content into a local reading workspace with collections, original text, and separately labeled AI summaries.
+
+![Collected fictional references alongside the original article and its summary](assets/screenshots/collection.png)
+
+Collection is also useful on its own. Saved links are not currently fed automatically into project exploration or Feed generation.
+
+### Turn selected discoveries into a Feed
+
+Choose material from exploration, arrange it into sections, and generate a readable Feed. Historical Feeds retain the source snapshots used to create them; missing evidence and failed items remain visible rather than being filled with invented content.
+
+## 🛠 Build and contribute
+
+```sh
+npm run check          # Tests, types, build, and document links
+npm run test:desktop   # Isolated desktop interaction tests
+npm run prepare:runtime
 npm run package:app
 ```
 
-每批最多 10 项探索，逐项执行。新探索不以固定查询、补读、候选、模型调用、规划步骤或总耗时上限作为正常完成条件：存在新的规范来源、完成候选判断、补全正文／时间依据或覆盖缺口变化时继续；覆盖充分且连续行动的边际收益降低后完成。无结果仅在不同合理策略正常完成且没有平台阻塞时成立。重复、来回摆动或持续没有可提交进展会进入可继续的安全暂停。单次模型／平台调用仍有超时与输出限制，AbortSignal、隐私校验、幂等及 provider／限流／登录错误分类继续生效。
+The packaged application is written to `build/Branchout-darwin-arm64/Branchout.app`. Signing, notarization, and clean-machine distribution validation are not yet complete.
 
-项目理解提供“看看这个项目”“看看最近进展”和“继续分析”。概览用简短定位与核心使用情境解释为什么需要这个项目。“值得关注的进展”只展示产品能力、使用方式和方向的变化，来源可展开；日常维护和旧版分析保留在分析记录中，不强制输出逐项分析章节。发布前合并跨批次重复的产品进展，保留原始记录。
+To reproduce the fictional screenshots, run `npm run screenshots`. It creates and removes a temporary workspace without using your normal application data. See [AGENTS.md](AGENTS.md) for repository rules.
 
-分析开始时固定所选目录的当前分支与 commit，完整读取该固定版本的 commit 清单和变更，按批保存读取与分析进度，不再以 25 个提交限制整轮。工作树之后切换分支时先提示用户确认；取消则保留原绑定，确认后仍不改写历史固定版本。Pi 通过只读工具按需定位固定版本目录、读取文件和 patch，每阶段最多 60 次工具调用、40 个模型轮次、10 分钟；校验失败允许一次修正。单次读取最多 200 行或 18000 字符，可以继续分段读取；超过 1 MB 的文件明确返回限制。目录无法完整读取、关键内容缺失或预算耗尽时保留进度，由用户继续。概要可先发布，时间线完整处理后才推进变化边界。
+## A few things to know
 
-探索固定概览与开发时间线快照，从产品需求与使用情境出发，附带最近 5 条产品进展索引；遇到具体问题才本地检索全部历史（含实现记录），每次展开 1–3 条。实际使用的进展随发现关系与 Feed 输入保留；已找到可用素材且连续两次正常搜索没有新来源时可认定边际收益降低，并注明未穷尽来源；不自动改变探索角度或将仓库进展当作外部素材。
+- Application data is stored locally in `~/Library/Application Support/Branchout`. This is a separate application identity; data from other installations is left untouched and is not automatically migrated.
+- Local storage does **not** mean all processing is offline. Project analysis and generation send relevant context to your configured model provider; external discovery queries the selected platforms.
+- Exploration uses a fixed project understanding. It does not silently re-analyze your repository. Source access depends on platform availability, login, and network conditions.
+- AI output is not source evidence. Read the linked material before relying on a conclusion.
 
-GitHub 的近期活动依据为最近推送，不表示产品发布或热议。小红书只提供一天内／一周内，X 提供一天内／一周内／近 30 天。X 完整线程补读不可用时保留现有正文并标记限制；缺少时间证据的素材不作为近期发现入库。
+## License
 
-结构契约位于 [contracts/v1.json](contracts/v1.json)，由运行时 Zod schema 导出，契约测试检查两者一致。平台组合等业务约束额外由运行时校验。
-
-`check` 包括适配器和持久化测试、TypeScript、构建、文档链接及 diff 检查。`test:desktop` 使用临时数据库和虚构素材验证真实 Electron 窗口，结束后清理。界面截图位于被忽略的 `test-results/`。
-
-`FEEDLOOM_VERIFY_REPO=/absolute/path/to/repo FEEDLOOM_DATA_DIR=/isolated/workspace npm run verify:live` 使用当前模型真实运行本机仓库分析、相似产品探索和单条 Feed。脚本要求隔离数据目录，避免修改日常工作空间。外部探索默认使用 GitHub，可用 `FEEDLOOM_VERIFY_PLATFORMS=github,xiaohongshu,x` 指定来源；相应平台必须已连接。设置 `FEEDLOOM_VERIFY_REUSE=1` 可复用该工作空间已有的成功理解版本，只验证探索与 Feed。无合适素材时记录无产出，不制造 Feed。诊断只输出状态与数量，真实内容保留在本地工作空间。`probe:github`、`probe:model` 和 `probe:desktop` 提供较小的接入诊断；`npm run verify:model-package` 在构建的安装包中验证模型连接。
-
-开发脚本及桌面后台读取 macOS 系统 HTTP 代理，不修改系统设置。若依赖安装跳过 Electron 下载，可运行 `node scripts/with-system-proxy.mjs node node_modules/electron/install.js`。开发模式的 `FEEDLOOM_DATA_DIR` 可隔离测试数据；安装包始终使用正常用户目录。
-
-## 本地数据与运行边界
-
-数据库按顺序升级至 v7：v4 为探索批次和组合迁移独立生命周期、结果、停止原因、进度、事实事件与遥测；v5 增加主进程私有的本机目录绑定并清理已停用的项目仓库凭据；v6 新增收藏夹与内容分配表，创建默认 `Inbox`，只按旧记录 ID 建立分配，不改写原有转发记录的来源 URL、渠道、正文、媒体、摘要、错误或状态。v7 兼容曾被测试版升级的数据，但当前应用不读取、更新或展示旧机器人整理记录。旧仓库、理解、分析、探索、素材、运行和 Feed 快照保持原样；旧任务的 `CollectionBudget` 继续可读。服务商未报告 token 时界面明确显示不可用，不用 0 代替。
-
-产品已从 Feedloom 更名为 nature-feed，沿用原有应用标识与数据目录，以保留升级前的数据和连接。业务数据库和平台登录位于 `~/Library/Application Support/Feedloom`，浏览器组件缓存位于 `~/Library/Caches/xiaohongshu-mcp`。下载的运行组件、业务数据库、登录态、真实内容及截图均不进入仓库。
-
-Codex 认证只读当前有效 access token，不复制 refresh token、不代替 Codex 刷新登录。临近过期时在 Codex 中刷新后重试。API Key 通过 macOS 安全存储加密；API Key 路径尚未用真实付费密钥验收。
-
-Pi 在后台进程中运行。仓库分析启用受控只读工具与多轮调用、上下文压缩；普通文本生成保持无工具。扩展、Skills 与上下文文件不自动发现，任务说明由应用固定。业务执行器掌握版本、检查点、发布和取消。仓库和来源文本均不具备指令权限，摘录须逐字存在于对应输入。固定版本的必要仓库内容可发送至配置的模型，但本机绝对路径不会进入模型输入；对公开平台检索仅发送抽象需求与场景，并阻止包含仓库标识、代码或凭据形态的搜索词。外部内容采用清洗后的 Markdown／HTML 渲染，外链仅允许不含凭据的公开 HTTPS 地址。
-
-小红书使用 `xiaohongshu-mcp v2.5.0`，X 使用 last30days 固定版本中的只读搜索组件；两者依赖平台现有登录和页面／接口能力，可能受平台改动、风控或网络影响。X 正文保守标记为部分解析，不承诺展开所有长文、线程或视频。社交搜索不保证穷尽时间范围内的全部帖子。登录成功不代表每次采集必然成功，失败会保留原因和重试入口。
-
-安装包用于本机试用，未完成正式分发签名、公证或无开发环境机器验收。新流程的确定性测试覆盖版本与边界、引用校验、发现关系、进度停止、安全暂停、恢复、语言改词、用户结束和章节空缺；桌面测试覆盖三个尺寸、选材、分章复制和旧任务只读。真实仓库与平台质量的验证范围需以本次运行结果为准，受控样例不代表私有仓库或三平台都已真实验收。
-
-## 文档
-
-产品规则与模块边界见下列文档；实施分层及真实验收条件见项目规划。
-
-- [MVP 产品需求](docs/mvp-prd.md)
-- [设计所需的产品上下文](PRODUCT.md)
-- [UI UX Pro Max 设计系统](design-system/nature-feed/MASTER.md)
-- [项目规划](docs/project-plan.md)
-- [技术架构](docs/technical-architecture.md)
-- [文档政策](docs/documents.md)
-- [Agent 开发约束](AGENTS.md)
-
-## 许可
-
-项目尚未选择开源许可证。第三方组件遵循各自许可，平台组件的许可证随 `.runtime` 一同打包。
-
-## 模型连接
-
-「设置」使用分类、列表与详情三级结构，来源平台、转发接入、模型服务和数据与隐私分组展示。
-
-- 自定义 API：填写连接名称、Base URL、API Key 和模型 ID；高级设置选择 Chat Completions 或 Responses。支持文本输入，单次输出上限为 4096 tokens；兼容性以服务商实现和连接测试为准。API Key 经 Electron 系统安全存储加密，修改服务地址后需重新填写。
-- Codex 订阅：可读取本机 Codex 文件登录，也可点击「登录 Codex」在浏览器完成 nature-feed 独立登录。官方组件管理独立登录和刷新，Pi 只读取访问令牌；不复制本机刷新令牌。本机系统钥匙串登录不直接导入，可使用独立登录。
-- Codex 模型列表由随包官方组件动态提供；当前 Pi 未支持的模型标为不可选。旧模型从列表消失时提示重新选择，不自动更换模型。列表和账号状态不保证实际模型额度，点击「测试连接」验证真实响应。
-- 测试使用当前草稿，通过与摘要、意图判断和 Feed 生成相同的 Pi 会话发送短请求，不发送业务素材，会消耗少量额度。修改模型或凭据后，旧测试状态失效。测试不保存配置，也不切换当前服务。
-- 多个连接分别保存；「设为当前使用」影响后续模型请求，已经开始的请求继续使用原配置。配置升级保留原有 API Key、Luna 模型选择和认证方式。
-
-所有 Agent 功能共用 Pi。随包 `@openai/codex` 仅用于认证和模型发现，不执行 Agent、创建任务或调用工具。连接状态与模型调用错误不会包含原始服务诊断或密钥。
-
-仓库分析专项真实验证：设置仓库外的 `FEEDLOOM_REVIEW_OUTPUT`，并以 `FEEDLOOM_VERIFY_REPO` 指向已有本机 Git 工作目录，运行 `node --import tsx scripts/verify-review.mjs`。支持 `FEEDLOOM_VERIFY_BASE`、`FEEDLOOM_VERIFY_SINCE`；默认只读现有 Codex 登录，可显式指定 `FEEDLOOM_VERIFY_MODEL`。脚本不会 clone、fetch、pull 或调用 GitHub CLI；真实内容和模型返回保存在指定本地目录，不进入测试 fixtures。
+A project license has not yet been selected. Third-party components, fonts, and bundled runtimes retain their respective licenses.
