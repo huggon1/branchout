@@ -9,7 +9,7 @@ import { generateText } from "../src/adapters/model.mjs";
 import { fetchReadme } from "../src/adapters/readme.mjs";
 import { configureNetwork } from "../src/adapters/network.mjs";
 configureNetwork();
-const dir = process.env.FEEDLOOM_REVIEW_OUTPUT;
+const dir = process.env.BRANCHOUT_REVIEW_OUTPUT;
 if (!dir || resolve(dir).startsWith(process.cwd() + "/"))
   throw Error("Choose an output directory outside checkout");
 const corpus = [
@@ -49,16 +49,16 @@ try {
     { mode: 0o600 },
   );
 }
-const db = new Store(join(dir, "feedloom.sqlite"));
+const db = new Store(join(dir, "branchout.sqlite"));
 const repo = db.list("repos")[0];
 const understanding = db.get("understandings", repo.understandingId);
 db.db.close();
 if (understanding?.analysisVersion !== 3)
   throw Error("Generate new overview first");
 const variants = [{ name: "new", understanding }];
-if (process.env.FEEDLOOM_OLD_REVIEW) {
+if (process.env.BRANCHOUT_OLD_REVIEW) {
   const old = JSON.parse(
-    await readFile(process.env.FEEDLOOM_OLD_REVIEW, "utf8"),
+    await readFile(process.env.BRANCHOUT_OLD_REVIEW, "utf8"),
   );
   variants.unshift({
     name: "old",
@@ -68,7 +68,7 @@ if (process.env.FEEDLOOM_OLD_REVIEW) {
   });
 }
 const outputs = [];
-for (const variant of process.env.FEEDLOOM_COMPREHENSION_ONLY === "1"
+for (const variant of process.env.BRANCHOUT_COMPREHENSION_ONLY === "1"
   ? []
   : variants) {
   const store = new Store(":memory:");

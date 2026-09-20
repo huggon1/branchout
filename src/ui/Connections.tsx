@@ -93,7 +93,7 @@ export function Connections({
     return () => onDirty(false);
   }, [anyDirty, onDirty]);
   const command = async (value: any) => {
-    const r = await window.feedloom.command(value);
+    const r = await window.branchout.command(value);
     if (!r.ok) throw Error(r.error);
     return r.value;
   };
@@ -112,7 +112,7 @@ export function Connections({
   };
   useEffect(
     () => () => {
-      void window.feedloom.command({ type: "cancelModelOperation" });
+      void window.branchout.command({ type: "cancelModelOperation" });
     },
     [],
   );
@@ -545,7 +545,7 @@ export function Connections({
                       </strong>
                       <p>
                         {catalog?.source ||
-                          "可复用本机 Codex 文件登录，或在 nature-feed 中独立登录。"}
+                          "可复用本机 Codex 文件登录，或在 Branchout 中独立登录。"}
                       </p>
                       <p className="connection-hint">
                         独立登录由官方组件管理；已有本机登录过期时，可在 Codex

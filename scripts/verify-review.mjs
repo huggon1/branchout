@@ -6,13 +6,13 @@ import { reviewRepository } from "../src/core/repository-review.ts";
 import { repositoryRead } from "../src/adapters/repository-reader.mjs";
 import { inspectLocalRepository } from "../src/adapters/local-git.mjs";
 import { generateText } from "../src/adapters/model.mjs";
-const dir = process.env.FEEDLOOM_REVIEW_OUTPUT;
+const dir = process.env.BRANCHOUT_REVIEW_OUTPUT;
 if (!dir || resolve(dir).startsWith(process.cwd() + "/"))
-  throw Error("Set FEEDLOOM_REVIEW_OUTPUT outside the checkout");
+  throw Error("Set BRANCHOUT_REVIEW_OUTPUT outside the checkout");
 await mkdir(dir, { recursive: true, mode: 0o700 });
-const rootPath = process.env.FEEDLOOM_VERIFY_REPO;
-if (!rootPath) throw Error("Set FEEDLOOM_VERIFY_REPO to a local Git directory");
-const store = new Store(join(dir, "feedloom.sqlite"));
+const rootPath = process.env.BRANCHOUT_VERIFY_REPO;
+if (!rootPath) throw Error("Set BRANCHOUT_VERIFY_REPO to a local Git directory");
+const store = new Store(join(dir, "branchout.sqlite"));
 const local = await inspectLocalRepository(rootPath);
 const binding = store.findLocalBinding(local.rootPath);
 const existing = binding ? store.get("repos", binding.id) : undefined;
@@ -44,9 +44,9 @@ const run = old || {
   repoId: repo.id,
   startedAt: new Date().toISOString(),
   branch: repo.branch,
-  base: process.env.FEEDLOOM_VERIFY_BASE || repo.boundary,
+  base: process.env.BRANCHOUT_VERIFY_BASE || repo.boundary,
   since:
-    process.env.FEEDLOOM_VERIFY_SINCE ||
+    process.env.BRANCHOUT_VERIFY_SINCE ||
     new Date(Date.now() - 7 * 86400000).toISOString(),
   state: "running",
   commit: local.oid,
@@ -54,7 +54,7 @@ const run = old || {
   phase: "开始",
   changes: [],
 };
-if (process.env.FEEDLOOM_VERIFY_BASE && !existing) {
+if (process.env.BRANCHOUT_VERIFY_BASE && !existing) {
   repo.boundary = run.base;
   store.put("repos", repo);
 }
@@ -82,8 +82,8 @@ await reviewRepository(
           ? undefined
           : { ...context, rootPath: local.rootPath },
         signal,
-        ...(process.env.FEEDLOOM_VERIFY_MODEL
-          ? { modelId: process.env.FEEDLOOM_VERIFY_MODEL }
+        ...(process.env.BRANCHOUT_VERIFY_MODEL
+          ? { modelId: process.env.BRANCHOUT_VERIFY_MODEL }
           : {}),
         onProgress: (p) => {
           if (p.message) console.log(p.message);

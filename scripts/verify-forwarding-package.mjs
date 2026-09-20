@@ -4,24 +4,24 @@ import { mkdir } from "node:fs/promises";
 const app = await electron.launch({
   executablePath: join(
     process.cwd(),
-    "build/Feedloom Preview-darwin-arm64/Feedloom Preview.app/Contents/MacOS/Feedloom Preview",
+    "build/Branchout Preview-darwin-arm64/Branchout Preview.app/Contents/MacOS/Branchout Preview",
   ),
 });
 try {
   const page = await app.firstWindow();
   await page.waitForFunction(
-    () => !!window.feedloom && !!document.querySelector("h1"),
+    () => !!window.branchout && !!document.querySelector("h1"),
   );
   const meta = await app.evaluate(({ app }) => ({
     packaged: app.isPackaged,
     version: app.getVersion(),
-    isolated: app.getPath("userData").endsWith("/Feedloom Preview"),
+    isolated: app.getPath("userData").endsWith("/Branchout Preview"),
   }));
   if (!meta.packaged || !meta.isolated)
     throw Error("Expected isolated packaged preview");
   const command = async (value) => {
     const r = await page.evaluate(
-      (value) => window.feedloom.command(value),
+      (value) => window.branchout.command(value),
       value,
     );
     if (!r.ok) throw Error(r.error);

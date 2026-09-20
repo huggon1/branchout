@@ -35,10 +35,10 @@ await access(join(runtime, "xiaohongshu-mcp"));
 await verifyLinks(runtime);
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 const name = pkg.version.includes("preview")
-  ? "nature-feed Preview"
-  : "nature-feed";
+  ? "Branchout Preview"
+  : "Branchout";
 // Packager clears its entire temporary root; isolate each invocation.
-const staging = await mkdtemp(join(tmpdir(), "feedloom-package-"));
+const staging = await mkdtemp(join(tmpdir(), "branchout-package-"));
 try {
   const outputs = await packager({
     tmpdir: staging,
@@ -47,8 +47,8 @@ try {
     name,
     icon: resolve("assets/app-icon.icns"),
     appBundleId: pkg.version.includes("preview")
-      ? "com.feedloom.preview"
-      : "com.feedloom.app",
+      ? "com.branchout.preview"
+      : "com.branchout.app",
     platform: "darwin",
     arch: "arm64",
     out: "build",

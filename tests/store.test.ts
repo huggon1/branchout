@@ -21,7 +21,7 @@ const fixture = {
   images: [],
 };
 test("same-day identity keeps tasks, rejects stale summaries, and survives reopening", () => {
-  const dir = mkdtempSync(join(tmpdir(), "feedloom-store-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-store-"));
   let s = new Store(join(dir, "db"));
   try {
     const a = s.upsertMaterial(fixture, "a", "run-a", "2026-09-11");
@@ -222,7 +222,7 @@ test("Feed research evidence remains a deep snapshot after source and run change
 });
 
 test("ordered v5, v6, and v7 migrations preserve history and clear the obsolete project credential", () => {
-  const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-migration-"));
   const path = join(dir, "db");
   const v4 = new DatabaseSync(path);
   v4.exec(`
@@ -282,7 +282,7 @@ test("ordered v5, v6, and v7 migrations preserve history and clear the obsolete 
 });
 
 test("v5, v6, and v7 run after the ordered v4 migration and reject future databases", () => {
-  const dir = mkdtempSync(join(tmpdir(), "feedloom-migration-failure-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-migration-failure-"));
   const path = join(dir, "db");
   const v3 = new DatabaseSync(path);
   v3.exec(
@@ -327,7 +327,7 @@ test("v5, v6, and v7 run after the ordered v4 migration and reject future databa
 });
 
 test("v4 migration preserves legacy exploration evidence and makes interrupted work resumable", () => {
-  const dir = mkdtempSync(join(tmpdir(), "feedloom-v4-migration-"));
+  const dir = mkdtempSync(join(tmpdir(), "branchout-v4-migration-"));
   const path = join(dir, "db");
   const db = new DatabaseSync(path);
   db.exec(

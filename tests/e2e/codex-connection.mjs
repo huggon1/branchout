@@ -2,10 +2,10 @@ import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-const dir = await mkdtemp(join(tmpdir(), "feedloom-codex-ui-"));
+const dir = await mkdtemp(join(tmpdir(), "branchout-codex-ui-"));
 const app = await electron.launch({
   args: ["tests/e2e/codex-connection-app.cjs"],
-  env: { ...process.env, FEEDLOOM_UI_TEST_DIR: dir },
+  env: { ...process.env, BRANCHOUT_UI_TEST_DIR: dir },
 });
 try {
   const page = await app.firstWindow();

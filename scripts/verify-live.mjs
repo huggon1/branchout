@@ -3,14 +3,14 @@ import { _electron as electron } from "@playwright/test";
 import { join } from "node:path";
 import { Store } from "../src/core/store.ts";
 import { inspectLocalRepository } from "../src/adapters/local-git.mjs";
-const rootPath = process.env.FEEDLOOM_VERIFY_REPO;
-const dataDir = process.env.FEEDLOOM_DATA_DIR;
+const rootPath = process.env.BRANCHOUT_VERIFY_REPO;
+const dataDir = process.env.BRANCHOUT_DATA_DIR;
 if (!rootPath || !dataDir)
   throw Error(
-    "Set FEEDLOOM_VERIFY_REPO to a local Git directory and FEEDLOOM_DATA_DIR to an isolated workspace",
+    "Set BRANCHOUT_VERIFY_REPO to a local Git directory and BRANCHOUT_DATA_DIR to an isolated workspace",
   );
 const local = await inspectLocalRepository(rootPath);
-const seed = new Store(join(dataDir, "feedloom.sqlite"));
+const seed = new Store(join(dataDir, "branchout.sqlite"));
 const binding = seed.findLocalBinding(local.rootPath);
 const seededRepo = binding
   ? seed.get("repos", binding.id)
@@ -31,20 +31,20 @@ seed.putLocalBinding({
   linkedAt: binding?.linkedAt || new Date().toISOString(),
 });
 seed.db.close();
-const platforms = (process.env.FEEDLOOM_VERIFY_PLATFORMS || "github").split(
+const platforms = (process.env.BRANCHOUT_VERIFY_PLATFORMS || "github").split(
   ",",
 );
 const application = await electron.launch({
   args: ["."],
-  env: { ...process.env, FEEDLOOM_SKIP_AUTO_CONNECT: "1" },
+  env: { ...process.env, BRANCHOUT_SKIP_AUTO_CONNECT: "1" },
 });
 try {
   const page = await application.firstWindow();
   await page.waitForFunction(
-    () => !!window.feedloom && !!document.querySelector("h1"),
+    () => !!window.branchout && !!document.querySelector("h1"),
   );
   const command = async (value) => {
-    const r = await page.evaluate((v) => window.feedloom.command(v), value);
+    const r = await page.evaluate((v) => window.branchout.command(v), value);
     if (!r.ok) throw Error(r.error);
     return r.value;
   };
@@ -62,7 +62,7 @@ try {
   );
   if (!repo) throw Error("Seeded local project was not loaded");
   const existing =
-    process.env.FEEDLOOM_VERIFY_REUSE === "1" && repo.understandingId
+    process.env.BRANCHOUT_VERIFY_REUSE === "1" && repo.understandingId
       ? repo
       : undefined;
   if (existing)

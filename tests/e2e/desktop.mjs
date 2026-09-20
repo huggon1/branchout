@@ -1,5 +1,5 @@
 import { _electron as electron, expect } from "@playwright/test";
-import { mkdtemp, rm, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,8 +11,30 @@ import {
 } from "../fixtures/workspace.ts";
 import { templates } from "../../src/core/templates.ts";
 import { Store } from "../../src/core/store.ts";
-const dir = await mkdtemp(join(tmpdir(), "feedloom-ui-"));
-const projectRoot = realpathSync(process.cwd());
+const dir = await mkdtemp(join(tmpdir(), "branchout-ui-"));
+const projectRoot = join(realpathSync(dir), "demo-project");
+await mkdir(projectRoot);
+await writeFile(
+  join(projectRoot, "README.md"),
+  "# branchout demo\n\nFictional project for isolated desktop tests.\n",
+);
+execFileSync("git", ["init", "-b", "main"], { cwd: projectRoot });
+execFileSync("git", ["add", "README.md"], { cwd: projectRoot });
+execFileSync(
+  "git",
+  [
+    "-c",
+    "user.name=Demo",
+    "-c",
+    "user.email=demo@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-m",
+    "Add fictional project",
+  ],
+  { cwd: projectRoot },
+);
 const projectOid = String(
   execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectRoot }),
 ).trim();
@@ -21,7 +43,7 @@ const currentBranch = String(
 ).trim();
 const repo = {
   ...legacyRepo,
-  fullName: "nature-feed · 本地项目与一段很长的 mixed-language repository name",
+  fullName: "branchout · 本地项目与一段很长的 mixed-language repository name",
   source: "local",
   url: undefined,
   private: undefined,
@@ -37,7 +59,7 @@ const understanding = {
   evidence: [
     {
       path: "README.md",
-      excerpt: "nature-feed",
+      excerpt: "branchout",
       locator: {
         kind: "project-file",
         projectId: repo.id,
@@ -49,7 +71,7 @@ const understanding = {
     },
   ],
 };
-const store = new Store(join(dir, "feedloom.sqlite"));
+const store = new Store(join(dir, "branchout.sqlite"));
 const task = store.saveTask({
   name: "界面验证 · 示例任务",
   sources: [{ platform: "github", period: "daily", limit: 1 }],
@@ -306,8 +328,8 @@ try {
     args: ["."],
     env: {
       ...process.env,
-      FEEDLOOM_DATA_DIR: dir,
-      FEEDLOOM_SKIP_AUTO_CONNECT: "1",
+      BRANCHOUT_DATA_DIR: dir,
+      BRANCHOUT_SKIP_AUTO_CONNECT: "1",
     },
   });
   previousClipboard = await application.evaluate(({ clipboard }) =>
@@ -456,7 +478,7 @@ try {
   });
   await expect(evidenceDialog).toBeVisible();
   await expect(evidenceDialog).toContainText(projectOid.slice(0, 12));
-  await expect(evidenceDialog.locator("pre")).toContainText("nature-feed");
+  await expect(evidenceDialog.locator("pre")).toContainText("branchout");
   await expect(
     evidenceDialog.getByRole("button", { name: "关闭" }),
   ).toBeFocused();
@@ -635,11 +657,11 @@ try {
     if (overflow) throw Error(`Settings layout overflows at ${width}`);
   }
   const denied = await page.evaluate(() =>
-    window.feedloom.command({ type: "open", url: "file:///etc/passwd" }),
+    window.branchout.command({ type: "open", url: "file:///etc/passwd" }),
   );
   if (denied.ok) throw Error("Unsafe URL accepted");
   const command = async (v) => {
-    const r = await page.evaluate((v) => window.feedloom.command(v), v);
+    const r = await page.evaluate((v) => window.branchout.command(v), v);
     if (!r.ok) throw Error(r.error);
     return r.value;
   };
@@ -657,7 +679,7 @@ try {
   if (original.text !== "这是确定性的测试内容。" || !original.error)
     throw Error("Failed replacement discarded old content");
   const retired = await page.evaluate(
-    (id) => window.feedloom.command({ type: "runTask", id }),
+    (id) => window.branchout.command({ type: "runTask", id }),
     task.id,
   );
   if (retired.ok) throw Error("Retired task remained executable");

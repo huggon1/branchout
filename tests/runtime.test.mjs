@@ -9,7 +9,7 @@ import {
 } from "../scripts/ensure-runtime.mjs";
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "nature-feed-runtime-"));
+  const root = await mkdtemp(join(tmpdir(), "branchout-runtime-"));
   const prepare = async () => {
     await mkdir(join(root, ".runtime/browser"), { recursive: true });
     const executable = join(root, ".runtime/xiaohongshu-mcp");

@@ -1,6 +1,6 @@
 // Deterministic renderer-only bridge; never reads the user's application data.
 const { contextBridge, ipcRenderer } = require("electron");
-contextBridge.exposeInMainWorld("feedloom", {
+contextBridge.exposeInMainWorld("branchout", {
   command: () => ipcRenderer.invoke("test:state"),
   onChange: (callback) => {
     ipcRenderer.on("test:change", callback);

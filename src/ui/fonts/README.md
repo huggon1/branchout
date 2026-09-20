@@ -1,5 +1,5 @@
-# 字体来源
+# Font provenance
 
-Plus Jakarta Sans variable Roman 来自 [Google Fonts 官方仓库](https://github.com/google/fonts/tree/main/ofl/plusjakartasans)，2026-09-19 获取，使用随附 SIL Open Font License 1.1。字体随应用打包，不向字体服务发送阅读内容或请求。
+Plus Jakarta Sans variable Roman comes from the [official Google Fonts repository](https://github.com/google/fonts/tree/main/ofl/plusjakartasans), retrieved on 2026-09-19 under the accompanying SIL Open Font License 1.1. It is bundled locally; reading content and requests are not sent to a font service.
 
-界面、阅读区与品牌字标统一使用 Plus Jakarta Sans；中文按系统无衬线字体栈降级，不影响内容与操作。
+The interface, reading area, and wordmark use Plus Jakarta Sans. Chinese text falls back to the system sans-serif font stack.

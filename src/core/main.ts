@@ -72,12 +72,11 @@ import {
 } from "./contracts.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const preview = app.getVersion().includes("preview");
-const appName = preview ? "nature-feed Preview" : "nature-feed";
-// Keep the existing data location and bundle identity across the brand rename.
-const legacyDataName = preview ? "Feedloom Preview" : "Feedloom";
+const appName = preview ? "Branchout Preview" : "Branchout";
+// Brand-specific storage leaves other app installations and their data untouched.
 const dataDir =
-  (!app.isPackaged && process.env.FEEDLOOM_DATA_DIR) ||
-  join(homedir(), "Library/Application Support", legacyDataName);
+  (!app.isPackaged && process.env.BRANCHOUT_DATA_DIR) ||
+  join(homedir(), "Library/Application Support", appName);
 app.setPath("userData", dataDir);
 app.setName(appName);
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -278,7 +277,7 @@ async function startService() {
 }
 async function credentials() {
   const cookies = await session
-    .fromPartition("persist:feedloom-x")
+    .fromPartition("persist:branchout-x")
     .cookies.get({ url: "https://x.com" });
   return {
     authToken: cookies.find((c) => c.name === "auth_token")?.value,
@@ -303,7 +302,7 @@ async function work(
   const child = utilityProcess.fork(join(here, "platform-worker.js"), [], {
     env,
     stdio: "ignore",
-    serviceName: "nature-feed task",
+    serviceName: "branchout task",
   });
   let done = false;
   let reportedProgress = false;
@@ -1062,7 +1061,7 @@ async function handle(raw: unknown) {
           "model-connection-test",
           {
             type: "model",
-            text: "nature-feed connection check. No user content.",
+            text: "branchout connection check. No user content.",
             instruction: "Reply with the single word OK.",
             ...payload,
           },
@@ -1082,7 +1081,7 @@ async function handle(raw: unknown) {
     }
     case "connect":
       if (c.platform === "x") {
-        const s = session.fromPartition("persist:feedloom-x");
+        const s = session.fromPartition("persist:branchout-x");
         s.setPermissionRequestHandler((_w, _p, cb) => cb(false));
         const w = new BrowserWindow({
           width: 1000,
@@ -1115,7 +1114,7 @@ async function handle(raw: unknown) {
       }
     case "disconnect":
       if (c.platform === "x")
-        await session.fromPartition("persist:feedloom-x").clearStorageData();
+        await session.fromPartition("persist:branchout-x").clearStorageData();
       else {
         const con = await connectService();
         await session.defaultSession.fetch(`${con.url}/api/v1/login/cookies`, {
@@ -1164,7 +1163,7 @@ async function createWindow() {
 }
 app.whenReady().then(async () => {
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
-  store = new Store(join(dataDir, "feedloom.sqlite"));
+  store = new Store(join(dataDir, "branchout.sqlite"));
   store.recover();
   workspace = new WorkspaceService(store, {
     inspect: inspectLocalRepository,
@@ -1301,7 +1300,7 @@ app.whenReady().then(async () => {
   );
   await bots.init();
   await createWindow();
-  if (app.isPackaged || !process.env.FEEDLOOM_SKIP_AUTO_CONNECT)
+  if (app.isPackaged || !process.env.BRANCHOUT_SKIP_AUTO_CONNECT)
     void checkLogin();
   app.dock?.setIcon(
     nativeImage.createFromPath(join(here, "../assets/app-icon.png")),

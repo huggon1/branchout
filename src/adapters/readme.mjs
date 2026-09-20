@@ -16,7 +16,7 @@ export async function fetchReadme(
   const get = async (target, accept) => {
     const response = await fetchImpl(target, {
       signal,
-      headers: { Accept: accept, "User-Agent": "nature-feed/0.3" },
+      headers: { Accept: accept, "User-Agent": "branchout/0.3" },
     });
     if (
       new URL(target).hostname === "api.github.com" &&

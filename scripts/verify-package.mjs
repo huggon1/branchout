@@ -2,11 +2,11 @@ import { _electron as electron, expect } from "@playwright/test";
 import { join } from "node:path";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-const home = await mkdtemp(join(tmpdir(), "feedloom-package-"));
+const home = await mkdtemp(join(tmpdir(), "branchout-package-"));
 const application = await electron.launch({
   executablePath: join(
     process.cwd(),
-    "build/nature-feed-darwin-arm64/nature-feed.app/Contents/MacOS/nature-feed",
+    "build/Branchout-darwin-arm64/Branchout.app/Contents/MacOS/Branchout",
   ),
   env: { ...process.env, HOME: home },
 });
@@ -37,7 +37,7 @@ try {
   const packagedIcon = await readFile(
     join(
       process.cwd(),
-      "build/nature-feed-darwin-arm64/nature-feed.app/Contents/Resources/electron.icns",
+      "build/Branchout-darwin-arm64/Branchout.app/Contents/Resources/electron.icns",
     ),
   );
   if (!sourceIcon.equals(packagedIcon))
