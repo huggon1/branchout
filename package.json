@@ -25,6 +25,7 @@
     "test:desktop": "npm run build && node --import tsx tests/e2e/desktop.mjs && node tests/e2e/workspace-loading.mjs && node tests/e2e/connections.mjs && node tests/e2e/codex-connection.mjs && node --import tsx tests/e2e/forwarding.mjs",
     "verify:live": "npm run build && node scripts/verify-live.mjs",
     "verify:package": "node scripts/verify-package.mjs",
+    "verify:release": "node scripts/verify-release.mjs",
     "verify:model-package": "node scripts/verify-model-package.mjs",
     "build:icons": "electron scripts/build-icons.cjs && iconutil -c icns assets/app-icon.iconset -o assets/app-icon.icns"
   },
@@ -52,7 +53,9 @@
     "@types/react-dom": "19.1.0",
     "@vitejs/plugin-react": "4.5.0",
     "electron": "44.3.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "0.28.1",
+    "png-to-ico": "^2.1.8",
     "prettier": "3.6.2",
     "tsx": "4.22.4",
     "typescript": "5.9.3",

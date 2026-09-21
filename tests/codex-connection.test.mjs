@@ -149,4 +149,10 @@ test("packaged native executable resolves outside the ASAR archive", () => {
     nativeExecutablePath("/dev/node_modules/codex/vendor/bin/codex"),
     "/dev/node_modules/codex/vendor/bin/codex",
   );
+  assert.equal(
+    nativeExecutablePath(
+      "C:\\Branchout\\resources\\app.asar\\node_modules\\codex\\vendor\\bin\\codex.exe",
+    ),
+    "C:\\Branchout\\resources\\app.asar.unpacked\\node_modules\\codex\\vendor\\bin\\codex.exe",
+  );
 });

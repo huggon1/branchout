@@ -1,19 +1,10 @@
-import { constants } from "node:fs";
-import { access } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
+import { runtimeReady } from "./runtime-platform.mjs";
 
 export async function xiaohongshuRuntimeReady(root) {
-  try {
-    await Promise.all([
-      access(join(root, ".runtime/xiaohongshu-mcp"), constants.X_OK),
-      access(join(root, ".runtime/browser")),
-    ]);
-    return true;
-  } catch {
-    return false;
-  }
+  return runtimeReady(root);
 }
 
 async function prepareRuntime(root) {

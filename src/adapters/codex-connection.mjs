@@ -17,17 +17,32 @@ export function codexExecutable() {
   const codexRequire = createRequire(
     require.resolve("@openai/codex/package.json"),
   );
-  if (process.platform !== "darwin" || process.arch !== "arm64")
-    throw Error("当前 Codex 连接组件仅支持 macOS Apple Silicon");
+  const target = {
+    "darwin-arm64": {
+      package: "@openai/codex-darwin-arm64/package.json",
+      vendor: "aarch64-apple-darwin",
+      executable: "codex",
+    },
+    "win32-x64": {
+      package: "@openai/codex-win32-x64/package.json",
+      vendor: "x86_64-pc-windows-msvc",
+      executable: "codex.exe",
+    },
+  }[`${process.platform}-${process.arch}`];
+  if (!target)
+    throw Error("当前 Codex 连接组件仅支持 macOS Apple Silicon 和 Windows x64");
   return nativeExecutablePath(
     join(
-      dirname(codexRequire.resolve("@openai/codex-darwin-arm64/package.json")),
-      "vendor/aarch64-apple-darwin/bin/codex",
+      dirname(codexRequire.resolve(target.package)),
+      "vendor",
+      target.vendor,
+      "bin",
+      target.executable,
     ),
   );
 }
 export function nativeExecutablePath(path) {
-  return path.replace("/app.asar/", "/app.asar.unpacked/");
+  return path.replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
 }
 export async function codexHome(dataDir, independent = false) {
   const owned = join(dataDir, "codex-connection");
