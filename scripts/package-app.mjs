@@ -84,14 +84,28 @@ try {
   await verifyLinks(bundle);
   if (target.platform === "darwin") {
     const identity = process.env.MAC_CODESIGN_IDENTITY || "-";
+    const projectSigning = identity !== "-";
     const entitlements = resolve("packaging/entitlements.mac.plist");
+    const bundledBrowser = join(
+      bundle,
+      "Contents",
+      "Resources",
+      ".runtime",
+      "browser",
+      "Chromium.app",
+    );
     await sign({
       app: bundle,
       identity,
-      identityValidation: identity !== "-",
+      identityValidation: projectSigning,
+      ignore: (file) =>
+        file === bundledBrowser || file.startsWith(`${bundledBrowser}${sep}`),
       optionsForFile: (file) => ({
-        hardenedRuntime: identity !== "-",
-        ...(file === bundle || file === join(bundle, "Contents", "MacOS", name)
+        hardenedRuntime: projectSigning,
+        ...(projectSigning ? { timestamp: "none" } : {}),
+        ...(projectSigning ||
+        file === bundle ||
+        file === join(bundle, "Contents", "MacOS", name)
           ? { entitlements }
           : {}),
       }),
