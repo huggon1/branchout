@@ -57,17 +57,20 @@ if (target.platform === "darwin") {
     const pe = bytes.readUInt32LE(0x3c);
     if (bytes.subarray(pe, pe + 4).toString("binary") !== "PE\0\0")
       throw Error(`${path} has an invalid PE header`);
-    return bytes.readUInt16LE(pe + 4);
+    const optional = pe + 24;
+    const magic = bytes.readUInt16LE(optional);
+    const dataDirectories = optional + (magic === 0x20b ? 112 : 96);
+    if (magic !== 0x20b && magic !== 0x10b)
+      throw Error(`${path} has an unsupported PE optional header`);
+    return {
+      machine: bytes.readUInt16LE(pe + 4),
+      certificateSize: bytes.readUInt32LE(dataDirectories + 4 * 8 + 4),
+    };
   };
-  await machine(installer);
-  if ((await machine(app)) !== 0x8664)
+  const installerInfo = await machine(installer);
+  if (installerInfo.certificateSize !== 0)
+    throw Error("Expected the Windows installer to be unsigned");
+  if ((await machine(app)).machine !== 0x8664)
     throw Error("Packaged Branchout application is not x64");
-  const status = command("powershell.exe", [
-    "-NoProfile",
-    "-Command",
-    `(Get-AuthenticodeSignature -LiteralPath '${installer.replaceAll("'", "''")}').Status`,
-  ]);
-  if (status !== "NotSigned")
-    throw Error(`Expected unsigned Windows installer, received ${status}`);
   console.log(`Verified unsigned Windows x64 installer for ${pkg.version}`);
 }
