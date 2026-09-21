@@ -55,13 +55,8 @@ jobs:
           security create-keychain -p "${keychain_password}" "${keychain_path}"
           security set-keychain-settings -lut 21600 "${keychain_path}"
           security unlock-keychain -p "${keychain_password}" "${keychain_path}"
-          security import "${p12_path}" -k "${keychain_path}" -P "${MAC_CSC_KEY_PASSWORD}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" "${keychain_path}"
-          existing_keychains=()
-          while IFS= read -r existing_keychain; do
-            existing_keychains+=("${existing_keychain//\"/}")
-          done < <(security list-keychains -d user)
-          security list-keychains -d user -s "${keychain_path}" "${existing_keychains[@]}"
+          security import "${p12_path}" -k "${keychain_path}" -P "${MAC_CSC_KEY_PASSWORD}" -A
+          security list-keychains -d user -s "${keychain_path}"
           security find-certificate -c "Branchout Release Signing" -p "${keychain_path}" > "${cert_path}"
           fingerprint=$(openssl x509 -in "${cert_path}" -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':')
           test "${fingerprint}" = "${MAC_CERT_SHA256}"
