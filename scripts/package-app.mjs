@@ -104,6 +104,7 @@ try {
   await build({
     prepackaged: bundle,
     targets,
+    publish: "never",
     config: {
       appId: pkg.version.includes("preview")
         ? "com.branchout.preview"

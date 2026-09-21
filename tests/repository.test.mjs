@@ -64,7 +64,10 @@ test("local Git reader pins objects and excludes worktree, symlink and submodule
       createLocalRepositoryTools,
     } = await import("../src/adapters/local-git.mjs");
     const inspected = await inspectLocalRepository(root);
-    assert.equal(inspected.rootPath, realpathSync(root));
+    assert.equal(
+      inspected.rootPath,
+      realpathSync(run("rev-parse", "--show-toplevel")),
+    );
     assert.equal(inspected.branch, "main");
     assert.equal(inspected.oid, head);
     const manifest = await localRepositoryRead({
