@@ -44,14 +44,24 @@ if (target.platform === "darwin") {
   console.log(`Verified signed macOS arm64 DMG and ZIP for ${pkg.version}`);
 } else {
   const installer = artifact("exe");
-  const bytes = await readFile(installer);
-  if (bytes.subarray(0, 2).toString("ascii") !== "MZ")
-    throw Error("Windows installer is not a PE executable");
-  const pe = bytes.readUInt32LE(0x3c);
-  if (bytes.subarray(pe, pe + 4).toString("binary") !== "PE\0\0")
-    throw Error("Windows installer has an invalid PE header");
-  if (bytes.readUInt16LE(pe + 4) !== 0x8664)
-    throw Error("Windows installer is not x64");
+  const app = join(
+    process.cwd(),
+    "build",
+    "Branchout-win32-x64",
+    "Branchout.exe",
+  );
+  const machine = async (path) => {
+    const bytes = await readFile(path);
+    if (bytes.subarray(0, 2).toString("ascii") !== "MZ")
+      throw Error(`${path} is not a PE executable`);
+    const pe = bytes.readUInt32LE(0x3c);
+    if (bytes.subarray(pe, pe + 4).toString("binary") !== "PE\0\0")
+      throw Error(`${path} has an invalid PE header`);
+    return bytes.readUInt16LE(pe + 4);
+  };
+  await machine(installer);
+  if ((await machine(app)) !== 0x8664)
+    throw Error("Packaged Branchout application is not x64");
   const status = command("powershell.exe", [
     "-NoProfile",
     "-Command",
