@@ -97,7 +97,7 @@ try {
     await sign({
       app: bundle,
       identity,
-      identityValidation: projectSigning,
+      identityValidation: false,
       ignore: (file) =>
         file === bundledBrowser || file.startsWith(`${bundledBrowser}${sep}`),
       optionsForFile: (file) => ({
