@@ -1,5 +1,7 @@
 import { tmpdir } from "node:os";
 import { packager } from "@electron/packager";
+import { sign } from "@electron/osx-sign";
+import { Arch, Platform, build } from "electron-builder";
 import {
   cp,
   lstat,
@@ -10,7 +12,8 @@ import {
   mkdtemp,
   rm,
 } from "node:fs/promises";
-import { join, resolve, relative, isAbsolute } from "node:path";
+import { join, resolve, relative, isAbsolute, sep } from "node:path";
+import { runtimeTarget } from "./runtime-platform.mjs";
 
 async function verifyLinks(root) {
   const absolute = await realpath(root);
@@ -20,7 +23,11 @@ async function verifyLinks(root) {
         stat = await lstat(path);
       if (stat.isSymbolicLink()) {
         const target = relative(absolute, await realpath(path));
-        if (target === ".." || target.startsWith("../") || isAbsolute(target))
+        if (
+          target === ".." ||
+          target.startsWith(`..${sep}`) ||
+          isAbsolute(target)
+        )
           throw Error(
             `Bundle link escapes its runtime: ${relative(root, path)}`,
           );
@@ -30,43 +37,114 @@ async function verifyLinks(root) {
   await visit(root);
 }
 
+const target = runtimeTarget();
 const runtime = resolve(".runtime");
-await access(join(runtime, "xiaohongshu-mcp"));
+await access(join(runtime, target.executable));
 await verifyLinks(runtime);
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 const name = pkg.version.includes("preview")
   ? "Branchout Preview"
   : "Branchout";
-// Packager clears its entire temporary root; isolate each invocation.
 const staging = await mkdtemp(join(tmpdir(), "branchout-package-"));
+const outputRoot = resolve("build");
 try {
   const outputs = await packager({
     tmpdir: staging,
     asar: { unpack: "{**/*.node,**/@openai/codex-*/vendor/**/*}" },
     dir: ".",
     name,
-    icon: resolve("assets/app-icon.icns"),
+    icon: resolve(
+      target.platform === "darwin"
+        ? "assets/app-icon.icns"
+        : "assets/app-icon.ico",
+    ),
     appBundleId: pkg.version.includes("preview")
       ? "com.branchout.preview"
       : "com.branchout.app",
-    platform: "darwin",
-    arch: "arm64",
-    out: "build",
+    platform: target.platform,
+    arch: target.arch,
+    out: outputRoot,
     overwrite: true,
     ignore:
-      /^\/(tests|test-results|playwright-report|docs|design-system|scripts|src|build|\.runtime|\.git)/,
+      /^\/(tests|test-results|playwright-report|docs|design-system|packaging|scripts|src|build|release|\.runtime|\.git)/,
   });
-  for (const output of outputs) {
-    const bundle = join(output, `${name}.app`);
-    // Packager's extraResource copy resolves framework links to absolute source
-    // paths. Preserve the original relative links so the browser is relocatable.
-    await cp(runtime, join(bundle, "Contents/Resources/.runtime"), {
-      recursive: true,
-      verbatimSymlinks: true,
+  if (outputs.length !== 1)
+    throw Error(`Expected one packaged app, received ${outputs.length}`);
+  const output = outputs[0];
+  const bundle =
+    target.platform === "darwin" ? join(output, `${name}.app`) : output;
+  const resources =
+    target.platform === "darwin"
+      ? join(bundle, "Contents", "Resources")
+      : join(bundle, "resources");
+  await cp(runtime, join(resources, ".runtime"), {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  await verifyLinks(bundle);
+  if (target.platform === "darwin") {
+    const identity = process.env.MAC_CODESIGN_IDENTITY || "-";
+    const projectSigning = identity !== "-";
+    const entitlements = resolve("packaging/entitlements.mac.plist");
+    const bundledBrowser = join(
+      bundle,
+      "Contents",
+      "Resources",
+      ".runtime",
+      "browser",
+      "Chromium.app",
+    );
+    await sign({
+      app: bundle,
+      identity,
+      identityValidation: projectSigning,
+      ignore: (file) =>
+        file === bundledBrowser || file.startsWith(`${bundledBrowser}${sep}`),
+      optionsForFile: (file) => ({
+        hardenedRuntime: projectSigning,
+        ...(projectSigning ? { timestamp: "none" } : {}),
+        ...(projectSigning ||
+        file === bundle ||
+        file === join(bundle, "Contents", "MacOS", name)
+          ? { entitlements }
+          : {}),
+      }),
     });
-    await verifyLinks(bundle);
-    console.log(`Packaged app with independent runtime: ${bundle}`);
   }
+  const targets =
+    target.platform === "darwin"
+      ? Platform.MAC.createTarget(["dmg", "zip"], Arch.arm64)
+      : Platform.WINDOWS.createTarget(["nsis"], Arch.x64);
+  await build({
+    prepackaged: bundle,
+    targets,
+    publish: "never",
+    config: {
+      appId: pkg.version.includes("preview")
+        ? "com.branchout.preview"
+        : "com.branchout.app",
+      productName: name,
+      directories: { output: "release", buildResources: "assets" },
+      artifactName: `${name.replaceAll(" ", "-")}-${pkg.version}-${target.arch}.\${ext}`,
+      mac: { identity: null, icon: "assets/app-icon.icns" },
+      win: {
+        icon: "assets/app-icon.ico",
+        requestedExecutionLevel: "asInvoker",
+      },
+      nsis: {
+        oneClick: false,
+        perMachine: false,
+        allowElevation: false,
+        packElevateHelper: false,
+        allowToChangeInstallationDirectory: true,
+        runAfterFinish: false,
+        deleteAppDataOnUninstall: false,
+      },
+    },
+  });
+  console.log(
+    `Packaged ${target.platform}-${target.arch} app with independent runtime: ${bundle}`,
+  );
 } finally {
   await rm(staging, {
     recursive: true,

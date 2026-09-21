@@ -27,17 +27,9 @@ import {
   powerMonitor,
   dialog,
 } from "electron";
-import {
-  mkdir,
-  readFile,
-  writeFile,
-  rename,
-  cp,
-  access,
-} from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename, access } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
 import { randomUUID, randomBytes } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
@@ -75,8 +67,9 @@ const preview = app.getVersion().includes("preview");
 const appName = preview ? "Branchout Preview" : "Branchout";
 // Brand-specific storage leaves other app installations and their data untouched.
 const dataDir =
-  (!app.isPackaged && process.env.BRANCHOUT_DATA_DIR) ||
-  join(homedir(), "Library/Application Support", appName);
+  ((!app.isPackaged || process.env.BRANCHOUT_TEST_MODE === "1") &&
+    process.env.BRANCHOUT_DATA_DIR) ||
+  join(app.getPath("appData"), appName);
 app.setPath("userData", dataDir);
 app.setName(appName);
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -214,18 +207,17 @@ async function startService() {
       }
     }
   } catch {}
-  const browserCache = join(
-    homedir(),
-    "Library/Caches/xiaohongshu-mcp/browser/148.0.7778.215",
-  );
+  const bundledBrowser =
+    process.platform === "darwin"
+      ? join(runtime, "browser/Chromium.app/Contents/MacOS/Chromium")
+      : undefined;
+  let browserExecutable: string | undefined;
   try {
-    await access(browserCache);
-  } catch {
-    await cp(join(runtime, "browser"), browserCache, {
-      recursive: true,
-      verbatimSymlinks: true,
-    });
-  }
+    if (bundledBrowser) {
+      await access(bundledBrowser);
+      browserExecutable = bundledBrowser;
+    }
+  } catch {}
   const port = await new Promise<number>((resolve) => {
     const server = createServer();
     server.listen(0, "127.0.0.1", () => {
@@ -235,7 +227,10 @@ async function startService() {
   });
   const token = randomBytes(32).toString("hex");
   xhsProcess = spawn(
-    join(runtime, "xiaohongshu-mcp"),
+    join(
+      runtime,
+      process.platform === "win32" ? "xiaohongshu-mcp.exe" : "xiaohongshu-mcp",
+    ),
     ["-port", `127.0.0.1:${port}`],
     {
       cwd: p,
@@ -244,6 +239,7 @@ async function startService() {
         ...proxyEnv,
         AUTH_TOKEN: token,
         COOKIES_PATH: join(p, "xhs-cookies.json"),
+        ...(browserExecutable ? { ROD_BROWSER_BIN: browserExecutable } : {}),
       },
       stdio: "ignore",
     },
