@@ -57,9 +57,10 @@ jobs:
           security unlock-keychain -p "${keychain_password}" "${keychain_path}"
           security import "${p12_path}" -k "${keychain_path}" -P "${MAC_CSC_KEY_PASSWORD}" -A
           security list-keychains -d user -s "${keychain_path}"
-          security find-certificate -c "Branchout Release Signing" -p "${keychain_path}" > "${cert_path}"
+          openssl pkcs12 -in "${p12_path}" -clcerts -nokeys -passin env:MAC_CSC_KEY_PASSWORD -out "${cert_path}"
           fingerprint=$(openssl x509 -in "${cert_path}" -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':')
           test "${fingerprint}" = "${MAC_CERT_SHA256}"
+          echo "Verified Branchout release certificate fingerprint"
           security find-identity -v -p codesigning | grep -F "Branchout Release Signing"
           printf 'MAC_CODESIGN_IDENTITY=%s\n' 'Branchout Release Signing' >> "${GITHUB_ENV}"
           printf 'MAC_CODESIGN_KEYCHAIN_PATH=%s\n' "${keychain_path}" >> "${GITHUB_ENV}"
