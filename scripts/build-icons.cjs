@@ -2,6 +2,7 @@
 const { app, BrowserWindow } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const pngToIco = require("png-to-ico");
 app
   .whenReady()
   .then(async () => {
@@ -32,6 +33,10 @@ app
     await fs.writeFile(
       "assets/app-icon.png",
       icon.resize({ width: 1024, height: 1024 }).toPNG(),
+    );
+    await fs.writeFile(
+      "assets/app-icon.ico",
+      await pngToIco(icon.resize({ width: 256, height: 256 }).toPNG()),
     );
     const set = "assets/app-icon.iconset";
     await fs.mkdir(set, { recursive: true });
