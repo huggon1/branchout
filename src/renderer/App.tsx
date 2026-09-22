@@ -101,7 +101,7 @@ export function App() {
                   <p>飞书、Telegram 尚未接入</p>
                   <h2>内容平台</h2>
                   <p>GitHub：公开仓库 README 读取可用，无需登录；搜索可用。</p>
-                  <p>X、小红书：读取与搜索可用。</p>
+                  <p>X、小红书：读取与搜索尚未接入。</p>
                 </div>
               </section>
               <section className="diagnostics">
