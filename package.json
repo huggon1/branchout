@@ -10,11 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "test:ui": "npm run build && node scripts/check-electron.mjs",
-    "test:model-ui": "npm run build && node scripts/check-model-ui.mjs"
+    "test:model-ui": "npm run build && node scripts/check-model-ui.mjs",
+    "test:material-ui": "npm run build && node scripts/check-material-ui.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.87.0",
     "@earendil-works/pi-ai": "0.87.0",
+    "marked": "^18.0.14",
+    "parse5": "^8.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zod": "^4.0.0"

@@ -2,9 +2,14 @@ import { contextBridge, ipcRenderer } from "electron";
 import {
   channels,
   modelChannels,
+  materialChannels,
   type DesktopBridge,
 } from "../shared/ipc-contracts";
 const bridge: DesktopBridge = {
+  materials: () => ipcRenderer.invoke(materialChannels.view),
+  addLink: (url) => ipcRenderer.invoke(materialChannels.add, url),
+  cancelForwarding: (id) => ipcRenderer.invoke(materialChannels.cancel, id),
+  openSource: (id) => ipcRenderer.invoke(materialChannels.open, id),
   modelView: () => ipcRenderer.invoke(modelChannels.view),
   saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
   loginModel: () => ipcRenderer.invoke(modelChannels.login),

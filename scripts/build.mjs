@@ -22,8 +22,12 @@ await build({
   external: ["electron"],
 });
 await build({
-  entryPoints: ["src/worker/model-worker.ts"],
-  outfile: "dist/worker/model-worker.mjs",
+  entryPoints: [
+    "src/worker/model-worker.ts",
+    "src/worker/forwarding-worker.ts",
+  ],
+  outdir: "dist/worker",
+  outExtension: { ".js": ".mjs" },
   bundle: true,
   platform: "node",
   format: "esm",

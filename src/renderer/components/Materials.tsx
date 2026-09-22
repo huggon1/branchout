@@ -1,0 +1,329 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  repositoryUrlSchema,
+  type MaterialRecord,
+  type MaterialState,
+} from "../../shared/material-contracts";
+import { bridge } from "../bridge";
+import { Button, EmptyState } from "./Primitives";
+function SourceImage({
+  image,
+}: {
+  image: MaterialRecord["source"]["images"][number];
+}) {
+  const [failed, setFailed] = useState(false);
+  return failed ? (
+    <p className="image-missing">
+      图片未能加载{image.alt ? `：${image.alt}` : ""}
+    </p>
+  ) : (
+    <figure>
+      <img
+        src={image.url}
+        alt={image.alt}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+      />
+      {image.alt && <figcaption>{image.alt}</figcaption>}
+    </figure>
+  );
+}
+export function Materials() {
+  const [snapshot, setSnapshot] = useState<MaterialState>();
+  const [adding, setAdding] = useState(false);
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [time, setTime] = useState("all");
+  const [sequence, setSequence] = useState<MaterialRecord[]>([]);
+  const [index, setIndex] = useState<number | null>(null);
+  const scroll = useRef<HTMLDivElement>(null);
+  const listPosition = useRef(0);
+  useEffect(() => {
+    let active = true;
+    let revision = 0;
+    const load = async () => {
+      const current = ++revision;
+      try {
+        const reply = await bridge.materials();
+        if (!active || current !== revision) return;
+        if (reply.ok) setSnapshot(reply.value);
+        else setError(reply.message);
+      } catch {
+        if (active) setError("素材读取失败，请重新打开窗口。");
+      }
+    };
+    const unsubscribe = bridge.onChanged(() => void load());
+    void load();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+  useLayoutEffect(() => {
+    if (scroll.current)
+      scroll.current.scrollTop = index === null ? listPosition.current : 0;
+  }, [index]);
+  const materials = [...(snapshot?.materials ?? [])]
+    .reverse()
+    .filter(
+      (item) =>
+        item.displayLabel
+          .toLocaleLowerCase()
+          .includes(query.toLocaleLowerCase()) &&
+        (time === "all" ||
+          Date.now() - Date.parse(item.collectedAt) < 7 * 86400000),
+    );
+  const taskList = snapshot?.tasks ?? [];
+  const latest = taskList.at(-1);
+  const shownTasks = taskList.filter(
+    (task) =>
+      ["running", "queued"].includes(task.state) ||
+      task.taskId === latest?.taskId,
+  );
+  const start = async () => {
+    const parsed = repositoryUrlSchema.safeParse(url.trim());
+    if (!parsed.success) {
+      setError(
+        "目前仅支持 https://github.com/所有者/仓库 形式的公开仓库首页，不支持 Issue、讨论或文件路径。",
+      );
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const reply = await bridge.addLink(parsed.data);
+      if (!reply.ok) setError(reply.message);
+      else {
+        setAdding(false);
+        setUrl("");
+      }
+    } catch {
+      setError("解析未能启动，请重试。");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const read = (position: number) => {
+    listPosition.current = scroll.current?.scrollTop ?? 0;
+    setSequence(materials);
+    setIndex(position);
+  };
+  const current = index === null ? undefined : sequence[index];
+  return (
+    <div className="materials-page">
+      {current && index !== null ? (
+        <div className="reading-nav">
+          <Button onClick={() => setIndex(null)}>返回列表</Button>
+          <span aria-live="polite">
+            {index + 1} / {sequence.length}
+          </span>
+          <Button disabled={index === 0} onClick={() => setIndex(index - 1)}>
+            上一条
+          </Button>
+          <Button
+            disabled={index === sequence.length - 1}
+            onClick={() => setIndex(index + 1)}
+          >
+            下一条
+          </Button>
+        </div>
+      ) : (
+        <div className="toolbar material-toolbar">
+          <input
+            aria-label="搜索素材"
+            placeholder="搜索标题"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              listPosition.current = 0;
+            }}
+          />
+          <select
+            aria-label="筛选时间"
+            value={time}
+            onChange={(event) => {
+              setTime(event.target.value);
+              listPosition.current = 0;
+            }}
+          >
+            <option value="all">全部时间</option>
+            <option value="week">最近七天</option>
+          </select>
+          <Button disabled={!materials.length} onClick={() => read(0)}>
+            开始阅读
+          </Button>
+          <Button onClick={() => setAdding(!adding)}>添加链接</Button>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="model-error">
+          {error}
+        </p>
+      )}
+      <div className="material-scroll" ref={scroll}>
+        {current ? (
+          <article className="reading" key={current.materialId}>
+            <h2 className="material-title">{current.displayLabel}</h2>
+            <div className="source-meta">
+              <span>GitHub · 转发 · {current.source.sourceIdentity}</span>
+              <Button
+                onClick={() =>
+                  void bridge
+                    .openSource(current.materialId)
+                    .then((reply) => {
+                      if (!reply.ok) setError(reply.message);
+                    })
+                    .catch(() => setError("原链接未能打开"))
+                }
+              >
+                打开原链接
+              </Button>
+            </div>
+            <p className="source-meta">
+              收集于 {new Date(current.collectedAt).toLocaleString()} ·
+              来源读取于 {new Date(current.source.fetchedAt).toLocaleString()}
+            </p>
+            <p className="completeness">
+              {current.source.completeness === "partial"
+                ? "内容部分缺失"
+                : current.source.completeness === "unknown"
+                  ? "完整性未知"
+                  : "内容完整"}{" "}
+              · {current.source.completenessNote}
+            </p>
+            <section aria-label="来源正文" className="source-body">
+              {current.source.contentBlocks.map((block, position) => {
+                if (block.type === "image") {
+                  const image = current.source.images.find(
+                    (item) => item.imageId === block.imageId,
+                  );
+                  return image ? (
+                    <SourceImage key={position} image={image} />
+                  ) : null;
+                }
+                if (block.type === "code")
+                  return <pre key={position}>{block.text}</pre>;
+                if (block.type === "heading")
+                  return <h3 key={position}>{block.text}</h3>;
+                return <p key={position}>{block.text}</p>;
+              })}
+            </section>
+            <section className="understanding" aria-label="AI 通用理解">
+              <h2>AI 通用理解</h2>
+              <p>{current.generalUnderstanding.content}</p>
+            </section>
+          </article>
+        ) : (
+          <>
+            {adding && (
+              <form
+                className="add-link"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void start();
+                }}
+              >
+                <label>
+                  GitHub 公开仓库链接
+                  <input
+                    aria-label="GitHub 公开仓库链接"
+                    autoFocus
+                    value={url}
+                    onChange={(event) => setUrl(event.target.value)}
+                    placeholder="https://github.com/owner/repository"
+                    disabled={busy}
+                  />
+                </label>
+                <p>
+                  读取仓库
+                  README。开始解析会将获取的正文发送到当前模型生成理解，可能消耗额度或产生费用。
+                </p>
+                <div className="inline-actions">
+                  <Button type="submit" disabled={busy || !url.trim()}>
+                    {busy ? "正在启动…" : "开始解析"}
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setAdding(false)}
+                  >
+                    取消
+                  </Button>
+                </div>
+              </form>
+            )}
+            <div aria-live="polite">
+              {shownTasks.map((task) => (
+                <div className="forwarding-status" key={task.taskId}>
+                  <span>
+                    转发 · {task.target.sourceUrl} · {task.phase} · 已入库{" "}
+                    {task.progress.saved}/1
+                  </span>
+                  {["running", "queued"].includes(task.state) ? (
+                    <Button
+                      onClick={() =>
+                        void bridge
+                          .cancelForwarding(task.taskId)
+                          .then((reply) => {
+                            if (!reply.ok) setError(reply.message);
+                          })
+                          .catch(() => setError("取消失败"))
+                      }
+                    >
+                      取消解析
+                    </Button>
+                  ) : ["failed", "cancelled"].includes(task.state) ? (
+                    <Button
+                      onClick={() => {
+                        setUrl(task.target.sourceUrl);
+                        setAdding(true);
+                      }}
+                    >
+                      重试
+                    </Button>
+                  ) : null}
+                  {task.state === "failed" && (
+                    <p>
+                      未保存素材。请检查公开仓库 README、网络与模型配置后重试。
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {materials.length ? (
+              <ul className="material-list">
+                {materials.map((item, position) => (
+                  <li key={item.materialId}>
+                    <button
+                      className="material-link"
+                      onClick={() => read(position)}
+                    >
+                      {item.displayLabel}
+                    </button>
+                    <span>
+                      GitHub · 转发 ·{" "}
+                      {new Date(item.collectedAt).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                title={
+                  snapshot?.materials.length
+                    ? "没有符合条件的素材"
+                    : "还没有素材"
+                }
+              >
+                添加一个公开 GitHub 仓库链接，保存 README 与独立的 AI 理解。
+              </EmptyState>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

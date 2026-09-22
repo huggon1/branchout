@@ -1,4 +1,11 @@
 import type { AppSnapshot } from "./domain";
+import type { MaterialState } from "./material-contracts";
+export const materialChannels = {
+  view: "materials:view",
+  add: "materials:add",
+  cancel: "materials:cancel",
+  open: "materials:open",
+} as const;
 import type { ModelReply, ModelView, SaveModelInput } from "./model-contracts";
 export const modelChannels = {
   view: "model:view",
@@ -16,6 +23,10 @@ export const channels = {
   changed: "branchout:changed",
 } as const;
 export interface DesktopBridge {
+  materials(): Promise<ModelReply<MaterialState>>;
+  addLink(url: string): Promise<ModelReply<string>>;
+  cancelForwarding(taskId: string): Promise<ModelReply<void>>;
+  openSource(materialId: string): Promise<ModelReply<void>>;
   modelView(): Promise<ModelReply<ModelView>>;
   saveModel(input: SaveModelInput): Promise<ModelReply<void>>;
   loginModel(): Promise<ModelReply<void>>;

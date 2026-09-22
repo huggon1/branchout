@@ -11,7 +11,13 @@ import {
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
-import { channels, modelChannels } from "../shared/ipc-contracts";
+import {
+  channels,
+  modelChannels,
+  materialChannels,
+} from "../shared/ipc-contracts";
+import { MaterialStore } from "./storage/material-store";
+import { ForwardingService } from "./services/forwarding-service";
 import { rm } from "node:fs/promises";
 import { ModelService } from "./services/model-service";
 import { CodexClient } from "./services/codex-client";
@@ -30,6 +36,7 @@ if (!locked) app.quit();
 else {
   let manager: TaskManager | undefined;
   let models: ModelService | undefined;
+  let forwarding: ForwardingService | undefined;
   let quitting = false;
   const open = () => {
     const existing = BrowserWindow.getAllWindows()[0];
@@ -47,7 +54,8 @@ else {
     if (!quitting && manager) {
       event.preventDefault();
       quitting = true;
-      void Promise.all([manager.shutdown(), models?.close()])
+      void Promise.all([manager.shutdown(), forwarding?.shutdown()])
+        .then(() => models?.close())
         .catch(() => {
           dialog.showErrorBox(
             "任务状态未能保存",
@@ -106,9 +114,80 @@ else {
         },
       });
       await models.open();
+      const materials = new MaterialStore(
+        join(app.getPath("userData"), "materials.json"),
+      );
+      await materials.open();
+      forwarding = new ForwardingService(
+        materials,
+        () => models!.acquire(),
+        () => {
+          const env: Record<string, string> = {};
+          for (const key of [
+            "PATH",
+            "SystemRoot",
+            "TMPDIR",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "NODE_USE_ENV_PROXY",
+          ])
+            if (process.env[key]) env[key] = process.env[key]!;
+          const worker = utilityProcess.fork(
+            join(__dirname, "../worker/forwarding-worker.mjs"),
+            [],
+            { stdio: "pipe", env },
+          );
+          worker.stdout?.resume();
+          worker.stderr?.resume();
+          return worker;
+        },
+        () => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.webContents.send(channels.changed);
+        },
+      );
+      await forwarding.recover();
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
+      for (const channel of Object.values(materialChannels))
+        ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+          if (
+            !event.senderFrame ||
+            event.senderFrame !== event.sender.mainFrame ||
+            event.senderFrame.url !== expected ||
+            args.length !== (channel === materialChannels.view ? 0 : 1)
+          )
+            return { ok: false, message: "无效的请求" };
+          try {
+            let value: unknown;
+            if (channel === materialChannels.view) value = materials.snapshot();
+            else if (channel === materialChannels.add)
+              value = await forwarding!.start(args[0]);
+            else if (channel === materialChannels.cancel)
+              await forwarding!.end(
+                z.string().uuid().parse(args[0]),
+                "cancelled",
+              );
+            else {
+              const id = z.string().uuid().parse(args[0]);
+              const material = materials
+                .snapshot()
+                .materials.find((item) => item.materialId === id);
+              if (!material) throw new Error("素材不存在");
+              await shell.openExternal(material.source.sourceUrl);
+            }
+            return { ok: true, value };
+          } catch {
+            return {
+              ok: false,
+              message:
+                "操作未完成：请使用公开 GitHub 仓库首页链接，并确认已保存可用模型连接；同时最多解析两条。",
+            };
+          }
+        });
       for (const channel of Object.values(modelChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (

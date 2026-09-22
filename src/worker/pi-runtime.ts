@@ -33,10 +33,13 @@ export function resolveModel(
     maxTokens: 512,
   };
 }
-export async function checkWithPi(
+export async function runWithPi(
   config: ModelExecutionConfig,
   sessionId: string,
   signal: AbortSignal,
+  prompt: string,
+  systemPrompt: string,
+  maxTokens: number,
   fetchOverride?: typeof fetch,
 ) {
   const model = resolveModel(config);
@@ -45,7 +48,7 @@ export async function checkWithPi(
       ...options,
       apiKey: config.credential,
       transport: "sse" as const,
-      maxTokens: 64,
+      maxTokens,
       maxRetries: 0,
       ...(fetchOverride ? { fetch: fetchOverride } : {}),
     };
@@ -72,7 +75,7 @@ export async function checkWithPi(
       model,
       tools: [],
       messages: [],
-      systemPrompt: "This is a connection check. Reply only OK.",
+      systemPrompt,
       thinkingLevel: "off",
     },
     streamFn,
@@ -84,7 +87,7 @@ export async function checkWithPi(
   signal.addEventListener("abort", abort, { once: true });
   try {
     if (signal.aborted) throw new Error("cancelled");
-    await agent.prompt("Reply with OK.");
+    await agent.prompt(prompt);
     const last = agent.state.messages.at(-1);
     if (
       signal.aborted ||
@@ -95,10 +98,33 @@ export async function checkWithPi(
       !last.content.some((part) => part.type === "text" && part.text.trim())
     )
       throw new Error("模型检查失败");
+    return last.content
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n")
+      .split(config.credential)
+      .join("[已隐藏]");
   } catch {
     throw new Error("模型检查失败");
   } finally {
     signal.removeEventListener("abort", abort);
     agent.reset();
   }
+}
+
+export async function checkWithPi(
+  config: ModelExecutionConfig,
+  sessionId: string,
+  signal: AbortSignal,
+  fetchOverride?: typeof fetch,
+) {
+  await runWithPi(
+    config,
+    sessionId,
+    signal,
+    "Reply with OK.",
+    "This is a connection check. Reply only OK.",
+    64,
+    fetchOverride,
+  );
 }

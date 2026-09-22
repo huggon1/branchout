@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AppSnapshot } from "../shared/domain";
 import { bridge } from "./bridge";
+import { Materials } from "./components/Materials";
 import { ModelSettings } from "./components/ModelSettings";
 import {
   Brand,
@@ -68,7 +69,6 @@ export function App() {
       <main>
         <header>
           <h1>{page}</h1>
-          {page === "素材" && <Button disabled>添加链接</Button>}
           {page === "项目" && <Button disabled>添加项目</Button>}
         </header>
         {error && (
@@ -76,19 +76,10 @@ export function App() {
             {error}
           </div>
         )}
-        <section className="content">
-          {page === "素材" && (
-            <>
-              <div className="toolbar">
-                <input aria-label="搜索素材" placeholder="搜索素材" disabled />
-                <Button disabled>筛选</Button>
-                <Button disabled>开始阅读</Button>
-              </div>
-              <EmptyState title="还没有素材">
-                链接获取与内容理解尚未接入。
-              </EmptyState>
-            </>
-          )}
+        <section
+          className={`content ${page === "素材" ? "materials-content" : ""}`}
+        >
+          {page === "素材" && <Materials />}
           {page === "探索" && (
             <EmptyState title="探索尚未开放">
               项目基线与探索方案将在后续阶段接入。
@@ -104,8 +95,13 @@ export function App() {
               <ModelSettings />
               <section className="setting-row">
                 <div>
-                  <h2>转发渠道与内容平台</h2>
-                  <p>尚未接入</p>
+                  <h2>转发渠道</h2>
+                  <p>飞书、Telegram 尚未接入</p>
+                  <h2>内容平台</h2>
+                  <p>
+                    GitHub：公开仓库 README 读取可用，无需登录；搜索尚未接入。
+                  </p>
+                  <p>X、小红书：读取与搜索尚未接入。</p>
                 </div>
               </section>
               <section className="diagnostics">
