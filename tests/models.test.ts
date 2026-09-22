@@ -434,7 +434,7 @@ test("failed save preserves the previous connection and active credentials", asy
 test("abandoned login cleanup survives restart and never logs out the saved account", async () => {
   const oldId = randomUUID();
   const currentId = randomUUID();
-  const journal = new Set([oldId, currentId]);
+  const journal = new Set<string>([oldId, currentId]);
   const clients = new Map<string, FakeCodex>();
   const { service } = fixture({
     storage: {
