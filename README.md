@@ -1,105 +1,82 @@
-![Branchout — Grow your ideas. Build with confidence.](assets/hero.png)
+![Branchout 产品设计示意](docs/design/branchout-hero.png)
 
 # Branchout
 
-**Grow your ideas. Build with confidence.**
+**从正在构建的项目出发，把分散的信息变成可阅读、可核验、真正有参考价值的素材。**
 
-English · [简体中文](README.zh-CN.md) · [Get started](#-get-started) · [Inside the app](#-inside-the-app)
+> 当前仓库保存的是已经确认的产品、体验与技术设计基线。应用正在按这套目标重新实现，暂时没有可运行构建、安装包或启动命令。上图是产品设计示意，不是已发布版本截图。
 
-Building a project isn't always about knowing how to code. Sometimes you're unsure what's worth pursuing. Sometimes you already have an idea, but the references, context, and insights that could help you develop it are scattered everywhere.
+## 为什么做 Branchout
 
-**Branchout is a project companion for independent developers.** Grounded in your project, it helps you discover, collect, and understand useful information—turning scattered findings into perspectives and evidence you can build on. Whether you're exploring a new direction or developing an existing idea, the goal is the same: a clearer picture and more confidence to move forward.
+构建一个产品时，真正稀缺的通常不是更多链接，而是与手头项目有关、能够说明“为什么值得看”的信息。
 
-## 🌱 What makes Branchout different
+有价值的文章、产品案例、讨论和设计参考散落在不同平台；脱离项目语境的搜索结果很难判断轻重；收藏下来的内容也常常只剩一个标题，之后再也没有被认真读完。
 
-### Grounded in your project
+Branchout 希望把这段过程连起来：先理解项目，再带着项目基线探索；同时接住用户主动转发的内容；最后把来源正文、图片、AI 理解和项目参考整理成一套清楚的阅读体验。
 
-Your code and commit history provide a meaningful starting point. Branchout uses them to understand what your project does and how it's evolving, so exploration starts with context rather than a blank prompt.
+## 核心能力
 
-### Exploration, ready to use
+### 以项目基线作为探索起点
 
-Research methods, exploration angles, and platform connections are already assembled. Choose from the available directions and start exploring—without designing a research workflow or writing prompts yourself.
+Branchout 绑定本机 Git 仓库，读取当前代码和文档。每个项目分别维护一份**产品基线**和一份 **UI/UX 基线**；两份基线都可以生成、编辑或由用户自行填写。
 
-### Perspective for what you're building
+基线不是一次性分析结果。已有基线可以继续复用；重新生成时，新内容先作为预览出现，只有用户明确确认后才会替换原基线。
 
-Discover new possibilities and deepen ideas you already have. Bring useful information into focus, keep the context behind it, and develop a more informed view of where your project could go.
+### 两个清晰的探索方向
 
-## 🚀 Get started
+用户可以发起**产品探索**或 **UI/UX 探索**。每个方向使用对应基线和预设探索方案，在可用平台中搜索、筛选并逐条读取候选素材。第一批内容平台为 X、小红书和 GitHub；每个方向的方案按效果从中选择需要的平台。
 
-Currently supported: **macOS on Apple Silicon**. The interface is currently in Chinese. Development requires **Node.js 22.19.0 or later** and Git.
+入选素材不仅保留来源，还会说明：
 
-```sh
-git clone https://github.com/huggon1/branchout.git
-cd branchout
-npm ci
-npm start
-```
+- 它为什么与当前项目相关；
+- 哪些具体内容值得参考。
 
-The first start downloads the required platform runtimes if they're missing.
+平台未配置或暂不可用时，Branchout 会如实标记本次未覆盖，而不是把“没有搜索”说成“没有结果”。
 
-1. Open **Settings (设置)** and choose a Codex or OpenAI-compatible model connection. Model access requires your own account or API credentials and may incur provider charges.
-2. In **Project understanding (项目理解)**, select a local Git project and run its initial analysis.
-3. In **Material exploration (素材探索)**, choose the project, an exploration angle, platforms, and a time range. Review the resulting material and its relevance to your project.
+### 随手转发，不强行关联项目
 
-Connect Xiaohongshu or X when you want to use those sources. Telegram and Feishu bots are optional ways to forward links; you can also paste links directly into the app.
+除了主动探索，用户也可以通过应用内添加链接、飞书或 Telegram 转发内容。转发不要求选择项目，也不会猜测用户的项目意图；它只负责读取当前来源、保存内容，并生成适合该内容形态的通用理解。
 
-## 🔎 Inside the app
+探索素材与转发素材使用同一套内容获取和阅读能力，但保持各自真实的上下文。
 
-All screenshots below are captured from the actual application using fictional projects and content in an isolated demo workspace. They contain no personal projects, accounts, or live research results.
+### 把素材还原成完整阅读体验
 
-### Understand the project you already have
+所有素材进入统一列表，并按平台、类别和时间识别。打开一条素材后，阅读流依次呈现：
 
-Read a project overview, meaningful recent changes, and the code evidence behind them. Analysis is tied to a specific commit; you decide when to update it.
+1. 来源身份、原链接和内容完整性；
+2. 实际获取到的正文与图片；
+3. 与来源内容分开的 AI 通用理解；
+4. 仅探索素材拥有的项目参考。
 
-![Project overview and development timeline for the fictional Sproutboard project](assets/screenshots/project.png)
+Branchout 不用 AI 补写没有获取到的原文，也不会因为同一链接来自不同任务就自动覆盖记录。
 
-### Explore with a starting point
+## 预期使用流程
 
-Built-in angles currently cover comparable products, user needs, product experience, acquisition and pricing, and relevant tools or capabilities. Explore GitHub, Xiaohongshu, and X; inspect sources and why they matter instead of receiving an unexplained list of links.
+1. **配置模型连接**：选择通用 API 或 Codex 订阅账号。第一版只保存一个当前连接，供基线、探索和转发任务共用；更换连接只影响之后创建的任务。
+2. **选择本机项目**：让 Branchout 从当前代码与文档建立产品基线和 UI/UX 基线，也可以由用户直接填写。
+3. **开始探索或添加链接**：围绕项目发起产品 / UI/UX 探索，或者直接粘贴、转发一个想阅读的链接。
+4. **逐条阅读与核验**：在统一素材列表中阅读来源内容、AI 理解和项目参考，并随时打开原链接核验。
 
-![Project, exploration angles, platforms, and time-range selection](assets/screenshots/exploration.png)
+模型连接有两种方式：
 
-<details>
-<summary>See the material library</summary>
+- **通用 API**：填写 API Key、服务地址、接口类型和模型标识；首版明确支持 OpenAI Responses 与 OpenAI Chat Completions。
+- **Codex 订阅账号**：登录 ChatGPT 账号，再从当前账号与 Codex 客户端返回的可用模型中选择。
 
-Filter discoveries by project, angle, platform, or exploration run. Sources and their relationships to different projects remain distinct.
+## 产品边界
 
-![Four fictional discoveries with summaries and relevance to the demo project](assets/screenshots/materials.png)
+- 第一版只做产品探索、UI/UX 探索和单条转发内容理解，不生成跨素材综合报告或内容作品。
+- 转发内容不关联项目；探索素材才包含项目参考。
+- 来源内容、AI 理解和项目参考始终分开，不把模型输出包装成来源事实。
+- 产品目标、界面流程与技术蓝图不等于已经实现或经过发布验收的能力。
 
-</details>
+## 设计与技术文档
 
-### Keep the ideas you find along the way
+- [产品规格](docs/product-spec.md)：产品范围、核心行为和业务规则。
+- [UX 规格](docs/ux-spec.md)：主要界面、信息层级和操作流程。
+- [设计系统](docs/design-system.md)：跨页面共用的视觉与交互原则。
+- [视觉参考](docs/design/README.md)：当前选定的概念设计示意。
+- [架构总览](docs/architecture-overview.md)：运行职责、模块关系和模型连接边界。
+- [数据与消息契约](docs/data-contracts.md)：跨模块字段、保存规则和消息语义。
+- [源码目录蓝图](src/README.md)：目标代码组织与各区域职责。
 
-Paste GitHub or Xiaohongshu links, or forward them through a connected Telegram or Feishu bot. Branchout parses the content into a local reading workspace with collections, original text, and separately labeled AI summaries.
-
-![Collected fictional references alongside the original article and its summary](assets/screenshots/collection.png)
-
-Collection is also useful on its own. Saved links are not currently fed automatically into project exploration or Feed generation.
-
-### Turn selected discoveries into a Feed
-
-Choose material from exploration, arrange it into sections, and generate a readable Feed. Historical Feeds retain the source snapshots used to create them; missing evidence and failed items remain visible rather than being filled with invented content.
-
-## 🛠 Build and contribute
-
-```sh
-npm run check          # Tests, types, build, and document links
-npm run test:desktop   # Isolated desktop interaction tests
-npm run prepare:runtime
-npm run package:app
-```
-
-The packaged application is written to `build/Branchout-darwin-arm64/Branchout.app`. Signing, notarization, and clean-machine distribution validation are not yet complete.
-
-To reproduce the fictional screenshots, run `npm run screenshots`. It creates and removes a temporary workspace without using your normal application data. See [AGENTS.md](AGENTS.md) for repository rules.
-
-## A few things to know
-
-- Application data is stored locally in `~/Library/Application Support/Branchout`. This is a separate application identity; data from other installations is left untouched and is not automatically migrated.
-- Local storage does **not** mean all processing is offline. Project analysis and generation send relevant context to your configured model provider; external discovery queries the selected platforms.
-- Exploration uses a fixed project understanding. It does not silently re-analyze your repository. Source access depends on platform availability, login, and network conditions.
-- AI output is not source evidence. Read the linked material before relying on a conclusion.
-
-## License
-
-A project license has not yet been selected. Third-party components, fonts, and bundled runtimes retain their respective licenses.
+仓库内文档描述的是同一套确认目标；实现完成后，README 才会补充经过验证的安装、启动和发布信息。
