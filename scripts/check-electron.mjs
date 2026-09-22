@@ -19,7 +19,7 @@ try {
   await page.getByRole("heading", { name: "素材", exact: true }).waitFor();
   assert.equal(
     await page.getByRole("button", { name: "添加链接" }).isDisabled(),
-    true,
+    false,
   );
   assert.deepEqual(
     await page.evaluate(() => ({
@@ -31,13 +31,17 @@ try {
       require: "undefined",
       process: "undefined",
       api: [
+        "addLink",
         "cancel",
+        "cancelForwarding",
         "cancelModelCheck",
         "cancelModelLogin",
         "checkModel",
         "loginModel",
+        "materials",
         "modelView",
         "onChanged",
+        "openSource",
         "refreshModels",
         "runCheck",
         "saveModel",
