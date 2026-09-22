@@ -1,6 +1,17 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { channels, type DesktopBridge } from "../shared/ipc-contracts";
+import {
+  channels,
+  modelChannels,
+  type DesktopBridge,
+} from "../shared/ipc-contracts";
 const bridge: DesktopBridge = {
+  modelView: () => ipcRenderer.invoke(modelChannels.view),
+  saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
+  loginModel: () => ipcRenderer.invoke(modelChannels.login),
+  cancelModelLogin: () => ipcRenderer.invoke(modelChannels.cancelLogin),
+  refreshModels: () => ipcRenderer.invoke(modelChannels.refresh),
+  checkModel: () => ipcRenderer.invoke(modelChannels.check),
+  cancelModelCheck: () => ipcRenderer.invoke(modelChannels.cancelCheck),
   snapshot: () => ipcRenderer.invoke(channels.snapshot),
   runCheck: () => ipcRenderer.invoke(channels.check),
   cancel: (taskId) => ipcRenderer.invoke(channels.cancel, taskId),

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AppSnapshot } from "../shared/domain";
 import { bridge } from "./bridge";
+import { ModelSettings } from "./components/ModelSettings";
 import {
   Brand,
   Button,
@@ -100,13 +101,7 @@ export function App() {
           )}
           {page === "设置" && (
             <div className="settings">
-              <section className="setting-row">
-                <div>
-                  <h2>模型连接</h2>
-                  <p>尚未接入通用 API 或 Codex 订阅账号</p>
-                </div>
-                <span className="badge">未配置</span>
-              </section>
+              <ModelSettings />
               <section className="setting-row">
                 <div>
                   <h2>转发渠道与内容平台</h2>

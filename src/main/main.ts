@@ -5,11 +5,19 @@ import {
   ipcMain,
   Menu,
   utilityProcess,
+  safeStorage,
+  shell,
 } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
-import { channels } from "../shared/ipc-contracts";
+import { channels, modelChannels } from "../shared/ipc-contracts";
+import { rm } from "node:fs/promises";
+import { ModelService } from "./services/model-service";
+import { CodexClient } from "./services/codex-client";
+import { ModelStore } from "./storage/model-store";
+import { AuthCleanup } from "./storage/auth-cleanup";
+import { checkModel, readPiCatalog } from "./services/model-worker-client";
 import { Store } from "./storage/store";
 import { TaskManager } from "./task-manager";
 import { createWindow } from "./window";
@@ -21,6 +29,7 @@ const locked = app.requestSingleInstanceLock();
 if (!locked) app.quit();
 else {
   let manager: TaskManager | undefined;
+  let models: ModelService | undefined;
   let quitting = false;
   const open = () => {
     const existing = BrowserWindow.getAllWindows()[0];
@@ -38,8 +47,7 @@ else {
     if (!quitting && manager) {
       event.preventDefault();
       quitting = true;
-      void manager
-        .shutdown()
+      void Promise.all([manager.shutdown(), models?.close()])
         .catch(() => {
           dialog.showErrorBox(
             "任务状态未能保存",
@@ -70,9 +78,80 @@ else {
           ),
       );
       await manager.recover();
+      const authRoot = join(app.getPath("userData"), "model-auth");
+      models = new ModelService({
+        storage: new ModelStore(
+          join(app.getPath("userData"), "model-connection.enc"),
+          {
+            available: () =>
+              safeStorage.isEncryptionAvailable() &&
+              (process.platform !== "linux" ||
+                safeStorage.getSelectedStorageBackend() !== "basic_text"),
+            encrypt: (text) => safeStorage.encryptString(text),
+            decrypt: (bytes) => safeStorage.decryptString(bytes),
+          },
+        ),
+        journal: new AuthCleanup(
+          join(app.getPath("userData"), "auth-cleanup.json"),
+        ),
+        client: (id) => new CodexClient(join(authRoot, id)),
+        removeHome: (id) =>
+          rm(join(authRoot, id), { recursive: true, force: true }),
+        catalog: readPiCatalog,
+        openLogin: (url) => shell.openExternal(url),
+        check: checkModel,
+        changed: () => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.webContents.send(channels.changed);
+        },
+      });
+      await models.open();
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
+      for (const channel of Object.values(modelChannels))
+        ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+          if (
+            !event.senderFrame ||
+            event.senderFrame !== event.sender.mainFrame ||
+            event.senderFrame.url !== expected
+          )
+            return { ok: false, message: "无效的界面请求" };
+          if (args.length !== (channel === modelChannels.save ? 1 : 0))
+            return { ok: false, message: "无效的请求参数" };
+          try {
+            let value: unknown;
+            switch (channel) {
+              case modelChannels.view:
+                value = models!.view();
+                break;
+              case modelChannels.save:
+                await models!.save(args[0]);
+                break;
+              case modelChannels.login:
+                await models!.login();
+                break;
+              case modelChannels.cancelLogin:
+                await models!.cancelLogin();
+                break;
+              case modelChannels.refresh:
+                await models!.refresh();
+                break;
+              case modelChannels.check:
+                await models!.runCheck();
+                break;
+              case modelChannels.cancelCheck:
+                models!.cancelCheck();
+                break;
+            }
+            return { ok: true, value };
+          } catch {
+            return {
+              ok: false,
+              message: "操作未完成，请检查配置、登录状态或服务地址后重试",
+            };
+          }
+        });
       for (const channel of [
         channels.snapshot,
         channels.check,

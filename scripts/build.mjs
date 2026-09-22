@@ -22,6 +22,14 @@ await build({
   external: ["electron"],
 });
 await build({
+  entryPoints: ["src/worker/model-worker.ts"],
+  outfile: "dist/worker/model-worker.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  packages: "external",
+});
+await build({
   entryPoints: ["src/renderer/main.tsx"],
   outfile: "dist/renderer/app.js",
   bundle: true,
