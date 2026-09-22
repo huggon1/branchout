@@ -1,0 +1,4 @@
+import type { ReactNode } from 'react';
+export function Button({ children, onClick, disabled = false }: { children: ReactNode; onClick?: () => void; disabled?: boolean }) { return <button className="button" onClick={onClick} disabled={disabled}>{children}</button>; }
+export function EmptyState({ title, children }: { title: string; children: ReactNode }) { return <div className="empty"><span className="empty-symbol" aria-hidden="true">◇</span><h2>{title}</h2><p>{children}</p></div>; }
+export function Brand() { return <div className="brand"><svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><path d="M15 28V15M15 21L23 13" fill="none" stroke="currentColor" strokeWidth="2.5"/><path d="M15 17C4 17 3 7 4 3c9 0 14 5 11 14M19 15C18 6 25 3 30 4c0 7-4 12-11 11" fill="currentColor"/></svg><span>Branchout</span></div>; }
