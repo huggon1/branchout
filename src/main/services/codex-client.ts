@@ -7,7 +7,29 @@ export interface CodexRpc {
   onNotice(listener: (method: string, params: unknown) => void): () => void;
   close(): void;
 }
-// Each client has a dedicated home and working directory. No existing user auth/config is loaded.
+export function createCodexEnvironment(
+  codexHome: string,
+  inherited: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { CODEX_HOME: codexHome };
+  // OS home must stay intact so secure storage can locate the user's keychain.
+  for (const key of [
+    "PATH",
+    "SystemRoot",
+    "TMPDIR",
+    "HOME",
+    "USERPROFILE",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "NODE_USE_ENV_PROXY",
+  ]) {
+    if (inherited[key] !== undefined) env[key] = inherited[key];
+  }
+  return env;
+}
+// Each client has a dedicated CODEX_HOME and working directory.
 export class CodexClient implements CodexRpc {
   private process?: ChildProcessWithoutNullStreams;
   private ready?: Promise<void>;
@@ -30,22 +52,7 @@ export class CodexClient implements CodexRpc {
     return (this.ready ??= (async () => {
       await mkdir(join(this.home, "work"), { recursive: true, mode: 0o700 });
       if (this.closed) throw new Error("Codex 客户端已关闭");
-      const env: NodeJS.ProcessEnv = {
-        PATH: process.env.PATH,
-        SystemRoot: process.env.SystemRoot,
-        TMPDIR: process.env.TMPDIR,
-        HOME: this.home,
-        USERPROFILE: this.home,
-        CODEX_HOME: this.home,
-      };
-      for (const key of [
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "ALL_PROXY",
-        "NO_PROXY",
-        "NODE_USE_ENV_PROXY",
-      ])
-        if (process.env[key]) env[key] = process.env[key];
+      const env = createCodexEnvironment(this.home);
       const child = (this.process = spawn(
         this.executable,
         [
