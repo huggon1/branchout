@@ -50,7 +50,7 @@ port.on("message", ({ data }) => {
     const draft = draftSchema.parse({
       source,
       generalUnderstanding: {
-        content: `${input.limited ? "理解范围：仅基于正文前 12,000 字符；完整获取的来源正文保留在上方。\n\n" : ""}${content}`,
+        content,
       },
     });
     port.postMessage({ type: "result", taskId, resultId, draft });

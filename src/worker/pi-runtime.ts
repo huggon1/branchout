@@ -93,8 +93,7 @@ export async function runWithPi(
       signal.aborted ||
       !last ||
       last.role !== "assistant" ||
-      last.stopReason === "error" ||
-      last.stopReason === "aborted" ||
+      last.stopReason !== "stop" ||
       !last.content.some((part) => part.type === "text" && part.text.trim())
     )
       throw new Error("模型检查失败");

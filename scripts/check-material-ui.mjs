@@ -21,12 +21,13 @@ let calls = 0,
 const server = createServer(async (request, response) => {
   if (request.url === "/readme") {
     const markdown =
-      `# Fixture ${++reads}\n\nBefore image\n\n![diagram](./diagram.png)\n\nAfter image\n\n<img src="file:///secret" onerror="window.compromised=true"><script>window.compromised=true</script>\n\n` +
+      `# Fixture ${++reads}\n\nBefore image\n\n![diagram](./diagram.png)\n\nAfter image\n\n<img src="./diagram.svg" alt="svg-diagram">\n\n<img src="file:///secret" onerror="window.compromised=true"><script>window.compromised=true</script>\n\n` +
       Array.from(
-        { length: 40 },
+        { length: 240 },
         (_, index) =>
           `Paragraph ${index}: public fixture text for scrolling and reading.`,
-      ).join("\n\n");
+      ).join("\n\n") +
+      "\n\nLONG_README_END_SENTINEL";
     response.setHeader("content-type", "application/json");
     response.end(
       JSON.stringify({
@@ -45,6 +46,16 @@ const server = createServer(async (request, response) => {
   const input = JSON.parse(body);
   calls++;
   assert.ok(JSON.stringify(input).includes("sourceText"));
+  const sourceMessage = input.messages.find(
+    (message) => message.role === "user",
+  );
+  const sourceText = JSON.parse(
+    typeof sourceMessage.content === "string"
+      ? sourceMessage.content
+      : sourceMessage.content.map((part) => part.text ?? "").join("\n"),
+  ).sourceText;
+  assert.ok(sourceText.length > 12000);
+  assert.ok(sourceText.endsWith("LONG_README_END_SENTINEL"));
   assert.ok(JSON.stringify(input).includes("不可信"));
   assert.equal(input.tools?.length ?? 0, 0);
   if (slow) await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -81,14 +92,24 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("https://raw.githubusercontent.com/**", async (route) =>
-    route.fulfill({
-      contentType: "image/png",
-      body: await sharp({
-        create: { width: 320, height: 160, channels: 3, background: "#daece7" },
-      })
-        .png()
-        .toBuffer(),
-    }),
+    route.request().url().endsWith(".svg")
+      ? route.fulfill({
+          contentType: "image/svg+xml",
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160"><rect width="320" height="160" fill="#daece7"/><text x="12" y="40">A → B</text></svg>',
+        })
+      : route.fulfill({
+          contentType: "image/png",
+          body: await sharp({
+            create: {
+              width: 320,
+              height: 160,
+              channels: 3,
+              background: "#daece7",
+            },
+          })
+            .png()
+            .toBuffer(),
+        }),
   );
   assert.equal(
     (
@@ -165,10 +186,17 @@ try {
     0,
   );
   assert.equal(await page.evaluate(() => window.compromised), undefined);
-  await page.locator(".source-body img").scrollIntoViewIfNeeded();
+  await page.locator(".source-body img").first().scrollIntoViewIfNeeded();
   await page.waitForFunction(() => {
     const image = document.querySelector(".source-body img");
     return image?.complete && image.naturalWidth > 0;
+  });
+  await page
+    .getByAltText("svg-diagram", { exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => {
+    const svg = document.querySelector('img[alt="svg-diagram"]');
+    return svg?.complete && svg.naturalWidth === 320;
   });
   const order = await page
     .locator(".source-body")
