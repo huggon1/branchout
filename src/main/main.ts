@@ -17,6 +17,9 @@ import {
   materialChannels,
 } from "../shared/ipc-contracts";
 import { MaterialStore } from "./storage/material-store";
+import { ProjectStore } from "./storage/project-store";
+import { ProjectService } from "./services/project-service";
+import { registerProjectIpc } from "./services/project-ipc";
 import { ForwardingService } from "./services/forwarding-service";
 import { rm } from "node:fs/promises";
 import { ModelService } from "./services/model-service";
@@ -37,6 +40,7 @@ else {
   let manager: TaskManager | undefined;
   let models: ModelService | undefined;
   let forwarding: ForwardingService | undefined;
+  let projects: ProjectService | undefined;
   let quitting = false;
   const open = () => {
     const existing = BrowserWindow.getAllWindows()[0];
@@ -54,7 +58,11 @@ else {
     if (!quitting && manager) {
       event.preventDefault();
       quitting = true;
-      void Promise.all([manager.shutdown(), forwarding?.shutdown()])
+      void Promise.all([
+        manager.shutdown(),
+        forwarding?.shutdown(),
+        projects?.shutdown(),
+      ])
         .then(() => models?.close())
         .catch(() => {
           dialog.showErrorBox(
@@ -149,9 +157,47 @@ else {
         },
       );
       await forwarding.recover();
+      const projectStore = new ProjectStore(
+        join(app.getPath("userData"), "projects.json"),
+      );
+      await projectStore.open();
+      projects = new ProjectService(
+        projectStore,
+        materials,
+        () => models!.acquire(),
+        () => {
+          const env: Record<string, string> = {};
+          for (const key of [
+            "PATH",
+            "SystemRoot",
+            "TMPDIR",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "NODE_USE_ENV_PROXY",
+          ])
+            if (process.env[key]) env[key] = process.env[key]!;
+          const worker = utilityProcess.fork(
+            join(__dirname, "../worker/project-worker.mjs"),
+            [],
+            { stdio: "pipe", env },
+          );
+          worker.stdout?.resume();
+          worker.stderr?.resume();
+          return worker;
+        },
+        () => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.webContents.send(channels.changed);
+        },
+      );
+      await projects.recover();
+
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
+      registerProjectIpc(projects, expected);
       for (const channel of Object.values(materialChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (

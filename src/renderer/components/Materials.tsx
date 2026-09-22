@@ -37,6 +37,7 @@ export function Materials() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [time, setTime] = useState("all");
+  const [category, setCategory] = useState("all");
   const [sequence, setSequence] = useState<MaterialRecord[]>([]);
   const [index, setIndex] = useState<number | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
@@ -73,6 +74,7 @@ export function Materials() {
         item.displayLabel
           .toLocaleLowerCase()
           .includes(query.toLocaleLowerCase()) &&
+        (category === "all" || item.category === category) &&
         (time === "all" ||
           Date.now() - Date.parse(item.collectedAt) < 7 * 86400000),
     );
@@ -142,6 +144,16 @@ export function Materials() {
             }}
           />
           <select
+            aria-label="筛选类别"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            <option value="all">全部类别</option>
+            <option value="forwarding">转发</option>
+            <option value="product_exploration">产品探索</option>
+            <option value="uiux_exploration">UI/UX 探索</option>
+          </select>
+          <select
             aria-label="筛选时间"
             value={time}
             onChange={(event) => {
@@ -168,7 +180,10 @@ export function Materials() {
           <article className="reading" key={current.materialId}>
             <h2 className="material-title">{current.displayLabel}</h2>
             <div className="source-meta">
-              <span>GitHub · 转发 · {current.source.sourceIdentity}</span>
+              <span>
+                GitHub · {categoryLabel(current)} ·{" "}
+                {current.source.sourceIdentity}
+              </span>
               <Button
                 onClick={() =>
                   void bridge
@@ -215,6 +230,15 @@ export function Materials() {
               <h2>AI 通用理解</h2>
               <p>{current.generalUnderstanding.content}</p>
             </section>
+            {current.category !== "forwarding" && (
+              <section className="understanding" aria-label="项目参考">
+                <h2>项目参考 · {current.repository.name}</h2>
+                <h3>入选理由</h3>
+                <p>{current.projectReference.relevanceReason}</p>
+                <h3>具体参考点</h3>
+                <p>{current.projectReference.referencePoints}</p>
+              </section>
+            )}
           </article>
         ) : (
           <>
@@ -304,7 +328,7 @@ export function Materials() {
                       {item.displayLabel}
                     </button>
                     <span>
-                      GitHub · 转发 ·{" "}
+                      GitHub · {categoryLabel(item)} ·{" "}
                       {new Date(item.collectedAt).toLocaleString()}
                     </span>
                   </li>
@@ -326,4 +350,10 @@ export function Materials() {
       </div>
     </div>
   );
+}
+
+function categoryLabel(item: MaterialRecord) {
+  return item.category === "forwarding"
+    ? "转发"
+    : `${item.category === "product_exploration" ? "产品探索" : "UI/UX 探索"} · ${item.repository.name}`;
 }

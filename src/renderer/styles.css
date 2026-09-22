@@ -519,3 +519,101 @@ select:focus-visible {
   outline: 2px solid #147d70;
   outline-offset: 3px;
 }
+.project-workspace {
+  max-width: 860px;
+  margin: 0 auto;
+}
+.project-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.project-toolbar label {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 160px;
+  font-size: 12px;
+}
+.project-toolbar select {
+  font: inherit;
+  font-size: 13px;
+  min-height: 33px;
+  border: 1px solid #d5e0df;
+  border-radius: 5px;
+  background: #fff;
+  padding: 6px;
+}
+.project-directory {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+}
+.model-disclosure {
+  font-size: 12px;
+  margin: 12px 0 18px;
+}
+.baseline-document,
+.baseline-preview,
+.exploration-plan,
+.project-task {
+  margin: 18px 0;
+  padding: 18px 0;
+  border-top: 1px solid #dce5e5;
+}
+.baseline-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.baseline-heading .inline-actions {
+  margin: 0 0 8px;
+}
+.baseline-actions {
+  display: flex;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 0;
+  background: #f5f7f8;
+}
+.baseline-editor {
+  font: inherit;
+  line-height: 1.85;
+  color: #263638;
+  width: 100%;
+  resize: vertical;
+  min-height: 260px;
+  background: #fafcfc;
+  border: 1px solid #d5e0df;
+  padding: 16px;
+  border-radius: 5px;
+}
+.document-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.85;
+  margin-top: 18px;
+}
+.baseline-document > p,
+.baseline-preview > p,
+.project-task p {
+  font-size: 12px;
+}
+.exploration-plan p {
+  margin: 8px 0;
+}
+.regenerate-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+textarea:focus-visible {
+  outline: 2px solid #147d70;
+  outline-offset: 2px;
+}

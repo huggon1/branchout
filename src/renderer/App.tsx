@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import type { Direction } from "../shared/project-contracts";
 import type { AppSnapshot } from "../shared/domain";
 import { bridge } from "./bridge";
+import { ProjectWorkspace } from "./components/ProjectWorkspace";
 import { Materials } from "./components/Materials";
 import { ModelSettings } from "./components/ModelSettings";
 import {
@@ -12,6 +14,8 @@ import {
 const pages = ["素材", "探索", "项目", "设置"] as const;
 export function App() {
   const [page, setPage] = useState<(typeof pages)[number]>("素材");
+  const [projectId, setProjectId] = useState("");
+  const [direction, setDirection] = useState<Direction>("product");
   const [snapshot, setSnapshot] = useState<AppSnapshot>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,7 +73,6 @@ export function App() {
       <main>
         <header>
           <h1>{page}</h1>
-          {page === "项目" && <Button disabled>添加项目</Button>}
         </header>
         {error && (
           <div role="alert" className="error">
@@ -80,15 +83,14 @@ export function App() {
           className={`content ${page === "素材" ? "materials-content" : ""}`}
         >
           {page === "素材" && <Materials />}
-          {page === "探索" && (
-            <EmptyState title="探索尚未开放">
-              项目基线与探索方案将在后续阶段接入。
-            </EmptyState>
-          )}
-          {page === "项目" && (
-            <EmptyState title="还没有项目">
-              本机项目与两类基线尚未接入。
-            </EmptyState>
+          {(page === "项目" || page === "探索") && (
+            <ProjectWorkspace
+              mode={page}
+              selected={projectId}
+              setSelected={setProjectId}
+              direction={direction}
+              setDirection={setDirection}
+            />
           )}
           {page === "设置" && (
             <div className="settings">
@@ -98,10 +100,8 @@ export function App() {
                   <h2>转发渠道</h2>
                   <p>飞书、Telegram 尚未接入</p>
                   <h2>内容平台</h2>
-                  <p>
-                    GitHub：公开仓库 README 读取可用，无需登录；搜索尚未接入。
-                  </p>
-                  <p>X、小红书：读取与搜索尚未接入。</p>
+                  <p>GitHub：公开仓库 README 读取可用，无需登录；搜索可用。</p>
+                  <p>X、小红书：读取与搜索可用。</p>
                 </div>
               </section>
               <section className="diagnostics">

@@ -1,5 +1,18 @@
 import type { AppSnapshot } from "./domain";
 import type { MaterialState } from "./material-contracts";
+import type {
+  ProjectState,
+  StartProject,
+  EditBaseline,
+} from "./project-contracts";
+export const projectChannels = {
+  view: "project:view",
+  bind: "project:bind",
+  edit: "project:edit",
+  start: "project:start",
+  confirm: "project:confirm",
+  cancel: "project:cancel",
+} as const;
 export const materialChannels = {
   view: "materials:view",
   add: "materials:add",
@@ -23,6 +36,12 @@ export const channels = {
   changed: "branchout:changed",
 } as const;
 export interface DesktopBridge {
+  projects(): Promise<ModelReply<ProjectState>>;
+  bindProject(): Promise<ModelReply<string | undefined>>;
+  editBaseline(input: EditBaseline): Promise<ModelReply<void>>;
+  startProjectTask(input: StartProject): Promise<ModelReply<string>>;
+  confirmBaseline(taskId: string): Promise<ModelReply<void>>;
+  cancelProjectTask(taskId: string): Promise<ModelReply<void>>;
   materials(): Promise<ModelReply<MaterialState>>;
   addLink(url: string): Promise<ModelReply<string>>;
   cancelForwarding(taskId: string): Promise<ModelReply<void>>;

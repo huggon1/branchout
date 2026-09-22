@@ -3,9 +3,16 @@ import {
   channels,
   modelChannels,
   materialChannels,
+  projectChannels,
   type DesktopBridge,
 } from "../shared/ipc-contracts";
 const bridge: DesktopBridge = {
+  projects: () => ipcRenderer.invoke(projectChannels.view),
+  bindProject: () => ipcRenderer.invoke(projectChannels.bind),
+  editBaseline: (input) => ipcRenderer.invoke(projectChannels.edit, input),
+  startProjectTask: (input) => ipcRenderer.invoke(projectChannels.start, input),
+  confirmBaseline: (id) => ipcRenderer.invoke(projectChannels.confirm, id),
+  cancelProjectTask: (id) => ipcRenderer.invoke(projectChannels.cancel, id),
   materials: () => ipcRenderer.invoke(materialChannels.view),
   addLink: (url) => ipcRenderer.invoke(materialChannels.add, url),
   cancelForwarding: (id) => ipcRenderer.invoke(materialChannels.cancel, id),
