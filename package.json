@@ -1,1 +1,31 @@
-{"name":"branchout","version":"0.1.0","private":true,"main":"dist/main/main.cjs","scripts":{"build":"node scripts/build.mjs","dev":"npm run build && electron .","start":"electron .","typecheck":"tsc --noEmit","test":"tsx --test tests/*.test.ts","test:ui":"npm run build && node scripts/check-electron.mjs"},"dependencies":{"react":"^19.2.0","react-dom":"^19.2.0","zod":"^4.0.0"},"devDependencies":{"@types/node":"^24.0.0","@types/react":"^19.2.0","@types/react-dom":"^19.2.0","electron":"44.4.3","esbuild":"^0.28.2","playwright":"^1.58.0","tsx":"^4.20.0","typescript":"^5.9.0"}}
+{
+  "name": "branchout",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "npm run build && electron .",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:ui": "npm run build && node scripts/check-electron.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "44.4.3",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.58.0",
+    "prettier": "^3.9.8",
+    "sharp": "^0.35.4",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
