@@ -9,7 +9,25 @@ export type ReadResult = {
 );
 export interface PlatformAdapter {
   platform: "github";
-  searchCapability: "not_available";
+  searchCapability: "available";
   readCapability: "available";
+  search(
+    taskId: string,
+    query: string,
+    signal: AbortSignal,
+  ): Promise<SearchResult>;
   read(taskId: string, url: string, signal: AbortSignal): Promise<ReadResult>;
 }
+
+export interface SearchCandidate {
+  sourceUrl: string;
+  title: string;
+  snippet: string;
+}
+export type SearchResult = {
+  taskId: string;
+  platform: "github";
+  outcome: "results" | "no_results" | "failed" | "not_covered";
+  candidates: SearchCandidate[];
+  message?: string;
+};

@@ -89,18 +89,46 @@ export const draftSchema = z
       .strict(),
   })
   .strict();
-export const materialSchema = draftSchema
-  .extend({
-    materialId: z.string().uuid(),
-    taskId: z.string().uuid(),
-    resultId: z.string().uuid(),
-    category: z.literal("forwarding"),
-    platform: z.literal("github"),
-    forwardingEntry: z.literal("app"),
-    collectedAt: z.string().datetime(),
-    displayLabel: z.string().min(1).max(500),
+export const projectReferenceSchema = z
+  .object({
+    relevanceReason: z.string().min(1).max(12000),
+    referencePoints: z.string().min(1).max(20000),
   })
   .strict();
+const materialBase = draftSchema.extend({
+  materialId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  resultId: z.string().uuid(),
+  platform: z.literal("github"),
+  collectedAt: z.string().datetime(),
+  displayLabel: z.string().min(1).max(500),
+});
+export const materialSchema = z.discriminatedUnion("category", [
+  materialBase
+    .extend({
+      category: z.literal("forwarding"),
+      forwardingEntry: z.literal("app"),
+    })
+    .strict(),
+  materialBase
+    .extend({
+      category: z.literal("product_exploration"),
+      repository: z
+        .object({ projectId: z.string().uuid(), name: z.string().max(300) })
+        .strict(),
+      projectReference: projectReferenceSchema,
+    })
+    .strict(),
+  materialBase
+    .extend({
+      category: z.literal("uiux_exploration"),
+      repository: z
+        .object({ projectId: z.string().uuid(), name: z.string().max(300) })
+        .strict(),
+      projectReference: projectReferenceSchema,
+    })
+    .strict(),
+]);
 export const forwardingTaskSchema = z
   .object({
     taskId: z.string().uuid(),

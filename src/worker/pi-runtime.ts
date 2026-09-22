@@ -1,4 +1,8 @@
-import { Agent, type StreamFn } from "@earendil-works/pi-agent-core";
+import {
+  Agent,
+  type AgentTool,
+  type StreamFn,
+} from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { streamSimple as responses } from "@earendil-works/pi-ai/api/openai-responses";
@@ -41,9 +45,12 @@ export async function runWithPi(
   systemPrompt: string,
   maxTokens: number,
   fetchOverride?: typeof fetch,
+  tools: AgentTool[] = [],
 ) {
+  let turns = 0;
   const model = resolveModel(config);
   const streamFn: StreamFn = (_model, context, options) => {
+    if (++turns > 14) throw new Error("执行轮数已达上限");
     const safeOptions = {
       ...options,
       apiKey: config.credential,
@@ -73,12 +80,13 @@ export async function runWithPi(
   const agent = new Agent({
     initialState: {
       model,
-      tools: [],
+      tools,
       messages: [],
       systemPrompt,
       thinkingLevel: "off",
     },
     streamFn,
+    toolExecution: "sequential",
     getApiKey: () => config.credential,
     sessionId,
     transport: "sse",

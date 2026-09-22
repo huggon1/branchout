@@ -5,6 +5,7 @@ import {
   materialStateSchema,
   type MaterialState,
   type MaterialDraft,
+  type MaterialRecord,
 } from "../../shared/material-contracts";
 export class MaterialStore {
   private state: MaterialState = { version: 1, tasks: [], materials: [] };
@@ -68,6 +69,22 @@ export class MaterialStore {
       task.phase = "已保存";
       task.progress = { read: 1, saved: 1, failed: 0 };
       task.updatedAt = new Date().toISOString();
+    });
+  }
+  async saveExploration(
+    record: Extract<
+      MaterialRecord,
+      { category: "product_exploration" | "uiux_exploration" }
+    >,
+  ) {
+    await this.update((state) => {
+      if (
+        !state.materials.some(
+          (item) =>
+            item.taskId === record.taskId && item.resultId === record.resultId,
+        )
+      )
+        state.materials.push(record);
     });
   }
 }

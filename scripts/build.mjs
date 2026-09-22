@@ -25,6 +25,7 @@ await build({
   entryPoints: [
     "src/worker/model-worker.ts",
     "src/worker/forwarding-worker.ts",
+    "src/worker/project-worker.ts",
   ],
   outdir: "dist/worker",
   outExtension: { ".js": ".mjs" },
