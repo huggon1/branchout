@@ -30,7 +30,19 @@ try {
     {
       require: "undefined",
       process: "undefined",
-      api: ["cancel", "onChanged", "runCheck", "snapshot"],
+      api: [
+        "cancel",
+        "cancelModelCheck",
+        "cancelModelLogin",
+        "checkModel",
+        "loginModel",
+        "modelView",
+        "onChanged",
+        "refreshModels",
+        "runCheck",
+        "saveModel",
+        "snapshot",
+      ],
     },
   );
   const security = await application.evaluate(({ BrowserWindow }) => {
