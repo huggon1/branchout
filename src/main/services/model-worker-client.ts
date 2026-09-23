@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { z } from "zod";
 import type { ModelExecutionConfig } from "../../shared/model-contracts";
+import { createWorkerEnvironment } from "./worker-environment";
 const replySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("catalog"), ids: z.array(z.string()) }).strict(),
   z.object({ type: z.literal("checked"), success: z.boolean() }).strict(),
@@ -10,19 +11,7 @@ const replySchema = z.discriminatedUnion("type", [
 function request(message: unknown, signal?: AbortSignal) {
   return new Promise<z.infer<typeof replySchema>>((resolve, reject) => {
     // No environment credentials or inherited agent configuration in the model worker.
-    const env: Record<string, string> = {};
-    for (const key of [
-      "PATH",
-      "SystemRoot",
-      "TMPDIR",
-      "HTTP_PROXY",
-      "HTTPS_PROXY",
-      "ALL_PROXY",
-      "NO_PROXY",
-      "NODE_USE_ENV_PROXY",
-    ]) {
-      if (process.env[key]) env[key] = process.env[key]!;
-    }
+    const env = createWorkerEnvironment();
     const worker = utilityProcess.fork(
       join(__dirname, "../worker/model-worker.mjs"),
       [],

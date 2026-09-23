@@ -19,6 +19,7 @@ import {
 import { MaterialStore } from "./storage/material-store";
 import { ProjectStore } from "./storage/project-store";
 import { ProjectService } from "./services/project-service";
+import { createWorkerEnvironment } from "./services/worker-environment";
 import { registerProjectIpc } from "./services/project-ipc";
 import { ForwardingService } from "./services/forwarding-service";
 import { rm } from "node:fs/promises";
@@ -130,18 +131,7 @@ else {
         materials,
         () => models!.acquire(),
         () => {
-          const env: Record<string, string> = {};
-          for (const key of [
-            "PATH",
-            "SystemRoot",
-            "TMPDIR",
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-            "NO_PROXY",
-            "NODE_USE_ENV_PROXY",
-          ])
-            if (process.env[key]) env[key] = process.env[key]!;
+          const env = createWorkerEnvironment();
           const worker = utilityProcess.fork(
             join(__dirname, "../worker/forwarding-worker.mjs"),
             [],
@@ -166,18 +156,7 @@ else {
         materials,
         () => models!.acquire(),
         () => {
-          const env: Record<string, string> = {};
-          for (const key of [
-            "PATH",
-            "SystemRoot",
-            "TMPDIR",
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-            "NO_PROXY",
-            "NODE_USE_ENV_PROXY",
-          ])
-            if (process.env[key]) env[key] = process.env[key]!;
+          const env = createWorkerEnvironment();
           const worker = utilityProcess.fork(
             join(__dirname, "../worker/project-worker.mjs"),
             [],
