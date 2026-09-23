@@ -1,3 +1,4 @@
+import { ExecutionFailure } from "../../shared/task-failure";
 import { z } from "zod";
 import { Type } from "typebox";
 import { randomUUID } from "node:crypto";
@@ -31,6 +32,7 @@ export async function explore(
     collected = new Set<string>(),
     queries = new Set<string>();
   let searches = 0,
+    successfulSearches = 0,
     read = 0,
     failed = 0,
     searchFailed = false,
@@ -48,7 +50,7 @@ export async function explore(
             ? ("results" as const)
             : !searches
               ? ("not_covered" as const)
-              : searchFailed
+              : searchFailed || successfulSearches < searches
                 ? ("failed" as const)
                 : ("no_results" as const),
         }
@@ -115,6 +117,7 @@ export async function explore(
           query,
           signal,
         );
+        if (response.outcome !== "failed") successfulSearches++;
         if (response.outcome === "failed") {
           searchFailed = true;
           warning = response.message;
@@ -196,7 +199,7 @@ export async function explore(
           .strict()
           .parse(args);
         if (signal.aborted) throw new Error("cancelled");
-        if (searches < plan.minSearches && !searchFailed)
+        if (successfulSearches < plan.minSearches)
           return result({ message: "请先完成至少两轮不同搜索" });
         if (collected.has(candidateId))
           return result({ message: "该候选已提交" });
@@ -262,9 +265,32 @@ export async function explore(
       1500,
       undefined,
       tools,
+      () =>
+        !searchFailed && successfulSearches < plan.minSearches
+          ? `尚未完成探索：实际完成 ${successfulSearches} 轮不同搜索，必须至少完成 ${plan.minSearches} 轮。继续调用 search_repositories，选择未搜索的通用概念；无结果时换用单个更宽泛的概念。不要只回复完成。`
+          : undefined,
     );
-    if (searches < plan.minSearches && !searchFailed)
-      throw new Error("多轮探索未完成");
+    if (searchFailed) throw new ExecutionFailure("github_search");
+    if (successfulSearches < plan.minSearches)
+      throw new ExecutionFailure("search_incomplete");
+  } catch (error) {
+    const failure =
+      error instanceof ExecutionFailure
+        ? error
+        : new ExecutionFailure("execution_failed");
+    progress(true);
+    emit({
+      type: "failed",
+      taskId: input.taskId,
+      failure: {
+        code: failure.code,
+        stage: "exploration",
+        ...failure.counts,
+        searches,
+        successfulSearches,
+      },
+    });
+    throw failure;
   } finally {
     progress(true);
   }

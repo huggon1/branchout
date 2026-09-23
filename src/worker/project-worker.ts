@@ -1,3 +1,4 @@
+import { ExecutionFailure } from "../shared/task-failure";
 import { z } from "zod";
 import { executionSchema } from "../shared/model-contracts";
 import {
@@ -46,6 +47,7 @@ port.on("message", ({ data }) => {
   if (!parsed.success) return;
   const input = parsed.data;
   const emit = (event: ProjectEvent) => port.postMessage(event);
+  let stage: "repository" | "baseline" | "exploration" = "repository";
   void (async () => {
     let baseline = input.baseline;
     if (!baseline) {
@@ -55,6 +57,7 @@ port.on("message", ({ data }) => {
         controller.signal,
       );
       emit({ type: "phase", taskId: input.taskId, phase: "生成基线" });
+      stage = "baseline";
       const content = await runWithPi(
         input.config,
         input.taskId,
@@ -75,6 +78,7 @@ port.on("message", ({ data }) => {
       if (input.kind === "baseline") return;
       baseline = await pending;
     }
+    stage = "exploration";
     await explore(
       {
         taskId: input.taskId,
@@ -88,7 +92,18 @@ port.on("message", ({ data }) => {
     if (!controller.signal.aborted)
       emit({ type: "completed", taskId: input.taskId });
   })()
-    .catch(() => emit({ type: "failed", taskId: input.taskId }))
+    .catch((error) => {
+      if (stage === "exploration") return; // explore emits safe counters and final coverage first.
+      const failure =
+        error instanceof ExecutionFailure
+          ? error
+          : new ExecutionFailure("execution_failed");
+      emit({
+        type: "failed",
+        taskId: input.taskId,
+        failure: { code: failure.code, stage, ...failure.counts },
+      });
+    })
     .finally(() => {
       input.config.credential = "";
     });

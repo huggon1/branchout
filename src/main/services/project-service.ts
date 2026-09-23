@@ -1,3 +1,4 @@
+import { failureMessages, type TaskFailure } from "../../shared/task-failure";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
@@ -185,17 +186,30 @@ export class ProjectService {
       worker.on("message", (value) => {
         active.chain = active.chain
           .then(() => this.receive(taskId, value))
-          .catch(() => this.stop(taskId, "failed").catch(() => {}));
+          .catch(() =>
+            this.stop(taskId, "failed", {
+              code: "task_protocol",
+              stage: "runtime",
+            }).catch(() => {}),
+          );
       });
       worker.on("exit", () => {
         active.chain = active.chain
           .then(() => {
-            if (this.active.has(taskId)) return this.stop(taskId, "failed");
+            if (this.active.has(taskId))
+              return this.stop(taskId, "failed", {
+                code: "worker_exit",
+                stage: "runtime",
+              });
           })
           .catch(() => {});
       });
       active.timer = setTimeout(
-        () => void this.stop(taskId, "failed").catch(() => {}),
+        () =>
+          void this.stop(taskId, "failed", {
+            code: "task_timeout",
+            stage: "runtime",
+          }).catch(() => {}),
         300000,
       );
       worker.postMessage({
@@ -224,7 +238,7 @@ export class ProjectService {
       .tasks.find((item) => item.taskId === taskId);
     if (!task || !["queued", "running"].includes(task.state)) return;
     if (event.type === "failed") {
-      await this.stop(taskId, "failed");
+      await this.stop(taskId, "failed", event.failure);
       return;
     }
     if (event.type === "completed") {
@@ -328,7 +342,11 @@ export class ProjectService {
       }
     }
   }
-  async stop(id: string, state: "failed" | "cancelled" | "completed") {
+  async stop(
+    id: string,
+    state: "failed" | "cancelled" | "completed",
+    failure?: TaskFailure,
+  ) {
     await this.release(id);
     await this.store.update((value) => {
       const task = value.tasks.find((item) => item.taskId === id);
@@ -343,6 +361,13 @@ export class ProjectService {
       task.updatedAt = now();
       delete task.preview;
       delete task.message;
+      if (state === "failed") {
+        task.failure = failure ?? {
+          code: "execution_failed",
+          stage: "runtime",
+        };
+        task.message = failureMessages[task.failure.code];
+      }
       if (task.coverage.phase !== "finished")
         task.coverage = {
           ...task.coverage,

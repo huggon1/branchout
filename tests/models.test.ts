@@ -379,7 +379,9 @@ for (const protocol of ["openai-responses", "openai-completions"] as const)
         new AbortController().signal,
         async () => new Response("fixture-secret-error", { status: 401 }),
       ),
-      (error) => error instanceof Error && error.message === "模型检查失败",
+      (error) =>
+        error instanceof Error &&
+        error.message === "模型认证失败，请在设置中重新连接账号。",
     );
   });
 test("Codex Pi provider accepts an opaque fixture token without Branchout decoding it", async () => {

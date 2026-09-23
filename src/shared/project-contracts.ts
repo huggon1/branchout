@@ -1,3 +1,4 @@
+import { failureSchema } from "./task-failure";
 import { z } from "zod";
 import { draftSchema, projectReferenceSchema } from "./material-contracts";
 export const directionSchema = z.enum(["product", "uiux"]);
@@ -80,6 +81,7 @@ export const projectTaskSchema = z
     coverage: coverageSchema,
     updatedAt: z.string().datetime(),
     message: z.string().max(500).optional(),
+    failure: failureSchema.optional(),
   })
   .strict();
 export const projectStateSchema = z
@@ -128,7 +130,13 @@ export const projectEventSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("completed"), taskId: z.string().uuid() })
     .strict(),
-  z.object({ type: z.literal("failed"), taskId: z.string().uuid() }).strict(),
+  z
+    .object({
+      type: z.literal("failed"),
+      taskId: z.string().uuid(),
+      failure: failureSchema.optional(),
+    })
+    .strict(),
 ]);
 export const startProjectSchema = z
   .object({

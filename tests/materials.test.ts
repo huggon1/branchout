@@ -386,7 +386,7 @@ test("Pi context rejection and truncated output cannot become successful underst
           { status: 400 },
         ),
     ),
-    /模型检查失败/,
+    /输入超过模型上下文限制/,
   );
   const truncated: typeof fetch = async () =>
     new Response(
@@ -403,6 +403,6 @@ test("Pi context rejection and truncated output cannot become successful underst
       1800,
       truncated,
     ),
-    /模型检查失败/,
+    /模型输出被截断/,
   );
 });

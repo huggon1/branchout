@@ -229,6 +229,27 @@ export function ProjectWorkspace({
                 </p>
               )}
               {latest.message && <p>{latest.message}</p>}
+              {latest.failure && (
+                <details>
+                  <summary>查看失败详情</summary>
+                  <p>
+                    错误类别：{latest.failure.code} · 阶段：
+                    {latest.failure.stage}
+                  </p>
+                  {latest.failure.modelTurns !== undefined && (
+                    <p>
+                      模型请求 {latest.failure.modelTurns} · 工具调用{" "}
+                      {latest.failure.toolCalls ?? 0}
+                    </p>
+                  )}
+                  {latest.failure.searches !== undefined && (
+                    <p>
+                      搜索尝试 {latest.failure.searches} · 已完成{" "}
+                      {latest.failure.successfulSearches ?? 0}
+                    </p>
+                  )}
+                </details>
+              )}
               {["queued", "running"].includes(latest.state) && (
                 <Button
                   disabled={busy}
@@ -240,9 +261,7 @@ export function ProjectWorkspace({
                 </Button>
               )}
               {latest.state === "failed" && (
-                <p>
-                  任务未完成，已保存内容保留。检查仓库、模型与网络后可重新启动。
-                </p>
+                <p>任务未完成，已保存内容保留。可从上方重新启动。</p>
               )}
             </section>
           )}

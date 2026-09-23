@@ -1,3 +1,4 @@
+import { ExecutionFailure, classifyModelError } from "../shared/task-failure";
 import {
   Agent,
   type AgentTool,
@@ -46,11 +47,17 @@ export async function runWithPi(
   maxTokens: number,
   fetchOverride?: typeof fetch,
   tools: AgentTool[] = [],
+  continuation?: () => string | undefined,
 ) {
   let turns = 0;
+  let turnLimit = false;
   const model = resolveModel(config);
   const streamFn: StreamFn = (_model, context, options) => {
-    if (++turns > 14) throw new Error("执行轮数已达上限");
+    if (turns >= 14) {
+      turnLimit = true;
+      throw new ExecutionFailure("model_turn_limit");
+    }
+    turns++;
     const safeOptions = {
       ...options,
       apiKey: config.credential,
@@ -96,23 +103,59 @@ export async function runWithPi(
   try {
     if (signal.aborted) throw new Error("cancelled");
     await agent.prompt(prompt);
-    const last = agent.state.messages.at(-1);
-    if (
-      signal.aborted ||
-      !last ||
-      last.role !== "assistant" ||
-      last.stopReason !== "stop" ||
-      !last.content.some((part) => part.type === "text" && part.text.trim())
-    )
-      throw new Error("模型检查失败");
+    const validate = () => {
+      const last = agent.state.messages.at(-1);
+      if (turnLimit) throw new ExecutionFailure("model_turn_limit");
+      if (last?.role === "assistant" && last.stopReason === "length")
+        throw new ExecutionFailure("model_output_limit");
+      if (last?.role === "assistant" && last.stopReason === "error")
+        throw new ExecutionFailure(classifyModelError(last.errorMessage));
+      if (
+        signal.aborted ||
+        !last ||
+        last.role !== "assistant" ||
+        last.stopReason !== "stop"
+      )
+        throw new ExecutionFailure("model_empty");
+      return last;
+    };
+    let last = validate();
+    // Preserve the real tool transcript; bounded follow-ups never invent search results.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const next = continuation?.();
+      if (!next) break;
+      await agent.prompt(next);
+      last = validate();
+    }
+    if (continuation?.()) {
+      const invalidTool = agent.state.messages.some(
+        (message) => message.role === "toolResult" && message.isError,
+      );
+      throw new ExecutionFailure(
+        invalidTool ? "tool_arguments" : "search_incomplete",
+      );
+    }
+    if (!last.content.some((part) => part.type === "text" && part.text.trim()))
+      throw new ExecutionFailure("model_empty");
     return last.content
       .filter((part) => part.type === "text")
       .map((part) => part.text)
       .join("\n")
       .split(config.credential)
       .join("[已隐藏]");
-  } catch {
-    throw new Error("模型检查失败");
+  } catch (error) {
+    const toolCalls = agent.state.messages.reduce(
+      (count, message) =>
+        count +
+        (message.role === "assistant"
+          ? message.content.filter((part) => part.type === "toolCall").length
+          : 0),
+      0,
+    );
+    throw new ExecutionFailure(
+      turnLimit ? "model_turn_limit" : classifyModelError(error),
+      { modelTurns: turns, toolCalls },
+    );
   } finally {
     signal.removeEventListener("abort", abort);
     agent.reset();

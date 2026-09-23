@@ -21,6 +21,7 @@ const repoA = join(directory, "fixture-a"),
 let baselineCount = 0,
   searchCount = 0,
   modelCalls = [],
+  failureMode = false,
   slowBaseline = false,
   slowSearch = false;
 const sourceUrl = "https://github.com/fixture/public-repo";
@@ -98,7 +99,7 @@ const server = createServer(async (request, response) => {
       ["read_candidate", { candidateId: "candidate-1" }],
       ["collect_candidate", { candidateId: "candidate-1" }],
     ];
-    if (count < steps.length)
+    if (!failureMode && count < steps.length)
       call = {
         id: `call-${count}`,
         type: "function",
@@ -414,6 +415,33 @@ try {
     ),
     false,
   );
+  failureMode = true;
+  await nav("探索");
+  await page.getByLabel("当前项目").selectOption(idA);
+  await nav("产品探索");
+  await nav("开始探索");
+  await waitState((state) => state.tasks.at(-1)?.state === "failed");
+  await page
+    .getByText(
+      "模型提前结束，补执行后仍未完成两轮不同搜索；请重试或更换模型。",
+      { exact: true },
+    )
+    .waitFor();
+  const safeFailure = (
+    await page.evaluate(() => window.branchout.projects())
+  ).value.tasks.at(-1);
+  assert.equal(safeFailure.failure.code, "search_incomplete");
+  assert.equal(safeFailure.failure.modelTurns, 3);
+  assert.equal(safeFailure.failure.searches, 0);
+  assert.equal(safeFailure.coverage.outcome, "not_covered");
+  await page.getByText("查看失败详情", { exact: true }).click();
+  await page.screenshot({ path: "test-results/project-failure-narrow.png" });
+  await application.close();
+  await launch();
+  const recoveredFailure = (
+    await page.evaluate(() => window.branchout.projects())
+  ).value.tasks.at(-1);
+  assert.deepEqual(recoveredFailure.failure, safeFailure.failure);
   assert.deepEqual(errors, []);
   console.log(
     "Project Electron passed: folder validation, stable binding, independent manual/generated baselines, conflict-safe preview/cancel/replace/restart, automatic baseline then multi-round Pi tools, project material reading, same URL independent collections, concurrent forwarding and model snapshot, window-close continuation, cancellation, narrow editor. Isolated data and loopback model only.",
