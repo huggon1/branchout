@@ -3,6 +3,8 @@ import {
   explorationWorkerEventSchema,
 } from "../shared/worker-contracts";
 import { generateGraph } from "./graph/generator";
+import { ArchifyDraftError } from "./graph/archify-adapter";
+import { ExecutionFailure } from "../shared/task-failure";
 
 const port = process.parentPort;
 if (!port) throw new Error("Exploration worker requires a parent");
@@ -58,10 +60,38 @@ port.on("message", ({ data }) => {
         archify_deliver_failed: "Archify 交互工件生成失败。",
         archify_check_failed: "Archify 交互工件校验失败。",
         node_packets_invalid: "节点资料格式无效。",
+        node_packets_json_invalid: "模型返回的节点资料 JSON 无法解析。",
+        node_packets_count_invalid: "模型返回的节点资料数量与请求不符。",
+        node_packets_ids_invalid: "模型返回的节点编号与图节点不符。",
         node_packet_missing: "部分图节点缺少可核验的节点资料。",
       };
+      const archifyDetail =
+        error instanceof ArchifyDraftError
+          ? [...new Set(error.diagnostics.map((item) => item.code))]
+              .slice(0, 3)
+              .map(
+                (code) =>
+                  ({
+                    "layout/constraint": "节点布局约束",
+                    "clean-flow/endpoint-side-direction": "连线方向冲突",
+                    "clean-flow/edge-through-node": "连线穿过节点",
+                    "composition/proper-crossing": "连线交叉",
+                    "composition/label-route-clearance": "文字与连线重叠",
+                    "composition/micro-segment": "连线转折过短",
+                  })[code] ?? code,
+              )
+              .join("、")
+          : "";
       const message =
-        error instanceof Error ? messages[error.message] : undefined;
+        error instanceof ArchifyDraftError && archifyDetail
+          ? `Archify 校验后仍有图结构或连线问题：${archifyDetail}。`
+          : error instanceof ExecutionFailure
+            ? error.message
+            : error instanceof SyntaxError
+              ? "节点资料格式无法解析，请重新生成项目图。"
+              : error instanceof Error
+                ? messages[error.message]
+                : undefined;
       post({
         type: "failed",
         taskId: input.taskId,
