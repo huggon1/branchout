@@ -335,13 +335,13 @@ export class ModelService {
       if (value.method === "generic_api") credential = value.apiKey;
       else {
         context = this.context(value.authId);
+        if (this.state.catalog !== "ready") await this.refreshContext(context);
         if (
           !this.state.models.some(
             (model) => model.id === value.modelId && model.compatible,
-          ) ||
-          this.state.catalog !== "ready"
+          )
         )
-          throw new Error("请刷新模型目录");
+          throw new Error("当前模型不可用，请在设置中选择其他模型");
         const token = tokenSchema.parse(
           await context.client.request("getAuthStatus", {
             includeToken: true,
