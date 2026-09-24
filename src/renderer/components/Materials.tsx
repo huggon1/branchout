@@ -31,7 +31,13 @@ function SourceImage({
     </figure>
   );
 }
-export function Materials() {
+export function Materials({
+  openMaterialId,
+  onMaterialOpened,
+}: {
+  openMaterialId?: string;
+  onMaterialOpened?: () => void;
+} = {}) {
   const [snapshot, setSnapshot] = useState<MaterialState>();
   const [adding, setAdding] = useState(false);
   const [url, setUrl] = useState("");
@@ -80,6 +86,14 @@ export function Materials() {
         (time === "all" ||
           Date.now() - Date.parse(item.collectedAt) < 7 * 86400000),
     );
+  useEffect(() => {
+    if (!openMaterialId || !snapshot) return;
+    const item = snapshot.materials.find((entry) => entry.materialId === openMaterialId);
+    if (!item) return;
+    setSequence([item]);
+    setIndex(0);
+    onMaterialOpened?.();
+  }, [openMaterialId, snapshot, onMaterialOpened]);
   const taskList = snapshot?.tasks ?? [];
   const latest = taskList.at(-1);
   const shownTasks = taskList.filter(

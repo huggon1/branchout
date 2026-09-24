@@ -1,96 +1,242 @@
 import { useEffect, useState } from "react";
-import type { Direction } from "../shared/project-contracts";
-import type { AppSnapshot } from "../shared/domain";
 import { bridge } from "./bridge";
-import { ProjectWorkspace } from "./components/ProjectWorkspace";
+import { DirectionWorkspace, type WorkspaceDirection, type WorkspaceGraph } from "./components/DirectionWorkspace";
+import { ProjectManager } from "./components/ProjectManager";
 import { Materials } from "./components/Materials";
 import { ModelSettings } from "./components/ModelSettings";
 import { XSettings } from "./components/XSettings";
-import {
-  Brand,
-  Button,
-  EmptyState,
-  NavigationIcon,
-} from "./components/Primitives";
-const pages = ["素材", "探索", "项目", "设置"] as const;
+import { Brand, NavigationIcon } from "./components/Primitives";
+import type { ModelReply } from "../shared/model-contracts";
+
+type Page = "素材" | "UI/UX" | "功能模块" | "项目" | "设置";
+const pages: Page[] = ["素材", "UI/UX", "功能模块", "项目", "设置"];
+interface ProjectItem {
+  projectId: string;
+  projectLabel: string;
+  directory: string;
+}
+interface TaskItem {
+  taskId: string;
+  kind: string;
+  target: {
+    projectId?: string;
+    direction?: WorkspaceDirection;
+  };
+  state: string;
+  phase: string;
+  message?: string;
+  materialId?: string;
+}
+interface ExplorationView {
+  projects: ProjectItem[];
+  tasks: TaskItem[];
+}
+interface ExplorationBridge {
+  exploration(): Promise<ModelReply<ExplorationView>>;
+  bindLocalProject(): Promise<ModelReply<string | undefined>>;
+  removeProjectBinding(projectId: string): Promise<ModelReply<void>>;
+  currentGraph(projectId: string, direction: WorkspaceDirection): Promise<ModelReply<WorkspaceGraph | undefined>>;
+  generateGraph(input: { projectId: string; direction: WorkspaceDirection }): Promise<ModelReply<string>>;
+  analyzeRepository(input: { graphVersionId: string; nodeId: string; targetRepositoryUrl: string }): Promise<ModelReply<string>>;
+}
+const workspaceBridge = bridge as typeof bridge & ExplorationBridge;
+
 export function App() {
-  const [page, setPage] = useState<(typeof pages)[number]>("素材");
-  const [projectId, setProjectId] = useState("");
-  const [direction, setDirection] = useState<Direction>("product");
-  const [snapshot, setSnapshot] = useState<AppSnapshot>();
+  const [page, setPage] = useState<Page>("素材");
+  const [state, setState] = useState<ExplorationView>();
+  const [selected, setSelected] = useState<Record<WorkspaceDirection, string>>({
+    uiux: "",
+    functional_modules: "",
+  });
+  const [graph, setGraph] = useState<WorkspaceGraph>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openMaterialId, setOpenMaterialId] = useState<string>();
+  const direction: WorkspaceDirection | undefined =
+    page === "UI/UX" ? "uiux" : page === "功能模块" ? "functional_modules" : undefined;
+  const projectId = direction ? selected[direction] : "";
+
   useEffect(() => {
-    let active = true;
+    let alive = true;
     let revision = 0;
     const load = async () => {
       const current = ++revision;
       try {
-        const state = await bridge.snapshot();
-        if (active && current === revision) setSnapshot(state);
+        const reply = await workspaceBridge.exploration();
+        if (!alive || current !== revision) return;
+        if (reply.ok) {
+          setState(reply.value);
+          setSelected((previous) => ({
+            uiux: reply.value.projects.some((item) => item.projectId === previous.uiux)
+              ? previous.uiux
+              : "",
+            functional_modules: reply.value.projects.some(
+              (item) => item.projectId === previous.functional_modules,
+            )
+              ? previous.functional_modules
+              : "",
+          }));
+        } else {
+          setError(reply.message);
+        }
       } catch {
-        if (active) setError("无法读取应用状态，请重新打开窗口。");
+        if (alive) setError("项目状态读取失败，请重新打开窗口。");
       }
     };
     const unsubscribe = bridge.onChanged(() => void load());
     void load();
     return () => {
-      active = false;
+      alive = false;
       unsubscribe();
     };
   }, []);
-  const latest = snapshot?.tasks.at(-1);
-  const running =
-    busy || latest?.state === "running" || latest?.state === "queued";
-  const check = async () => {
+
+  useEffect(() => {
+    if (!direction || !projectId) {
+      setGraph(undefined);
+      return;
+    }
+    let alive = true;
+    let revision = 0;
+    const load = async () => {
+      const current = ++revision;
+      try {
+        const reply = await workspaceBridge.currentGraph(projectId, direction);
+        if (alive && current === revision) {
+          if (reply.ok) setGraph(reply.value);
+          else setError(reply.message);
+        }
+      } catch {
+        if (alive) setError("项目图读取失败，请重试。");
+      }
+    };
+    const unsubscribe = bridge.onChanged(() => void load());
+    void load();
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
+  }, [direction, projectId]);
+
+  const run = async (action: () => Promise<{ ok: boolean; message?: string }>) => {
     setBusy(true);
     setError("");
     try {
-      await bridge.runCheck();
+      const reply = await action();
+      if (!reply.ok) setError(reply.message ?? "操作未完成。");
     } catch {
-      setError("基础检查未能启动，请重试。");
+      setError("操作未完成，请重试。");
     } finally {
       setBusy(false);
     }
   };
+  const selectProject = async (nextId: string) => {
+    if (!direction) return;
+    setSelected((previous) => ({ ...previous, [direction]: nextId }));
+    setGraph(undefined);
+    setError("");
+    if (!nextId) return;
+    try {
+      const reply = await workspaceBridge.currentGraph(nextId, direction);
+      if (!reply.ok) {
+        setError(reply.message);
+        return;
+      }
+      if (reply.value) return;
+      const alreadyRunning = state?.tasks.some(
+        (task) =>
+          task.kind === "graph_generation" &&
+          task.target.projectId === nextId &&
+          task.target.direction === direction &&
+          (task.state === "queued" || task.state === "running"),
+      );
+      if (!alreadyRunning) await run(() => workspaceBridge.generateGraph({ projectId: nextId, direction }));
+    } catch {
+      setError("项目图初始化失败，请重试。");
+    }
+  };
+  const task = state?.tasks
+    .filter(
+      (item) =>
+        item.target.projectId === projectId &&
+        item.target.direction === direction,
+    )
+    .at(-1);
+
   return (
     <div className="shell">
-      <aside>
+      <aside className="app-sidebar">
         <Brand />
         <nav aria-label="主导航">
           {pages.map((name) => (
             <button
               key={name}
               aria-current={page === name ? "page" : undefined}
-              onClick={() => setPage(name)}
+              onClick={() => {
+                setPage(name);
+                setError("");
+              }}
             >
               <NavigationIcon name={name} />
               {name}
             </button>
           ))}
         </nav>
-        <span className="foundation-label">基础版本</span>
       </aside>
       <main>
-        <header>
+        <header className="app-header">
           <h1>{page}</h1>
         </header>
-        {error && (
-          <div role="alert" className="error">
-            {error}
-          </div>
-        )}
         <section
-          className={`content ${page === "素材" ? "materials-content" : ""}`}
+          className={`content ${page === "素材" ? "materials-content" : ""} ${direction ? "workspace-content" : ""}`}
         >
-          {page === "素材" && <Materials />}
-          {(page === "项目" || page === "探索") && (
-            <ProjectWorkspace
-              mode={page}
-              selected={projectId}
-              setSelected={setProjectId}
+          {error && <p role="alert" className="form-error">{error}</p>}
+          {page === "素材" && (
+            <Materials
+              openMaterialId={openMaterialId}
+              onMaterialOpened={() => setOpenMaterialId(undefined)}
+            />
+          )}
+          {page === "项目" && (
+            <ProjectManager
+              projects={state?.projects ?? []}
+              busy={busy}
+              error={error}
+              onAdd={() =>
+                run(async () => {
+                  const reply = await workspaceBridge.bindLocalProject();
+                  return reply;
+                })
+              }
+              onRemove={(id) => run(() => workspaceBridge.removeProjectBinding(id))}
+            />
+          )}
+          {direction && (
+            <DirectionWorkspace
               direction={direction}
-              setDirection={setDirection}
+              projects={state?.projects ?? []}
+              selectedProjectId={projectId}
+              graph={graph}
+              task={task}
+              busy={busy}
+              error={error}
+              onSelectProject={(id) => void selectProject(id)}
+              onGenerate={() =>
+                run(() => workspaceBridge.generateGraph({ projectId, direction }))
+              }
+              onAnalyze={(nodeId, targetRepositoryUrl) =>
+                run(() =>
+                  workspaceBridge.analyzeRepository({
+                    graphVersionId: graph!.graphVersionId,
+                    nodeId,
+                    targetRepositoryUrl,
+                  }),
+                )
+              }
+              onOpenMaterial={(id) => {
+                setOpenMaterialId(id);
+                setPage("素材");
+              }}
             />
           )}
           {page === "设置" && (
@@ -103,54 +249,9 @@ export function App() {
                 </div>
               </section>
               <XSettings />
-              <section className="diagnostics">
-                <div className="setting-row">
-                  <div>
-                    <h2>基础运行检查</h2>
-                    <p>仅检查后台进程、消息传递与本地保存，不调用 AI。</p>
-                  </div>
-                  <Button
-                    onClick={() => void check()}
-                    disabled={!snapshot || running}
-                  >
-                    {running ? "检查中…" : "运行检查"}
-                  </Button>
-                </div>
-                <div aria-live="polite">
-                  {latest && (
-                    <>
-                      <p>
-                        {latest.phase} · {latest.progress}/2
-                      </p>
-                      <ul>
-                        {snapshot?.results
-                          .filter((result) => result.taskId === latest.taskId)
-                          .map((result) => (
-                            <li key={result.resultId}>{result.label}</li>
-                          ))}
-                      </ul>
-                      {running && (
-                        <Button
-                          onClick={() => {
-                            void bridge
-                              .cancel(latest.taskId)
-                              .catch(() => setError("取消失败，请重试。"));
-                          }}
-                        >
-                          取消检查
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </section>
             </div>
           )}
         </section>
-        <footer>
-          <span>本地工作区</span>
-          <span>{snapshot ? "本地状态已读取" : "正在读取本地状态…"}</span>
-        </footer>
       </main>
     </div>
   );
