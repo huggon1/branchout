@@ -1,31 +1,24 @@
 # Main
 
-## 职责与运行位置
+本文描述 Electron 主进程的目标职责与文件分工。跨模块字段见[数据与消息契约](../../docs/data-contracts.md)，运行边界见[架构总览](../../docs/architecture-overview.md)。
 
-`main` 负责 Electron 桌面主进程：管理窗口、后台任务、本地数据和跨进程通信。它拥有数据保存与任务调度，并把需要 Agent 执行的工作交给工作进程。
+## 职责
 
-`preload.ts` 归在本目录以便维护进程边界，但实际运行在界面渲染环境的隔离上下文，只向界面暴露受控接口，不是主进程本体。
+`main` 管理窗口、项目绑定、当前图版本、后台任务、素材和模型连接。它接收界面命令，校验后创建任务并交付 Agent 工作进程；工作进程返回的图版本和素材草稿由主进程持久化，再通知界面。
 
-## 允许依赖
+每个项目与方向的当前图指针由主进程维护。重新生成图时，主进程先保存完整新版本，再切换指针；历史素材继续通过原图版本和节点读取依据。项目解绑后，素材引用的图版本随素材保留。
 
-- Electron 与 Node.js 桌面能力；
-- `shared` 中的领域、IPC 和工作进程契约；
-- 工作进程提供的消息接口。
+主进程持有模型凭据并为每个任务固定执行配置。窗口重开时，界面从持久化的任务快照、当前图和素材列表恢复状态。`preload.ts` 在隔离上下文中向界面提供受控接口。
 
-主进程通过消息边界使用工作进程，不依赖 React、Pi 或具体平台适配实现。
+## 依赖与文件分工
 
-## 主要文件
+`main` 使用 Electron、Node.js 和 `shared` 契约，通过消息边界调用 Agent 工作进程。
 
-- `main.ts`：组合并启动桌面主进程能力，注册跨进程入口。
-- `window.ts`：管理窗口生命周期以及关窗后的后台运行。
-- `preload.ts`：建立界面与主进程之间的受控桥接。
-- `task-manager.ts`：管理任务状态、调度、进度、取消和实现所需的并发控制。
-- `services/`：提供业务入口。
-  - `project-ipc.ts` 和 `project-service.ts`：项目、基线及探索入口。
-  - `model-service.ts`、`model-worker-client.ts` 和 `codex-client.ts`：当前模型连接、任务执行配置、Codex 登录与模型查询。
-  - `forwarding-service.ts`：接收链接并创建解析任务。
-  - `x-auth.ts` 和 `xhs-auth.ts`：平台登录及其运行状态。
-  - `worker-environment.ts`：构造工作进程需要的受控环境。
-- `storage/`：封装项目、基线、任务、素材和模型配置的本地持久化与凭据清理。
-
-模型连接的公开摘要、秘密字段与工作进程执行配置以 [数据与消息契约](../../docs/data-contracts.md#模型连接与凭据边界) 为准；renderer 不直接读取凭据。
+- `main.ts`、`window.ts`、`preload.ts`：启动主进程、管理窗口与后台运行、建立界面桥接。
+- `task-manager.ts`：调度图生成、仓库分析和转发任务，维护阶段、取消与恢复状态。
+- `services/project-ipc.ts`、`services/project-service.ts`：项目绑定、方向工作区的图版本查询与生成入口。
+- `services/forwarding-service.ts`：接收转发链接并创建处理任务。
+- `services/model-service.ts`、`services/model-worker-client.ts`、`services/codex-client.ts`：模型连接、Codex 登录与模型查询、任务执行配置。
+- `services/x-auth.ts`、`services/xhs-auth.ts`：转发内容平台的登录与读取状态。
+- `services/worker-environment.ts`：构造工作进程的受控运行环境。
+- `storage/`：保存项目绑定、图版本、任务快照、素材与模型配置，管理素材引用的历史图版本和凭据生命周期。
