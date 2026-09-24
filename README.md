@@ -1,4 +1,4 @@
-![Branchout 产品设计示意](docs/design/branchout-hero.png)
+![Branchout 当前开发版流程示意](docs/design/branchout-hero.png)
 
 # Branchout
 
@@ -6,7 +6,7 @@
 
 Branchout 是一款本地桌面应用。它读取你选择的 Git 仓库，建立产品与 UI/UX 两类项目理解，再围绕这些理解探索外部素材。你也可以直接添加链接，不必先选择项目。素材保留来源内容、图片、原链接和独立的 AI 理解，方便阅读与核验。
 
-> 上图是产品设计示意，不是应用截图。仓库目前提供开发版运行方式，尚无安装包；产品的完整目标行为以[产品规格](docs/product-spec.md)为准，不等同于下文列出的已实现能力。
+> 上图概括当前开发版的流程。下文介绍当前能力；计划中的产品行为见[产品规格](docs/product-spec.md)。
 
 ## 现在可以做什么
 
