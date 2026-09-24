@@ -223,6 +223,35 @@ test("catalog uses Codex evidence and Pi intersection, failed refresh preserves 
   assert.ok(!JSON.stringify(service.view()).includes("secret-catalog-error"));
   await service.close();
 });
+test("saved Codex connection refreshes its catalog when a task starts after restart", async () => {
+  const client = new FakeCodex();
+  client.loggedIn = true;
+  client.models = [{ model: "supported-fixture", displayName: "Supported" }];
+  const saved: StoredConnection = {
+    method: "codex_subscription",
+    modelId: "supported-fixture",
+    authId: randomUUID(),
+  };
+  const { service } = fixture({
+    storage: {
+      load: async () => saved,
+      save: async () => {},
+    },
+    client: () => client,
+  });
+  await service.open();
+  assert.equal(service.view().catalog, "empty");
+  client.failCatalog = true;
+  await assert.rejects(service.acquire());
+  assert.equal(service.view().catalog, "failed");
+  client.failCatalog = false;
+  const lease = await service.acquire();
+  assert.equal(lease.config.modelId, saved.modelId);
+  assert.equal(service.view().catalog, "ready");
+  assert.ok(client.calls.includes("model/list"));
+  await lease.release();
+  await service.close();
+});
 test("账号目录返回的新 GPT-6 模型可选，缺席的模型不伪造", async () => {
   const { service, clients } = fixture({
     catalog: async () => compatibleCodexModels(),
