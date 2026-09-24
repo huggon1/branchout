@@ -1,24 +1,15 @@
-import { z } from "zod";
-import { executionSchema } from "../shared/model-contracts";
-import { graphDirectionSchema } from "./graph/contracts";
+import {
+  explorationWorkerCommandSchema,
+  explorationWorkerEventSchema,
+} from "../shared/worker-contracts";
 import { generateGraph } from "./graph/generator";
-
-const commandSchema = z
-  .object({
-    type: z.literal("generate_graph"),
-    taskId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    projectLabel: z.string().min(1).max(300),
-    directory: z.string().min(1).max(4096),
-    direction: graphDirectionSchema,
-    config: executionSchema,
-  })
-  .strict();
 
 const port = process.parentPort;
 if (!port) throw new Error("Exploration worker requires a parent");
 const controller = new AbortController();
 let used = false;
+const post = (event: unknown) =>
+  port.postMessage(explorationWorkerEventSchema.parse(event));
 
 port.on("message", ({ data }) => {
   if (data?.type === "cancel") {
@@ -26,12 +17,20 @@ port.on("message", ({ data }) => {
     return;
   }
   if (used) return;
-  const parsed = commandSchema.safeParse(data);
+  const parsed = explorationWorkerCommandSchema.safeParse(data);
   if (!parsed.success) return;
   used = true;
   const input = parsed.data;
+  if (input.type !== "generate_graph") {
+    post({
+      type: "failed",
+      taskId: input.taskId,
+      message: "此任务类型由仓库分析工作进程处理。",
+    });
+    return;
+  }
   const progress = (phase: string, message?: string) =>
-    port.postMessage({
+    post({
       type: "progress",
       taskId: input.taskId,
       phase,
@@ -40,8 +39,8 @@ port.on("message", ({ data }) => {
   void generateGraph(input, controller.signal, progress)
     .then((graph) => {
       if (controller.signal.aborted) return;
-      port.postMessage({ type: "graph_result", taskId: input.taskId, graph });
-      port.postMessage({ type: "completed", taskId: input.taskId });
+      post({ type: "graph_result", taskId: input.taskId, graph });
+      post({ type: "completed", taskId: input.taskId });
     })
     .catch((error) => {
       if (controller.signal.aborted) return;
@@ -63,7 +62,7 @@ port.on("message", ({ data }) => {
       };
       const message =
         error instanceof Error ? messages[error.message] : undefined;
-      port.postMessage({
+      post({
         type: "failed",
         taskId: input.taskId,
         message: message ?? "项目图生成失败，请检查模型连接后重试。",
