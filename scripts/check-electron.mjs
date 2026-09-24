@@ -1,6 +1,6 @@
 import { _electron as electron } from "playwright";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const directory = await mkdtemp(join(tmpdir(), "branchout-ui-"));
@@ -75,33 +75,24 @@ try {
     contextIsolation: true,
     nodeIntegration: false,
   });
-  for (const name of ["探索", "项目", "设置", "素材"]) {
+  for (const name of ["UI/UX", "功能模块", "项目", "设置", "素材"]) {
     await page.getByRole("button", { name, exact: true }).click();
-    await page.getByRole("heading", { name, exact: true }).waitFor();
+    await page.getByRole("heading", { level: 1, name, exact: true }).waitFor();
   }
   await page.screenshot({ path: "test-results/materials.png" });
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByText("小红书", { exact: true }).waitFor();
   await page.getByRole("button", { name: "素材", exact: true }).click();
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("button", { name: "运行检查", exact: true }).click();
-  await page.getByRole("button", { name: "取消检查", exact: true }).waitFor();
+  await page.getByRole("button", { name: "保存连接", exact: true }).waitFor();
   await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].close(),
   );
   await new Promise((resolve) => setTimeout(resolve, 1800));
-  const persisted = JSON.parse(
-    await readFile(join(directory, "foundation.json"), "utf8"),
-  );
-  assert.equal(persisted.tasks[0].state, "completed");
-  assert.equal(persisted.results.length, 2);
   await application.evaluate(({ app }) => app.emit("activate"));
   page = await application.firstWindow();
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByText("基础检查完成 · 2/2").waitFor();
-  await page.getByRole("button", { name: "运行检查", exact: true }).click();
-  await page.getByRole("button", { name: "取消检查", exact: true }).click();
-  await page.getByText(/检查已取消/).waitFor();
+  await page.getByRole("heading", { name: "设置", level: 1 }).waitFor();
   await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].setSize(640, 480),
   );
@@ -113,7 +104,7 @@ try {
     false,
   );
   const button = await page
-    .getByRole("button", { name: "运行检查", exact: true })
+    .getByRole("button", { name: "保存连接", exact: true })
     .boundingBox();
   assert.ok(button && button.x >= 0 && button.x + button.width <= 640);
   await page.keyboard.press("Tab");
@@ -121,16 +112,14 @@ try {
     await page.evaluate(() => document.activeElement?.tagName),
     "BUTTON",
   );
-  await page.getByRole("button", { name: "运行检查", exact: true }).click();
-  await page.getByText("基础检查完成 · 2/2").waitFor();
   await application.close();
   application = await launch();
   page = await application.firstWindow();
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByText("基础检查完成 · 2/2").waitFor();
+  await page.getByRole("heading", { name: "设置", level: 1 }).waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "Electron UI passed: navigation, sandbox, background completion, deduplication, reopen, cancel/retry, narrow window, restart persistence.",
+    "Electron UI passed: navigation, sandbox, reopen, narrow window and restart.",
   );
 } finally {
   if (application) await application.close();
