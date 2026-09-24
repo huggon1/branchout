@@ -23,6 +23,9 @@ import { ProjectStore } from "./storage/project-store";
 import { ProjectService } from "./services/project-service";
 import { createWorkerEnvironment } from "./services/worker-environment";
 import { registerProjectIpc } from "./services/project-ipc";
+import { registerExplorationIpc } from "./services/exploration-ipc";
+import { ExplorationService } from "./services/exploration-service";
+import { ExplorationStore } from "./storage/exploration-store";
 import { ForwardingService } from "./services/forwarding-service";
 import { rm } from "node:fs/promises";
 import { ModelService } from "./services/model-service";
@@ -46,6 +49,7 @@ else {
   let models: ModelService | undefined;
   let forwarding: ForwardingService | undefined;
   let projects: ProjectService | undefined;
+  let exploration: ExplorationService | undefined;
   let xAuth: XAuth | undefined;
   let xhsAuth: XhsAuth | undefined;
   let quitting = false;
@@ -76,6 +80,7 @@ else {
         manager.shutdown(),
         forwarding?.shutdown(),
         projects?.shutdown(),
+        exploration?.shutdown(),
       ])
         .then(() => models?.close())
         .catch(() => {
@@ -203,11 +208,37 @@ else {
         () => xhsAuth!.session(),
       );
       await projects.recover();
+      const explorationStore = new ExplorationStore(
+        join(app.getPath("userData"), "exploration.json"),
+      );
+      await explorationStore.open();
+      exploration = new ExplorationService(
+        explorationStore,
+        materials,
+        () => models!.acquire(),
+        () => {
+          const env = createWorkerEnvironment();
+          const worker = utilityProcess.fork(
+            join(__dirname, "../worker/exploration-worker.mjs"),
+            [],
+            { stdio: "pipe", env },
+          );
+          worker.stdout?.resume();
+          worker.stderr?.resume();
+          return worker;
+        },
+        () => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.webContents.send(channels.changed);
+        },
+      );
+      await exploration.recover();
 
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
       registerProjectIpc(projects, expected);
+      registerExplorationIpc(exploration, projects, expected);
       for (const channel of Object.values(xChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -277,7 +308,11 @@ else {
                 .snapshot()
                 .materials.find((item) => item.materialId === id);
               if (!material) throw new Error("素材不存在");
-              await shell.openExternal(material.source.sourceUrl);
+              await shell.openExternal(
+                material.category === "node_analysis"
+                  ? material.nodeAnalysis.targetRepositoryUrl
+                  : material.source.sourceUrl,
+              );
             }
             return { ok: true, value };
           } catch {

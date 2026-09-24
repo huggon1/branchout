@@ -87,4 +87,15 @@ export class MaterialStore {
         state.materials.push(record);
     });
   }
+  async saveNodeAnalysis(
+    record: Extract<MaterialRecord, { category: "node_analysis" }>,
+  ) {
+    await this.update((state) => {
+      const existing = state.materials.find(
+        (item) =>
+          item.taskId === record.taskId && item.resultId === record.resultId,
+      );
+      if (!existing) state.materials.push(record);
+    });
+  }
 }
