@@ -14,7 +14,7 @@ Branchout 使用 Electron、React 和 TypeScript 构建桌面应用。Pi 承担�
 
 ## 项目图生成
 
-项目图生成器按项目和方向建立一次输入快照，读取本机 Git 仓库的当前文件，包括尚未提交的修改，并记录可追溯的项目状态。UI/UX 方向将用户任务中的步骤与转移组织为 workflow 图；功能模块方向将产品能力与关系组织为 architecture 图。两种图都由静态代码与文档分析支撑，再交给 Archify 生成和校验图源与可视化结果。
+项目图生成器按项目和方向建立一次输入快照，读取本机 Git 仓库的当前文件，包括尚未提交的修改，并记录可追溯的项目状态。UI/UX 方向将用户任务中的步骤与转移组织为 workflow 图；功能模块方向将产品能力与关系组织为 architecture 图。Agent 根据静态代码与文档生成 Archify 图源；Archify 校验结构、布局和交互工件，并把诊断反馈给 Agent 修正候选图。功能模块图多轮修正后仍有连线冲突时，生成器按已有关系排列节点，保留能在相邻节点间清晰呈现的连接，交由 Archify 再次校验。通过校验的图源进入节点补充分析。
 
 Archify 的原生仓库证据校验面向固定提交的 architecture 图；workflow 图及本机未提交修改的证据由 Branchout 的项目快照和节点资料承担。节点补充分析在同一次快照上完成，给每个节点形成简述、事实与依据、可分析性判断，以及适合分析节点的固定分析说明。[Archify 仓库证据契约](https://github.com/tt-a1i/archify/blob/main/archify/references/authoring-contract.md#repository-evidence)是这一边界的技术依据。
 

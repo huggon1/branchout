@@ -6,6 +6,53 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const exec = promisify(execFile);
+export class ArchifyDraftError extends Error {
+  constructor(
+    command: string,
+    readonly diagnostics: Array<{
+      code: string;
+      message?: string;
+      subject?: unknown;
+      evidence?: unknown;
+      supportedFixes?: unknown;
+    }>,
+  ) {
+    super(`archify_${command}_failed`);
+  }
+}
+
+function failureDiagnostics(output: unknown) {
+  if (typeof output !== "string") return [];
+  try {
+    const receipt = JSON.parse(output) as Record<string, unknown>;
+    if (receipt.ok !== false || !Array.isArray(receipt.diagnostics)) return [];
+    const counts = new Map<string, number>();
+    return receipt.diagnostics
+      .filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && typeof item.code === "string",
+      )
+      .filter((item) => {
+        const code = item.code as string;
+        const count = counts.get(code) ?? 0;
+        counts.set(code, count + 1);
+        return count < 2;
+      })
+      .slice(0, 8)
+      .map((item) => ({
+        code: String(item.code).slice(0, 120),
+        message:
+          typeof item.message === "string"
+            ? item.message.slice(0, 500)
+            : undefined,
+        subject: item.subject,
+        evidence: item.evidence,
+        supportedFixes: item.supportedFixes,
+      }));
+  } catch {
+    return [];
+  }
+}
 const selectionBridge = `\n<script>(function(){\n  var idPattern = /^[A-Za-z0-9_-]{1,96}$/;\n  document.addEventListener('click', function(event) {\n    if (!event.isTrusted || !(event.target instanceof Element)) return;\n    var node = event.target.closest('[data-node-id]');\n    if (!node) return;\n    var nodeId = node.getAttribute('data-node-id');\n    if (!nodeId || !idPattern.test(nodeId)) return;\n    window.parent.postMessage({ channel: 'branchout.archify', version: 1, type: 'node-selected', nodeId: nodeId }, '*');\n  }, true);\n})();</script>\n`;
 
 async function cliPath() {
@@ -28,7 +75,7 @@ async function cliPath() {
 async function runArchify(args: string[], signal?: AbortSignal) {
   try {
     const { stdout } = await exec(
-      process.execPath,
+      process.env.BRANCHOUT_ARCHIFY_EXECUTABLE || process.execPath,
       [await cliPath(), ...args],
       {
         timeout: 120_000,
@@ -41,12 +88,20 @@ async function runArchify(args: string[], signal?: AbortSignal) {
           SystemRoot: process.env.SystemRoot,
           LANG: "C.UTF-8",
           LC_ALL: "C.UTF-8",
+          ...(process.env.BRANCHOUT_ARCHIFY_EXECUTABLE
+            ? { ELECTRON_RUN_AS_NODE: "1" }
+            : {}),
         },
       },
     );
     return JSON.parse(stdout.trim()) as Record<string, unknown>;
-  } catch {
+  } catch (error) {
     if (signal?.aborted) throw new Error("cancelled");
+    const diagnostics = failureDiagnostics(
+      (error as { stdout?: unknown }).stdout,
+    );
+    if (diagnostics.length && ["validate", "deliver"].includes(args[0]))
+      throw new ArchifyDraftError(args[0], diagnostics);
     throw new Error(`archify_${args[0]}_failed`);
   }
 }

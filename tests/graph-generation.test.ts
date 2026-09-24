@@ -7,11 +7,16 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { chromium } from "playwright";
 import { captureProjectSnapshot } from "../src/worker/graph/repository-snapshot";
-import { validateAndDeliverGraph } from "../src/worker/graph/archify-adapter";
+import {
+  ArchifyDraftError,
+  validateAndDeliverGraph,
+} from "../src/worker/graph/archify-adapter";
 import {
   buildGraphInputPayload,
   buildNodeInputPayload,
   buildNodePackets,
+  mainRelationshipSummary,
+  responseJson,
   MAX_MODEL_PAYLOAD_CHARS,
 } from "../src/worker/graph/generator";
 import {
@@ -98,6 +103,65 @@ test("pinned Archify delivers workflow and architecture with sandbox-safe node s
   } finally {
     await browser.close();
   }
+});
+
+test("Archify validation returns structured feedback for a repair pass", async () => {
+  await assert.rejects(
+    validateAndDeliverGraph({
+      schema_version: 1,
+      diagram_type: "architecture",
+      meta: { title: "Invalid fixture", quality_profile: "showcase" },
+      components: [{ id: "sample", type: "invalid-type", label: "Sample" }],
+    }),
+    (error: unknown) =>
+      error instanceof ArchifyDraftError &&
+      error.message === "archify_validate_failed" &&
+      error.diagnostics.some((item) => item.code.length > 0),
+  );
+});
+
+test("architecture summary retains only original relationships and passes Archify", async () => {
+  const source = {
+    schema_version: 1,
+    diagram_type: "architecture",
+    meta: { title: "功能模块" },
+    components: [
+      { id: "entry", type: "frontend", label: "入口" },
+      { id: "search", type: "backend", label: "搜索" },
+      { id: "store", type: "database", label: "数据" },
+      { id: "settings", type: "frontend", label: "设置" },
+    ],
+    connections: [
+      { from: "entry", to: "search" },
+      { from: "search", to: "store" },
+      { from: "settings", to: "store" },
+      { from: "entry", to: "store" },
+    ],
+  };
+  const summary = mainRelationshipSummary(source);
+  assert.ok(summary);
+  assert.equal((summary.components as unknown[]).length, 4);
+  const original = new Set(
+    source.connections.map(({ from, to }) => `${from}->${to}`),
+  );
+  for (const edge of summary.connections as Array<{ from: string; to: string }>)
+    assert.ok(original.has(`${edge.from}->${edge.to}`));
+  assert.ok((summary.connections as unknown[]).length >= 2);
+  const delivered = await validateAndDeliverGraph(summary);
+  assert.equal(delivered.receipts.validation.ok, true);
+  assert.match(delivered.viewArtifact, /主要关系摘要/);
+});
+
+test("model JSON parser accepts the first complete object and rejects incomplete data", () => {
+  assert.deepEqual(
+    responseJson<{ nodes: unknown[] }>(
+      '```json\n{"nodes":[{"summary":"a \\"} b"}]}]}\n```',
+    ),
+    {
+      nodes: [{ summary: 'a "} b' }],
+    },
+  );
+  assert.throws(() => responseJson('{"nodes":['), /graph_model_json_missing/);
 });
 
 test("project snapshots freeze dirty working-tree contents and bind exact evidence", async () => {

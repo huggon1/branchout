@@ -233,6 +233,8 @@ else {
         () => models!.acquire(),
         (kind) => {
           const env = createWorkerEnvironment();
+          if (kind === "graph_generation")
+            env.BRANCHOUT_ARCHIFY_EXECUTABLE = process.execPath;
           const worker = utilityProcess.fork(
             join(
               __dirname,
