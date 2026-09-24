@@ -88,7 +88,7 @@ export function ProjectGraph({
       ref={frame}
       className="graph-frame"
       title={`${graph.projectLabel}项目图`}
-      srcDoc={graph.viewArtifact}
+      src={`branchout-graph://view/${graph.graphVersionId}`}
       sandbox="allow-scripts"
     />
   );
