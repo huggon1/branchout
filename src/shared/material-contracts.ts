@@ -17,6 +17,65 @@ export const repositoryUrlSchema = z
       !url.pathname.split("/").some((part) => part === "." || part === "..")
     );
   }, "目前仅支持 GitHub 公开仓库首页链接");
+export const repositoryEvidenceUrlSchema = z
+  .string()
+  .max(2048)
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "github.com" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      url.search ||
+      (url.hash && !/^#L\d+(?:-L\d+)?$/.test(url.hash))
+    )
+      return false;
+    let parts: string[];
+    try {
+      parts = url.pathname.split("/").slice(1).map(decodeURIComponent);
+    } catch {
+      return false;
+    }
+    if (parts.at(-1) === "") parts.pop();
+    if (
+      parts.some(
+        (part) =>
+          !part ||
+          part === "." ||
+          part === ".." ||
+          /[\\/\u0000-\u001f\u007f]/.test(part),
+      )
+    )
+      return false;
+    const [owner, repository, kind, revision, ...filePath] = parts;
+    if (!owner || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(owner))
+      return false;
+    if (!repository || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(repository))
+      return false;
+    if (parts.length === 2) return !url.hash;
+    if (kind === "commit")
+      return (
+        parts.length === 4 &&
+        /^[a-f0-9]{7,40}$/i.test(revision ?? "") &&
+        !url.hash
+      );
+    if (kind === "tree")
+      return (
+        parts.length === 4 &&
+        /^[a-f0-9]{7,40}$/i.test(revision ?? "") &&
+        !url.hash
+      );
+    if (kind === "blob")
+      return (
+        parts.length >= 5 &&
+        /^[a-f0-9]{7,40}$/i.test(revision ?? "") &&
+        filePath.length > 0
+      );
+    return false;
+  }, "仅支持安全的 GitHub 仓库、提交、目录或文件链接");
 export const xPostUrlSchema = z
   .string()
   .max(2048)

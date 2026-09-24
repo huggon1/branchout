@@ -36,6 +36,7 @@ export const materialChannels = {
   add: "materials:add",
   cancel: "materials:cancel",
   open: "materials:open",
+  openRepositoryLink: "materials:open-repository-link",
 } as const;
 import type { ModelReply, ModelView, SaveModelInput } from "./model-contracts";
 export const modelChannels = {
@@ -88,6 +89,7 @@ export interface DesktopBridge {
   addLink(url: string): Promise<ModelReply<string>>;
   cancelForwarding(taskId: string): Promise<ModelReply<void>>;
   openSource(materialId: string): Promise<ModelReply<void>>;
+  openRepositoryLink(url: string): Promise<ModelReply<void>>;
   modelView(): Promise<ModelReply<ModelView>>;
   saveModel(input: SaveModelInput): Promise<ModelReply<void>>;
   loginModel(): Promise<ModelReply<void>>;

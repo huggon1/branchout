@@ -35,6 +35,8 @@ const bridge: DesktopBridge = {
   addLink: (url) => ipcRenderer.invoke(materialChannels.add, url),
   cancelForwarding: (id) => ipcRenderer.invoke(materialChannels.cancel, id),
   openSource: (id) => ipcRenderer.invoke(materialChannels.open, id),
+  openRepositoryLink: (url) =>
+    ipcRenderer.invoke(materialChannels.openRepositoryLink, url),
   modelView: () => ipcRenderer.invoke(modelChannels.view),
   saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
   loginModel: () => ipcRenderer.invoke(modelChannels.login),

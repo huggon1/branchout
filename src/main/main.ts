@@ -38,6 +38,7 @@ import { TaskManager } from "./task-manager";
 import { createWindow } from "./window";
 import { XAuth } from "./services/x-auth";
 import { XhsAuth } from "./services/xhs-auth";
+import { repositoryEvidenceUrlSchema } from "../shared/material-contracts";
 if (process.env.BRANCHOUT_TEST_DATA)
   app.setPath("userData", process.env.BRANCHOUT_TEST_DATA);
 else
@@ -302,7 +303,10 @@ else {
                 z.string().uuid().parse(args[0]),
                 "cancelled",
               );
-            else {
+            else if (channel === materialChannels.openRepositoryLink) {
+              const url = repositoryEvidenceUrlSchema.parse(args[0]);
+              await shell.openExternal(url);
+            } else {
               const id = z.string().uuid().parse(args[0]);
               const material = materials
                 .snapshot()
