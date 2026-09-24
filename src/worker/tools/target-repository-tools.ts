@@ -14,6 +14,7 @@ export type TargetReadResult = {
   checkedScope: string[];
   files: TargetFile[];
   bounded: boolean;
+  omittedScopeCount?: number;
 };
 
 export class TargetRepositoryReadError extends Error {

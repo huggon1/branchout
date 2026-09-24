@@ -129,6 +129,15 @@ export class ProjectService {
     this.changed();
     return id;
   }
+  async unbind(projectId: string) {
+    if (this.closed) throw new Error("已关闭");
+    await this.store.update((state) => {
+      state.projects = state.projects.filter(
+        (project) => project.projectId !== projectId,
+      );
+    });
+    this.changed();
+  }
   async edit(raw: unknown) {
     const input = editBaselineSchema.parse(raw);
     await this.store.update((state) => {
