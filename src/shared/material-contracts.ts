@@ -17,6 +17,65 @@ export const repositoryUrlSchema = z
       !url.pathname.split("/").some((part) => part === "." || part === "..")
     );
   }, "目前仅支持 GitHub 公开仓库首页链接");
+export const repositoryEvidenceUrlSchema = z
+  .string()
+  .max(2048)
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "github.com" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      url.search ||
+      (url.hash && !/^#L\d+(?:-L\d+)?$/.test(url.hash))
+    )
+      return false;
+    let parts: string[];
+    try {
+      parts = url.pathname.split("/").slice(1).map(decodeURIComponent);
+    } catch {
+      return false;
+    }
+    if (parts.at(-1) === "") parts.pop();
+    if (
+      parts.some(
+        (part) =>
+          !part ||
+          part === "." ||
+          part === ".." ||
+          /[\\/\u0000-\u001f\u007f]/.test(part),
+      )
+    )
+      return false;
+    const [owner, repository, kind, revision, ...filePath] = parts;
+    if (!owner || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(owner))
+      return false;
+    if (!repository || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(repository))
+      return false;
+    if (parts.length === 2) return !url.hash;
+    if (kind === "commit")
+      return (
+        parts.length === 4 &&
+        /^[a-f0-9]{7,40}$/i.test(revision ?? "") &&
+        !url.hash
+      );
+    if (kind === "tree")
+      return (
+        parts.length === 4 &&
+        /^[a-f0-9]{7,40}$/i.test(revision ?? "") &&
+        !url.hash
+      );
+    if (kind === "blob")
+      return (
+        parts.length >= 5 &&
+        /^[a-f0-9]{7,40}$/i.test(revision ?? "") &&
+        filePath.length > 0
+      );
+    return false;
+  }, "仅支持安全的 GitHub 仓库、提交、目录或文件链接");
 export const xPostUrlSchema = z
   .string()
   .max(2048)
@@ -179,6 +238,68 @@ export const projectReferenceSchema = z
     referencePoints: z.string().min(1).max(20000),
   })
   .strict();
+export const targetEvidenceSchema = z
+  .object({
+    commitId: z.string().min(1).max(200),
+    relativePath: z.string().min(1).max(4096),
+    range: z.string().min(1).max(200),
+    quote: z.string().min(1).max(12000),
+  })
+  .strict();
+export const repositoryAnalysisResultSchema = z
+  .object({
+    targetRepositoryUrl: z.string().url().max(2048),
+    targetCommit: z.string().max(200).optional(),
+    bounded: z.boolean().optional(),
+    omittedScopeCount: z.number().int().nonnegative().max(500).optional(),
+    checkedScope: z.array(z.string().max(2000)).max(500),
+    status: z.enum([
+      "matched",
+      "no_match",
+      "insufficient_evidence",
+      "read_failed",
+    ]),
+    conclusion: z.string().min(1).max(16000),
+    evidence: z.array(targetEvidenceSchema).max(500),
+    comparisons: z
+      .array(
+        z
+          .object({
+            point: z.string().min(1).max(2000),
+            projectApproach: z.string().min(1).max(4000),
+            targetApproach: z.string().min(1).max(4000),
+            difference: z.string().min(1).max(4000),
+            projectEvidence: z
+              .array(
+                z
+                  .object({
+                    path: z.string(),
+                    range: z.string(),
+                    quote: z.string(),
+                    contentDigest: z.string(),
+                  })
+                  .strict(),
+              )
+              .max(40),
+            targetEvidence: z.array(targetEvidenceSchema).max(40),
+          })
+          .strict(),
+      )
+      .max(100),
+  })
+  .strict();
+const nodeAnalysisSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    projectLabel: z.string().min(1).max(300),
+    nodeTitle: z.string().min(1).max(300),
+    direction: z.enum(["uiux", "functional_modules"]),
+    graphVersionId: z.string().uuid(),
+    nodeId: z.string().min(1).max(200),
+    targetRepositoryUrl: z.string().url().max(2048),
+    result: repositoryAnalysisResultSchema,
+  })
+  .strict();
 const materialBase = draftSchema.extend({
   materialId: z.string().uuid(),
   taskId: z.string().uuid(),
@@ -210,6 +331,17 @@ export const materialSchema = z.discriminatedUnion("category", [
         .object({ projectId: z.string().uuid(), name: z.string().max(300) })
         .strict(),
       projectReference: projectReferenceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      materialId: z.string().uuid(),
+      taskId: z.string().uuid(),
+      resultId: z.string().uuid(),
+      category: z.literal("node_analysis"),
+      collectedAt: z.string().datetime(),
+      displayLabel: z.string().min(1).max(500),
+      nodeAnalysis: nodeAnalysisSchema,
     })
     .strict(),
 ]);
@@ -283,5 +415,9 @@ export type SourceContent = z.infer<typeof sourceSchema>;
 export type ContentBlock = z.infer<typeof blockSchema>;
 export type MaterialDraft = z.infer<typeof draftSchema>;
 export type MaterialRecord = z.infer<typeof materialSchema>;
+export type RepositoryAnalysisResult = z.infer<
+  typeof repositoryAnalysisResultSchema
+>;
+export type TargetEvidenceRef = z.infer<typeof targetEvidenceSchema>;
 export type MaterialState = z.infer<typeof materialStateSchema>;
 export type ForwardingEvent = z.infer<typeof forwardingEventSchema>;

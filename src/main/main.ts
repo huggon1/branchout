@@ -23,6 +23,9 @@ import { ProjectStore } from "./storage/project-store";
 import { ProjectService } from "./services/project-service";
 import { createWorkerEnvironment } from "./services/worker-environment";
 import { registerProjectIpc } from "./services/project-ipc";
+import { registerExplorationIpc } from "./services/exploration-ipc";
+import { ExplorationService } from "./services/exploration-service";
+import { ExplorationStore } from "./storage/exploration-store";
 import { ForwardingService } from "./services/forwarding-service";
 import { rm } from "node:fs/promises";
 import { ModelService } from "./services/model-service";
@@ -35,6 +38,7 @@ import { TaskManager } from "./task-manager";
 import { createWindow } from "./window";
 import { XAuth } from "./services/x-auth";
 import { XhsAuth } from "./services/xhs-auth";
+import { repositoryEvidenceUrlSchema } from "../shared/material-contracts";
 if (process.env.BRANCHOUT_TEST_DATA)
   app.setPath("userData", process.env.BRANCHOUT_TEST_DATA);
 else
@@ -46,6 +50,7 @@ else {
   let models: ModelService | undefined;
   let forwarding: ForwardingService | undefined;
   let projects: ProjectService | undefined;
+  let exploration: ExplorationService | undefined;
   let xAuth: XAuth | undefined;
   let xhsAuth: XhsAuth | undefined;
   let quitting = false;
@@ -76,6 +81,7 @@ else {
         manager.shutdown(),
         forwarding?.shutdown(),
         projects?.shutdown(),
+        exploration?.shutdown(),
       ])
         .then(() => models?.close())
         .catch(() => {
@@ -203,11 +209,49 @@ else {
         () => xhsAuth!.session(),
       );
       await projects.recover();
+      const explorationStore = new ExplorationStore(
+        join(app.getPath("userData"), "exploration.json"),
+      );
+      await explorationStore.open();
+      await explorationStore.reconcileProjects(
+        projects.view().projects.map((project) => ({
+          projectId: project.projectId,
+          projectLabel: project.name,
+          directory: project.directory,
+        })),
+      );
+      exploration = new ExplorationService(
+        explorationStore,
+        materials,
+        () => models!.acquire(),
+        (kind) => {
+          const env = createWorkerEnvironment();
+          const worker = utilityProcess.fork(
+            join(
+              __dirname,
+              kind === "repository_analysis"
+                ? "../worker/analysis-worker.mjs"
+                : "../worker/exploration-worker.mjs",
+            ),
+            [],
+            { stdio: "pipe", env },
+          );
+          worker.stdout?.resume();
+          worker.stderr?.resume();
+          return worker;
+        },
+        () => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.webContents.send(channels.changed);
+        },
+      );
+      await exploration.recover();
 
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
       registerProjectIpc(projects, expected);
+      registerExplorationIpc(exploration, projects, expected);
       for (const channel of Object.values(xChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -271,13 +315,20 @@ else {
                 z.string().uuid().parse(args[0]),
                 "cancelled",
               );
-            else {
+            else if (channel === materialChannels.openRepositoryLink) {
+              const url = repositoryEvidenceUrlSchema.parse(args[0]);
+              await shell.openExternal(url);
+            } else {
               const id = z.string().uuid().parse(args[0]);
               const material = materials
                 .snapshot()
                 .materials.find((item) => item.materialId === id);
               if (!material) throw new Error("素材不存在");
-              await shell.openExternal(material.source.sourceUrl);
+              await shell.openExternal(
+                material.category === "node_analysis"
+                  ? material.nodeAnalysis.targetRepositoryUrl
+                  : material.source.sourceUrl,
+              );
             }
             return { ok: true, value };
           } catch {
