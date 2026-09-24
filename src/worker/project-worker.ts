@@ -8,6 +8,10 @@ import {
 import { readRepository, validateRepository } from "./tools/repository-tools";
 import { runWithPi } from "./pi-runtime";
 import { explore } from "./tasks/run-exploration";
+import {
+  xExecutionSessionSchema,
+  xhsExecutionSessionSchema,
+} from "../shared/platform-contracts";
 const command = z
   .object({
     type: z.literal("run"),
@@ -17,6 +21,8 @@ const command = z
     kind: z.enum(["baseline", "exploration"]),
     baseline: z.string().optional(),
     config: executionSchema,
+    xCredentials: xExecutionSessionSchema.optional(),
+    xhsSession: xhsExecutionSessionSchema.optional(),
   })
   .strict();
 const port = process.parentPort;
@@ -85,6 +91,8 @@ port.on("message", ({ data }) => {
         direction: input.direction,
         baseline,
         config: input.config,
+        xCredentials: input.xCredentials,
+        xhsSession: input.xhsSession,
       },
       controller.signal,
       emit,
@@ -106,5 +114,10 @@ port.on("message", ({ data }) => {
     })
     .finally(() => {
       input.config.credential = "";
+      if (input.xCredentials) {
+        input.xCredentials.authToken = "";
+        input.xCredentials.ct0 = "";
+      }
+      if (input.xhsSession) input.xhsSession.token = "";
     });
 });

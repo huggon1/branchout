@@ -4,6 +4,8 @@ import {
   modelChannels,
   materialChannels,
   projectChannels,
+  xChannels,
+  xhsChannels,
   type DesktopBridge,
 } from "../shared/ipc-contracts";
 const bridge: DesktopBridge = {
@@ -24,6 +26,12 @@ const bridge: DesktopBridge = {
   refreshModels: () => ipcRenderer.invoke(modelChannels.refresh),
   checkModel: () => ipcRenderer.invoke(modelChannels.check),
   cancelModelCheck: () => ipcRenderer.invoke(modelChannels.cancelCheck),
+  xStatus: () => ipcRenderer.invoke(xChannels.status),
+  loginX: () => ipcRenderer.invoke(xChannels.login),
+  logoutX: () => ipcRenderer.invoke(xChannels.logout),
+  xhsStatus: () => ipcRenderer.invoke(xhsChannels.status),
+  loginXhs: () => ipcRenderer.invoke(xhsChannels.login),
+  logoutXhs: () => ipcRenderer.invoke(xhsChannels.logout),
   snapshot: () => ipcRenderer.invoke(channels.snapshot),
   runCheck: () => ipcRenderer.invoke(channels.check),
   cancel: (taskId) => ipcRenderer.invoke(channels.cancel, taskId),

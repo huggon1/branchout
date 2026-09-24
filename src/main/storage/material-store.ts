@@ -59,7 +59,7 @@ export class MaterialStore {
           resultId,
           materialId: randomUUID(),
           category: "forwarding",
-          platform: "github",
+          platform: draft.source.platform,
           forwardingEntry: "app",
           collectedAt: new Date().toISOString(),
           displayLabel: draft.source.title || draft.source.sourceIdentity,

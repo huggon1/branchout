@@ -1,14 +1,15 @@
 import type { SourceContent } from "../shared/material-contracts";
+export type Platform = "github" | "x" | "xiaohongshu";
 export type ReadResult = {
   taskId: string;
-  platform: "github";
+  platform: Platform;
   sourceUrl: string;
 } & (
   | { outcome: "content"; content: SourceContent }
   | { outcome: "not_covered" | "failed"; message: string }
 );
 export interface PlatformAdapter {
-  platform: "github";
+  platform: Platform;
   searchCapability: "available";
   readCapability: "available";
   search(
@@ -26,7 +27,7 @@ export interface SearchCandidate {
 }
 export type SearchResult = {
   taskId: string;
-  platform: "github";
+  platform: Platform;
   outcome: "results" | "no_results" | "failed" | "not_covered";
   candidates: SearchCandidate[];
   message?: string;

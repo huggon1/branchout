@@ -156,7 +156,25 @@ async function waitMaterials(count) {
     if (r.ok && r.value.materials.length === count) return r.value;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error("Material count did not settle");
+  const status = await page.evaluate(() => window.branchout.projects());
+  throw new Error(
+    `Material count did not settle: ${JSON.stringify({
+      tasks: status.ok
+        ? status.value.tasks.map(
+            ({ state, phase, failure, progress, coverage, xhsCoverage }) => ({
+              state,
+              phase,
+              failure,
+              progress,
+              coverage,
+              xhsCoverage,
+            }),
+          )
+        : status.message,
+      modelCalls: modelCalls.length,
+      searchCount,
+    })}`,
+  );
 }
 try {
   for (const repo of [repoA, repoB]) {

@@ -13,6 +13,7 @@ import { ProjectStore } from "../storage/project-store";
 import type { MaterialStore } from "../storage/material-store";
 import type { ModelService } from "./model-service";
 import type { ForwardingWorker } from "./forwarding-service";
+import type { XCredentials, XhsSession } from "../../shared/platform-contracts";
 type Lease = Awaited<ReturnType<ModelService["acquire"]>>;
 type Active = {
   worker?: ForwardingWorker;
@@ -35,6 +36,10 @@ export class ProjectService {
     private acquire: () => Promise<Lease>,
     private spawn: () => ForwardingWorker,
     private changed: () => void,
+    private xCredentials: () => Promise<XCredentials | undefined> = async () =>
+      undefined,
+    private xhsSession: () => Promise<XhsSession | undefined> = async () =>
+      undefined,
   ) {}
   view() {
     const state = this.store.snapshot();
@@ -61,6 +66,20 @@ export class ProjectService {
                 : "failed",
             message: "任务中断；已入库素材保留",
           };
+          if (task.xCoverage && task.xCoverage.phase !== "finished")
+            task.xCoverage = {
+              platform: "x",
+              phase: "finished",
+              outcome: "failed",
+              message: "任务中断；已入库素材保留",
+            };
+          if (task.xhsCoverage && task.xhsCoverage.phase !== "finished")
+            task.xhsCoverage = {
+              platform: "xiaohongshu",
+              phase: "finished",
+              outcome: "failed",
+              message: "任务中断；已入库素材保留",
+            };
         }
     });
   }
@@ -176,6 +195,8 @@ export class ProjectService {
             !!current && (input.regenerate || input.kind === "baseline"),
           progress: { found: 0, read: 0, saved: 0, failed: 0 },
           coverage: { platform: "github", phase: "pending" },
+          xCoverage: { platform: "x", phase: "pending" },
+          xhsCoverage: { platform: "xiaohongshu", phase: "pending" },
           updatedAt: now(),
         });
       });
@@ -210,7 +231,7 @@ export class ProjectService {
             code: "task_timeout",
             stage: "runtime",
           }).catch(() => {}),
-        300000,
+        input.kind === "exploration" ? 600_000 : 300_000,
       );
       worker.postMessage({
         type: "run",
@@ -220,6 +241,10 @@ export class ProjectService {
         direction: input.direction,
         baseline,
         config: active.lease.config,
+        xCredentials:
+          input.kind === "exploration" ? await this.xCredentials() : undefined,
+        xhsSession:
+          input.kind === "exploration" ? await this.xhsSession() : undefined,
       });
       return taskId;
     } catch (error) {
@@ -300,7 +325,7 @@ export class ProjectService {
           task.direction === "product"
             ? "product_exploration"
             : "uiux_exploration",
-        platform: "github",
+        platform: event.draft.source.platform,
         repository: { projectId: project.projectId, name: project.name },
         projectReference: event.projectReference,
         collectedAt: now(),
@@ -319,6 +344,8 @@ export class ProjectService {
         current.progress.read = event.read;
         current.progress.failed = event.failed;
         current.coverage = event.coverage;
+        current.xCoverage = event.xCoverage;
+        current.xhsCoverage = event.xhsCoverage;
       }
       current.progress.saved = this.materials
         .snapshot()
@@ -383,6 +410,22 @@ export class ProjectService {
               : state === "cancelled"
                 ? "已取消；已有素材保留"
                 : "执行未完成；请检查模型、仓库与网络后重试",
+        };
+      if (task.xCoverage && task.xCoverage.phase !== "finished")
+        task.xCoverage = {
+          platform: "x",
+          phase: "finished",
+          outcome:
+            task.xCoverage.phase === "pending" ? "not_covered" : "failed",
+          message: state === "completed" ? "本次未搜索 X" : "任务未完成",
+        };
+      if (task.xhsCoverage && task.xhsCoverage.phase !== "finished")
+        task.xhsCoverage = {
+          platform: "xiaohongshu",
+          phase: "finished",
+          outcome:
+            task.xhsCoverage.phase === "pending" ? "not_covered" : "failed",
+          message: state === "completed" ? "本次未搜索小红书" : "任务未完成",
         };
     });
     this.changed();

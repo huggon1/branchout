@@ -16,6 +16,8 @@ export function ProjectWorkspace({
   setDirection: (value: Direction) => void;
 }) {
   const [state, setState] = useState<ProjectState>();
+  const [xSignedIn, setXSignedIn] = useState(false);
+  const [xhsSignedIn, setXhsSignedIn] = useState(false);
   const [editing, setEditing] = useState<{
     content: string;
     revision: number;
@@ -40,8 +42,22 @@ export function ProjectWorkspace({
         if (alive) setError("项目状态读取失败，请重新打开窗口");
       }
     };
-    const off = bridge.onChanged(() => void load());
+    const loadX = async () => {
+      const reply = await bridge.xStatus();
+      if (alive && reply.ok) setXSignedIn(reply.value.signedIn);
+    };
+    const loadXhs = async () => {
+      const reply = await bridge.xhsStatus();
+      if (alive && reply.ok) setXhsSignedIn(reply.value.signedIn);
+    };
+    const off = bridge.onChanged(() => {
+      void load();
+      void loadX();
+      void loadXhs();
+    });
     void load();
+    void loadX();
+    void loadXhs();
     return () => {
       alive = false;
       off();
@@ -162,15 +178,22 @@ export function ProjectWorkspace({
           </p>
           {mode === "探索" && (
             <section className="exploration-plan">
-              <h2>GitHub 公开仓库方案</h2>
+              <h2>图文探索</h2>
               <p>
                 {direction === "product"
-                  ? "基于产品能力与使用场景，多轮搜索、筛选并读取相关 README。"
-                  : "基于信息架构与交互流程，多轮搜索、筛选并读取相关 README。"}
+                  ? "基于产品能力与使用场景，多轮搜索并筛选相关仓库和帖子。"
+                  : "基于信息架构与交互流程，多轮搜索并筛选相关仓库和帖子。"}
               </p>
               <p>
-                搜索与 README 读取可用，无需 GitHub 登录；本方案只覆盖
-                GitHub，不覆盖 X、小红书。
+                GitHub 无需登录；X{" "}
+                {xSignedIn
+                  ? "已有登录状态，将尝试参与本次探索"
+                  : "需要在设置中登录，本次会跳过"}
+                ；小红书
+                {xhsSignedIn
+                  ? "已登录，将尝试参与"
+                  : "需要在设置中登录，本次会跳过"}
+                。
               </p>
               <p>
                 {baseline
@@ -206,6 +229,46 @@ export function ProjectWorkspace({
                 <p>
                   候选 {latest.progress.found} · 已读取 {latest.progress.read} ·
                   已入库 {latest.progress.saved} · 失败 {latest.progress.failed}
+                </p>
+              )}
+              {latest.kind === "exploration" && latest.xCoverage && (
+                <p>
+                  X：
+                  {latest.xCoverage.phase === "pending"
+                    ? "尚未搜索"
+                    : latest.xCoverage.phase === "searching"
+                      ? "搜索中"
+                      : (
+                          {
+                            results: "已找到候选",
+                            no_results: "已搜索，无结果",
+                            not_covered: "未覆盖",
+                            failed: "搜索失败",
+                          } as const
+                        )[latest.xCoverage.outcome ?? "not_covered"]}
+                  {latest.xCoverage.message
+                    ? ` · ${latest.xCoverage.message}`
+                    : ""}
+                </p>
+              )}
+              {latest.kind === "exploration" && latest.xhsCoverage && (
+                <p>
+                  小红书：
+                  {latest.xhsCoverage.phase === "pending"
+                    ? "尚未搜索"
+                    : latest.xhsCoverage.phase === "searching"
+                      ? "搜索中"
+                      : (
+                          {
+                            results: "已找到候选",
+                            no_results: "已搜索，无结果",
+                            not_covered: "未覆盖",
+                            failed: "搜索失败",
+                          } as const
+                        )[latest.xhsCoverage.outcome ?? "not_covered"]}
+                  {latest.xhsCoverage.message
+                    ? ` · ${latest.xhsCoverage.message}`
+                    : ""}
                 </p>
               )}
               {latest.kind === "exploration" && (

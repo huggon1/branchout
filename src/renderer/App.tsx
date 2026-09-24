@@ -5,6 +5,7 @@ import { bridge } from "./bridge";
 import { ProjectWorkspace } from "./components/ProjectWorkspace";
 import { Materials } from "./components/Materials";
 import { ModelSettings } from "./components/ModelSettings";
+import { XSettings } from "./components/XSettings";
 import {
   Brand,
   Button,
@@ -99,11 +100,9 @@ export function App() {
                 <div>
                   <h2>转发渠道</h2>
                   <p>飞书、Telegram 尚未接入</p>
-                  <h2>内容平台</h2>
-                  <p>GitHub：公开仓库 README 读取可用，无需登录；搜索可用。</p>
-                  <p>X、小红书：读取与搜索尚未接入。</p>
                 </div>
               </section>
+              <XSettings />
               <section className="diagnostics">
                 <div className="setting-row">
                   <div>

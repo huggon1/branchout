@@ -1,10 +1,46 @@
 import { randomUUID } from "node:crypto";
 import {
-  repositoryUrlSchema,
+  sourceUrlSchema,
+  xPostUrlSchema,
+  xhsNoteUrlSchema,
+  xhsShortUrlSchema,
+  forwardingInputSchema,
   forwardingEventSchema,
 } from "../../shared/material-contracts";
 import type { ModelService } from "./model-service";
 import type { MaterialStore } from "../storage/material-store";
+import type { XCredentials, XhsSession } from "../../shared/platform-contracts";
+function resolveTarget(raw: string) {
+  forwardingInputSchema.parse(raw);
+  const sourceUrl = sourceUrlSchema.parse(raw);
+  const xhsAccessToken = xhsNoteUrlSchema.safeParse(raw).success
+    ? (new URL(raw).searchParams.get("xsec_token") ?? undefined)
+    : undefined;
+  return { sourceUrl, xhsAccessToken };
+}
+async function resolveShort(raw: string) {
+  for (
+    let redirects = 0;
+    xhsShortUrlSchema.safeParse(raw).success && redirects < 5;
+    redirects++
+  ) {
+    const response = await fetch(raw, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(15000),
+    });
+    if (response.status < 300 || response.status >= 400)
+      throw new Error("小红书短链接未能解析");
+    const location = response.headers.get("location");
+    if (!location) throw new Error("小红书短链接未能解析");
+    raw = new URL(location, raw).href;
+    if (
+      !xhsShortUrlSchema.safeParse(raw).success &&
+      !xhsNoteUrlSchema.safeParse(raw).success
+    )
+      throw new Error("短链接跳转到了不受支持的地址");
+  }
+  return resolveTarget(raw);
+}
 type Lease = Awaited<ReturnType<ModelService["acquire"]>>;
 export interface ForwardingWorker {
   postMessage(value: unknown): void;
@@ -29,6 +65,10 @@ export class ForwardingService {
     private acquire: () => Promise<Lease>,
     private spawn: () => ForwardingWorker,
     private changed: () => void,
+    private xCredentials: () => Promise<XCredentials | undefined> = async () =>
+      undefined,
+    private xhsSession: () => Promise<XhsSession | undefined> = async () =>
+      undefined,
   ) {}
   async recover() {
     await this.store.update((state) => {
@@ -42,7 +82,12 @@ export class ForwardingService {
     });
   }
   async start(input: unknown) {
-    const sourceUrl = repositoryUrlSchema.parse(input);
+    forwardingInputSchema.parse(input);
+    const raw = String(input);
+    const { sourceUrl, xhsAccessToken } = xhsShortUrlSchema.safeParse(raw)
+      .success
+      ? await resolveShort(raw)
+      : resolveTarget(raw);
     if (this.closed || this.active.size >= 2)
       throw new Error("请等待当前解析结束");
     const taskId = randomUUID();
@@ -96,7 +141,7 @@ export class ForwardingService {
               await this.store.save(taskId, resultId, message.draft);
               await this.end(taskId, "completed");
             } else if (message.type === "failed")
-              await this.end(taskId, "failed");
+              await this.end(taskId, "failed", message.message);
             else {
               await this.store.update((state) => {
                 const task = state.tasks.find(
@@ -125,6 +170,13 @@ export class ForwardingService {
         resultId,
         sourceUrl,
         config: entry.lease.config,
+        xCredentials: xPostUrlSchema.safeParse(sourceUrl).success
+          ? await this.xCredentials()
+          : undefined,
+        xhsSession: xhsNoteUrlSchema.safeParse(sourceUrl).success
+          ? await this.xhsSession()
+          : undefined,
+        xhsAccessToken,
       });
       this.changed();
       return taskId;
@@ -135,7 +187,11 @@ export class ForwardingService {
       entry.finish();
     }
   }
-  async end(taskId: string, state: "cancelled" | "failed" | "completed") {
+  async end(
+    taskId: string,
+    state: "cancelled" | "failed" | "completed",
+    message?: string,
+  ) {
     const entry = this.active.get(taskId);
     if (!entry) return;
     this.active.delete(taskId);
@@ -150,6 +206,7 @@ export class ForwardingService {
         task.state = state === "completed" ? "failed" : state;
         task.phase = state === "cancelled" ? "已取消" : "解析失败";
         task.progress.failed = state === "cancelled" ? 0 : 1;
+        if (message) task.message = message;
         task.updatedAt = new Date().toISOString();
       });
     } finally {

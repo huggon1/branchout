@@ -7,7 +7,7 @@
     sans-serif;
   color: #263638;
   background: #f5f7f8;
-  font-size: 13px;
+  font-size: 12px;
   font-synthesis: none;
 }
 * {
@@ -108,13 +108,13 @@ header {
   flex-shrink: 0;
 }
 h1 {
-  font-size: 18px;
+  font-size: 16px;
   letter-spacing: -0.4px;
   margin: 0;
   font-weight: 650;
 }
 h2 {
-  font-size: 14px;
+  font-size: 13px;
   margin: 0 0 8px;
   font-weight: 600;
 }
@@ -177,10 +177,19 @@ p {
   margin-bottom: 18px;
 }
 .empty p {
-  font-size: 13px;
+  font-size: 12px;
 }
 .settings {
   max-width: 780px;
+}
+.platform-details {
+  padding: 12px 0 18px;
+  display: grid;
+  gap: 12px;
+}
+.platform-details .inline-actions {
+  display: flex;
+  gap: 8px;
 }
 .setting-row {
   padding: 22px 0;
@@ -191,7 +200,7 @@ p {
   gap: 20px;
 }
 .setting-row p {
-  font-size: 13px;
+  font-size: 12px;
 }
 .badge {
   color: #748481;
@@ -232,7 +241,7 @@ footer {
   }
   .brand {
     gap: 5px;
-    font-size: 13px;
+    font-size: 12px;
   }
   header {
     padding: 20px;
@@ -289,7 +298,7 @@ footer {
 .model-form select,
 .codex-form select {
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   background: #fff;
   border: 1px solid #d5e0df;
   border-radius: 5px;
@@ -329,7 +338,7 @@ footer {
   padding: 16px 0;
 }
 .connection-check h3 {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   margin: 0 0 6px;
 }
@@ -461,7 +470,7 @@ footer {
   overflow-wrap: anywhere;
 }
 .reading .material-title {
-  font-size: 18px;
+  font-size: 16px;
 }
 .source-meta {
   display: flex;
@@ -485,7 +494,7 @@ footer {
   line-height: 1.85;
 }
 .source-body h3 {
-  font-size: 15px;
+  font-size: 14px;
   margin: 26px 0 12px;
 }
 .source-body pre {
@@ -538,7 +547,7 @@ select:focus-visible {
 }
 .project-toolbar select {
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   min-height: 33px;
   border: 1px solid #d5e0df;
   border-radius: 5px;
@@ -616,4 +625,12 @@ select:focus-visible {
 textarea:focus-visible {
   outline: 2px solid #147d70;
   outline-offset: 2px;
+}
+.xhs-qr {
+  display: block;
+  width: 220px;
+  height: 220px;
+  max-width: 100%;
+  object-fit: contain;
+  margin-block: 12px;
 }

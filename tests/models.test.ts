@@ -20,12 +20,18 @@ import {
 import type { CodexRpc } from "../src/main/services/codex-client";
 import { checkWithPi, compatibleCodexModels } from "../src/worker/pi-runtime";
 import { saveModelSchema } from "../src/shared/model-contracts";
+test("Pi 兼容目录包含 GPT-6 Sol 与 Luna，但账号目录仍需单独确认", () => {
+  const ids = compatibleCodexModels();
+  assert.ok(ids.includes("gpt-6-sol"));
+  assert.ok(ids.includes("gpt-6-luna"));
+});
 class FakeCodex implements CodexRpc {
   calls: string[] = [];
   loggedIn = false;
   logout = false;
   failCatalog = false;
   failLogin = false;
+  models?: Array<{ model: string; displayName: string }>;
   loginId = randomUUID();
   listener?: (method: string, params: unknown) => void;
   async request(method: string) {
@@ -47,7 +53,7 @@ class FakeCodex implements CodexRpc {
     if (method === "model/list") {
       if (this.failCatalog) throw new Error("secret-catalog-error");
       return {
-        data: [
+        data: this.models ?? [
           { model: "supported-fixture", displayName: "Supported" },
           { model: "unsupported-fixture", displayName: "Unsupported" },
         ],
@@ -215,6 +221,25 @@ test("catalog uses Codex evidence and Pi intersection, failed refresh preserves 
   assert.equal(service.view().catalog, "failed");
   await assert.rejects(service.acquire());
   assert.ok(!JSON.stringify(service.view()).includes("secret-catalog-error"));
+  await service.close();
+});
+test("账号目录返回的新 GPT-6 模型可选，缺席的模型不伪造", async () => {
+  const { service, clients } = fixture({
+    catalog: async () => compatibleCodexModels(),
+  });
+  await service.login();
+  clients[0].models = [{ model: "gpt-6-sol", displayName: "GPT-6 Sol" }];
+  clients[0].complete();
+  await settle();
+  assert.deepEqual(
+    service.view().models.map((model) => model.id),
+    ["gpt-6-sol"],
+  );
+  assert.equal(service.view().models[0].compatible, true);
+  await service.save({ method: "codex_subscription", modelId: "gpt-6-sol" });
+  await assert.rejects(
+    service.save({ method: "codex_subscription", modelId: "gpt-6-luna" }),
+  );
   await service.close();
 });
 test("Codex old credentials survive only active lease; switch defers logout until release", async () => {

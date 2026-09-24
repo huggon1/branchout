@@ -48,12 +48,13 @@ export async function runWithPi(
   fetchOverride?: typeof fetch,
   tools: AgentTool[] = [],
   continuation?: () => string | undefined,
+  maxTurns = 14,
 ) {
   let turns = 0;
   let turnLimit = false;
   const model = resolveModel(config);
   const streamFn: StreamFn = (_model, context, options) => {
-    if (turns >= 14) {
+    if (turns >= maxTurns) {
       turnLimit = true;
       throw new ExecutionFailure("model_turn_limit");
     }

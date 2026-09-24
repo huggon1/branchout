@@ -5,6 +5,8 @@
   "main": "dist/main/main.cjs",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "setup:x": "node scripts/prepare-x-runtime.mjs",
+    "setup:xhs": "node scripts/prepare-xhs-runtime.mjs",
     "dev": "npm run build && electron .",
     "start": "electron .",
     "typecheck": "tsc --noEmit",
@@ -15,8 +17,8 @@
     "test:project-ui": "npm run build && node scripts/check-project-ui.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.87.0",
-    "@earendil-works/pi-ai": "0.87.0",
+    "@earendil-works/pi-agent-core": "^0.87.1",
+    "@earendil-works/pi-ai": "^0.87.1",
     "marked": "^18.0.14",
     "parse5": "^8.0.1",
     "react": "^19.2.0",

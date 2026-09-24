@@ -15,6 +15,8 @@ import {
   channels,
   modelChannels,
   materialChannels,
+  xChannels,
+  xhsChannels,
 } from "../shared/ipc-contracts";
 import { MaterialStore } from "./storage/material-store";
 import { ProjectStore } from "./storage/project-store";
@@ -31,6 +33,8 @@ import { checkModel, readPiCatalog } from "./services/model-worker-client";
 import { Store } from "./storage/store";
 import { TaskManager } from "./task-manager";
 import { createWindow } from "./window";
+import { XAuth } from "./services/x-auth";
+import { XhsAuth } from "./services/xhs-auth";
 if (process.env.BRANCHOUT_TEST_DATA)
   app.setPath("userData", process.env.BRANCHOUT_TEST_DATA);
 else
@@ -42,13 +46,22 @@ else {
   let models: ModelService | undefined;
   let forwarding: ForwardingService | undefined;
   let projects: ProjectService | undefined;
+  let xAuth: XAuth | undefined;
+  let xhsAuth: XhsAuth | undefined;
   let quitting = false;
+  let mainWindow: BrowserWindow | undefined;
   const open = () => {
-    const existing = BrowserWindow.getAllWindows()[0];
+    const existing =
+      mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
     if (existing) {
       existing.show();
       existing.focus();
-    } else createWindow();
+    } else {
+      mainWindow = createWindow();
+      mainWindow.on("closed", () => {
+        mainWindow = undefined;
+      });
+    }
   };
   app.on("second-instance", open);
   app.on("activate", () => {
@@ -71,7 +84,10 @@ else {
             "工作进程已停止。下次启动将恢复中断状态。",
           );
         })
-        .finally(() => app.quit());
+        .finally(() => {
+          xhsAuth?.shutdown();
+          app.quit();
+        });
     }
   });
   void app
@@ -123,6 +139,17 @@ else {
         },
       });
       await models.open();
+      xAuth = new XAuth(() => {
+        for (const window of BrowserWindow.getAllWindows())
+          window.webContents.send(channels.changed);
+      });
+      xhsAuth = new XhsAuth(
+        join(app.getPath("userData"), "xiaohongshu"),
+        () => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.webContents.send(channels.changed);
+        },
+      );
       const materials = new MaterialStore(
         join(app.getPath("userData"), "materials.json"),
       );
@@ -145,6 +172,8 @@ else {
           for (const window of BrowserWindow.getAllWindows())
             window.webContents.send(channels.changed);
         },
+        () => xAuth!.credentials(),
+        () => xhsAuth!.session(),
       );
       await forwarding.recover();
       const projectStore = new ProjectStore(
@@ -170,6 +199,8 @@ else {
           for (const window of BrowserWindow.getAllWindows())
             window.webContents.send(channels.changed);
         },
+        () => xAuth!.credentials(),
+        () => xhsAuth!.session(),
       );
       await projects.recover();
 
@@ -177,6 +208,50 @@ else {
         join(__dirname, "../renderer/index.html"),
       ).href;
       registerProjectIpc(projects, expected);
+      for (const channel of Object.values(xChannels))
+        ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+          if (
+            !event.senderFrame ||
+            event.senderFrame !== event.sender.mainFrame ||
+            event.senderFrame.url !== expected ||
+            args.length
+          )
+            return { ok: false, message: "无效的请求" };
+          try {
+            if (channel === xChannels.status)
+              return { ok: true, value: await xAuth!.status() };
+            if (channel === xChannels.login) await xAuth!.login();
+            else await xAuth!.logout();
+            return { ok: true, value: undefined };
+          } catch {
+            return { ok: false, message: "X 登录状态操作未完成，请稍后重试" };
+          }
+        });
+      for (const channel of Object.values(xhsChannels))
+        ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+          if (
+            !event.senderFrame ||
+            event.senderFrame !== event.sender.mainFrame ||
+            event.senderFrame.url !== expected ||
+            args.length
+          )
+            return { ok: false, message: "无效的请求" };
+          try {
+            if (channel === xhsChannels.status)
+              return { ok: true, value: await xhsAuth!.status() };
+            if (channel === xhsChannels.login)
+              return { ok: true, value: await xhsAuth!.login() };
+            await xhsAuth!.logout();
+            return { ok: true, value: undefined };
+          } catch {
+            return {
+              ok: false,
+              message: xhsAuth!.installed()
+                ? "小红书连接未完成，请检查网络或稍后重试"
+                : "小红书组件尚未安装，请运行 npm run setup:xhs",
+            };
+          }
+        });
       for (const channel of Object.values(materialChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -209,7 +284,7 @@ else {
             return {
               ok: false,
               message:
-                "操作未完成：请使用公开 GitHub 仓库首页链接，并确认已保存可用模型连接；同时最多解析两条。",
+                "操作未完成：请检查链接、平台登录和模型连接；同时最多解析两条。",
             };
           }
         });
@@ -290,7 +365,7 @@ else {
         ]),
       );
       open();
-      const session = BrowserWindow.getAllWindows()[0].webContents.session;
+      const session = mainWindow!.webContents.session;
       session.setPermissionRequestHandler(
         (_webContents, _permission, callback) => callback(false),
       );

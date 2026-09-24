@@ -29,6 +29,16 @@ export const modelChannels = {
   check: "model:check",
   cancelCheck: "model:cancelCheck",
 } as const;
+export const xChannels = {
+  status: "x:status",
+  login: "x:login",
+  logout: "x:logout",
+} as const;
+export const xhsChannels = {
+  status: "xhs:status",
+  login: "xhs:login",
+  logout: "xhs:logout",
+} as const;
 export const channels = {
   snapshot: "branchout:snapshot",
   check: "branchout:check",
@@ -53,6 +63,12 @@ export interface DesktopBridge {
   refreshModels(): Promise<ModelReply<void>>;
   checkModel(): Promise<ModelReply<void>>;
   cancelModelCheck(): Promise<ModelReply<void>>;
+  xStatus(): Promise<ModelReply<{ signedIn: boolean }>>;
+  loginX(): Promise<ModelReply<void>>;
+  logoutX(): Promise<ModelReply<void>>;
+  xhsStatus(): Promise<ModelReply<{ installed: boolean; signedIn: boolean }>>;
+  loginXhs(): Promise<ModelReply<{ signedIn: boolean; qr: string }>>;
+  logoutXhs(): Promise<ModelReply<void>>;
   snapshot(): Promise<AppSnapshot>;
   runCheck(): Promise<string>;
   cancel(taskId: string): Promise<void>;

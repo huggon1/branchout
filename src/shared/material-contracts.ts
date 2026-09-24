@@ -17,6 +17,80 @@ export const repositoryUrlSchema = z
       !url.pathname.split("/").some((part) => part === "." || part === "..")
     );
   }, "目前仅支持 GitHub 公开仓库首页链接");
+export const xPostUrlSchema = z
+  .string()
+  .max(2048)
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      ["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(
+        url.hostname,
+      ) &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      /^\/(?:[A-Za-z0-9_]{1,15}|i)\/status\/\d{1,20}\/?$/.test(url.pathname)
+    );
+  }, "请输入 X 帖子链接")
+  .transform(
+    (value) =>
+      `https://x.com/i/status/${new URL(value).pathname.split("/").filter(Boolean).at(-1)}`,
+  );
+export const xhsNoteUrlSchema = z
+  .string()
+  .max(2048)
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      ["xiaohongshu.com", "www.xiaohongshu.com"].includes(url.hostname) &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      /^\/(?:explore|discovery\/item)\/[A-Za-z0-9_-]{8,80}\/?$/.test(
+        url.pathname,
+      )
+    );
+  }, "请输入小红书笔记链接")
+  .transform(
+    (value) =>
+      `https://www.xiaohongshu.com/explore/${new URL(value).pathname.split("/").filter(Boolean).at(-1)}`,
+  );
+export const xhsShortUrlSchema = z
+  .string()
+  .max(2048)
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      [
+        "xhslink.com",
+        "www.xhslink.com",
+        "xhslink.cn",
+        "www.xhslink.cn",
+      ].includes(url.hostname) &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      /^\/[A-Za-z0-9_-]{1,120}\/?$/.test(url.pathname)
+    );
+  }, "请输入小红书短链接");
+export const forwardingInputSchema = z.union([
+  repositoryUrlSchema,
+  xPostUrlSchema,
+  xhsNoteUrlSchema,
+  xhsShortUrlSchema,
+]);
+export const sourceUrlSchema = z.union([
+  repositoryUrlSchema,
+  xPostUrlSchema,
+  xhsNoteUrlSchema,
+]);
+export const platformSchema = z.enum(["github", "x", "xiaohongshu"]);
 export const imageHosts = [
   "raw.githubusercontent.com",
   "camo.githubusercontent.com",
@@ -32,11 +106,15 @@ export const imageUrlSchema = z
     const url = new URL(value);
     return (
       url.protocol === "https:" &&
-      imageHosts.some((host) => host === url.hostname) &&
       !url.port &&
       !url.username &&
       !url.password &&
-      !url.search
+      (([...imageHosts, "pbs.twimg.com"].some(
+        (host) => host === url.hostname,
+      ) &&
+        (url.hostname === "pbs.twimg.com" || !url.search)) ||
+        url.hostname === "xhscdn.com" ||
+        url.hostname.endsWith(".xhscdn.com"))
     );
   });
 export const blockSchema = z.discriminatedUnion("type", [
@@ -53,8 +131,8 @@ export const blockSchema = z.discriminatedUnion("type", [
 ]);
 export const sourceSchema = z
   .object({
-    sourceUrl: repositoryUrlSchema,
-    platform: z.literal("github"),
+    sourceUrl: sourceUrlSchema,
+    platform: platformSchema,
     title: z.string().max(500).optional(),
     sourceIdentity: z.string().max(300),
     fetchedAt: z.string().datetime(),
@@ -74,12 +152,18 @@ export const sourceSchema = z
     completenessNote: z.string().max(1500),
   })
   .strict()
-  .refine((source) =>
-    source.contentBlocks.every(
-      (block) =>
-        block.type !== "image" ||
-        source.images.some((image) => image.imageId === block.imageId),
-    ),
+  .refine(
+    (source) =>
+      (source.platform === "github"
+        ? repositoryUrlSchema.safeParse(source.sourceUrl).success
+        : source.platform === "x"
+          ? xPostUrlSchema.safeParse(source.sourceUrl).success
+          : xhsNoteUrlSchema.safeParse(source.sourceUrl).success) &&
+      source.contentBlocks.every(
+        (block) =>
+          block.type !== "image" ||
+          source.images.some((image) => image.imageId === block.imageId),
+      ),
   );
 export const draftSchema = z
   .object({
@@ -99,7 +183,7 @@ const materialBase = draftSchema.extend({
   materialId: z.string().uuid(),
   taskId: z.string().uuid(),
   resultId: z.string().uuid(),
-  platform: z.literal("github"),
+  platform: platformSchema,
   collectedAt: z.string().datetime(),
   displayLabel: z.string().min(1).max(500),
 });
@@ -134,12 +218,14 @@ export const forwardingTaskSchema = z
     taskId: z.string().uuid(),
     kind: z.literal("forwarding"),
     target: z
-      .object({ sourceUrl: repositoryUrlSchema, entry: z.literal("app") })
+      .object({ sourceUrl: sourceUrlSchema, entry: z.literal("app") })
       .strict(),
     state: z.enum(["queued", "running", "completed", "failed", "cancelled"]),
     phase: z.enum([
       "等待解析",
       "读取 README",
+      "读取 X 帖子",
+      "读取小红书笔记",
       "理解内容",
       "已保存",
       "解析失败",
@@ -154,6 +240,7 @@ export const forwardingTaskSchema = z
       })
       .strict(),
     updatedAt: z.string().datetime(),
+    message: z.string().max(500).optional(),
   })
   .strict();
 export const materialStateSchema = z
@@ -168,7 +255,12 @@ export const forwardingEventSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("phase"),
       taskId: z.string().uuid(),
-      phase: z.enum(["读取 README", "理解内容"]),
+      phase: z.enum([
+        "读取 README",
+        "读取 X 帖子",
+        "读取小红书笔记",
+        "理解内容",
+      ]),
     })
     .strict(),
   z
@@ -179,7 +271,13 @@ export const forwardingEventSchema = z.discriminatedUnion("type", [
       draft: draftSchema,
     })
     .strict(),
-  z.object({ type: z.literal("failed"), taskId: z.string().uuid() }).strict(),
+  z
+    .object({
+      type: z.literal("failed"),
+      taskId: z.string().uuid(),
+      message: z.string().max(500).optional(),
+    })
+    .strict(),
 ]);
 export type SourceContent = z.infer<typeof sourceSchema>;
 export type ContentBlock = z.infer<typeof blockSchema>;

@@ -42,6 +42,10 @@ try {
         "confirmBaseline",
         "editBaseline",
         "loginModel",
+        "loginX",
+        "loginXhs",
+        "logoutX",
+        "logoutXhs",
         "materials",
         "modelView",
         "onChanged",
@@ -52,6 +56,8 @@ try {
         "saveModel",
         "snapshot",
         "startProjectTask",
+        "xStatus",
+        "xhsStatus",
       ],
     },
   );
@@ -75,9 +81,7 @@ try {
   }
   await page.screenshot({ path: "test-results/materials.png" });
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page
-    .getByText("X、小红书：读取与搜索尚未接入。", { exact: true })
-    .waitFor();
+  await page.getByText("小红书", { exact: true }).waitFor();
   await page.getByRole("button", { name: "素材", exact: true }).click();
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: "运行检查", exact: true }).click();

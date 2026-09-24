@@ -4,6 +4,11 @@ import sharp from "sharp";
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist/renderer", { recursive: true });
 await mkdir("dist/assets", { recursive: true });
+await mkdir("dist/platforms", { recursive: true });
+await copyFile(
+  "src/platforms/adapters/x/x-read.mjs",
+  "dist/platforms/x-read.mjs",
+);
 const mark = await readFile("assets/branchout.svg", "utf8");
 const icon = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect x="32" y="32" width="448" height="448" rx="102" fill="#f1f7f6"/>${mark.replace("<svg ", '<svg x="104" y="104" width="304" height="304" ')}</svg>`;
 await sharp(Buffer.from(icon)).png().toFile("dist/assets/branchout.png");

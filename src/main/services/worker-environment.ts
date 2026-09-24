@@ -15,6 +15,14 @@ export function createWorkerEnvironment(
     if (inherited[key]) env[key] = inherited[key];
   }
   if (inherited.HTTP_PROXY || inherited.HTTPS_PROXY || inherited.ALL_PROXY)
+    env.NO_PROXY = [
+      ...new Set([
+        ...(inherited.NO_PROXY ?? "").split(",").filter(Boolean),
+        "localhost",
+        "127.0.0.1",
+      ]),
+    ].join(",");
+  if (inherited.HTTP_PROXY || inherited.HTTPS_PROXY || inherited.ALL_PROXY)
     env.NODE_USE_ENV_PROXY = "1";
   else if (inherited.NODE_USE_ENV_PROXY)
     env.NODE_USE_ENV_PROXY = inherited.NODE_USE_ENV_PROXY;

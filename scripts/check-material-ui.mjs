@@ -129,12 +129,14 @@ try {
   );
   assert.equal(calls, 0);
   await page.getByRole("button", { name: "添加链接", exact: true }).click();
-  await page.getByLabel("GitHub 公开仓库链接").fill(url + "/issues/1");
+  await page
+    .getByLabel("GitHub 仓库、X 帖子或小红书笔记链接")
+    .fill(url + "/issues/1");
   await page.getByRole("button", { name: "开始解析", exact: true }).click();
   await page.getByRole("alert").waitFor();
   assert.equal(reads, 0);
   assert.equal(calls, 0);
-  await page.getByLabel("GitHub 公开仓库链接").fill(url);
+  await page.getByLabel("GitHub 仓库、X 帖子或小红书笔记链接").fill(url);
   await page.getByRole("button", { name: "开始解析", exact: true }).click();
   await page
     .getByRole("button", { name: "Fixture 1", exact: true })

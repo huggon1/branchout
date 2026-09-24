@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  repositoryUrlSchema,
+  forwardingInputSchema,
   type MaterialRecord,
   type MaterialState,
 } from "../../shared/material-contracts";
 import { bridge } from "../bridge";
 import { Button, EmptyState } from "./Primitives";
+const platformLabel = (platform: MaterialRecord["platform"]) =>
+  platform === "x" ? "X" : platform === "xiaohongshu" ? "小红书" : "GitHub";
 function SourceImage({
   image,
 }: {
@@ -86,17 +88,15 @@ export function Materials() {
       task.taskId === latest?.taskId,
   );
   const start = async () => {
-    const parsed = repositoryUrlSchema.safeParse(url.trim());
+    const parsed = forwardingInputSchema.safeParse(url.trim());
     if (!parsed.success) {
-      setError(
-        "目前仅支持 https://github.com/所有者/仓库 形式的公开仓库首页，不支持 Issue、讨论或文件路径。",
-      );
+      setError("请输入公开 GitHub 仓库、X 帖子或小红书笔记链接。");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const reply = await bridge.addLink(parsed.data);
+      const reply = await bridge.addLink(url.trim());
       if (!reply.ok) setError(reply.message);
       else {
         setAdding(false);
@@ -181,7 +181,7 @@ export function Materials() {
             <h2 className="material-title">{current.displayLabel}</h2>
             <div className="source-meta">
               <span>
-                GitHub · {categoryLabel(current)} ·{" "}
+                {platformLabel(current.platform)} · {categoryLabel(current)} ·{" "}
                 {current.source.sourceIdentity}
               </span>
               <Button
@@ -251,19 +251,18 @@ export function Materials() {
                 }}
               >
                 <label>
-                  GitHub 公开仓库链接
+                  GitHub 仓库、X 帖子或小红书笔记链接
                   <input
-                    aria-label="GitHub 公开仓库链接"
+                    aria-label="GitHub 仓库、X 帖子或小红书笔记链接"
                     autoFocus
                     value={url}
                     onChange={(event) => setUrl(event.target.value)}
-                    placeholder="https://github.com/owner/repository"
+                    placeholder="粘贴仓库、帖子或笔记链接"
                     disabled={busy}
                   />
                 </label>
                 <p>
-                  读取仓库
-                  README。开始解析会将获取的正文发送到当前模型生成理解，可能消耗额度或产生费用。
+                  读取来源正文。开始解析会将获取的内容发送到当前模型生成理解，可能消耗额度或产生费用。
                 </p>
                 <div className="inline-actions">
                   <Button type="submit" disabled={busy || !url.trim()}>
@@ -285,6 +284,7 @@ export function Materials() {
                   <span>
                     转发 · {task.target.sourceUrl} · {task.phase} · 已入库{" "}
                     {task.progress.saved}/1
+                    {task.message ? ` · ${task.message}` : ""}
                   </span>
                   {["running", "queued"].includes(task.state) ? (
                     <Button
@@ -328,7 +328,7 @@ export function Materials() {
                       {item.displayLabel}
                     </button>
                     <span>
-                      GitHub · {categoryLabel(item)} ·{" "}
+                      {platformLabel(item.platform)} · {categoryLabel(item)} ·{" "}
                       {new Date(item.collectedAt).toLocaleString()}
                     </span>
                   </li>
@@ -342,7 +342,8 @@ export function Materials() {
                     : "还没有素材"
                 }
               >
-                添加一个公开 GitHub 仓库链接，保存 README 与独立的 AI 理解。
+                添加 GitHub 仓库、X 帖子或小红书笔记链接，保存原文与独立的 AI
+                理解。
               </EmptyState>
             )}
           </>

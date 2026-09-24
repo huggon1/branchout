@@ -54,6 +54,8 @@ export const projectTaskSchema = z
       "生成基线",
       "等待确认",
       "搜索 GitHub",
+      "搜索 X",
+      "搜索小红书",
       "读取素材",
       "理解素材",
       "已完成",
@@ -79,6 +81,28 @@ export const projectTaskSchema = z
       })
       .strict(),
     coverage: coverageSchema,
+    xCoverage: z
+      .object({
+        platform: z.literal("x"),
+        phase: z.enum(["pending", "searching", "finished"]),
+        outcome: z
+          .enum(["results", "no_results", "not_covered", "failed"])
+          .optional(),
+        message: z.string().max(500).optional(),
+      })
+      .strict()
+      .optional(),
+    xhsCoverage: z
+      .object({
+        platform: z.literal("xiaohongshu"),
+        phase: z.enum(["pending", "searching", "finished"]),
+        outcome: z
+          .enum(["results", "no_results", "not_covered", "failed"])
+          .optional(),
+        message: z.string().max(500).optional(),
+      })
+      .strict()
+      .optional(),
     updatedAt: z.string().datetime(),
     message: z.string().max(500).optional(),
     failure: failureSchema.optional(),
@@ -116,6 +140,8 @@ export const projectEventSchema = z.discriminatedUnion("type", [
       read: z.number().int().min(0).max(20),
       failed: z.number().int().min(0).max(20),
       coverage: coverageSchema,
+      xCoverage: projectTaskSchema.shape.xCoverage,
+      xhsCoverage: projectTaskSchema.shape.xhsCoverage,
     })
     .strict(),
   z

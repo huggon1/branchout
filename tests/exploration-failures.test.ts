@@ -7,11 +7,13 @@ import { platforms } from "../src/platforms/registry";
 import { searchGithub } from "../src/platforms/adapters/github/search";
 import type { ProjectEvent } from "../src/shared/project-contracts";
 import { failureSchema } from "../src/shared/task-failure";
+import { concepts } from "../src/worker/plans";
 
 test("real Pi tool loop repairs early stop, rejects incomplete/invalid/truncated turns, and preserves search coverage", async () => {
   let mode = "recover",
     requests = 0,
     searches = 0;
+  const queries: string[] = [];
   const server = createServer(async (request, response) => {
     if (request.url?.startsWith("/search")) {
       searches++;
@@ -37,7 +39,7 @@ test("real Pi tool loop repairs early stop, rejects incomplete/invalid/truncated
     let call: any;
     // Stop after one search once, then honor the follow-up using the existing transcript.
     if (
-      (mode === "recover" && (prior === 0 || (prior === 1 && followup))) ||
+      (mode === "recover" && (prior === 0 || (prior < 4 && followup))) ||
       (mode === "github" && prior === 0) ||
       (mode === "invalid" && requests % 2 === 1)
     )
@@ -50,9 +52,7 @@ test("real Pi tool loop repairs early stop, rejects incomplete/invalid/truncated
             concepts: [
               mode === "invalid"
                 ? "PRIVATE_ARGUMENT_SENTINEL"
-                : prior
-                  ? "reading"
-                  : "knowledge",
+                : ["knowledge", "reading", "research", "notes"][prior],
             ],
           }),
         },
@@ -75,13 +75,15 @@ test("real Pi tool loop repairs early stop, rejects incomplete/invalid/truncated
   assert.ok(address && typeof address !== "string");
   const origin = `http://127.0.0.1:${address.port}`;
   const original = platforms.github.search;
-  platforms.github.search = (id, query, signal) =>
-    searchGithub(id, query, signal, async (_url, init) =>
+  platforms.github.search = (id, query, signal) => {
+    queries.push(query);
+    return searchGithub(id, query, signal, async (_url, init) =>
       fetch(`${origin}/search`, init),
     );
+  };
   try {
     for (const [scenario, expected, expectedSearches] of [
-      ["recover", undefined, 2],
+      ["recover", undefined, 4],
       ["stop", "search_incomplete", 0],
       ["length", "model_output_limit", 0],
       ["auth", "model_auth", 0],
@@ -91,6 +93,7 @@ test("real Pi tool loop repairs early stop, rejects incomplete/invalid/truncated
       mode = scenario;
       requests = 0;
       searches = 0;
+      queries.length = 0;
       const events: ProjectEvent[] = [];
       const run = explore(
         {
@@ -111,6 +114,16 @@ test("real Pi tool loop repairs early stop, rejects incomplete/invalid/truncated
       if (expected) await assert.rejects(run);
       else await run;
       assert.equal(searches, expectedSearches, scenario);
+      if (scenario === "recover") {
+        assert.equal(new Set(queries).size, 4);
+        assert.ok(
+          queries.every((query) =>
+            Object.values(concepts).includes(
+              query as (typeof concepts)[keyof typeof concepts],
+            ),
+          ),
+        );
+      }
       const failure = events.find((event) => event.type === "failed");
       assert.equal(
         failure?.type === "failed" ? failure.failure?.code : undefined,
