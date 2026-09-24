@@ -1,6 +1,13 @@
 import type { AppSnapshot } from "./domain";
 import type { MaterialState } from "./material-contracts";
 import type {
+  ExplorationState,
+  GraphGenerationInput,
+  GraphVersion,
+  RepositoryAnalysisRequest,
+  TaskSnapshot,
+} from "./exploration-contracts";
+import type {
   ProjectState,
   StartProject,
   EditBaseline,
@@ -12,6 +19,17 @@ export const projectChannels = {
   start: "project:start",
   confirm: "project:confirm",
   cancel: "project:cancel",
+} as const;
+export const explorationChannels = {
+  view: "exploration:view",
+  tasks: "exploration:tasks",
+  bind: "exploration:bind",
+  unbind: "exploration:unbind",
+  currentGraph: "exploration:current-graph",
+  readGraph: "exploration:read-graph",
+  generateGraph: "exploration:generate-graph",
+  analyzeRepository: "exploration:analyze-repository",
+  cancelTask: "exploration:cancel-task",
 } as const;
 export const materialChannels = {
   view: "materials:view",
@@ -46,6 +64,20 @@ export const channels = {
   changed: "branchout:changed",
 } as const;
 export interface DesktopBridge {
+  exploration(): Promise<ModelReply<ExplorationState>>;
+  bindLocalProject(): Promise<ModelReply<string | undefined>>;
+  removeProjectBinding(projectId: string): Promise<ModelReply<void>>;
+  currentGraph(
+    projectId: string,
+    direction: "uiux" | "functional_modules",
+  ): Promise<ModelReply<GraphVersion | undefined>>;
+  readGraph(graphVersionId: string): Promise<ModelReply<GraphVersion>>;
+  generateGraph(input: GraphGenerationInput): Promise<ModelReply<string>>;
+  analyzeRepository(
+    input: RepositoryAnalysisRequest,
+  ): Promise<ModelReply<string>>;
+  cancelExplorationTask(taskId: string): Promise<ModelReply<void>>;
+  taskSnapshots(): Promise<ModelReply<TaskSnapshot[]>>;
   projects(): Promise<ModelReply<ProjectState>>;
   bindProject(): Promise<ModelReply<string | undefined>>;
   editBaseline(input: EditBaseline): Promise<ModelReply<void>>;
