@@ -85,6 +85,19 @@ export type ComparisonJudge = (input: {
   targetRepository: TargetReadResult;
 }) => Promise<ComparisonJudgment>;
 
+function nodeFocusTerms(packet: NodePacket): {
+  primary: string[];
+  secondary: string[];
+} {
+  return {
+    primary: [
+      packet.title,
+      ...(packet.analysisDescription ? [packet.analysisDescription] : []),
+    ],
+    secondary: [packet.summary, ...packet.facts.map((fact) => fact.statement)],
+  };
+}
+
 function clip(value: string, max: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
 }
@@ -209,7 +222,9 @@ export async function compareTargetRepository(
     throw new Error("该节点资料未开放仓库分析");
   let target: TargetReadResult;
   try {
-    target = await reader(input.targetRepositoryUrl, signal);
+    target = await reader(input.targetRepositoryUrl, signal, {
+      focusTerms: nodeFocusTerms(input.nodePacket),
+    });
   } catch (error) {
     if (
       signal.aborted ||

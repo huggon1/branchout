@@ -35,6 +35,7 @@ type GitHubReaderOptions = {
   maxFiles?: number;
   maxBytes?: number;
   apiBaseUrl?: string;
+  focusTerms?: { primary: readonly string[]; secondary: readonly string[] };
 };
 
 const supportedExtensions = new Set([
@@ -143,7 +144,20 @@ function apiMessage(payload: unknown, status: number): string {
   return `GitHub API 返回 HTTP ${status}`;
 }
 
-function rankPath(path: string): number {
+function pathTokens(path: string): Set<string> {
+  return new Set(
+    path
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .toLowerCase()
+      .split(/[^a-z0-9\u3400-\u9fff]+/)
+      .filter((token) => token.length >= 2),
+  );
+}
+
+function rankPath(
+  path: string,
+  focusTerms: GitHubReaderOptions["focusTerms"],
+): number {
   const lower = path.toLowerCase();
   let score = 0;
   if (
@@ -155,6 +169,17 @@ function rankPath(path: string): number {
   if (/(^|\/)(docs?|documentation)(\/|$)/.test(lower)) score += 45;
   if (/(^|\/)(src|app|lib|packages?)(\/|$)/.test(lower)) score += 20;
   if (/(test|spec|fixture|generated|\.lock\b)/.test(lower)) score -= 100;
+  const tokens = pathTokens(path);
+  const primaryHits = new Set(
+    (focusTerms?.primary ?? []).flatMap((term) => [...pathTokens(term)]),
+  );
+  const secondaryHits = new Set(
+    (focusTerms?.secondary ?? []).flatMap((term) => [...pathTokens(term)]),
+  );
+  for (const token of tokens) {
+    if (primaryHits.has(token)) score += 70;
+    else if (secondaryHits.has(token)) score += 25;
+  }
   return score;
 }
 
@@ -333,7 +358,9 @@ export async function readTargetRepository(
       })
       .sort(
         (a, b) =>
-          rankPath(b.path) - rankPath(a.path) || a.path.localeCompare(b.path),
+          rankPath(b.path, options.focusTerms) -
+            rankPath(a.path, options.focusTerms) ||
+          a.path.localeCompare(b.path),
       )
       .slice(0, Math.min(160, tree.length));
     let totalBytes = 0;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { compareTargetRepository } from "../src/worker/tasks/compare-target-repository";
+import type { NodePacket } from "../src/worker/tasks/compare-target-repository";
 import { readTargetRepository } from "../src/worker/tools/target-repository-tools";
 import { frozenNodePacket } from "./fixtures/node-packet";
 
@@ -12,7 +13,7 @@ const blobSha = createHash("sha1")
   .update(`blob ${Buffer.byteLength(readme)}\0${readme}`)
   .digest("hex");
 
-function apiFetch(failBlob = false): typeof fetch {
+function apiFetch(failBlob = false, treePaths = ["README.md"]): typeof fetch {
   return async (input) => {
     const url = String(input);
     if (url.includes("raw.githubusercontent.com/acme/sample/")) {
@@ -24,15 +25,13 @@ function apiFetch(failBlob = false): typeof fetch {
     const payload = url.includes("/repos/acme/sample/git/trees/")
       ? {
           truncated: false,
-          tree: [
-            {
-              path: "README.md",
-              type: "blob",
-              size: Buffer.byteLength(readme),
-              sha: blobSha,
-              url: "https://api.github.test/blob",
-            },
-          ],
+          tree: treePaths.map((path) => ({
+            path,
+            type: "blob",
+            size: Buffer.byteLength(readme),
+            sha: blobSha,
+            url: `https://api.github.test/${path}`,
+          })),
         }
       : url.includes("/commits/")
         ? { sha: commit }
@@ -43,6 +42,51 @@ function apiFetch(failBlob = false): typeof fetch {
     });
   };
 }
+
+test("ranks paths using the frozen node packet focus terms", async () => {
+  const focusPacket: NodePacket = {
+    ...frozenNodePacket,
+    title: "Settings validation",
+    summary: "Calendar schedule selection",
+    analysisDescription: "Recovery flow",
+    facts: [
+      {
+        ...frozenNodePacket.facts[0],
+        statement: "Invoice ledger records",
+      },
+    ],
+  };
+  const result = await compareTargetRepository(
+    {
+      nodePacket: focusPacket,
+      targetRepositoryUrl: "https://github.com/acme/sample",
+    },
+    new AbortController().signal,
+    async () => ({
+      status: "insufficient_evidence",
+      conclusion: "The focused file read is a path-ranking check.",
+    }),
+    (url, signal, options) =>
+      readTargetRepository(url, signal, {
+        ...options,
+        fetch: apiFetch(false, [
+          "src/settings/settings-validation.ts",
+          "src/recovery/flow.ts",
+          "src/calendar/schedule.ts",
+          "src/invoice/ledger.ts",
+          "src/general/use.ts",
+        ]),
+        apiBaseUrl: "https://api.github.test",
+        maxFiles: 4,
+      }),
+  );
+  assert.deepEqual(result.checkedScope, [
+    "src/recovery/flow.ts",
+    "src/settings/settings-validation.ts",
+    "src/calendar/schedule.ts",
+    "src/invoice/ledger.ts",
+  ]);
+});
 
 test("reads public repository files from a resolved immutable commit", async () => {
   const result = await readTargetRepository(
