@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import brandMark from "../../../assets/branchout.svg";
 export function NavigationIcon({ name }: { name: string }) {
   const paths: Record<string, ReactNode> = {
     素材: (
@@ -8,10 +7,18 @@ export function NavigationIcon({ name }: { name: string }) {
         <path d="M9 8h6M9 12h6M9 16h4" />
       </>
     ),
-    探索: (
+    "UI/UX": (
       <>
-        <circle cx="10.5" cy="10.5" r="6.5" />
-        <path d="m16 16 4 4" />
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M3 9h18M8 9v11M12 13h5M12 16h3" />
+      </>
+    ),
+    功能模块: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="8.5" y="14" width="7" height="7" rx="1.5" />
+        <path d="M6.5 10v2h12v-2M12 12v2" />
       </>
     ),
     项目: (
@@ -82,7 +89,7 @@ export function EmptyState({
 export function Brand() {
   return (
     <div className="brand">
-      <img src={brandMark} width="23" height="23" alt="" />
+      <img src="../assets/branchout.png" width="23" height="23" alt="" />
       <span>Branchout</span>
     </div>
   );
