@@ -92,7 +92,12 @@ export function App() {
       try {
         const reply = await workspaceBridge.currentGraph(projectId, direction);
         if (alive && current === revision) {
-          if (reply.ok) setGraph(reply.value);
+          if (reply.ok)
+            setGraph((previous) =>
+              previous?.graphVersionId === reply.value?.graphVersionId
+                ? previous
+                : reply.value,
+            );
           else setError(reply.message);
         }
       } catch {
