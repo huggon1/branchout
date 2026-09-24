@@ -46,7 +46,11 @@ function targetLink(repositoryUrl: string, evidence: TargetEvidence) {
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/");
-  return `${url.origin}${url.pathname.replace(/\/$/, "")}/blob/${evidence.commitId}/${path}`;
+  const lines = evidence.range.match(/(?:line|lines?)\s+(\d+)(?:\s*[-–]\s*(\d+))?/i);
+  const fragment = lines
+    ? `#L${lines[1]}${lines[2] ? `-L${lines[2]}` : ""}`
+    : "";
+  return `${url.origin}${url.pathname.replace(/\/$/, "")}/blob/${evidence.commitId}/${path}${fragment}`;
 }
 
 function TargetSources({
