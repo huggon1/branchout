@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { bridge } from "./bridge";
-import { DirectionWorkspace, type WorkspaceDirection, type WorkspaceGraph } from "./components/DirectionWorkspace";
+import { DirectionWorkspace, type WorkspaceDirection, type WorkspaceGraph, type WorkspaceTask } from "./components/DirectionWorkspace";
 import { ProjectManager } from "./components/ProjectManager";
 import { Materials } from "./components/Materials";
 import { ModelSettings } from "./components/ModelSettings";
@@ -15,21 +15,9 @@ interface ProjectItem {
   projectLabel: string;
   directory: string;
 }
-interface TaskItem {
-  taskId: string;
-  kind: string;
-  target: {
-    projectId?: string;
-    direction?: WorkspaceDirection;
-  };
-  state: string;
-  phase: string;
-  message?: string;
-  materialId?: string;
-}
 interface ExplorationView {
   projects: ProjectItem[];
-  tasks: TaskItem[];
+  tasks: WorkspaceTask[];
 }
 interface ExplorationBridge {
   exploration(): Promise<ModelReply<ExplorationView>>;
@@ -38,6 +26,7 @@ interface ExplorationBridge {
   currentGraph(projectId: string, direction: WorkspaceDirection): Promise<ModelReply<WorkspaceGraph | undefined>>;
   generateGraph(input: { projectId: string; direction: WorkspaceDirection }): Promise<ModelReply<string>>;
   analyzeRepository(input: { graphVersionId: string; nodeId: string; targetRepositoryUrl: string }): Promise<ModelReply<string>>;
+  cancelExplorationTask(taskId: string): Promise<ModelReply<void>>;
 }
 const workspaceBridge = bridge as typeof bridge & ExplorationBridge;
 
@@ -162,6 +151,26 @@ export function App() {
         item.target.direction === direction,
     )
     .at(-1);
+  const retryTask = async (item: WorkspaceTask) => {
+    if (item.kind === "graph_generation" && direction) {
+      await run(() => workspaceBridge.generateGraph({ projectId, direction }));
+      return;
+    }
+    if (
+      item.kind === "repository_analysis" &&
+      typeof item.target.graphVersionId === "string" &&
+      typeof item.target.nodeId === "string" &&
+      typeof item.target.targetRepositoryUrl === "string"
+    ) {
+      await run(() =>
+        workspaceBridge.analyzeRepository({
+          graphVersionId: item.target.graphVersionId as string,
+          nodeId: item.target.nodeId as string,
+          targetRepositoryUrl: item.target.targetRepositoryUrl as string,
+        }),
+      );
+    }
+  };
 
   return (
     <div className="shell">
@@ -237,6 +246,8 @@ export function App() {
                 setOpenMaterialId(id);
                 setPage("素材");
               }}
+              onCancelTask={(id) => run(() => workspaceBridge.cancelExplorationTask(id))}
+              onRetryTask={retryTask}
             />
           )}
           {page === "设置" && (

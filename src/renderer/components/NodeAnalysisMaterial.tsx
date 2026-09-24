@@ -52,9 +52,11 @@ function targetLink(repositoryUrl: string, evidence: TargetEvidence) {
 function TargetSources({
   repositoryUrl,
   evidence,
+  onOpenTarget,
 }: {
   repositoryUrl: string;
   evidence: TargetEvidence[];
+  onOpenTarget: (url: string) => void;
 }) {
   if (!evidence.length) return null;
   return (
@@ -63,8 +65,10 @@ function TargetSources({
         <li key={index}>
           <a
             href={targetLink(repositoryUrl, item)}
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={(event) => {
+              event.preventDefault();
+              onOpenTarget(targetLink(repositoryUrl, item));
+            }}
           >
             {item.relativePath}
             {item.range ? ` · ${item.range}` : ""}
@@ -101,9 +105,11 @@ const statusLabel = {
 export function NodeAnalysisMaterial({
   material,
   onOpenGraph,
+  onOpenTarget,
 }: {
   material: NodeAnalysisView;
   onOpenGraph: (graphVersionId: string, nodeId: string) => void;
+  onOpenTarget: (url: string) => void;
 }) {
   const { result } = material;
   return (
@@ -127,8 +133,10 @@ export function NodeAnalysisMaterial({
                 ? `${result.targetRepositoryUrl}/tree/${result.targetCommit}`
                 : result.targetRepositoryUrl
             }
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={(event) => {
+              event.preventDefault();
+              onOpenTarget(event.currentTarget.href);
+            }}
           >
             目标仓库{result.targetCommit ? ` · ${result.targetCommit.slice(0, 8)}` : ""}
           </a>
@@ -158,6 +166,7 @@ export function NodeAnalysisMaterial({
                   <TargetSources
                     repositoryUrl={result.targetRepositoryUrl}
                     evidence={item.targetEvidence}
+                    onOpenTarget={onOpenTarget}
                   />
                 </div>
               </div>
@@ -181,6 +190,7 @@ export function NodeAnalysisMaterial({
           <TargetSources
             repositoryUrl={result.targetRepositoryUrl}
             evidence={result.evidence}
+            onOpenTarget={onOpenTarget}
           />
         )}
       </section>

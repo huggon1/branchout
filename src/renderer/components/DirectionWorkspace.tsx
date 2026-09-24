@@ -46,6 +46,8 @@ export interface WorkspaceGraph {
 
 export interface WorkspaceTask {
   taskId: string;
+  kind: "graph_generation" | "repository_analysis" | "forwarding";
+  target: Record<string, unknown>;
   state: string;
   phase: string;
   message?: string;
@@ -55,7 +57,7 @@ export interface WorkspaceTask {
 const labelFor = (direction: WorkspaceDirection) =>
   direction === "uiux" ? "UI/UX" : "功能模块";
 
-function ProjectGraph({
+export function ProjectGraph({
   graph,
   onSelectNode,
 }: {
@@ -69,7 +71,9 @@ function ProjectGraph({
       const data = event.data;
       if (
         !data ||
-        data.type !== "branchout:node-selected" ||
+        data.channel !== "branchout.archify" ||
+        data.version !== 1 ||
+        data.type !== "node-selected" ||
         typeof data.nodeId !== "string" ||
         !Object.hasOwn(graph.nodes, data.nodeId)
       )
@@ -211,6 +215,8 @@ export function DirectionWorkspace({
   onGenerate,
   onAnalyze,
   onOpenMaterial,
+  onCancelTask,
+  onRetryTask,
 }: {
   direction: WorkspaceDirection;
   projects: WorkspaceProject[];
@@ -223,6 +229,8 @@ export function DirectionWorkspace({
   onGenerate: () => Promise<void>;
   onAnalyze: (nodeId: string, url: string) => Promise<void>;
   onOpenMaterial?: (materialId: string) => void;
+  onCancelTask: (taskId: string) => Promise<void>;
+  onRetryTask: (task: WorkspaceTask) => Promise<void>;
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string>();
   useEffect(() => setSelectedNodeId(undefined), [graph?.graphVersionId, selectedProjectId]);
@@ -266,8 +274,19 @@ export function DirectionWorkspace({
       {error && <p className="form-error" role="alert">{error}</p>}
       {task && (
         <div className="workspace-task" aria-live="polite">
+          <strong>{task.kind === "graph_generation" ? "项目图" : "仓库分析"}</strong>
           <span>{task.phase}</span>
           {task.message && <span>{task.message}</span>}
+          {running && (
+            <button type="button" onClick={() => void onCancelTask(task.taskId)}>
+              取消
+            </button>
+          )}
+          {(task.state === "failed" || task.state === "cancelled") && (
+            <button type="button" onClick={() => void onRetryTask(task)}>
+              重试
+            </button>
+          )}
           {task.materialId && onOpenMaterial && (
             <button type="button" onClick={() => onOpenMaterial(task.materialId!)}>
               查看素材 →

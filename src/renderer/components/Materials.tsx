@@ -6,6 +6,27 @@ import {
 } from "../../shared/material-contracts";
 import { bridge } from "../bridge";
 import { Button, EmptyState } from "./Primitives";
+import { NodeAnalysisMaterial, type NodeAnalysisView } from "./NodeAnalysisMaterial";
+import { ProjectGraph, type WorkspaceGraph } from "./DirectionWorkspace";
+import type { ModelReply } from "../../shared/model-contracts";
+
+type NodeMaterialRecord = {
+  materialId: string;
+  taskId: string;
+  resultId: string;
+  category: "node_analysis";
+  collectedAt: string;
+  displayLabel: string;
+  nodeAnalysis: NodeAnalysisView & {
+    projectId: string;
+    targetRepositoryUrl: string;
+  };
+};
+type AnyMaterial = MaterialRecord | NodeMaterialRecord;
+const graphBridge = bridge as typeof bridge & {
+  readGraph(graphVersionId: string): Promise<ModelReply<WorkspaceGraph>>;
+  openRepositoryLink(url: string): Promise<ModelReply<void>>;
+};
 const platformLabel = (platform: MaterialRecord["platform"]) =>
   platform === "x" ? "X" : platform === "xiaohongshu" ? "小红书" : "GitHub";
 function SourceImage({
@@ -46,8 +67,12 @@ export function Materials({
   const [query, setQuery] = useState("");
   const [time, setTime] = useState("all");
   const [category, setCategory] = useState("all");
-  const [sequence, setSequence] = useState<MaterialRecord[]>([]);
+  const [sequence, setSequence] = useState<AnyMaterial[]>([]);
   const [index, setIndex] = useState<number | null>(null);
+  const [historicalGraph, setHistoricalGraph] = useState<{
+    graph: WorkspaceGraph;
+    nodeId: string;
+  }>();
   const scroll = useRef<HTMLDivElement>(null);
   const listPosition = useRef(0);
   useEffect(() => {
@@ -75,7 +100,7 @@ export function Materials({
     if (scroll.current)
       scroll.current.scrollTop = index === null ? listPosition.current : 0;
   }, [index]);
-  const materials = [...(snapshot?.materials ?? [])]
+  const materials = ([...(snapshot?.materials ?? [])] as AnyMaterial[])
     .reverse()
     .filter(
       (item) =>
@@ -88,7 +113,9 @@ export function Materials({
     );
   useEffect(() => {
     if (!openMaterialId || !snapshot) return;
-    const item = snapshot.materials.find((entry) => entry.materialId === openMaterialId);
+    const item = (snapshot.materials as AnyMaterial[]).find(
+      (entry) => entry.materialId === openMaterialId,
+    );
     if (!item) return;
     setSequence([item]);
     setIndex(0);
@@ -164,8 +191,9 @@ export function Materials({
           >
             <option value="all">全部类别</option>
             <option value="forwarding">转发</option>
-            <option value="product_exploration">产品探索</option>
-            <option value="uiux_exploration">UI/UX 探索</option>
+            <option value="node_analysis">节点分析</option>
+            <option value="product_exploration">历史产品探索</option>
+            <option value="uiux_exploration">历史 UI/UX 探索</option>
           </select>
           <select
             aria-label="筛选时间"
@@ -190,7 +218,28 @@ export function Materials({
         </p>
       )}
       <div className="material-scroll" ref={scroll}>
-        {current ? (
+        {current?.category === "node_analysis" ? (
+          <NodeAnalysisMaterial
+            material={current.nodeAnalysis}
+            onOpenGraph={(graphVersionId, nodeId) => {
+              void graphBridge
+                .readGraph(graphVersionId)
+                .then((reply) => {
+                  if (reply.ok) setHistoricalGraph({ graph: reply.value, nodeId });
+                  else setError(reply.message);
+                })
+                .catch(() => setError("历史项目图读取失败。"));
+            }}
+            onOpenTarget={(url) => {
+              void graphBridge
+                .openRepositoryLink(url)
+                .then((reply) => {
+                  if (!reply.ok) setError(reply.message);
+                })
+                .catch(() => setError("目标仓库链接打开失败。"));
+            }}
+          />
+        ) : current ? (
           <article className="reading" key={current.materialId}>
             <h2 className="material-title">{current.displayLabel}</h2>
             <div className="source-meta">
@@ -342,7 +391,9 @@ export function Materials({
                       {item.displayLabel}
                     </button>
                     <span>
-                      {platformLabel(item.platform)} · {categoryLabel(item)} ·{" "}
+                      {item.category === "node_analysis"
+                        ? `${item.nodeAnalysis.projectLabel} · ${categoryLabel(item)}`
+                        : `${platformLabel(item.platform)} · ${categoryLabel(item)}`} ·{" "}
                       {new Date(item.collectedAt).toLocaleString()}
                     </span>
                   </li>
@@ -363,11 +414,78 @@ export function Materials({
           </>
         )}
       </div>
+      {historicalGraph && (
+        <div className="historical-graph-overlay">
+          <section
+            className="historical-graph-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="历史项目图"
+          >
+            <div className="historical-graph-heading">
+              <div>
+                <span className="eyebrow">生成时的项目图</span>
+                <h2>{historicalGraph.graph.projectLabel}</h2>
+                <p>
+                  {new Date(historicalGraph.graph.generatedAt).toLocaleString()} ·{" "}
+                  {historicalGraph.graph.projectState.gitCommitId?.slice(0, 8)}
+                  {historicalGraph.graph.projectState.hasUncommittedChanges
+                    ? " · 含未提交修改"
+                    : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                title="关闭历史项目图"
+                aria-label="关闭历史项目图"
+                onClick={() => setHistoricalGraph(undefined)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="historical-graph-body">
+              <ProjectGraph
+                graph={historicalGraph.graph}
+                onSelectNode={(nodeId) =>
+                  setHistoricalGraph((currentGraph) =>
+                    currentGraph ? { ...currentGraph, nodeId } : currentGraph,
+                  )
+                }
+              />
+              <div className="historical-node">
+                <h3>{historicalGraph.graph.nodes[historicalGraph.nodeId]?.title}</h3>
+                <p>{historicalGraph.graph.nodes[historicalGraph.nodeId]?.summary}</p>
+                <details>
+                  <summary>生成时的事实与来源</summary>
+                  <ul>
+                    {historicalGraph.graph.nodes[historicalGraph.nodeId]?.facts.map(
+                      (fact, index) => (
+                        <li key={index}>
+                          <p>{fact.statement}</p>
+                          {fact.evidence.map((source, sourceIndex) => (
+                            <div key={sourceIndex}>
+                              <code>{source.relativePath}</code>
+                              {source.range ? ` · ${source.range}` : ""}
+                              {source.quote && <blockquote>{source.quote}</blockquote>}
+                            </div>
+                          ))}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </details>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
 
-function categoryLabel(item: MaterialRecord) {
+function categoryLabel(item: AnyMaterial) {
+  if (item.category === "node_analysis") return "节点分析";
   return item.category === "forwarding"
     ? "转发"
     : `${item.category === "product_exploration" ? "产品探索" : "UI/UX 探索"} · ${item.repository.name}`;
