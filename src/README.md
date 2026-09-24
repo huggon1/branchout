@@ -1,8 +1,6 @@
-# 源码目录蓝图
+# 源码导览
 
-> 文件蓝图：以下路径定义源码的目标组织，README 可以先于对应代码存在。
-
-`src` 下的五个区域共同组成一个桌面应用，不是独立软件包：
+`src` 下的五个区域共同组成一个桌面应用，不是独立软件包。各目录 README 说明职责、依赖和主要文件；产品行为与跨模块字段分别以 [产品规格](../docs/product-spec.md) 和 [数据契约](../docs/data-contracts.md) 为准。
 
 - [renderer](renderer/README.md)：React 界面、页面与受控接口客户端。
 - [main](main/README.md)：Electron 桌面主进程、后台任务和本地数据。

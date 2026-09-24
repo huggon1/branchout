@@ -10,12 +10,15 @@
 - `shared` 中的领域类型和 IPC 契约；
 - preload 暴露给界面的受控接口。
 
-## 文件蓝图
+## 主要文件
 
 - `main.tsx`：挂载 React 应用。
 - `App.tsx`：组织顶层页面、导航与应用状态。
 - `bridge.ts`：封装并类型化 preload 接口。
-- `pages/`：按产品页面组织界面与页面级状态。
-- `components/`：保存跨页面复用的界面组件。
+- `components/Materials.tsx`：素材列表、添加链接与阅读流。
+- `components/ProjectWorkspace.tsx`：项目、基线和探索任务。
+- `components/ModelSettings.tsx` 与 `components/XSettings.tsx`：模型与内容平台配置。
+- `components/Primitives.tsx`：共用界面元素。
+- `styles.css`：界面样式。
 
-`pages/` 和 `components/` 内按功能归组；只有形成独立长期职责时才增加下级 README。
+组件按功能归组；只有形成独立长期职责时才增加下级 README。

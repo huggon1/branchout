@@ -10,8 +10,10 @@
 
 `shared` 只依赖无运行环境副作用的基础类型或校验库。`renderer`、`main`、`worker` 和 `platforms` 可以依赖它；它不反向依赖这些区域。
 
-## 文件蓝图
+## 主要文件
 
-- `domain.ts`：定义项目、基线、任务、素材等稳定领域结构。
+- `domain.ts`：定义共用领域结构。
 - `ipc-contracts.ts`：定义界面与桌面主进程之间的命令和事件。
 - `worker-contracts.ts`：定义桌面主进程与 Agent 工作进程之间的任务、进度和结果消息。
+- `project-contracts.ts`、`material-contracts.ts`、`model-contracts.ts` 与 `platform-contracts.ts`：分别定义项目与任务、素材、模型和平台能力的数据表示。
+- `task-failure.ts`：定义可传递的任务失败信息。
