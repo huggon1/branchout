@@ -67,6 +67,8 @@ export function Materials({
   const [query, setQuery] = useState("");
   const [time, setTime] = useState("all");
   const [category, setCategory] = useState("all");
+  const [source, setSource] = useState("all");
+  const [project, setProject] = useState("all");
   const [sequence, setSequence] = useState<AnyMaterial[]>([]);
   const [index, setIndex] = useState<number | null>(null);
   const [historicalGraph, setHistoricalGraph] = useState<{
@@ -100,7 +102,17 @@ export function Materials({
     if (scroll.current)
       scroll.current.scrollTop = index === null ? listPosition.current : 0;
   }, [index]);
-  const materials = ([...(snapshot?.materials ?? [])] as AnyMaterial[])
+  const allMaterials = [...(snapshot?.materials ?? [])] as AnyMaterial[];
+  const projects = [...new Map(
+    allMaterials.flatMap((item) =>
+      item.category === "node_analysis"
+        ? [[item.nodeAnalysis.projectId, item.nodeAnalysis.projectLabel] as const]
+        : item.category === "forwarding"
+          ? []
+          : [[item.repository.projectId, item.repository.name] as const],
+    ),
+  ).entries()];
+  const materials = allMaterials
     .reverse()
     .filter(
       (item) =>
@@ -108,6 +120,12 @@ export function Materials({
           .toLocaleLowerCase()
           .includes(query.toLocaleLowerCase()) &&
         (category === "all" || item.category === category) &&
+        (source === "all" ||
+          (item.category === "node_analysis" ? "github" : item.platform) === source) &&
+        (project === "all" ||
+          (item.category === "node_analysis"
+            ? item.nodeAnalysis.projectId === project
+            : item.category !== "forwarding" && item.repository.projectId === project)) &&
         (time === "all" ||
           Date.now() - Date.parse(item.collectedAt) < 7 * 86400000),
     );
@@ -205,6 +223,32 @@ export function Materials({
           >
             <option value="all">全部时间</option>
             <option value="week">最近七天</option>
+          </select>
+          <select
+            aria-label="筛选来源"
+            value={source}
+            onChange={(event) => {
+              setSource(event.target.value);
+              listPosition.current = 0;
+            }}
+          >
+            <option value="all">全部来源</option>
+            <option value="github">GitHub</option>
+            <option value="x">X</option>
+            <option value="xiaohongshu">小红书</option>
+          </select>
+          <select
+            aria-label="筛选项目"
+            value={project}
+            onChange={(event) => {
+              setProject(event.target.value);
+              listPosition.current = 0;
+            }}
+          >
+            <option value="all">全部项目</option>
+            {projects.map(([id, label]) => (
+              <option key={id} value={id}>{label}</option>
+            ))}
           </select>
           <Button disabled={!materials.length} onClick={() => read(0)}>
             开始阅读
