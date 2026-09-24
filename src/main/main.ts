@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  protocol,
   utilityProcess,
   safeStorage,
   shell,
@@ -39,6 +40,12 @@ import { createWindow } from "./window";
 import { XAuth } from "./services/x-auth";
 import { XhsAuth } from "./services/xhs-auth";
 import { repositoryEvidenceUrlSchema } from "../shared/material-contracts";
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "branchout-graph",
+    privileges: { standard: true, secure: true, supportFetchAPI: true },
+  },
+]);
 if (process.env.BRANCHOUT_TEST_DATA)
   app.setPath("userData", process.env.BRANCHOUT_TEST_DATA);
 else
@@ -246,6 +253,32 @@ else {
         },
       );
       await exploration.recover();
+
+      protocol.handle("branchout-graph", (request) => {
+        const url = new URL(request.url);
+        const match = /^\/[0-9a-f-]{36}$/.test(url.pathname);
+        const graph =
+          request.method === "GET" &&
+          url.hostname === "view" &&
+          match &&
+          !url.search &&
+          !url.hash
+            ? exploration!.readGraph(url.pathname.slice(1))
+            : undefined;
+        if (!graph)
+          return new Response("Not found", {
+            status: 404,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          });
+        return new Response(graph.viewArtifact, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Security-Policy":
+              "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors file:",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      });
 
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),

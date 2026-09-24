@@ -1,17 +1,22 @@
 import { build } from "esbuild";
-import { mkdir, copyFile, rm, readFile } from "node:fs/promises";
-import sharp from "sharp";
+import { mkdir, copyFile, cp, rm } from "node:fs/promises";
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist/renderer", { recursive: true });
 await mkdir("dist/assets", { recursive: true });
 await mkdir("dist/platforms", { recursive: true });
+await mkdir("dist/worker/vendor", { recursive: true });
 await copyFile(
   "src/platforms/adapters/x/x-read.mjs",
   "dist/platforms/x-read.mjs",
 );
-const mark = await readFile("assets/branchout.svg", "utf8");
-const icon = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect x="32" y="32" width="448" height="448" rx="102" fill="#f1f7f6"/>${mark.replace("<svg ", '<svg x="104" y="104" width="304" height="304" ')}</svg>`;
-await sharp(Buffer.from(icon)).png().toFile("dist/assets/branchout.png");
+await copyFile(
+  "docs/design/branchout-icon-light-master.png",
+  "dist/assets/branchout.png",
+);
+await cp("src/worker/vendor/archify", "dist/worker/vendor/archify", {
+  recursive: true,
+  filter: (source) => !source.split(/[\\/]/).includes("test"),
+});
 await build({
   entryPoints: [
     "src/main/main.ts",
@@ -31,6 +36,7 @@ await build({
     "src/worker/model-worker.ts",
     "src/worker/forwarding-worker.ts",
     "src/worker/project-worker.ts",
+    "src/worker/exploration-worker.ts",
     "src/worker/analysis-worker.ts",
   ],
   outdir: "dist/worker",
