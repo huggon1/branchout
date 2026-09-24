@@ -35,6 +35,8 @@ export interface NodeAnalysisView {
     status: "matched" | "no_match" | "insufficient_evidence" | "read_failed";
     conclusion: string;
     checkedScope: string[];
+    bounded?: boolean;
+    omittedScopeCount?: number;
     evidence: TargetEvidence[];
     comparisons?: ComparisonPoint[];
   };
@@ -183,6 +185,15 @@ export function NodeAnalysisMaterial({
       ) : null}
       <section className="checked-scope">
         <h3>检查范围</h3>
+        {result.bounded && (
+          <p>
+            本次按节点定位并限定了读取范围
+            {result.omittedScopeCount
+              ? `，另有 ${result.omittedScopeCount} 个候选文件未进入判断`
+              : ""}
+            。
+          </p>
+        )}
         {result.checkedScope.length ? (
           <ul>
             {result.checkedScope.map((item, index) => <li key={index}>{item}</li>)}
