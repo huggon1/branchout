@@ -14,7 +14,8 @@
     "test:ui": "npm run build && node scripts/check-electron.mjs",
     "test:model-ui": "npm run build && node scripts/check-model-ui.mjs",
     "test:material-ui": "npm run build && node scripts/check-material-ui.mjs",
-    "test:project-ui": "npm run build && node scripts/check-project-ui.mjs"
+    "test:project-ui": "npm run build && node scripts/check-project-ui.mjs",
+    "test:graph-ui": "npm run build && node scripts/check-graph-ui.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.87.1",
