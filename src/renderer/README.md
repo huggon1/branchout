@@ -17,6 +17,8 @@
 - `main.tsx`、`App.tsx`：挂载应用，组织导航与顶层页面状态。
 - `bridge.ts`：封装项目图、节点分析、素材、任务和设置的受控接口。
 - `components/Materials.tsx`：素材列表、添加链接和阅读流。
-- `components/ProjectWorkspace.tsx`：项目添加与删除；方向工作区的项目选择、图画布和节点侧栏由独立组件承接。
+- `components/ProjectManager.tsx`：本机项目的添加与删除。
+- `components/DirectionWorkspace.tsx`：方向工作区的项目选择、动态图、节点侧栏和任务进度。
+- `components/NodeAnalysisMaterial.tsx`：节点比较素材的结论、差异与来源依据。
 - `components/ModelSettings.tsx`、`components/XSettings.tsx`：模型连接与转发内容平台配置。
 - `components/Primitives.tsx`、`styles.css`：共用控件、状态样式和布局规则。
