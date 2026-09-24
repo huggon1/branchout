@@ -250,6 +250,8 @@ export const repositoryAnalysisResultSchema = z
   .object({
     targetRepositoryUrl: z.string().url().max(2048),
     targetCommit: z.string().max(200).optional(),
+    bounded: z.boolean().optional(),
+    omittedScopeCount: z.number().int().nonnegative().max(500).optional(),
     checkedScope: z.array(z.string().max(2000)).max(500),
     status: z.enum([
       "matched",

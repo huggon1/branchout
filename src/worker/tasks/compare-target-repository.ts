@@ -51,6 +51,8 @@ export type RepositoryComparisonPoint = {
 export type RepositoryAnalysisResult = {
   targetRepositoryUrl: string;
   targetCommit?: string;
+  bounded?: boolean;
+  omittedScopeCount?: number;
   checkedScope: string[];
   status: "matched" | "no_match" | "insufficient_evidence" | "read_failed";
   conclusion: string;
@@ -204,6 +206,8 @@ function validateJudgment(
   return {
     targetRepositoryUrl: target.repositoryUrl,
     targetCommit: target.commit,
+    bounded: target.bounded,
+    omittedScopeCount: target.omittedScopeCount,
     checkedScope: [...target.checkedScope],
     status,
     conclusion: clip(judgment.conclusion, 2_000),
@@ -235,6 +239,7 @@ export async function compareTargetRepository(
     return {
       targetRepositoryUrl: error.repositoryUrl ?? input.targetRepositoryUrl,
       ...(error.commit ? { targetCommit: error.commit } : {}),
+      bounded: true,
       checkedScope: [...error.checkedScope],
       status: "read_failed",
       conclusion: `目标仓库读取在${error.stage}阶段失败：${clip(error.message, 300)}。已检查路径：${error.checkedScope.join("、") || "尚未读取文件"}。`,
