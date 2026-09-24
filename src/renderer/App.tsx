@@ -1,43 +1,23 @@
 import { useEffect, useState } from "react";
 import { bridge } from "./bridge";
-import { DirectionWorkspace, type WorkspaceDirection, type WorkspaceGraph, type WorkspaceTask } from "./components/DirectionWorkspace";
+import { DirectionWorkspace, type WorkspaceDirection, type WorkspaceTask } from "./components/DirectionWorkspace";
 import { ProjectManager } from "./components/ProjectManager";
 import { Materials } from "./components/Materials";
 import { ModelSettings } from "./components/ModelSettings";
 import { XSettings } from "./components/XSettings";
 import { Brand, NavigationIcon } from "./components/Primitives";
-import type { ModelReply } from "../shared/model-contracts";
+import type { ExplorationState, GraphVersion } from "../shared/exploration-contracts";
 
 type Page = "素材" | "UI/UX" | "功能模块" | "项目" | "设置";
 const pages: Page[] = ["素材", "UI/UX", "功能模块", "项目", "设置"];
-interface ProjectItem {
-  projectId: string;
-  projectLabel: string;
-  directory: string;
-}
-interface ExplorationView {
-  projects: ProjectItem[];
-  tasks: WorkspaceTask[];
-}
-interface ExplorationBridge {
-  exploration(): Promise<ModelReply<ExplorationView>>;
-  bindLocalProject(): Promise<ModelReply<string | undefined>>;
-  removeProjectBinding(projectId: string): Promise<ModelReply<void>>;
-  currentGraph(projectId: string, direction: WorkspaceDirection): Promise<ModelReply<WorkspaceGraph | undefined>>;
-  generateGraph(input: { projectId: string; direction: WorkspaceDirection }): Promise<ModelReply<string>>;
-  analyzeRepository(input: { graphVersionId: string; nodeId: string; targetRepositoryUrl: string }): Promise<ModelReply<string>>;
-  cancelExplorationTask(taskId: string): Promise<ModelReply<void>>;
-}
-const workspaceBridge = bridge as typeof bridge & ExplorationBridge;
-
 export function App() {
   const [page, setPage] = useState<Page>("素材");
-  const [state, setState] = useState<ExplorationView>();
+  const [state, setState] = useState<ExplorationState>();
   const [selected, setSelected] = useState<Record<WorkspaceDirection, string>>({
     uiux: "",
     functional_modules: "",
   });
-  const [graph, setGraph] = useState<WorkspaceGraph>();
+  const [graph, setGraph] = useState<GraphVersion>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [openMaterialId, setOpenMaterialId] = useState<string>();
@@ -51,7 +31,7 @@ export function App() {
     const load = async () => {
       const current = ++revision;
       try {
-        const reply = await workspaceBridge.exploration();
+        const reply = await bridge.exploration();
         if (!alive || current !== revision) return;
         if (reply.ok) {
           setState(reply.value);
@@ -90,7 +70,7 @@ export function App() {
     const load = async () => {
       const current = ++revision;
       try {
-        const reply = await workspaceBridge.currentGraph(projectId, direction);
+        const reply = await bridge.currentGraph(projectId, direction);
         if (alive && current === revision) {
           if (reply.ok)
             setGraph((previous) =>
@@ -131,7 +111,7 @@ export function App() {
     setError("");
     if (!nextId) return;
     try {
-      const reply = await workspaceBridge.currentGraph(nextId, direction);
+      const reply = await bridge.currentGraph(nextId, direction);
       if (!reply.ok) {
         setError(reply.message);
         return;
@@ -144,7 +124,7 @@ export function App() {
           task.target.direction === direction &&
           (task.state === "queued" || task.state === "running"),
       );
-      if (!alreadyRunning) await run(() => workspaceBridge.generateGraph({ projectId: nextId, direction }));
+      if (!alreadyRunning) await run(() => bridge.generateGraph({ projectId: nextId, direction }));
     } catch {
       setError("项目图初始化失败，请重试。");
     }
@@ -158,7 +138,7 @@ export function App() {
     .at(-1);
   const retryTask = async (item: WorkspaceTask) => {
     if (item.kind === "graph_generation" && direction) {
-      await run(() => workspaceBridge.generateGraph({ projectId, direction }));
+      await run(() => bridge.generateGraph({ projectId, direction }));
       return;
     }
     if (
@@ -168,7 +148,7 @@ export function App() {
       typeof item.target.targetRepositoryUrl === "string"
     ) {
       await run(() =>
-        workspaceBridge.analyzeRepository({
+        bridge.analyzeRepository({
           graphVersionId: item.target.graphVersionId as string,
           nodeId: item.target.nodeId as string,
           targetRepositoryUrl: item.target.targetRepositoryUrl as string,
@@ -218,11 +198,11 @@ export function App() {
               error={error}
               onAdd={() =>
                 run(async () => {
-                  const reply = await workspaceBridge.bindLocalProject();
+                  const reply = await bridge.bindLocalProject();
                   return reply;
                 })
               }
-              onRemove={(id) => run(() => workspaceBridge.removeProjectBinding(id))}
+              onRemove={(id) => run(() => bridge.removeProjectBinding(id))}
             />
           )}
           {direction && (
@@ -236,11 +216,11 @@ export function App() {
               error={error}
               onSelectProject={(id) => void selectProject(id)}
               onGenerate={() =>
-                run(() => workspaceBridge.generateGraph({ projectId, direction }))
+                run(() => bridge.generateGraph({ projectId, direction }))
               }
               onAnalyze={(nodeId, targetRepositoryUrl) =>
                 run(() =>
-                  workspaceBridge.analyzeRepository({
+                  bridge.analyzeRepository({
                     graphVersionId: graph!.graphVersionId,
                     nodeId,
                     targetRepositoryUrl,
@@ -251,7 +231,7 @@ export function App() {
                 setOpenMaterialId(id);
                 setPage("素材");
               }}
-              onCancelTask={(id) => run(() => workspaceBridge.cancelExplorationTask(id))}
+              onCancelTask={(id) => run(() => bridge.cancelExplorationTask(id))}
               onRetryTask={retryTask}
             />
           )}

@@ -6,33 +6,17 @@ import {
 } from "../../shared/material-contracts";
 import { bridge } from "../bridge";
 import { Button, EmptyState } from "./Primitives";
-import { NodeAnalysisMaterial, type NodeAnalysisView } from "./NodeAnalysisMaterial";
-import { ProjectGraph, type WorkspaceGraph } from "./DirectionWorkspace";
-import type { ModelReply } from "../../shared/model-contracts";
+import { NodeAnalysisMaterial } from "./NodeAnalysisMaterial";
+import { ProjectGraph } from "./DirectionWorkspace";
+import type { GraphVersion } from "../../shared/exploration-contracts";
 
-type NodeMaterialRecord = {
-  materialId: string;
-  taskId: string;
-  resultId: string;
-  category: "node_analysis";
-  collectedAt: string;
-  displayLabel: string;
-  nodeAnalysis: NodeAnalysisView & {
-    projectId: string;
-    targetRepositoryUrl: string;
-  };
-};
-type AnyMaterial = MaterialRecord | NodeMaterialRecord;
-const graphBridge = bridge as typeof bridge & {
-  readGraph(graphVersionId: string): Promise<ModelReply<WorkspaceGraph>>;
-  openRepositoryLink(url: string): Promise<ModelReply<void>>;
-};
-const platformLabel = (platform: MaterialRecord["platform"]) =>
+type ForwardingMaterial = Extract<MaterialRecord, { category: "forwarding" }>;
+const platformLabel = (platform: "github" | "x" | "xiaohongshu") =>
   platform === "x" ? "X" : platform === "xiaohongshu" ? "小红书" : "GitHub";
 function SourceImage({
   image,
 }: {
-  image: MaterialRecord["source"]["images"][number];
+  image: ForwardingMaterial["source"]["images"][number];
 }) {
   const [failed, setFailed] = useState(false);
   return failed ? (
@@ -69,10 +53,10 @@ export function Materials({
   const [category, setCategory] = useState("all");
   const [source, setSource] = useState("all");
   const [project, setProject] = useState("all");
-  const [sequence, setSequence] = useState<AnyMaterial[]>([]);
+  const [sequence, setSequence] = useState<MaterialRecord[]>([]);
   const [index, setIndex] = useState<number | null>(null);
   const [historicalGraph, setHistoricalGraph] = useState<{
-    graph: WorkspaceGraph;
+    graph: GraphVersion;
     nodeId: string;
   }>();
   const scroll = useRef<HTMLDivElement>(null);
@@ -102,7 +86,7 @@ export function Materials({
     if (scroll.current)
       scroll.current.scrollTop = index === null ? listPosition.current : 0;
   }, [index]);
-  const allMaterials = [...(snapshot?.materials ?? [])] as AnyMaterial[];
+  const allMaterials = [...(snapshot?.materials ?? [])];
   const projects = [...new Map(
     allMaterials.flatMap((item) =>
       item.category === "node_analysis"
@@ -131,7 +115,7 @@ export function Materials({
     );
   useEffect(() => {
     if (!openMaterialId || !snapshot) return;
-    const item = (snapshot.materials as AnyMaterial[]).find(
+    const item = snapshot.materials.find(
       (entry) => entry.materialId === openMaterialId,
     );
     if (!item) return;
@@ -266,7 +250,7 @@ export function Materials({
           <NodeAnalysisMaterial
             material={current.nodeAnalysis}
             onOpenGraph={(graphVersionId, nodeId) => {
-              void graphBridge
+              void bridge
                 .readGraph(graphVersionId)
                 .then((reply) => {
                   if (reply.ok) setHistoricalGraph({ graph: reply.value, nodeId });
@@ -275,7 +259,7 @@ export function Materials({
                 .catch(() => setError("历史项目图读取失败。"));
             }}
             onOpenTarget={(url) => {
-              void graphBridge
+              void bridge
                 .openRepositoryLink(url)
                 .then((reply) => {
                   if (!reply.ok) setError(reply.message);
@@ -528,7 +512,7 @@ export function Materials({
   );
 }
 
-function categoryLabel(item: AnyMaterial) {
+function categoryLabel(item: MaterialRecord) {
   if (item.category === "node_analysis") return "节点分析";
   return item.category === "forwarding"
     ? "转发"
