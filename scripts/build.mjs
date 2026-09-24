@@ -1,24 +1,51 @@
-import { cp, mkdir } from "node:fs/promises";
 import { build } from "esbuild";
+import { mkdir, copyFile, rm, readFile } from "node:fs/promises";
+import sharp from "sharp";
+await rm("dist", { recursive: true, force: true });
+await mkdir("dist/renderer", { recursive: true });
+await mkdir("dist/assets", { recursive: true });
+await mkdir("dist/platforms", { recursive: true });
+await copyFile(
+  "src/platforms/adapters/x/x-read.mjs",
+  "dist/platforms/x-read.mjs",
+);
+const mark = await readFile("assets/branchout.svg", "utf8");
+const icon = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect x="32" y="32" width="448" height="448" rx="102" fill="#f1f7f6"/>${mark.replace("<svg ", '<svg x="104" y="104" width="304" height="304" ')}</svg>`;
+await sharp(Buffer.from(icon)).png().toFile("dist/assets/branchout.png");
 await build({
-  entryPoints: ["src/core/main.ts", "src/core/platform-worker.ts"],
-  outdir: "dist/main",
-  bundle: true,
-  platform: "node",
-  format: "esm",
-  packages: "external",
-  target: "node24",
-});
-await build({
-  entryPoints: ["src/core/preload.ts"],
-  outfile: "dist/main/preload.cjs",
+  entryPoints: [
+    "src/main/main.ts",
+    "src/main/preload.ts",
+    "src/worker/main.ts",
+  ],
+  outbase: "src",
+  outdir: "dist",
+  outExtension: { ".js": ".cjs" },
   bundle: true,
   platform: "node",
   format: "cjs",
   external: ["electron"],
-  target: "node24",
 });
-
-await mkdir("dist/assets", { recursive: true });
-for (const name of ["app-icon.png", "trayTemplate.png", "trayTemplate@2x.png"])
-  await cp(`assets/${name}`, `dist/assets/${name}`);
+await build({
+  entryPoints: [
+    "src/worker/model-worker.ts",
+    "src/worker/forwarding-worker.ts",
+    "src/worker/project-worker.ts",
+  ],
+  outdir: "dist/worker",
+  outExtension: { ".js": ".mjs" },
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  packages: "external",
+});
+await build({
+  entryPoints: ["src/renderer/main.tsx"],
+  outfile: "dist/renderer/app.js",
+  bundle: true,
+  platform: "browser",
+  format: "esm",
+  minify: true,
+  loader: { ".svg": "file" },
+});
+await copyFile("src/renderer/index.html", "dist/renderer/index.html");
