@@ -8,7 +8,7 @@
     "setup:x": "node scripts/prepare-x-runtime.mjs",
     "setup:xhs": "node scripts/prepare-xhs-runtime.mjs",
     "dev": "npm run build && electron .",
-    "start": "electron .",
+    "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "test:ui": "npm run build && node scripts/check-electron.mjs",
