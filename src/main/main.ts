@@ -213,14 +213,26 @@ else {
         join(app.getPath("userData"), "exploration.json"),
       );
       await explorationStore.open();
+      await explorationStore.reconcileProjects(
+        projects.view().projects.map((project) => ({
+          projectId: project.projectId,
+          projectLabel: project.name,
+          directory: project.directory,
+        })),
+      );
       exploration = new ExplorationService(
         explorationStore,
         materials,
         () => models!.acquire(),
-        () => {
+        (kind) => {
           const env = createWorkerEnvironment();
           const worker = utilityProcess.fork(
-            join(__dirname, "../worker/exploration-worker.mjs"),
+            join(
+              __dirname,
+              kind === "repository_analysis"
+                ? "../worker/analysis-worker.mjs"
+                : "../worker/exploration-worker.mjs",
+            ),
             [],
             { stdio: "pipe", env },
           );

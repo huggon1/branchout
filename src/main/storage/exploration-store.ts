@@ -58,6 +58,17 @@ export class ExplorationStore {
       else state.projects.push(binding);
     });
   }
+  async reconcileProjects(bindings: ProjectBinding[]) {
+    await this.update((state) => {
+      for (const binding of bindings)
+        if (
+          !state.projects.some(
+            (project) => project.projectId === binding.projectId,
+          )
+        )
+          state.projects.push(binding);
+    });
+  }
   async unbind(projectId: string) {
     await this.update((state) => {
       state.projects = state.projects.filter(

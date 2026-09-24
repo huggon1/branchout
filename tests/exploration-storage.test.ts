@@ -121,6 +121,38 @@ test("graph version and current pointer persist together; unbinding keeps histor
   }
 });
 
+test("startup reconciliation restores legacy project bindings with the original IDs", async () => {
+  const root = await mkdtemp(join(tmpdir(), "branchout-reconcile-"));
+  try {
+    const store = new ExplorationStore(join(root, "exploration.json"));
+    await store.open();
+    const projectId = randomUUID();
+    await store.reconcileProjects([
+      {
+        projectId,
+        projectLabel: "Existing repo",
+        directory: "/repo/existing",
+      },
+    ]);
+    await store.reconcileProjects([
+      {
+        projectId,
+        projectLabel: "Existing repo",
+        directory: "/repo/existing",
+      },
+    ]);
+    assert.deepEqual(store.snapshot().projects, [
+      {
+        projectId,
+        projectLabel: "Existing repo",
+        directory: "/repo/existing",
+      },
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("invalid graph data is rejected before changing persisted state", async () => {
   const root = await mkdtemp(join(tmpdir(), "branchout-graph-invalid-"));
   try {
@@ -270,6 +302,119 @@ test("graph task is persisted before dispatch and only a validated result advanc
       "completed",
     );
     assert.equal(released, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("repository analysis results become independent saved material records", async () => {
+  const root = await mkdtemp(join(tmpdir(), "branchout-analysis-task-"));
+  try {
+    const store = new ExplorationStore(join(root, "exploration.json"));
+    await store.open();
+    const projectId = randomUUID();
+    await store.bind({
+      projectId,
+      projectLabel: "Sample",
+      directory: "/repo/sample",
+    });
+    const graph = fixture(projectId);
+    await store.saveGraph(graph, task(projectId, graph));
+    class Worker extends EventEmitter implements ExplorationWorker {
+      command?: Record<string, unknown>;
+      postMessage(message: unknown) {
+        this.command = message as Record<string, unknown>;
+      }
+      kill() {
+        return true;
+      }
+    }
+    const worker = new Worker();
+    const materials = new MaterialStore(join(root, "materials.json"));
+    await materials.open();
+    const service = new ExplorationService(
+      store,
+      materials,
+      async () => ({
+        config: {
+          method: "generic_api",
+          modelId: "test-model",
+          baseUrl: "https://api.example.com",
+          api: "openai-responses",
+          credential: "fixture-secret",
+        },
+        release: async () => {},
+      }),
+      () => worker,
+      () => {},
+    );
+    const targetRepositoryUrl = "https://github.com/acme/app";
+    const taskId = await service.startAnalysis({
+      graphVersionId: graph.graphVersionId,
+      nodeId: "account-setup",
+      targetRepositoryUrl,
+    });
+    assert.equal(worker.command?.type, "analyze_repository");
+    assert.equal(worker.command?.taskId, taskId);
+    assert.deepEqual(worker.command?.nodePacket, graph.nodes["account-setup"]);
+    worker.emit("message", {
+      type: "analysis_result",
+      taskId,
+      resultId: randomUUID(),
+      result: {
+        targetRepositoryUrl,
+        targetCommit: "abc1234",
+        checkedScope: ["README.md"],
+        status: "matched",
+        conclusion: "The target validates account email during setup.",
+        evidence: [
+          {
+            commitId: "abc1234",
+            relativePath: "README.md",
+            range: "line 10",
+            quote: "Validate the account email.",
+          },
+        ],
+        comparisons: [
+          {
+            point: "Email validation",
+            projectApproach: "Validates email before account creation.",
+            targetApproach: "Validates the email during setup.",
+            difference: "The validation timing is similar.",
+            projectEvidence: [
+              {
+                path: "src/signup.ts",
+                range: "10-14",
+                quote: "validateEmail(value)",
+                contentDigest: "a".repeat(64),
+              },
+            ],
+            targetEvidence: [
+              {
+                commitId: "abc1234",
+                relativePath: "README.md",
+                range: "line 10",
+                quote: "Validate the account email.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const saved = materials.snapshot().materials;
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].category, "node_analysis");
+    if (saved[0].category === "node_analysis") {
+      assert.equal(saved[0].nodeAnalysis.nodeTitle, "Account setup");
+      assert.equal(saved[0].nodeAnalysis.graphVersionId, graph.graphVersionId);
+      assert.equal(saved[0].nodeAnalysis.result.targetCommit, "abc1234");
+    }
+    const savedTask = store
+      .snapshot()
+      .tasks.find((item) => item.taskId === taskId);
+    assert.equal(savedTask?.state, "completed");
+    assert.equal(savedTask?.materialId, saved[0].materialId);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

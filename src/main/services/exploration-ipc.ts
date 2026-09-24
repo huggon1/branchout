@@ -57,8 +57,16 @@ export function registerExplorationIpc(
         }
         if (channel === explorationChannels.unbind) {
           const projectId = z.string().uuid().parse(args[0]);
-          await projects.unbind(projectId);
+          const binding = service
+            .view()
+            .projects.find((project) => project.projectId === projectId);
           await service.unbind(projectId);
+          try {
+            await projects.unbind(projectId);
+          } catch (error) {
+            if (binding) await service.bind(binding);
+            throw error;
+          }
           return { ok: true, value: undefined };
         }
         if (channel === explorationChannels.currentGraph) {

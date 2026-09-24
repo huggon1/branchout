@@ -35,7 +35,9 @@ export class ExplorationService {
     private readonly store: ExplorationStore,
     private readonly materials: MaterialStore,
     private readonly acquire: () => Promise<Lease>,
-    private readonly spawn: () => ExplorationWorker,
+    private readonly spawn: (
+      kind: "graph_generation" | "repository_analysis",
+    ) => ExplorationWorker,
     private readonly changed: () => void,
   ) {}
   view() {
@@ -191,7 +193,11 @@ export class ExplorationService {
       await lease.release();
       throw new Error("应用正在退出");
     }
-    const worker = this.spawn();
+    if (task.kind === "forwarding") {
+      await lease.release();
+      throw new Error("转发任务由转发服务处理");
+    }
+    const worker = this.spawn(task.kind);
     const active: Active = {
       worker,
       lease,
