@@ -295,6 +295,7 @@ export class ExplorationService {
         nodeAnalysis: {
           projectId: graph.projectId,
           projectLabel: graph.projectLabel,
+          nodeTitle: packet.title,
           direction: graph.direction,
           graphVersionId: graph.graphVersionId,
           nodeId: packet.nodeId,

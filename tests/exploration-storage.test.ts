@@ -167,6 +167,7 @@ test("node analysis material records are saved independently and deduplicated by
       nodeAnalysis: {
         projectId: randomUUID(),
         projectLabel: "Sample",
+        nodeTitle: "Account setup",
         direction: "uiux" as const,
         graphVersionId: randomUUID(),
         nodeId: "account-setup",
@@ -201,6 +202,8 @@ test("node analysis material records are saved independently and deduplicated by
         saved.nodeAnalysis.graphVersionId,
         record.nodeAnalysis.graphVersionId,
       );
+    if (saved.category === "node_analysis")
+      assert.equal(saved.nodeAnalysis.nodeTitle, "Account setup");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

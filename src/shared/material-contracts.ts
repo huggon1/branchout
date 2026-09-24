@@ -231,6 +231,7 @@ const nodeAnalysisSchema = z
   .object({
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
+    nodeTitle: z.string().min(1).max(300),
     direction: z.enum(["uiux", "functional_modules"]),
     graphVersionId: z.string().uuid(),
     nodeId: z.string().min(1).max(200),
