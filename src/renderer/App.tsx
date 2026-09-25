@@ -1,170 +1,200 @@
-import { useEffect, useState } from "react";
-import { bridge } from "./bridge";
-import { DirectionWorkspace, type WorkspaceDirection, type WorkspaceTask } from "./components/DirectionWorkspace";
-import { ProjectManager } from "./components/ProjectManager";
-import { Materials } from "./components/Materials";
-import { ModelSettings } from "./components/ModelSettings";
-import { XSettings } from "./components/XSettings";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Brand, NavigationIcon } from "./components/Primitives";
-import type { ExplorationState, GraphVersion } from "../shared/exploration-contracts";
+import { ContentPage } from "./components/ContentPage";
+import { FocusCardsPage } from "./components/FocusCardsPage";
+import { ProjectsPage } from "./components/ProjectsPage";
+import { TasksPage } from "./components/TasksPage";
+import { SettingsPage } from "./components/SettingsPage";
+import { productUiBridge, type ProductPage } from "./product-ui";
+import type {
+  UiAnalysisPreflight,
+  UiContentWorkspace,
+  UiProjectWorkspace,
+  UiSettings,
+  UiSuggestionAcceptance,
+  UiTask,
+} from "./product-ui";
 
-type Page = "素材" | "UI/UX" | "功能模块" | "项目" | "设置";
-const pages: Page[] = ["素材", "UI/UX", "功能模块", "项目", "设置"];
+const pages: ProductPage[] = ["内容", "关注卡", "项目", "任务", "设置"];
+const pageTitle: Record<ProductPage, string> = {
+  内容: "内容",
+  关注卡: "关注卡",
+  项目: "项目",
+  任务: "任务",
+  设置: "设置",
+};
+
 export function App() {
-  const [page, setPage] = useState<Page>("素材");
-  const [state, setState] = useState<ExplorationState>();
-  const [selected, setSelected] = useState<Record<WorkspaceDirection, string>>({
-    uiux: "",
-    functional_modules: "",
-  });
-  const [graph, setGraph] = useState<GraphVersion>();
+  const [page, setPage] = useState<ProductPage>("内容");
+  const [projectsState, setProjectsState] = useState<UiProjectWorkspace>();
+  const [contentState, setContentState] = useState<UiContentWorkspace>();
+  const [settings, setSettings] = useState<UiSettings>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [openMaterialId, setOpenMaterialId] = useState<string>();
-  const direction: WorkspaceDirection | undefined =
-    page === "UI/UX" ? "uiux" : page === "功能模块" ? "functional_modules" : undefined;
-  const projectId = direction ? selected[direction] : "";
+  const [openMaterialId, setOpenMaterialId] = useState("");
+  const [selectedTaskId, setSelectedTaskId] = useState("");
+  const [focusTarget, setFocusTarget] = useState<{
+    projectId: string;
+    focusId?: string;
+    versionId?: string;
+  }>();
+  const [projectTarget, setProjectTarget] = useState<{
+    projectId: string;
+    reportId?: string;
+  }>();
+  const ui = useMemo(() => productUiBridge(), []);
+  const projects = projectsState?.projects ?? [];
+  const reports = projectsState?.analysisReports ?? [];
+  const contentReports = contentState?.reports ?? [];
+  const tasks = useMemo(() => {
+    const source = contentState?.tasks ?? [];
+    const live = new Map(source.map((task) => [task.taskId, task]));
+    return [...live.values()];
+  }, [contentState]);
+  const activeTaskCount = tasks.filter(
+    (task) => task.status === "queued" || task.status === "running",
+  ).length;
 
-  useEffect(() => {
-    let alive = true;
-    let revision = 0;
-    const load = async () => {
-      const current = ++revision;
-      try {
-        const reply = await bridge.exploration();
-        if (!alive || current !== revision) return;
-        if (reply.ok) {
-          setState(reply.value);
-          setSelected((previous) => ({
-            uiux: reply.value.projects.some((item) => item.projectId === previous.uiux)
-              ? previous.uiux
-              : "",
-            functional_modules: reply.value.projects.some(
-              (item) => item.projectId === previous.functional_modules,
-            )
-              ? previous.functional_modules
-              : "",
-          }));
-        } else {
-          setError(reply.message);
-        }
-      } catch {
-        if (alive) setError("项目状态读取失败，请重新打开窗口。");
-      }
-    };
-    const unsubscribe = bridge.onChanged(() => void load());
-    void load();
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!direction || !projectId) {
-      setGraph(undefined);
-      return;
+  const loadProjects = useCallback(async () => {
+    try {
+      const result = await ui.uiProjects();
+      if (result.ok) setProjectsState(result.value);
+      else setError(result.message);
+    } catch {
+      setError("项目与关注卡状态读取失败。界面正在等待项目服务连接。");
     }
-    let alive = true;
-    let revision = 0;
-    const load = async () => {
-      const current = ++revision;
-      try {
-        const reply = await bridge.currentGraph(projectId, direction);
-        if (alive && current === revision) {
-          if (reply.ok)
-            setGraph((previous) =>
-              previous?.graphVersionId === reply.value?.graphVersionId
-                ? previous
-                : reply.value,
-            );
-          else setError(reply.message);
-        }
-      } catch {
-        if (alive) setError("项目图读取失败，请重试。");
-      }
-    };
-    const unsubscribe = bridge.onChanged(() => void load());
-    void load();
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, [direction, projectId]);
+  }, [ui]);
+  const loadContent = useCallback(async () => {
+    try {
+      const result = await ui.uiContent();
+      if (result.ok) setContentState(result.value);
+      else setError(result.message);
+    } catch {
+      setError("内容报告读取失败。界面正在等待转发服务连接。");
+    }
+  }, [ui]);
+  const loadSettings = useCallback(async () => {
+    try {
+      const result = await ui.uiSettings();
+      if (result.ok) setSettings(result.value);
+      else setError(result.message);
+    } catch {
+      setError("接入设置读取失败。界面正在等待设置服务连接。");
+    }
+  }, [ui]);
+  const refresh = useCallback(async () => {
+    await Promise.all([loadProjects(), loadContent(), loadSettings()]);
+  }, [loadProjects, loadContent, loadSettings]);
+  useEffect(() => {
+    const changed =
+      typeof ui.uiChanged === "function"
+        ? ui.uiChanged(() => void refresh())
+        : () => {};
+    void refresh();
+    return changed;
+  }, [ui, refresh]);
 
-  const run = async (action: () => Promise<{ ok: boolean; message?: string }>) => {
+  const run = async <T,>(
+    operation: () => Promise<{ ok: boolean; value?: T; message?: string }>,
+    after?: (value: T | undefined) => void | Promise<void>,
+  ): Promise<boolean> => {
     setBusy(true);
     setError("");
     try {
-      const reply = await action();
-      if (!reply.ok) setError(reply.message ?? "操作未完成。");
+      const result = await operation();
+      if (!result.ok) {
+        setError(result.message ?? "操作未完成，请重试。");
+        return false;
+      } else {
+        await after?.(result.value);
+        await refresh();
+        return true;
+      }
     } catch {
       setError("操作未完成，请重试。");
+      return false;
     } finally {
       setBusy(false);
     }
   };
-  const selectProject = async (nextId: string) => {
-    if (!direction) return;
-    setSelected((previous) => ({ ...previous, [direction]: nextId }));
-    setGraph(undefined);
-    setError("");
-    if (!nextId) return;
-    try {
-      const reply = await bridge.currentGraph(nextId, direction);
-      if (!reply.ok) {
-        setError(reply.message);
-        return;
-      }
-      if (reply.value) return;
-      const alreadyRunning = state?.tasks.some(
-        (task) =>
-          task.kind === "graph_generation" &&
-          task.target.projectId === nextId &&
-          task.target.direction === direction &&
-          (task.state === "queued" || task.state === "running"),
-      );
-      if (!alreadyRunning) await run(() => bridge.generateGraph({ projectId: nextId, direction }));
-    } catch {
-      setError("项目图初始化失败，请重试。");
+  const focusCounts = useMemo(() => {
+    const counts: Record<string, { active: number; paused: number }> = {};
+    for (const card of projectsState?.focusCards ?? []) {
+      const count = counts[card.projectId] ?? { active: 0, paused: 0 };
+      count[card.current.active ? "active" : "paused"] += 1;
+      counts[card.projectId] = count;
+    }
+    return counts;
+  }, [projectsState]);
+  const navigateToFocus = (
+    projectId: string,
+    focusId?: string,
+    versionId?: string,
+  ) => {
+    setFocusTarget({ projectId, focusId, versionId });
+    setPage("关注卡");
+  };
+  const navigateToProject = (projectId: string, reportId?: string) => {
+    setProjectTarget({ projectId, reportId });
+    setPage("项目");
+  };
+  const openTaskResult = (task: UiTask) => {
+    setSelectedTaskId(task.taskId);
+    if (
+      (task.resultType === "content" && task.resultId) ||
+      task.partialResultId
+    ) {
+      setOpenMaterialId(task.partialResultId ?? task.resultId!);
+      setPage("内容");
+    } else if (
+      task.resultType === "analysis" &&
+      task.projectId &&
+      task.resultId
+    ) {
+      navigateToProject(task.projectId, task.resultId);
+    } else {
+      setPage("任务");
     }
   };
-  const task = state?.tasks
-    .filter(
-      (item) =>
-        item.target.projectId === projectId &&
-        item.target.direction === direction,
-    )
-    .at(-1);
-  const retryTask = async (item: WorkspaceTask) => {
-    if (item.kind === "graph_generation" && direction) {
-      await run(() => bridge.generateGraph({ projectId, direction }));
-      return;
-    }
-    if (
-      item.kind === "repository_analysis" &&
-      typeof item.target.graphVersionId === "string" &&
-      typeof item.target.nodeId === "string" &&
-      typeof item.target.targetRepositoryUrl === "string"
-    ) {
-      await run(() =>
-        bridge.analyzeRepository({
-          graphVersionId: item.target.graphVersionId as string,
-          nodeId: item.target.nodeId as string,
-          targetRepositoryUrl: item.target.targetRepositoryUrl as string,
-        }),
-      );
+  const acceptSuggestion = async (
+    analysisReportId: string,
+    suggestionId: string,
+    reviewedCurrentFocusVersionId?: string,
+  ): Promise<UiSuggestionAcceptance | undefined> => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await ui.uiAcceptSuggestion({
+        analysisReportId,
+        suggestionId,
+        ...(reviewedCurrentFocusVersionId
+          ? { reviewedCurrentFocusVersionId }
+          : {}),
+      });
+      if (!result.ok) {
+        setError(result.message);
+        return undefined;
+      }
+      await refresh();
+      return result.value;
+    } catch {
+      setError("建议接受失败，请重新读取报告和关注卡版本后再试。");
+      return undefined;
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <div className="shell">
+    <div className="app-shell">
       <aside className="app-sidebar">
         <Brand />
         <nav aria-label="主导航">
           {pages.map((name) => (
             <button
               key={name}
+              className="nav-item"
+              title={name}
               aria-current={page === name ? "page" : undefined}
               onClick={() => {
                 setPage(name);
@@ -172,82 +202,182 @@ export function App() {
               }}
             >
               <NavigationIcon name={name} />
-              {name}
+              <span>{name}</span>
+              {name === "任务" && activeTaskCount > 0 && (
+                <span
+                  className="nav-count"
+                  aria-label={`${activeTaskCount} 个运行中任务`}
+                >
+                  {activeTaskCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
+        <div className="sidebar-footer">
+          <span className="sidebar-presence" aria-hidden="true" />
+          本机内容与项目
+        </div>
       </aside>
-      <main>
-        <header className="app-header">
-          <h1>{page}</h1>
+      <main className="app-main">
+        <header className="app-topbar">
+          <div>
+            <p className="eyebrow">Branchout</p>
+            <h1>{pageTitle[page]}</h1>
+          </div>
+          <div className="topbar-task-state" aria-live="polite">
+            {activeTaskCount ? (
+              <button className="text-button" onClick={() => setPage("任务")}>
+                {activeTaskCount} 个任务运行中 →
+              </button>
+            ) : (
+              <span>内容与项目在本机管理</span>
+            )}
+          </div>
         </header>
-        <section
-          className={`content ${page === "素材" ? "materials-content" : ""} ${direction ? "workspace-content" : ""}`}
-        >
-          {error && <p role="alert" className="form-error">{error}</p>}
-          {page === "素材" && (
-            <Materials
-              openMaterialId={openMaterialId}
-              onMaterialOpened={() => setOpenMaterialId(undefined)}
-            />
-          )}
-          {page === "项目" && (
-            <ProjectManager
-              projects={state?.projects ?? []}
+        {error && (
+          <div className="global-alert" role="alert">
+            <span>{error}</span>
+            <button aria-label="关闭提示" onClick={() => setError("")}>
+              ×
+            </button>
+          </div>
+        )}
+        <div className="page-host">
+          <section
+            className="page-panel"
+            aria-label="内容"
+            hidden={page !== "内容"}
+          >
+            <ContentPage
+              reports={contentReports}
+              partialReports={contentState?.partialReports ?? []}
+              projects={projects}
+              openMaterialId={openMaterialId || undefined}
+              onMaterialOpened={() => setOpenMaterialId("")}
+              onAddLink={(url) => run(() => ui.uiAddLink(url))}
+              onOpenSource={async (url) => {
+                await run(() => ui.uiOpenSource(url));
+              }}
+              onOpenFocus={navigateToFocus}
+              onRetryTask={async (taskId) => {
+                await run(() => ui.uiRetryTask(taskId));
+              }}
               busy={busy}
-              error={error}
-              onAdd={() =>
-                run(async () => {
-                  const reply = await bridge.bindLocalProject();
-                  return reply;
-                })
-              }
-              onRemove={(id) => run(() => bridge.removeProjectBinding(id))}
             />
-          )}
-          {direction && (
-            <DirectionWorkspace
-              direction={direction}
-              projects={state?.projects ?? []}
-              selectedProjectId={projectId}
-              graph={graph}
-              task={task}
+          </section>
+          <section
+            className="page-panel"
+            aria-label="关注卡"
+            hidden={page !== "关注卡"}
+          >
+            <FocusCardsPage
+              projects={projects}
+              cards={projectsState?.focusCards ?? []}
+              initialProjectId={focusTarget?.projectId}
+              initialFocusId={focusTarget?.focusId}
+              initialVersionId={focusTarget?.versionId}
               busy={busy}
-              error={error}
-              onSelectProject={(id) => void selectProject(id)}
-              onGenerate={() =>
-                run(() => bridge.generateGraph({ projectId, direction }))
+              onCreate={(projectId, content) =>
+                run(
+                  () => ui.uiCreateFocus({ projectId, content }),
+                  (focusId) => {
+                    if (focusId) setFocusTarget({ projectId, focusId });
+                  },
+                )
               }
-              onAnalyze={(nodeId, targetRepositoryUrl) =>
+              onEdit={(card, content) =>
                 run(() =>
-                  bridge.analyzeRepository({
-                    graphVersionId: graph!.graphVersionId,
-                    nodeId,
-                    targetRepositoryUrl,
+                  ui.uiEditFocus({
+                    focusId: card.focusId,
+                    expectedFocusVersionId: card.current.focusVersionId,
+                    content,
                   }),
                 )
               }
-              onOpenMaterial={(id) => {
-                setOpenMaterialId(id);
-                setPage("素材");
-              }}
-              onCancelTask={(id) => run(() => bridge.cancelExplorationTask(id))}
-              onRetryTask={retryTask}
+              onSetActive={(card, active) =>
+                run(() =>
+                  ui.uiSetFocusActive({
+                    focusId: card.focusId,
+                    expectedFocusVersionId: card.current.focusVersionId,
+                    active,
+                  }),
+                )
+              }
             />
-          )}
-          {page === "设置" && (
-            <div className="settings">
-              <ModelSettings />
-              <section className="setting-row">
-                <div>
-                  <h2>转发渠道</h2>
-                  <p>飞书、Telegram 尚未接入</p>
-                </div>
-              </section>
-              <XSettings />
-            </div>
-          )}
-        </section>
+          </section>
+          <section
+            className="page-panel"
+            aria-label="项目"
+            hidden={page !== "项目"}
+          >
+            <ProjectsPage
+              projects={projects}
+              reports={reports}
+              focusCounts={focusCounts}
+              tasks={tasks}
+              initialProjectId={projectTarget?.projectId}
+              initialReportId={projectTarget?.reportId}
+              busy={busy}
+              onBind={() =>
+                run(
+                  () => ui.uiBindProject(),
+                  (project) => {
+                    if (project)
+                      setProjectTarget({ projectId: project.projectId });
+                  },
+                )
+              }
+              onUnbind={(projectId) => run(() => ui.uiUnbindProject(projectId))}
+              onPreflight={async (
+                projectId,
+              ): Promise<UiAnalysisPreflight | undefined> => {
+                const result = await ui.uiPreflightAnalysis(projectId);
+                if (result.ok) return result.value;
+                setError(result.message);
+                return undefined;
+              }}
+              onStartAnalysis={(projectId, sessionIds, commitRangeId) =>
+                run(() =>
+                  ui.uiStartAnalysis({ projectId, sessionIds, commitRangeId }),
+                )
+              }
+              onAcceptSuggestion={acceptSuggestion}
+              onOpenFocus={navigateToFocus}
+              onManageFocus={(projectId) => navigateToFocus(projectId)}
+              onOpenTask={openTaskResult}
+            />
+          </section>
+          <section
+            className="page-panel"
+            aria-label="任务"
+            hidden={page !== "任务"}
+          >
+            <TasksPage
+              tasks={tasks}
+              initialTaskId={selectedTaskId || undefined}
+              busy={busy}
+              onCancel={async (taskId) => {
+                await run(() => ui.uiCancelTask(taskId));
+              }}
+              onRetry={async (taskId) => {
+                await run(() => ui.uiRetryTask(taskId));
+              }}
+              onOpenResult={openTaskResult}
+            />
+          </section>
+          <section
+            className="page-panel"
+            aria-label="设置"
+            hidden={page !== "设置"}
+          >
+            <SettingsPage
+              settings={settings}
+              busy={busy}
+              onSaveTelegram={(input) => run(() => ui.uiSaveTelegram(input))}
+            />
+          </section>
+        </div>
       </main>
     </div>
   );

@@ -1,6 +1,24 @@
 import type { ReactNode } from "react";
 export function NavigationIcon({ name }: { name: string }) {
   const paths: Record<string, ReactNode> = {
+    内容: (
+      <>
+        <path d="M7 4h8l4 4v12H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="M15 4v5h4M9 13h7M9 16h7" />
+      </>
+    ),
+    关注卡: (
+      <>
+        <path d="M12 20s-7-4.3-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.7-7 10-7 10Z" />
+        <path d="M9 12h6" />
+      </>
+    ),
+    任务: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2M7 3 5 5M17 3l2 2" />
+      </>
+    ),
     素材: (
       <>
         <rect x="5" y="3" width="14" height="18" rx="2" />
