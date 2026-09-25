@@ -50,6 +50,7 @@ export async function readProjectGitHistory(
   signal: AbortSignal,
   rangeId: ProjectCommitRangeId = "recent_30",
 ): Promise<ProjectGitHistory> {
+  if (!Object.hasOwn(projectCommitRangeLimits, rangeId)) throw new Error("提交范围参数无效");
   const maxCommits = projectCommitRangeLimits[rangeId];
   let head: string | null = null;
   try {

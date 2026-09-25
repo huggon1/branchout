@@ -84,15 +84,18 @@ test("supports response-item-only user messages, final replies, and command-only
   const input = [
     jsonl({ type: "response_item", payload: { type: "message", role: "developer", content: [{ type: "input_text", text: "DEVELOPER_SENTINEL" }] } }),
     jsonl({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "npm test" }] } }),
+    jsonl({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "测试覆盖需要检查异步任务回收与模型提示失败状态。" }] } }),
     jsonl({ type: "response_item", payload: { type: "reasoning", text: "SECOND_REASONING_SENTINEL" } }),
     jsonl({ type: "response_item", payload: { type: "tool_result", result: "SECOND_TOOL_SENTINEL" } }),
     jsonl({ type: "response_item", payload: { type: "message", role: "assistant", phase: "final", content: [{ type: "output_text", text: "测试完成。" }] } }),
   ].join("\n");
   const parsed = parseCodexSessionJsonl(input);
-  assert.equal(parsed.messages.length, 2);
+  assert.equal(parsed.messages.length, 3);
   assert.equal(parsed.messages[0].role, "user");
   assert.equal(parsed.messages[0].commandOnly, true);
-  assert.equal(parsed.messages[1].role, "assistant_final");
+  assert.equal(parsed.messages[1].role, "user");
+  assert.equal(parsed.messages[1].commandOnly, false);
+  assert.equal(parsed.messages[2].role, "assistant_final");
   assert.equal(JSON.stringify(parsed).includes("SECOND_REASONING_SENTINEL"), false);
   assert.equal(JSON.stringify(parsed).includes("SECOND_TOOL_SENTINEL"), false);
   assert.equal(JSON.stringify(parsed).includes("DEVELOPER_SENTINEL"), false);

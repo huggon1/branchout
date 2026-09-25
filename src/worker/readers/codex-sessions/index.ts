@@ -109,7 +109,8 @@ function readTextParts(value: unknown, allowed: ReadonlySet<string>): string {
 export function isExecutionCommandOnly(value: string): boolean {
   const text = value.trim().replace(/^```[^\n]*\n?|```$/g, "").trim();
   if (!text || text.length > 600) return false;
-  return /^(?:(?:[$>]\s*)?(?:npm|npx|pnpm|yarn|bun|git|node|tsx|tsc|python(?:3)?|pytest|uv|cargo|go|make|curl|docker|wrangler)\s|(?:run|execute|test|build|check|install|commit|deploy)\s+(?:the\s+)?(?:tests?|build|checks?|command)|(?:请)?(?:运行|执行|测试|构建|安装|部署|提交)(?:一下)?(?:\s|[:：]|$))(?:(?:[^\n]*\n?)){0,4}$/i.test(text);
+  if (/^(?:(?:[$>]\s*)?(?:npm|npx|pnpm|yarn|bun|git|node|tsx|tsc|python(?:3)?|pytest|uv|cargo|go|make|curl|docker|wrangler)\s|(?:run|execute|test|build|check|install|commit|deploy)\s+(?:the\s+)?(?:tests?|build|checks?|command))(?:(?:[^\n]*\n?)){0,4}$/i.test(text)) return true;
+  return /^(?:(?:请|帮我)\s*)?(?:运行|执行|测试|构建|安装|部署|提交)(?:一下(?:[^\n]{0,180})|(?:\s|[:：]|命令|脚本|测试(?:套件|用例)?|构建(?:项目|应用|产物)?|部署(?:应用)?|$))(?:(?:[^\n]*\n?)){0,3}$/i.test(text);
 }
 
 function selectBalanced<T>(values: T[], limit: number): T[] {
