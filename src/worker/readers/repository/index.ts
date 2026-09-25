@@ -40,6 +40,7 @@ export type ProjectRepositorySnapshot = {
   files: RepositoryFile[];
   coverage: {
     directoriesScanned: number;
+    candidateFileCount: number;
     filesRead: number;
     filesSkipped: number;
     readPaths: string[];
@@ -258,6 +259,7 @@ export async function readProjectRepository(
     files,
     coverage: {
       directoriesScanned: collected.directoriesScanned,
+      candidateFileCount: collected.candidates.length,
       filesRead: files.length,
       filesSkipped,
       readPaths: files.map((file) => file.relativePath),

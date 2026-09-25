@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { open, readdir, realpath, lstat } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -29,15 +28,17 @@ export type ParsedCodexSession = {
   bounded: boolean;
 };
 
-export type SessionAttribution = "verified" | "needs_review";
+export type SessionAttribution = "confirmed" | "review";
 
 export type CodexSessionCandidate = {
   sessionId: string;
+  date: string;
   startedAt?: string;
   lastModifiedAt: string;
   workingDirectoryLabel?: string;
   attribution: SessionAttribution;
   attributionReason: "same_repository_path" | "same_git_repository" | "same_remote_repository";
+  reason: string;
 };
 
 export type ReadCodexSessionsResult = {
@@ -175,6 +176,7 @@ export function parseCodexSessionJsonl(
   const ignored = { reasoning: 0, toolCalls: 0, toolOutputs: 0, systemOrDeveloper: 0, other: 0 };
   for (const record of parsedRecords) {
     const payload = record.payload;
+    const timestamp = normalizedTimestamp(record.timestamp);
     if (record.type === "event_msg" && payload?.type === "user_message") {
       const text = redactSensitiveText(
         typeof payload.message === "string" ? payload.message : "",
@@ -185,7 +187,7 @@ export function parseCodexSessionJsonl(
         role: "user",
         text,
         commandOnly: isExecutionCommandOnly(text),
-        ...(record.timestamp ? { timestamp: record.timestamp } : {}),
+        ...(timestamp ? { timestamp } : {}),
       });
       continue;
     }
@@ -200,7 +202,7 @@ export function parseCodexSessionJsonl(
           role: "user",
           text,
           commandOnly: isExecutionCommandOnly(text),
-          ...(record.timestamp ? { timestamp: record.timestamp } : {}),
+          ...(timestamp ? { timestamp } : {}),
         });
       } else if (role === "assistant" && isFinalAssistant(payload)) {
         const text = redactSensitiveText(textFromMessage(payload, "assistant"), options.homeDirectory)
@@ -211,7 +213,7 @@ export function parseCodexSessionJsonl(
           role: "assistant_final",
           text,
           commandOnly: false,
-          ...(record.timestamp ? { timestamp: record.timestamp } : {}),
+          ...(timestamp ? { timestamp } : {}),
         });
       } else if (role === "system" || role === "developer") {
         ignored.systemOrDeveloper++;
@@ -321,7 +323,7 @@ async function readHeader(filePath: string, maxBytes: number): Promise<Header> {
           ? record.payload as Record<string, unknown>
           : undefined;
         if (record.type === "session_meta" && payload) {
-          if (typeof payload.id === "string") result.sessionId = payload.id;
+          if (typeof payload.id === "string" && /^[A-Za-z0-9._:-]{1,300}$/.test(payload.id)) result.sessionId = payload.id;
           if (typeof payload.timestamp === "string") result.startedAt = payload.timestamp;
           if (typeof payload.cwd === "string") result.workingDirectories.push(payload.cwd);
           if (typeof payload.thread_name === "string") result.title = payload.thread_name;
@@ -380,6 +382,12 @@ async function listJsonlFiles(roots: string[], maxFiles: number) {
 function isWithin(parent: string, child: string): boolean {
   const relativePath = relative(parent, child);
   return relativePath === "" || (!relativePath.startsWith(`..${sep}`) && relativePath !== ".." && !isAbsolute(relativePath));
+}
+
+function normalizedTimestamp(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
 }
 
 export async function discoverCodexSessionCandidates(
@@ -485,6 +493,7 @@ async function discoverPrivateCandidates(
   const target = await gitIdentity(projectDirectory);
   if (!target) return { candidates: [], filesScanned: scanned.scanned, bounded: scanned.bounded };
   const result: PrivateCandidate[] = [];
+  const seenSessionIds = new Set<string>();
   const identityCache = new Map<string, Promise<GitIdentity | undefined>>();
   const getIdentity = (path: string) => {
     let identity = identityCache.get(path);
@@ -499,7 +508,8 @@ async function discoverPrivateCandidates(
     let header: Header;
     try { header = await readHeader(file.path, options.maxHeaderBytes ?? 128 * 1024); }
     catch { continue; }
-    if (!header.sessionId) continue;
+    if (!header.sessionId || seenSessionIds.has(header.sessionId)) continue;
+    seenSessionIds.add(header.sessionId);
     const cwdPaths = header.workingDirectories.map((path) => resolve(path));
     let attribution: SessionAttribution | undefined;
     let reason: CodexSessionCandidate["attributionReason"] | undefined;
@@ -507,39 +517,44 @@ async function discoverPrivateCandidates(
       let canonicalCwd = cwd;
       try { canonicalCwd = await realpath(cwd); } catch { /* A removed worktree remains a review candidate by remote. */ }
       if (isWithin(target.root, canonicalCwd)) {
-        attribution = "verified";
+        attribution = "confirmed";
         reason = "same_repository_path";
         break;
       }
       const identity = await getIdentity(canonicalCwd);
       if (identity?.commonDir === target.commonDir) {
-        attribution = "verified";
+        attribution = "confirmed";
         reason = "same_git_repository";
         break;
       }
       if (identity?.remote && target.remote && identity.remote === target.remote) {
-        attribution = "needs_review";
+        attribution = "review";
         reason = "same_remote_repository";
       }
     }
     if (!attribution || !reason) continue;
     const modified = new Date(file.modifiedAt).toISOString();
+    const startedAt = normalizedTimestamp(header.startedAt);
+    const candidateDate = startedAt ?? modified;
+    const attributionText = reason === "same_repository_path"
+      ? "工作目录位于该项目仓库内"
+      : reason === "same_git_repository"
+        ? "工作目录属于同一 Git 仓库"
+        : "origin remote 相同，工作副本需要用户确认";
     result.push({
       filePath: file.path,
       cwdPaths,
       candidate: {
         sessionId: header.sessionId,
-        ...(header.startedAt ? { startedAt: header.startedAt } : {}),
+        date: candidateDate,
+        ...(startedAt ? { startedAt } : {}),
         lastModifiedAt: modified,
-        ...(cwdPaths[0] ? { workingDirectoryLabel: basename(cwdPaths[0]).slice(0, 120) } : {}),
+        ...(cwdPaths[0] ? { workingDirectoryLabel: redactSensitiveText(basename(cwdPaths[0])).replace(/[\r\n\0]/g, " ").slice(0, 120) } : {}),
         attribution,
         attributionReason: reason,
+        reason: attributionText,
       },
     });
   }
   return { candidates: result, filesScanned: scanned.scanned, bounded: scanned.bounded };
-}
-
-export function stableSessionFileId(filePath: string): string {
-  return createHash("sha256").update(filePath).digest("hex");
 }

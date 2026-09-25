@@ -128,8 +128,8 @@ test("discovers same-repository sessions as verified and same-remote clones for 
     await writeSession(sessionsRoot, "rollout-unrelated.jsonl", "session-unrelated", unrelated);
     const discovered = await discoverCodexSessionCandidates(project, { roots: [sessionsRoot] });
     assert.equal(discovered.candidates.length, 2);
-    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-path-match")?.attribution, "verified");
-    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-remote-match")?.attribution, "needs_review");
+    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-path-match")?.attribution, "confirmed");
+    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-remote-match")?.attribution, "review");
     assert.equal(discovered.candidates.some((candidate) => candidate.sessionId === "session-unrelated"), false);
     const selected = await readSelectedCodexSessions(project, ["session-path-match"], controller(), { roots: [sessionsRoot] });
     assert.equal(selected.coverage.read, 1);
@@ -184,4 +184,3 @@ test("reads a bounded local repository and exposes exact recent-commit ranges", 
     await rm(outside, { recursive: true, force: true });
   }
 });
-
