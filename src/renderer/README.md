@@ -1,24 +1,22 @@
 # Renderer
 
-本文描述 Electron 界面进程的目标职责与文件分工。页面流程见[UX 规格](../../docs/ux-spec.md)，共用交互规则见[设计系统](../../docs/design-system.md)。
+本文描述界面进程的目标结构。页面行为见[UX 规格](../../docs/ux-spec.md)，共用规则见[设计系统](../../docs/design-system.md)。
 
 ## 职责
 
-`renderer` 使用 React 呈现素材、UI/UX、功能模块、项目和设置五个入口。两个方向工作区分别选择项目、初始化或重新生成项目图，并在选中节点时打开右侧侧栏。侧栏显示节点资料、适合分析的判断与固定分析说明，接收用户输入的 GitHub 仓库链接。
+`renderer` 呈现内容、关注卡、项目、任务和设置五个入口。内容页负责添加链接、列表和报告阅读；关注卡页负责按项目管理自由文本卡；项目页负责仓库绑定、分析输入、报告及建议审阅；任务页呈现 Agent 当前阶段和近期活动。
 
-项目图展示 Archify 的动态图工件。图内节点选择等事件经校验后更新界面状态；画布、侧栏和任务进度保持同步。素材入口负责统一列表、转发链接输入和两类素材的阅读流。
+界面从 preload 受控接口读取主进程已保存的快照，提交编辑、转发、分析和建议接受命令。页面切换保留用户的项目选择、列表筛选和阅读位置；任务状态从统一任务快照恢复。
 
-界面通过 preload 暴露的受控接口读取当前图、任务和素材状态，并提交用户操作。窗口重开后，界面从主进程恢复工作区和任务状态。
+## 目标模块分工
 
-## 依赖与文件分工
+- `App.tsx` 与导航组件：页面切换、任务提示和全局错误入口。
+- `pages/Content`：转发提交、内容列表、来源阅读、通用理解和关注关联。
+- `pages/FocusCards`：项目分组、自由文本编辑、状态与版本阅读。
+- `pages/Projects`：仓库绑定、分析输入范围、项目报告及建议接受。
+- `pages/Tasks`：任务列表、当前阶段、Agent 活动、失败与重试。
+- `pages/Settings`：模型连接、Telegram 聊天绑定和内容来源配置。
+- `components/`：阅读导航、状态标识、证据引用、表单与布局组件。
+- `bridge.ts`：封装跨进程查询、命令和状态订阅。
 
-`renderer` 使用 React、共用界面组件、`shared` 类型和 preload 桥接。
-
-- `main.tsx`、`App.tsx`：挂载应用，组织导航与顶层页面状态。
-- `bridge.ts`：封装项目图、节点分析、素材、任务和设置的受控接口。
-- `components/Materials.tsx`：素材列表、添加链接和阅读流。
-- `components/ProjectManager.tsx`：本机项目的添加与删除。
-- `components/DirectionWorkspace.tsx`：方向工作区的项目选择、动态图、节点侧栏和任务进度。
-- `components/NodeAnalysisMaterial.tsx`：节点比较素材的结论、差异与来源依据。
-- `components/ModelSettings.tsx`、`components/XSettings.tsx`：模型连接与转发内容平台配置。
-- `components/Primitives.tsx`、`styles.css`：共用控件、状态样式和布局规则。
+页面组件组合业务状态，共用组件处理可复用的呈现与交互。
