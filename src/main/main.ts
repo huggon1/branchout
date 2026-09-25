@@ -4,64 +4,70 @@ import {
   dialog,
   ipcMain,
   Menu,
-  protocol,
-  utilityProcess,
   safeStorage,
   shell,
+  utilityProcess,
 } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { rm } from "node:fs/promises";
 import { z } from "zod";
 import {
   channels,
   modelChannels,
-  materialChannels,
   xChannels,
   xhsChannels,
 } from "../shared/ipc-contracts";
-import { MaterialStore } from "./storage/material-store";
 import { ProjectStore } from "./storage/project-store";
-import { ProjectService } from "./services/project-service";
+import { TaskStore } from "./storage/task-store";
+import { ForwardingStore } from "./services/forwarding/store";
+import { ForwardingPipelineService } from "./services/forwarding/service";
+import { registerForwardingIpc } from "./services/forwarding/ipc";
+import { ProjectService } from "./services/projects/project-service";
+import { registerProjectIpc } from "./services/projects/project-ipc";
+import { FocusCardService } from "./services/focus-cards/focus-card-service";
+import { registerFocusCardIpc } from "./services/focus-cards/focus-card-ipc";
+import { ProjectAnalysisReportService } from "./services/projects/analysis-report-service";
+import { registerAnalysisReportIpc } from "./services/projects/analysis-report-ipc";
+import { TaskService } from "./services/tasks/task-service";
+import { registerTaskIpc } from "./services/tasks/task-ipc";
+import { UnifiedTaskService } from "./services/tasks/unified-task-service";
 import { createWorkerEnvironment } from "./services/worker-environment";
-import { registerProjectIpc } from "./services/project-ipc";
-import { registerExplorationIpc } from "./services/exploration-ipc";
-import { ExplorationService } from "./services/exploration-service";
-import { ExplorationStore } from "./storage/exploration-store";
-import { ForwardingService } from "./services/forwarding-service";
-import { rm } from "node:fs/promises";
 import { ModelService } from "./services/model-service";
 import { CodexClient } from "./services/codex-client";
 import { ModelStore } from "./storage/model-store";
 import { AuthCleanup } from "./storage/auth-cleanup";
 import { checkModel, readPiCatalog } from "./services/model-worker-client";
-import { Store } from "./storage/store";
-import { TaskManager } from "./task-manager";
 import { createWindow } from "./window";
 import { XAuth } from "./services/x-auth";
 import { XhsAuth } from "./services/xhs-auth";
-import { repositoryEvidenceUrlSchema } from "../shared/material-contracts";
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: "branchout-graph",
-    privileges: { standard: true, secure: true, supportFetchAPI: true },
-  },
-]);
+
 if (process.env.BRANCHOUT_TEST_DATA)
   app.setPath("userData", process.env.BRANCHOUT_TEST_DATA);
 else
   app.setPath("userData", join(app.getPath("appData"), "Branchout Foundation"));
+
 const locked = app.requestSingleInstanceLock();
 if (!locked) app.quit();
 else {
-  let manager: TaskManager | undefined;
   let models: ModelService | undefined;
-  let forwarding: ForwardingService | undefined;
+  let forwarding: ForwardingPipelineService | undefined;
   let projects: ProjectService | undefined;
-  let exploration: ExplorationService | undefined;
+  let focusCards: FocusCardService | undefined;
+  let analysisReports: ProjectAnalysisReportService | undefined;
+  let tasks: TaskService | undefined;
+  let taskView: UnifiedTaskService | undefined;
   let xAuth: XAuth | undefined;
   let xhsAuth: XhsAuth | undefined;
-  let quitting = false;
+  let servicesReady = false;
+  let shuttingDown = false;
   let mainWindow: BrowserWindow | undefined;
+
+  const changed = () => {
+    for (const window of BrowserWindow.getAllWindows())
+      window.webContents.send(channels.changed);
+  };
+
   const open = () => {
     const existing =
       mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
@@ -75,55 +81,37 @@ else {
       });
     }
   };
+
   app.on("second-instance", open);
   app.on("activate", () => {
     if (app.isReady()) open();
   });
   app.on("window-all-closed", () => {});
   app.on("before-quit", (event) => {
-    if (!quitting && manager) {
-      event.preventDefault();
-      quitting = true;
-      void Promise.all([
-        manager.shutdown(),
-        forwarding?.shutdown(),
-        projects?.shutdown(),
-        exploration?.shutdown(),
-      ])
-        .then(() => models?.close())
-        .catch(() => {
-          dialog.showErrorBox(
-            "任务状态未能保存",
-            "工作进程已停止。下次启动将恢复中断状态。",
-          );
-        })
-        .finally(() => {
-          xhsAuth?.shutdown();
-          app.quit();
-        });
-    }
+    if (shuttingDown || !servicesReady) return;
+    event.preventDefault();
+    shuttingDown = true;
+    void forwarding
+      ?.shutdown()
+      .then(() => models?.close())
+      .catch(() => {
+        dialog.showErrorBox(
+          "任务状态未能保存",
+          "工作进程已停止。下次启动将恢复中断状态。",
+        );
+      })
+      .finally(() => {
+        xhsAuth?.shutdown();
+        app.quit();
+      });
   });
+
   void app
     .whenReady()
     .then(async () => {
       app.setName("Branchout");
       app.dock?.setIcon(join(__dirname, "../assets/branchout.png"));
-      const store = new Store(join(app.getPath("userData"), "foundation.json"));
-      await store.open();
-      manager = new TaskManager(
-        store,
-        () => utilityProcess.fork(join(__dirname, "../worker/main.cjs")),
-        () => {
-          for (const window of BrowserWindow.getAllWindows())
-            window.webContents.send(channels.changed);
-        },
-        () =>
-          dialog.showErrorBox(
-            "任务状态未能保存",
-            "本地保存失败，检查已停止。请检查磁盘空间后重新启动应用。",
-          ),
-      );
-      await manager.recover();
+
       const authRoot = join(app.getPath("userData"), "model-auth");
       models = new ModelService({
         storage: new ModelStore(
@@ -146,147 +134,83 @@ else {
         catalog: readPiCatalog,
         openLogin: (url) => shell.openExternal(url),
         check: checkModel,
-        changed: () => {
-          for (const window of BrowserWindow.getAllWindows())
-            window.webContents.send(channels.changed);
-        },
+        changed,
       });
       await models.open();
-      xAuth = new XAuth(() => {
-        for (const window of BrowserWindow.getAllWindows())
-          window.webContents.send(channels.changed);
-      });
+
+      xAuth = new XAuth(changed);
       xhsAuth = new XhsAuth(
         join(app.getPath("userData"), "xiaohongshu"),
-        () => {
-          for (const window of BrowserWindow.getAllWindows())
-            window.webContents.send(channels.changed);
-        },
+        changed,
       );
-      const materials = new MaterialStore(
-        join(app.getPath("userData"), "materials.json"),
-      );
-      await materials.open();
-      forwarding = new ForwardingService(
-        materials,
-        () => models!.acquire(),
-        () => {
-          const env = createWorkerEnvironment();
-          const worker = utilityProcess.fork(
-            join(__dirname, "../worker/forwarding-worker.mjs"),
-            [],
-            { stdio: "pipe", env },
-          );
-          worker.stdout?.resume();
-          worker.stderr?.resume();
-          return worker;
-        },
-        () => {
-          for (const window of BrowserWindow.getAllWindows())
-            window.webContents.send(channels.changed);
-        },
-        () => xAuth!.credentials(),
-        () => xhsAuth!.session(),
-      );
-      await forwarding.recover();
+
       const projectStore = new ProjectStore(
         join(app.getPath("userData"), "projects.json"),
       );
       await projectStore.open();
-      projects = new ProjectService(
-        projectStore,
-        materials,
-        () => models!.acquire(),
-        () => {
-          const env = createWorkerEnvironment();
-          const worker = utilityProcess.fork(
-            join(__dirname, "../worker/project-worker.mjs"),
-            [],
-            { stdio: "pipe", env },
-          );
-          worker.stdout?.resume();
-          worker.stderr?.resume();
-          return worker;
-        },
-        () => {
-          for (const window of BrowserWindow.getAllWindows())
-            window.webContents.send(channels.changed);
-        },
-        () => xAuth!.credentials(),
-        () => xhsAuth!.session(),
-      );
-      await projects.recover();
-      const explorationStore = new ExplorationStore(
-        join(app.getPath("userData"), "exploration.json"),
-      );
-      await explorationStore.open();
-      await explorationStore.reconcileProjects(
-        projects.view().projects.map((project) => ({
-          projectId: project.projectId,
-          projectLabel: project.name,
-          directory: project.directory,
-        })),
-      );
-      exploration = new ExplorationService(
-        explorationStore,
-        materials,
-        () => models!.acquire(),
-        (kind) => {
-          const env = createWorkerEnvironment();
-          if (kind === "graph_generation")
-            env.BRANCHOUT_ARCHIFY_EXECUTABLE = process.execPath;
-          const worker = utilityProcess.fork(
-            join(
-              __dirname,
-              kind === "repository_analysis"
-                ? "../worker/analysis-worker.mjs"
-                : "../worker/exploration-worker.mjs",
-            ),
-            [],
-            { stdio: "pipe", env },
-          );
-          worker.stdout?.resume();
-          worker.stderr?.resume();
-          return worker;
-        },
-        () => {
-          for (const window of BrowserWindow.getAllWindows())
-            window.webContents.send(channels.changed);
-        },
-      );
-      await exploration.recover();
+      projects = new ProjectService(projectStore, changed);
+      focusCards = new FocusCardService(projectStore, changed);
+      analysisReports = new ProjectAnalysisReportService(projectStore, changed);
 
-      protocol.handle("branchout-graph", (request) => {
-        const url = new URL(request.url);
-        const match = /^\/[0-9a-f-]{36}$/.test(url.pathname);
-        const graph =
-          request.method === "GET" &&
-          url.hostname === "view" &&
-          match &&
-          !url.search &&
-          !url.hash
-            ? exploration!.readGraph(url.pathname.slice(1))
-            : undefined;
-        if (!graph)
-          return new Response("Not found", {
-            status: 404,
-            headers: { "Content-Type": "text/plain; charset=utf-8" },
-          });
-        return new Response(graph.viewArtifact, {
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Content-Security-Policy":
-              "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors file:",
-            "X-Content-Type-Options": "nosniff",
-          },
-        });
+      const taskStore = new TaskStore(
+        join(app.getPath("userData"), "tasks.json"),
+      );
+      await taskStore.open();
+      tasks = new TaskService(taskStore, changed);
+      await tasks.recover();
+
+      const forwardingStore = new ForwardingStore(
+        join(app.getPath("userData"), "forwarding.json"),
+      );
+      await forwardingStore.open();
+      forwarding = new ForwardingPipelineService({
+        store: forwardingStore,
+        focusCards,
+        acquire: () => models!.acquire(),
+        spawn: () => {
+          const worker = utilityProcess.fork(
+            join(__dirname, "../worker/jobs/forwarding/worker-entry.mjs"),
+            [],
+            { stdio: "pipe", env: createWorkerEnvironment() },
+          );
+          worker.stdout?.resume();
+          worker.stderr?.resume();
+          return worker;
+        },
+        changed,
+        protectSensitive: async (value) => {
+          if (
+            !safeStorage.isEncryptionAvailable() ||
+            (process.platform === "linux" &&
+              safeStorage.getSelectedStorageBackend() === "basic_text")
+          )
+            throw new Error("系统安全存储当前不可用");
+          return safeStorage.encryptString(value).toString("base64");
+        },
+        revealSensitive: async (value) => {
+          if (
+            !safeStorage.isEncryptionAvailable() ||
+            (process.platform === "linux" &&
+              safeStorage.getSelectedStorageBackend() === "basic_text")
+          )
+            throw new Error("系统安全存储当前不可用");
+          return safeStorage.decryptString(Buffer.from(value, "base64"));
+        },
+        xCredentials: () => xAuth!.credentials(),
+        xhsSession: () => xhsAuth!.connect(),
       });
+      await forwarding.recover();
+      taskView = new UnifiedTaskService(tasks, forwarding);
 
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
       registerProjectIpc(projects, expected);
-      registerExplorationIpc(exploration, projects, expected);
+      registerFocusCardIpc(focusCards, expected);
+      registerAnalysisReportIpc(analysisReports, expected);
+      registerTaskIpc(taskView, expected);
+      registerForwardingIpc(forwarding, expected);
+
       for (const channel of Object.values(xChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -306,6 +230,7 @@ else {
             return { ok: false, message: "X 登录状态操作未完成，请稍后重试" };
           }
         });
+
       for (const channel of Object.values(xhsChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -331,49 +256,7 @@ else {
             };
           }
         });
-      for (const channel of Object.values(materialChannels))
-        ipcMain.handle(channel, async (event, ...args: unknown[]) => {
-          if (
-            !event.senderFrame ||
-            event.senderFrame !== event.sender.mainFrame ||
-            event.senderFrame.url !== expected ||
-            args.length !== (channel === materialChannels.view ? 0 : 1)
-          )
-            return { ok: false, message: "无效的请求" };
-          try {
-            let value: unknown;
-            if (channel === materialChannels.view) value = materials.snapshot();
-            else if (channel === materialChannels.add)
-              value = await forwarding!.start(args[0]);
-            else if (channel === materialChannels.cancel)
-              await forwarding!.end(
-                z.string().uuid().parse(args[0]),
-                "cancelled",
-              );
-            else if (channel === materialChannels.openRepositoryLink) {
-              const url = repositoryEvidenceUrlSchema.parse(args[0]);
-              await shell.openExternal(url);
-            } else {
-              const id = z.string().uuid().parse(args[0]);
-              const material = materials
-                .snapshot()
-                .materials.find((item) => item.materialId === id);
-              if (!material) throw new Error("素材不存在");
-              await shell.openExternal(
-                material.category === "node_analysis"
-                  ? material.nodeAnalysis.targetRepositoryUrl
-                  : material.source.sourceUrl,
-              );
-            }
-            return { ok: true, value };
-          } catch {
-            return {
-              ok: false,
-              message:
-                "操作未完成：请检查链接、平台登录和模型连接；同时最多解析两条。",
-            };
-          }
-        });
+
       for (const channel of Object.values(modelChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -417,25 +300,7 @@ else {
             };
           }
         });
-      for (const channel of [
-        channels.snapshot,
-        channels.check,
-        channels.cancel,
-      ])
-        ipcMain.handle(channel, async (event, ...args: unknown[]) => {
-          if (
-            !event.senderFrame ||
-            event.senderFrame !== event.sender.mainFrame ||
-            event.senderFrame.url !== expected
-          )
-            throw new Error("无效的界面请求");
-          if (channel !== channels.cancel && args.length !== 0)
-            throw new Error("无效的请求参数");
-          if (channel === channels.snapshot) return store.snapshot();
-          if (channel === channels.check) return manager!.start();
-          if (args.length !== 1) throw new Error("无效的请求参数");
-          return manager!.cancel(z.string().uuid().parse(args[0]));
-        });
+
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
@@ -450,6 +315,7 @@ else {
           { role: "viewMenu" },
         ]),
       );
+      servicesReady = true;
       open();
       const session = mainWindow!.webContents.session;
       session.setPermissionRequestHandler(

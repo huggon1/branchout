@@ -1,9 +1,17 @@
 import { ipcMain } from "electron";
 import { z } from "zod";
 import { taskChannels } from "../../../shared/ipc-contracts";
-import type { TaskService } from "./task-service";
+import type {
+  TaskActivity,
+  TaskSnapshot,
+} from "../../../shared/task-contracts";
 
-export function registerTaskIpc(service: TaskService, expected: string) {
+interface TaskViewService {
+  snapshots(): TaskSnapshot[];
+  activities(taskId: string): TaskActivity[];
+}
+
+export function registerTaskIpc(service: TaskViewService, expected: string) {
   for (const channel of Object.values(taskChannels))
     ipcMain.handle(channel, async (event, ...args: unknown[]) => {
       const count = channel === taskChannels.snapshots ? 0 : 1;
@@ -21,7 +29,8 @@ export function registerTaskIpc(service: TaskService, expected: string) {
             : service.activities(z.string().uuid().parse(args[0]));
         return { ok: true, value };
       } catch (error) {
-        const message = error instanceof Error ? error.message : "任务状态读取失败";
+        const message =
+          error instanceof Error ? error.message : "任务状态读取失败";
         return { ok: false, message: message.slice(0, 500) };
       }
     });
