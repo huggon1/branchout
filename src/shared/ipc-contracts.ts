@@ -17,7 +17,6 @@ import type {
   StartProjectAnalysis,
 } from "./analysis-contracts";
 import type { TaskActivity, TaskSnapshot } from "./task-contracts";
-import type { TelegramSettings, TelegramStatus } from "./telegram-contracts";
 export const projectChannels = {
   view: "project:view",
   bind: "project:bind",
@@ -39,11 +38,6 @@ export const analysisChannels = {
   preflight: "analysis:preflight",
   start: "analysis:start",
   acceptSuggestion: "analysis:accept-suggestion",
-} as const;
-export const telegramChannels = {
-  status: "telegram:status",
-  settings: "telegram:settings",
-  saveSettings: "telegram:save-settings",
 } as const;
 export const materialChannels = {
   view: "materials:view",
@@ -99,9 +93,6 @@ export interface DesktopBridge {
   acceptFocusSuggestion(
     input: AcceptFocusSuggestion,
   ): Promise<ModelReply<AcceptSuggestionResult>>;
-  telegramStatus(): Promise<ModelReply<TelegramStatus>>;
-  telegramSettings(): Promise<ModelReply<TelegramSettings>>;
-  saveTelegramSettings(input: TelegramSettings): Promise<ModelReply<void>>;
   materials(): Promise<ModelReply<MaterialState>>;
   addLink(url: string): Promise<ModelReply<string>>;
   cancelForwarding(taskId: string): Promise<ModelReply<void>>;

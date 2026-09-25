@@ -1,30 +1,4 @@
 import { z } from "zod";
-import {
-  telegramStateSchema,
-  type TelegramState,
-} from "./telegram-state-contracts";
-export {
-  telegramInboundSchema,
-  telegramStateSchema,
-} from "./telegram-state-contracts";
-export type { TelegramInbound, TelegramState } from "./telegram-state-contracts";
-
-export const telegramSettingsSchema = z
-  .object({
-    enabled: z.boolean(),
-    approvedChatId: z.string().min(1).max(100).optional(),
-  })
-  .strict();
-
-export const telegramStatusSchema = z
-  .object({
-    connected: z.boolean(),
-    approvedChatConfigured: z.boolean(),
-    lastPollAt: z.string().datetime().optional(),
-    lastError: z.string().max(500).optional(),
-    pendingAcknowledgements: z.number().int().nonnegative(),
-  })
-  .strict();
 
 export const telegramForwardingSubmissionSchema = z
   .object({
@@ -37,8 +11,6 @@ export const telegramForwardingSubmissionSchema = z
   })
   .strict();
 
-export type TelegramSettings = z.infer<typeof telegramSettingsSchema>;
-export type TelegramStatus = z.infer<typeof telegramStatusSchema>;
 export type TelegramForwardingSubmission = z.infer<
   typeof telegramForwardingSubmissionSchema
 >;
