@@ -38,6 +38,7 @@ await build({
     "src/worker/project-worker.ts",
     "src/worker/exploration-worker.ts",
     "src/worker/analysis-worker.ts",
+    "src/worker/jobs/forwarding/worker-entry.ts",
   ],
   outdir: "dist/worker",
   outExtension: { ".js": ".mjs" },
