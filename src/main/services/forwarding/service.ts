@@ -18,7 +18,12 @@ import {
   type ForwardingReportDraft,
 } from "../../../worker/jobs/forwarding/contracts";
 import type { ForwardingJobCommand } from "../../../worker/jobs/forwarding/contracts";
-import { ForwardingStore, type ForwardingTaskRecord } from "./store";
+import {
+  addForwardingActivity,
+  ForwardingStore,
+  type ForwardingActivity,
+  type ForwardingTaskRecord,
+} from "./store";
 
 type Lease = {
   config: ModelExecutionConfig;
@@ -68,6 +73,7 @@ export interface ForwardingTaskSummary {
   progress: { evaluated: number; total: number };
   hasSource: boolean;
   hasUnderstanding: boolean;
+  activities: ForwardingActivity[];
   createdAt: string;
   finishedAt?: string;
   updatedAt: string;
@@ -185,7 +191,10 @@ export class ForwardingPipelineService {
           task.phase = "上次解析中断";
           task.message = "应用关闭时任务中断；已保存阶段可用于重试";
           task.failureStage = stage;
-          task.updatedAt = now();
+          addForwardingActivity(task, {
+            kind: "recovered",
+            summary: task.message,
+          });
         }
     });
     this.dependencies.changed();
@@ -280,7 +289,7 @@ export class ForwardingPipelineService {
     const createdAt = now();
     await this.dependencies.store.update((state) => {
       if (state.tasks.some((task) => task.taskId === input.taskId)) return;
-      state.tasks.push({
+      const task: ForwardingTaskRecord = {
         taskId: input.taskId,
         materialId: randomUUID(),
         resultId: input.resultId,
@@ -295,10 +304,20 @@ export class ForwardingPipelineService {
         phase: "等待处理",
         focusSet,
         evaluations: [],
+        activities: [],
         ...(xhsAccessTokenCiphertext ? { xhsAccessTokenCiphertext } : {}),
         createdAt,
         updatedAt: createdAt,
+      };
+      addForwardingActivity(task, {
+        kind: "received",
+        summary:
+          input.entry === "telegram"
+            ? "Telegram 单链接已收取并加入转发队列"
+            : "应用内链接已加入转发队列",
+        occurredAt: createdAt,
       });
+      state.tasks.push(task);
     });
     this.dependencies.changed();
     this.schedulePump();
@@ -317,7 +336,10 @@ export class ForwardingPipelineService {
       task.message = undefined;
       task.failureStage = undefined;
       task.finishedAt = undefined;
-      task.updatedAt = now();
+      addForwardingActivity(task, {
+        kind: "phase",
+        summary: "任务已重试，继续使用已保存的阶段结果",
+      });
       retryable = true;
     });
     if (retryable) {
@@ -339,7 +361,10 @@ export class ForwardingPipelineService {
       if (task && ["queued", "running"].includes(task.state)) {
         task.state = "cancelled";
         task.phase = "已取消";
-        task.updatedAt = now();
+        addForwardingActivity(task, {
+          kind: "cancelled",
+          summary: "转发任务已取消",
+        });
         task.message = undefined;
         changed = true;
       }
@@ -370,6 +395,7 @@ export class ForwardingPipelineService {
         },
         hasSource: !!task.source,
         hasUnderstanding: !!task.generalUnderstanding,
+        activities: task.activities.slice(-10),
         createdAt: task.createdAt,
         ...(task.finishedAt ? { finishedAt: task.finishedAt } : {}),
         updatedAt: task.updatedAt,
@@ -454,7 +480,15 @@ export class ForwardingPipelineService {
             ? "检查关注卡"
             : "理解内容"
           : "读取来源";
-        current.updatedAt = now();
+        addForwardingActivity(current, {
+          kind: "phase",
+          summary:
+            current.phase === "读取来源"
+              ? "开始读取来源内容"
+              : current.phase === "理解内容"
+                ? "开始生成通用理解"
+                : `开始判断 ${current.focusSet.cards.length} 张冻结关注卡`,
+        });
       });
       const worker = (entry.worker = this.dependencies.spawn());
       worker.on("message", (raw) => {
@@ -563,8 +597,18 @@ export class ForwardingPipelineService {
       await this.dependencies.store.update((state) => {
         const task = state.tasks.find((item) => item.taskId === taskId);
         if (!task || task.state !== "running") return;
-        task.phase = event.phase;
-        task.updatedAt = now();
+        if (task.phase !== event.phase) {
+          task.phase = event.phase;
+          addForwardingActivity(task, {
+            kind: "phase",
+            summary:
+              event.phase === "读取来源"
+                ? "开始读取来源内容"
+                : event.phase === "理解内容"
+                  ? "开始生成通用理解"
+                  : `开始判断 ${task.focusSet.cards.length} 张冻结关注卡`,
+          });
+        }
       });
       this.dependencies.changed();
       return;
@@ -577,12 +621,17 @@ export class ForwardingPipelineService {
       await this.dependencies.store.update((state) => {
         const task = state.tasks.find((item) => item.taskId === taskId);
         if (!task || task.state !== "running") return;
-        if (!task.source) task.source = event.source;
+        if (!task.source) {
+          task.source = event.source;
+          addForwardingActivity(task, {
+            kind: "source_saved",
+            summary: "来源快照已保存",
+          });
+        }
         else if (!sameJson(task.source, event.source))
           throw new Error("来源阶段结果重复但内容不一致");
         task.xhsAccessTokenCiphertext = undefined;
         task.phase = "理解内容";
-        task.updatedAt = now();
       });
       this.dependencies.changed();
       return;
@@ -595,12 +644,16 @@ export class ForwardingPipelineService {
       await this.dependencies.store.update((state) => {
         const task = state.tasks.find((item) => item.taskId === taskId);
         if (!task || task.state !== "running") return;
-        if (!task.generalUnderstanding)
+        if (!task.generalUnderstanding) {
           task.generalUnderstanding = event.generalUnderstanding;
+          addForwardingActivity(task, {
+            kind: "understanding_saved",
+            summary: "通用理解已保存",
+          });
+        }
         else if (task.generalUnderstanding !== event.generalUnderstanding)
           throw new Error("通用理解阶段结果重复但内容不一致");
         task.phase = "检查关注卡";
-        task.updatedAt = now();
       });
       this.dependencies.changed();
       return;
@@ -646,7 +699,12 @@ export class ForwardingPipelineService {
               ? { relation: relationMap.get(focusVersionId)! }
               : {}),
           });
-        task.updatedAt = now();
+        addForwardingActivity(task, {
+          kind: "relations_saved",
+          summary: `已判断 ${task.evaluations.length}/${task.focusSet.cards.length} 张关注卡`,
+          processed: task.evaluations.length,
+          total: task.focusSet.cards.length,
+        });
       });
       if (!duplicate) this.dependencies.changed();
       return;
@@ -669,7 +727,13 @@ export class ForwardingPipelineService {
           );
           return { focusVersionId, ...(relation ? { relation } : {}) };
         });
-        task.updatedAt = task.finishedAt;
+        addForwardingActivity(task, {
+          kind: "completed",
+          summary: `转发报告已保存，关联 ${event.draft.relations.length} 张关注卡`,
+          processed: task.evaluations.length,
+          total: task.focusSet.cards.length,
+          occurredAt: task.finishedAt,
+        });
         task.message = undefined;
         task.failureStage = undefined;
       });
@@ -730,7 +794,10 @@ export class ForwardingPipelineService {
       task.phase = "解析失败";
       task.failureStage = stage;
       task.message = message.slice(0, 500);
-      task.updatedAt = now();
+      addForwardingActivity(task, {
+        kind: "failed",
+        summary: task.message,
+      });
       changed = true;
     });
     const entry = this.active.get(taskId);
@@ -773,7 +840,10 @@ export class ForwardingPipelineService {
             task.phase = "上次解析中断";
             task.failureStage = stage;
             task.message = "应用退出时任务中断；已保存阶段可用于重试";
-            task.updatedAt = now();
+            addForwardingActivity(task, {
+              kind: "recovered",
+              summary: task.message,
+            });
           }
         });
       }),

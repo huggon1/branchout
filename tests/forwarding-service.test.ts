@@ -159,6 +159,23 @@ test("main forwarding service persists stages, rejects incomplete coverage, and 
     assert.equal(service.list()[0].progress.evaluated, 2);
     assert.ok(service.list()[0].finishedAt);
     assert.equal(service.read(taskId).task.materialId, created.materialId);
+    const activities = service.read(taskId).task.activities;
+    assert.deepEqual(
+      activities.map((activity) => activity.sequence),
+      activities.map((_, index) => index + 1),
+    );
+    assert.ok(activities.some((activity) => activity.kind === "source_saved"));
+    assert.ok(
+      activities.some(
+        (activity) =>
+          activity.kind === "relations_saved" &&
+          activity.processed === 2 &&
+          activity.total === 2,
+      ),
+    );
+    assert.ok(activities.some((activity) => activity.kind === "failed"));
+    assert.ok(activities.some((activity) => activity.kind === "completed"));
+    assert.ok(!JSON.stringify(activities).includes("fixture-secret"));
     assert.equal(releases, 2);
   } finally {
     await service.shutdown();

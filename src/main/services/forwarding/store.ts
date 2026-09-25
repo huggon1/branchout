@@ -11,6 +11,33 @@ import {
   savedFocusEvaluationSchema,
 } from "../../../worker/jobs/forwarding/contracts";
 
+export const forwardingActivitySchema = z
+  .object({
+    sequence: z.number().int().positive(),
+    occurredAt: z.string().datetime(),
+    kind: z.enum([
+      "received",
+      "phase",
+      "source_saved",
+      "understanding_saved",
+      "relations_saved",
+      "completed",
+      "failed",
+      "cancelled",
+      "recovered",
+    ]),
+    summary: z.string().min(1).max(500),
+    processed: z.number().int().nonnegative().optional(),
+    total: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .refine(
+    (activity) =>
+      activity.processed === undefined ||
+      activity.total === undefined ||
+      activity.processed <= activity.total,
+  );
+
 const forwardingTaskSchema = z
   .object({
     taskId: z.string().uuid(),
@@ -43,6 +70,7 @@ const forwardingTaskSchema = z
     source: sourceSchema.optional(),
     generalUnderstanding: z.string().min(1).max(16_000).optional(),
     evaluations: z.array(savedFocusEvaluationSchema),
+    activities: z.array(forwardingActivitySchema).max(200).default([]),
     report: forwardingReportDraftSchema.optional(),
     createdAt: z.string().datetime(),
     finishedAt: z.string().datetime().optional(),
@@ -68,6 +96,7 @@ export const forwardingStateSchema = z
   );
 
 export type ForwardingTaskRecord = z.infer<typeof forwardingTaskSchema>;
+export type ForwardingActivity = z.infer<typeof forwardingActivitySchema>;
 export type ForwardingState = z.infer<typeof forwardingStateSchema>;
 
 export const emptyForwardingState = (): ForwardingState => ({
@@ -111,4 +140,21 @@ export class ForwardingStore {
     this.queue = operation.catch(() => {});
     return operation;
   }
+}
+
+export function addForwardingActivity(
+  task: ForwardingTaskRecord,
+  activity: Omit<ForwardingActivity, "sequence" | "occurredAt"> & {
+    occurredAt?: string;
+  },
+) {
+  const occurredAt = activity.occurredAt ?? new Date().toISOString();
+  const previousSequence = task.activities.at(-1)?.sequence ?? 0;
+  task.activities.push({
+    ...activity,
+    sequence: previousSequence + 1,
+    occurredAt,
+  });
+  if (task.activities.length > 200) task.activities.shift();
+  task.updatedAt = occurredAt;
 }
