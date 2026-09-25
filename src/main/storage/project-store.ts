@@ -4,8 +4,18 @@ import {
   projectStateSchema,
   type ProjectState,
 } from "../../shared/project-contracts";
+
+const empty: ProjectState = {
+  version: 2,
+  projects: [],
+  focusCards: [],
+  focusVersions: [],
+  analysisReports: [],
+  suggestionAcceptances: [],
+};
+
 export class ProjectStore {
-  private state: ProjectState = { version: 1, projects: [], tasks: [] };
+  private state: ProjectState = structuredClone(empty);
   private queue: Promise<unknown> = Promise.resolve();
   constructor(private file: string) {}
   async open() {
@@ -14,7 +24,8 @@ export class ProjectStore {
         JSON.parse(await readFile(this.file, "utf8")),
       );
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      else
         throw new Error("项目数据无法读取，原文件已保留");
     }
   }
@@ -26,14 +37,15 @@ export class ProjectStore {
       const next = this.snapshot();
       change(next);
       projectStateSchema.parse(next);
-      await mkdir(dirname(this.file), { recursive: true });
-      await writeFile(`${this.file}.tmp`, JSON.stringify(next), {
-        mode: 0o600,
-      });
-      await rename(`${this.file}.tmp`, this.file);
+      await this.persist(next);
       this.state = next;
     });
     this.queue = operation.catch(() => {});
     return operation;
+  }
+  private async persist(next: ProjectState) {
+    await mkdir(dirname(this.file), { recursive: true });
+    await writeFile(`${this.file}.tmp`, JSON.stringify(next), { mode: 0o600 });
+    await rename(`${this.file}.tmp`, this.file);
   }
 }
