@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseCodexSessionJsonl, readSelectedCodexSessions } from "../src/worker/readers/codex-sessions";
-import { makeProjectAnalysisPrompt, MAX_PROJECT_ANALYSIS_PROMPT_CHARS, type ProjectAnalysisSource } from "../src/worker/reasoning/project-analysis";
+import { makeProjectAnalysisPrompt, MAX_PROJECT_ANALYSIS_PROMPT_CHARS, projectAnalysisSystemPrompt, type ProjectAnalysisSource } from "../src/worker/reasoning/project-analysis";
 import { runProjectAnalysis } from "../src/worker/jobs/project-analysis";
 import type { ProjectAnalysisWorkerInput } from "../src/worker/jobs/project-analysis/types";
 
@@ -160,6 +160,7 @@ test("prompt budget keeps user and final messages ahead of lower-priority reposi
     sources,
   });
   assert.ok(prompt.counts.characters <= MAX_PROJECT_ANALYSIS_PROMPT_CHARS);
+  assert.ok(projectAnalysisSystemPrompt().length + prompt.prompt.length <= MAX_PROJECT_ANALYSIS_PROMPT_CHARS);
   assert.ok(prompt.counts.evidenceOmitted > 0);
   assert.ok(prompt.sources.some((source) => source.evidenceId === "user-1"));
   assert.ok(prompt.sources.some((source) => source.evidenceId === "assistant-1"));

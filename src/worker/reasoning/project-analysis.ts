@@ -57,7 +57,9 @@ const assistantSystemPrompt = `你为 Branchout 本机项目生成有证据的�
 
 分析时优先理解用户亲自表达的目标、反复关心的问题、明确取舍与尚未解决的点。输入含 Codex 对话时，用户发言是对话型建议的主要依据；最终助手回复只补充已完成事项或结果，不能独立代表用户关注点。把标记 commandOnly=true 的用户发言作为执行记录背景，绝不把它单独作为发现或关注卡依据。项目没有选中 Codex 对话或解析后没有有效用户发言时，可以依据仓库和 commit 证据提出项目关注建议，并在理由中明确其来源。
 
-只输出符合下方 JSON 结构的对象，不输出 Markdown、过程说明或推理。每个 finding 和 suggestion 至少引用一个可见 sources 项，并使用其原样连续 quote。关注卡正文写成短小、自包含的项目背景与感兴趣角度，通常 1 至 3 句，适合转发给另一位读者后独立理解。关注卡描述值得持续观察的问题、用户明确重视的取舍或未解决事项；执行命令、一次性任务清单、安装/测试/构建步骤不能成为关注卡。新增建议使用 kind=create；更新建议使用 kind=update 并选择输入 focusCards 中存在的 focusId。不要编造用户意图、项目状态、解决结果、卡片身份或证据。证据可以支持摘要，也可以揭示输入范围不足；说明判断的实际来源和边界。`;
+只输出符合下方 JSON 结构的对象，不输出 Markdown、过程说明或推理。findings 与 suggestions 使用 evidence 数组，每条 evidence 的 evidenceId 必须来自输入 sources，quote 必须是来源片段中的原样连续文字。输出示例：
+{"summary":"整体结论","findings":[{"title":"发现标题","summary":"发现说明","evidence":[{"evidenceId":"source-id","quote":"来源中的连续原文摘录"}]}],"suggestions":[{"kind":"create","content":"关注卡正文","reason":"建议理由","evidence":[{"evidenceId":"source-id","quote":"来源中的连续原文摘录"}]}]}
+更新建议使用 kind=update，另含 focusId，值取自输入 focusCards；新增建议使用 kind=create。每个 finding 和 suggestion 至少引用一个可见 sources 项。分析时优先采用用户亲自表达的目标、反复关心的问题、明确取舍与尚未解决的点。输入含 Codex 对话时，用户发言是对话型建议的主要依据；最终助手回复提供已完成事项或结果的补充上下文。把标记 commandOnly=true 的用户发言作为执行记录背景，绝不把它单独作为发现或关注卡依据。使用 Codex 对话来源的建议至少引用一条非命令型用户发言；最终助手回复作为附加依据。项目没有选中 Codex 对话或解析后没有有效用户发言时，可以依据仓库和 commit 证据提出项目关注建议，并在理由中明确其来源。关注卡正文写成短小、自包含的项目背景与感兴趣角度，通常 1 至 3 句，适合转发给另一位读者后独立理解。关注卡描述值得持续观察的问题、用户明确重视的取舍或未解决事项；执行命令、一次性任务清单、安装/测试/构建步骤不能成为关注卡。不要编造用户意图、项目状态、解决结果、卡片身份或证据。证据可以支持摘要，也可以揭示输入范围不足；说明判断的实际来源和边界。`;
 
 const outputSchema = z.object({
   summary: z.string().trim().min(1).max(1400),
