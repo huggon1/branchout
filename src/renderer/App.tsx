@@ -15,7 +15,7 @@ import type {
   UiTask,
 } from "./product-ui";
 
-const pages: ProductPage[] = ["内容", "关注卡", "项目", "任务", "设置"];
+const pages: ProductPage[] = ["内容", "项目", "关注卡", "任务", "设置"];
 let projectPreflightRequestId = 0;
 const pageTitle: Record<ProductPage, string> = {
   内容: "内容",

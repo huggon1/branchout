@@ -11,6 +11,10 @@ try {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.getByRole("heading", { level: 1, name: "内容" }).waitFor();
+  assert.deepEqual(
+    await page.getByRole("navigation", { name: "主导航" }).locator("button").evaluateAll((buttons) => buttons.map((button) => button.title)),
+    ["内容", "项目", "关注卡", "任务", "设置"],
+  );
   await page.getByRole("button", { name: /离线优先应用如何合并设备冲突/ }).waitFor();
   await page.screenshot({ path: "test-results/focus-content-list.png", fullPage: true });
 
