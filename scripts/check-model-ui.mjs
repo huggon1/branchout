@@ -79,7 +79,12 @@ const url = `http://127.0.0.1:${server.address().port}/v1`;
 let application;
 const launch = () =>
   electron.launch({
-    args: ["."],
+    ...(process.env.BRANCHOUT_APP_PATH
+      ? {
+          executablePath: process.env.BRANCHOUT_APP_PATH,
+          cwd: process.env.BRANCHOUT_PACKAGE_CWD,
+        }
+      : { args: ["."] }),
     env: { ...process.env, BRANCHOUT_TEST_DATA: directory },
   });
 try {

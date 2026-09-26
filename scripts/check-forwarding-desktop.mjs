@@ -48,7 +48,9 @@ const value = async (promise) => {
 let application;
 try {
   application = await electron.launch({
-    args: ["."],
+    ...(process.env.BRANCHOUT_APP_PATH
+      ? { executablePath: process.env.BRANCHOUT_APP_PATH, cwd: root }
+      : { args: ["."] }),
     env: { ...process.env, BRANCHOUT_TEST_DATA: userData },
   });
   const page = await application.firstWindow();
