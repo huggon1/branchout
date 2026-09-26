@@ -55,10 +55,10 @@ export function FocusCardsPage({
   useEffect(() => {
     if (
       initialProjectId &&
-      activeProjects.some((item) => item.projectId === initialProjectId)
+      projects.some((item) => item.projectId === initialProjectId)
     )
       setProjectId(initialProjectId);
-  }, [initialProjectId, activeProjects]);
+  }, [initialProjectId, projects]);
   useEffect(() => {
     if (
       initialFocusId &&

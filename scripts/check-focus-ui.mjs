@@ -42,7 +42,9 @@ try {
   await page.getByLabel("关注卡正文").fill("Atlas Notes 的增量全文搜索\n我关注大型知识库中的索引更新速度和中文搜索质量。");
   await page.getByRole("button", { name: "保存关注卡" }).click();
   await page.getByRole("heading", { name: "Atlas Notes 的增量全文搜索" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: /Atlas Notes 的离线优先架构/ }).count(), 1);
+  const createdCard = page.getByRole("button", { name: /Atlas Notes 的增量全文搜索/ });
+  assert.equal(await createdCard.count(), 1);
+  await assert.equal(await createdCard.getAttribute("aria-current"), "true");
   await page.screenshot({ path: "test-results/focus-card-created.png", fullPage: true });
   await page.getByRole("button", { name: /Atlas Notes 的离线优先架构/ }).click();
   await page.getByRole("button", { name: "暂停关注卡" }).click();
@@ -83,6 +85,15 @@ try {
   await page.getByRole("button", { name: /解析离线优先应用/ }).click();
   await page.getByRole("button", { name: "打开结果报告" }).click();
   await page.getByRole("heading", { name: "离线优先应用如何合并设备冲突" }).waitFor();
+
+  await page.getByRole("button", { name: "返回内容列表" }).click();
+  await page.getByLabel("搜索内容").fill("历史项目的 CSV 导入体验");
+  await page.getByRole("button", { name: /历史项目的 CSV 导入体验/ }).click();
+  await page.getByRole("button", { name: "查看此版本" }).click();
+  await page.getByRole("heading", { level: 1, name: "关注卡" }).waitFor();
+  assert.equal(await page.getByLabel("选择项目", { exact: true }).inputValue(), "project-legacy");
+  assert.equal(await page.getByText("这是历史版本", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByText("历史项目卡片", { exact: true }).isVisible(), true);
 
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("heading", { name: "模型连接" }).waitFor();

@@ -28,7 +28,10 @@ const focusCards = [
   {
     focusId: "focus-legacy-data", projectId: "project-legacy", currentVersionId: "legacy-v1",
     current: version("legacy-v1", "旧项目里关于数据导入的关注角度。", true, 1, "2026-08-10T10:00:00.000Z"),
-    history: [version("legacy-v1", "旧项目里关于数据导入的关注角度。", true, 1, "2026-08-10T10:00:00.000Z")],
+    history: [
+      version("legacy-v0", "旧项目最初关注 CSV 导入和字段映射。", true, 0, "2026-08-01T10:00:00.000Z"),
+      version("legacy-v1", "旧项目里关于数据导入的关注角度。", true, 1, "2026-08-10T10:00:00.000Z"),
+    ],
   },
 ];
 const suggestionUpdate = {
@@ -80,6 +83,14 @@ const partialReport = {
   understanding: "帖子建议在用户选择前显示本地修改和远端版本各自的来源。",
   relations: [], reportState: "partial", stageLabel: "关注卡关联失败", taskMessage: "已检查 1 / 2 张关注卡；检查过程遇到错误。已保存的来源和理解仍可阅读。", retryAvailable: true,
 };
+const historicalReport = {
+  materialId: "material-legacy", taskId: "task-legacy", title: "历史项目的 CSV 导入体验", platform: "github",
+  sourceUrl: "https://github.com/example/legacy-import", sourceIdentity: "example/legacy-import · README.md", fetchedAt: "2026-09-25T07:00:00.000Z", completedAt: "2026-09-25T07:02:00.000Z",
+  completeness: "complete", blocks: [{ type: "text", text: "Import previews should explain how source columns map to existing fields." }],
+  understanding: "内容讨论导入预览如何解释来源字段和目标字段的映射。",
+  relations: [{ projectId: "project-legacy", projectLabel: "Legacy Garden", focusId: "focus-legacy-data", focusVersionId: "legacy-v0", focusContent: "旧项目最初关注 CSV 导入和字段映射。", explanation: "来源对字段映射预览的说明符合这张卡当时的关注角度。", evidence: [{ text: "Import previews should explain how source columns map to existing fields.", sourceBlockIndex: 0 }] }],
+  reportState: "complete",
+};
 const tasks = [
   { taskId: "task-running", kind: "project_analysis", projectId: "project-atlas", label: "分析 Atlas Notes", targetLabel: "Atlas Notes", status: "running", phase: "读取 Codex 会话", processed: 2, total: 3, updatedAt: "2026-09-26T08:05:00.000Z", activities: [{ sequence: 1, occurredAt: "2026-09-26T08:04:00.000Z", summary: "读取仓库文件", completed: 24 }, { sequence: 2, occurredAt: "2026-09-26T08:05:00.000Z", summary: "读取 30 条 commit", completed: 30, total: 30 }] },
   { taskId: "task-partial", kind: "forwarding", label: "解析冲突合并的用户体验研究", targetLabel: "X · @reader", status: "failed", phase: "检查关注卡", processed: 1, total: 2, updatedAt: "2026-09-26T07:03:00.000Z", activities: [{ sequence: 1, occurredAt: "2026-09-26T07:00:10.000Z", summary: "收取 X 帖子链接" }, { sequence: 2, occurredAt: "2026-09-26T07:01:00.000Z", summary: "读取来源正文和图片", completed: 1, total: 1 }, { sequence: 3, occurredAt: "2026-09-26T07:02:00.000Z", summary: "生成内容理解" }, { sequence: 4, occurredAt: "2026-09-26T07:03:00.000Z", summary: "检查第 1 / 2 张关注卡" }], partialResultId: "material-partial", error: "第二张卡的判断未能完成。" },
@@ -87,7 +98,7 @@ const tasks = [
 ];
 let state = {
   projects: [...projects], focusCards: [...focusCards], analysisReports: [...analysisReports],
-  contentReports: [completeReport], partialReports: [partialReport], tasks: [...tasks],
+  contentReports: [completeReport, historicalReport], partialReports: [partialReport], tasks: [...tasks],
   settings: {
     telegram: { connected: true, status: "运行中 · 已绑定 1 个聊天", chats: [{ chatId: "-1001234567890", label: "个人收藏", allowed: true }, { chatId: "123456789", label: "稍后绑定的测试聊天", allowed: false }], pendingCount: 0, lastPollAt: "2026-09-26T08:10:00.000Z" },
     sources: [
