@@ -275,7 +275,7 @@ export function ContentPage({
                 </div>
               ) : selected.relations.length === 0 ? (
                 <div className="notice notice-cool">
-                  <strong>这条内容与当前活跃关注卡没有直接关联</strong>
+                  <strong>这条内容与当前活跃关注卡没有明确关联</strong>
                   <p>
                     本次关联检查已完成。你可以继续阅读原文，或更新关注卡后用于下一次转发。
                   </p>

@@ -298,12 +298,14 @@ type CanonicalAnalysisReport = {
   projectId: string;
   projectLabel: string;
   generatedAt: string;
+  summary?: string;
   coverage: {
     repositoryRead: string[];
     repositorySkipped: string[];
     repositoryFailed: Array<{ path: string; reason: string }>;
     commitsRead: string[];
     commitsSkipped: string[];
+    commitRange?: { rangeId: "recent_30" | "recent_100"; availableCount: number; skippedByRange: number };
     codexSessionsRead: string[];
     codexSessionsSkipped: string[];
     codexSessionsFailed: Array<{ sessionId: string; reason: string }>;
@@ -539,7 +541,7 @@ const mapAnalysisReport = (
     },
     {
       source: "Git commit",
-      read: readCoverage(coverage.commitsRead, "条"),
+      read: `${readCoverage(coverage.commitsRead, "条")}${coverage.commitRange ? ` · 最近 ${coverage.commitRange.rangeId === "recent_100" ? 100 : 30} 条范围` : ""}`,
       ...(coverage.commitsSkipped.length ? { skipped: readCoverage(coverage.commitsSkipped, "条") } : {}),
     },
     {
@@ -559,7 +561,7 @@ const mapAnalysisReport = (
     projectId: report.projectId,
     projectLabel: report.projectLabel,
     createdAt: report.generatedAt,
-    summary: findings.map((finding) => finding.content).join("\n\n") || "本次分析没有形成可展示的发现。",
+    summary: report.summary || findings.map((finding) => finding.content).join("\n\n") || "本次分析没有形成可展示的发现。",
     coverage: sources,
     findings,
     suggestions: report.suggestions.map((suggestion) => {
@@ -749,6 +751,13 @@ export function productUiBridge(): ProductUiBridge {
             total: activity.progress?.total,
           }));
       const status = task.state === "awaiting_user" ? "running" : task.state;
+      const analysisPhase = task.state === "completed"
+        ? "已完成"
+        : task.state === "failed"
+          ? "分析失败"
+          : task.state === "cancelled"
+            ? "已取消"
+            : task.phase;
       return {
         taskId: task.taskId,
         kind: task.kind,
@@ -756,9 +765,13 @@ export function productUiBridge(): ProductUiBridge {
         label: isForwarding ? `解析 ${targetLabel.split(" · ").at(-1)}` : `分析 ${targetLabel}`,
         targetLabel,
         status,
-        phase: summary?.phase ?? task.phase,
-        processed: summary?.progress.evaluated ?? task.progress.completed,
-        total: summary?.progress.total ?? task.progress.total,
+        phase: summary?.phase ?? analysisPhase,
+        ...((isForwarding || task.progress.completed > 0 || task.progress.total !== undefined)
+          ? { processed: summary?.progress.evaluated ?? task.progress.completed }
+          : {}),
+        ...(summary?.progress.total !== undefined || task.progress.total !== undefined
+          ? { total: summary?.progress.total ?? task.progress.total }
+          : {}),
         updatedAt: summary?.updatedAt ?? task.updatedAt,
         activities,
         ...(isForwarding && summary
