@@ -223,3 +223,81 @@ test("repository evidence can produce a suggestion without selected or valid Cod
   assert.equal(noValidUser.suggestions.length, 1);
   assert.equal(noValidUser.coverage.codexSessions.sourceState, "selected_without_valid_user_messages");
 });
+
+test("every selected Codex session reaches a model batch when one prompt cannot fit them all", async () => {
+  const sessionIds = Array.from({ length: 45 }, (_, index) => `session-${index + 1}`);
+  const seen = new Set<string>();
+  let calls = 0;
+  const batchProgress: number[] = [];
+  const sessions = sessionIds.map((sessionId, index) => {
+    const message = {
+      lineNumber: 2,
+      role: "user" as const,
+      text: `我关注项目方向 ${index + 1} 的长期取舍。${"相关背景与约束。".repeat(120)}`,
+      commandOnly: false,
+    };
+    return {
+      sessionId,
+      messages: [message],
+      parsed: {
+        messages: [message],
+        omitted: { user: 0, assistantFinal: 0 },
+        ignored: { reasoning: 0, toolCalls: 0, toolOutputs: 0, systemOrDeveloper: 0, other: 0 },
+        malformedLines: 0,
+        bounded: false,
+      },
+      readBytes: 2000,
+    };
+  });
+  const report = await runProjectAnalysis({
+    taskId: "multi-batch-task",
+    projectId: "synthetic-project",
+    projectLabel: "Synthetic Project",
+    directory: "/synthetic/project",
+    rangeId: "recent_30",
+    codexSessionIds: sessionIds,
+    focusCards: [],
+    config: { method: "generic_api", modelId: "synthetic-model", baseUrl: "https://api.example.invalid", api: "openai-responses", credential: "never-prompt-this" },
+  }, controller(), (event) => {
+    if (event.type === "progress" && event.batchCompleted !== undefined)
+      batchProgress.push(event.batchCompleted);
+  }, {
+    readRepository: async () => ({
+      root: "/synthetic/project", head: "a".repeat(40), branch: "main",
+      workingTree: { clean: true, changedPaths: [], modifiedPaths: [], addedPaths: [], deletedPaths: [] },
+      files: [],
+      coverage: { directoriesScanned: 1, candidateFileCount: 0, filesRead: 0, filesSkipped: 0, readPaths: [], skippedPaths: [], bounded: false },
+    }),
+    readGitHistory: async () => ({
+      head: "a".repeat(40),
+      range: { rangeId: "recent_30", newestCommit: null, oldestCommit: null, limit: 30, included: 0, omitted: 0, bounded: false, availableCount: 0 },
+      commits: [],
+    }),
+    readCodexSessions: async () => ({
+      sessions, skipped: [], coverage: { selected: sessionIds.length, read: sessionIds.length, failed: 0, bounded: false },
+    }),
+    runModel: async (_config, _taskId, _signal, prompt) => {
+      calls++;
+      assert.ok(prompt.length <= MAX_PROJECT_ANALYSIS_PROMPT_CHARS);
+      const payload = JSON.parse(prompt.slice(prompt.indexOf("\n") + 1)) as {
+        sources: { evidenceId: string; sourceId: string; text: string }[];
+      };
+      for (const source of payload.sources) seen.add(source.sourceId);
+      const first = payload.sources[0];
+      return JSON.stringify({
+        summary: `本批分析了 ${payload.sources.length} 条用户发言。`,
+        findings: [{ title: `项目方向 ${calls}`, summary: "用户表达了长期关注的取舍。", evidence: [{ evidenceId: first.evidenceId, quote: first.text.slice(0, 20) }] }],
+        suggestions: [{ kind: "create", content: "这个项目持续关注方向取舍与长期约束。", reason: "多批用户发言指向同一关注角度。", evidence: [{ evidenceId: first.evidenceId, quote: first.text.slice(0, 20) }] }],
+      });
+    },
+  });
+  assert.ok(calls > 1);
+  assert.deepEqual([...seen].sort(), [...sessionIds].sort());
+  assert.equal(report.coverage.codexSessions.read, sessionIds.length);
+  assert.equal(report.coverage.codexSessions.userMessagesInModel, sessionIds.length);
+  assert.equal(report.coverage.codexSessions.messagesOmittedByModelBudget, 0);
+  assert.equal(report.coverage.modelInput.batches, calls);
+  assert.deepEqual(batchProgress, Array.from({ length: calls }, (_, index) => index + 1));
+  assert.equal(report.suggestions.length, 1);
+  assert.equal(report.suggestions[0].evidenceIds.length, calls);
+});

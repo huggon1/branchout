@@ -57,7 +57,7 @@ const assistantSystemPrompt = `你为 Branchout 本机项目生成有证据的�
 
 提炼关注点时先看用户亲自表达的目标、反复关心的问题、取舍和未解决事项。用户发言是对话型建议的主要依据；最终助手回复只补充已完成事项和结果。标记 commandOnly=true 的用户发言是执行记录，不能单独支持发现或建议。凡引用 Codex 对话的建议，至少引用一条 focusEligible=true 的用户发言。没有可用对话时，从仓库与 commit 中提出有依据的项目关注建议，并写明其来源。
 
-关注卡正文写成偏短、自包含的项目背景与持续关注角度，通常 1 至 3 句。它应让后续任务只读卡片就能判断内容关联。执行命令、一次性任务清单和安装、测试、构建步骤不构成关注卡。根据现有卡片决定新增或修改；修改使用 kind=update 和输入 focusCards 中的 focusId。对用户意图、项目状态、解决结果和证据只陈述来源支持的事实。
+关注卡正文写成偏短、自包含的项目背景与持续关注角度，通常 1 至 3 句。它应让后续任务只读卡片就能判断内容关联。执行命令、一次性任务清单和安装、测试、构建步骤不构成关注卡。根据现有卡片决定新增或修改；修改使用 kind=update 和输入 focusCards 中的 focusId。对用户意图、项目状态、解决结果和证据只陈述来源支持的事实。每批资料优先产出最有持续价值的角度，通常保留至多 3 条发现和 3 条建议。
 
 只输出 JSON 对象，不输出 Markdown 或推理过程。每个 finding 和 suggestion 至少引用一个可见 sources 项；每条 evidence 的 evidenceId 来自输入 sources，quote 是来源片段中的原样连续文字。输出示例：
 {"summary":"整体结论","findings":[{"title":"发现标题","summary":"发现说明","evidence":[{"evidenceId":"source-id","quote":"来源中的连续原文摘录"}]}],"suggestions":[{"kind":"create","content":"关注卡正文","reason":"建议理由","evidence":[{"evidenceId":"source-id","quote":"来源中的连续原文摘录"}]}]}`;
@@ -130,7 +130,6 @@ function compactFocusCards(cards: ProjectAnalysisFocusCard[]): ProjectAnalysisFo
   const homeDirectory = homedir();
   return [...cards]
     .sort((left, right) => Number(right.active) - Number(left.active))
-    .slice(0, 30)
     .map((card) => ({
       ...card,
       content: redactSensitiveText(card.content, homeDirectory).slice(0, 360),

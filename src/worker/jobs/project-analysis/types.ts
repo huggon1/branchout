@@ -132,6 +132,7 @@ export type ProjectAnalysisReportDraft = {
       maximumCharacters: number;
       evidenceIncluded: number;
       evidenceOmittedByBudget: number;
+      batches?: number;
     };
   };
 };
@@ -145,5 +146,6 @@ export type ProjectAnalysisEvent =
       commitsRead?: number;
       sessionsRead?: number;
       messagesRead?: number;
-      message?: string;
+      batchCompleted?: number;
+      batchTotal?: number;
     };

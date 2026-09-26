@@ -19,7 +19,9 @@ import {
 import type {
   AnalysisSourceKind,
   ProjectAnalysisEvent,
+  ProjectAnalysisFinding,
   ProjectAnalysisReportDraft,
+  ProjectAnalysisSuggestion,
   ProjectAnalysisWorkerInput,
 } from "./types";
 
@@ -49,6 +51,24 @@ const defaultModelRunner: ProjectAnalysisModelRunner = (
   systemPrompt,
   maxTokens,
 ) => runWithPi(config, sessionId, signal, prompt, systemPrompt, maxTokens);
+
+function mergeRepeatedResults<T extends { evidenceIds: string[] }>(
+  items: T[],
+  keyFor: (item: T) => string,
+): T[] {
+  const merged = new Map<string, T>();
+  for (const item of items) {
+    const key = keyFor(item);
+    const previous = merged.get(key);
+    if (previous) previous.evidenceIds = [...new Set([...previous.evidenceIds, ...item.evidenceIds])].slice(0, 40);
+    else merged.set(key, { ...item, evidenceIds: [...item.evidenceIds] });
+  }
+  return [...merged.values()];
+}
+
+function normalizeResultText(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
 
 function addSource(
   sources: ProjectAnalysisSource[],
@@ -191,7 +211,7 @@ export async function runProjectAnalysis(
   throwIfAborted(signal);
 
   const sources = collectSources(repository, history, sessions);
-  const modelInput = makeProjectAnalysisPrompt({
+  const promptContext = {
     projectId: input.projectId,
     projectLabel: input.projectLabel,
     repositoryHead: repository.head,
@@ -201,36 +221,69 @@ export async function runProjectAnalysis(
     commitCount: history.commits.length,
     selectedSessionCount: input.codexSessionIds.length,
     focusCards: input.focusCards,
-    sources,
-  });
+  };
+  const modelInputs: ReturnType<typeof makeProjectAnalysisPrompt>[] = [];
+  let remainingSources = sources;
+  do {
+    const prepared = makeProjectAnalysisPrompt({ ...promptContext, sources: remainingSources });
+    if (remainingSources.length && prepared.sources.length === 0)
+      throw new Error("项目分析输入无法容纳来源资料");
+    modelInputs.push(prepared);
+    const included = new Set(prepared.sources.map((source) => source.evidenceId));
+    remainingSources = remainingSources.filter((source) => !included.has(source.evidenceId));
+  } while (remainingSources.length);
   event(emit, { type: "phase", taskId: input.taskId, phase: "reasoning" });
-  let modelResponse: string;
-  try {
-    modelResponse = await runModel(
-      input.config,
-      input.taskId,
-      signal,
-      modelInput.prompt,
-      projectAnalysisSystemPrompt(),
-      3500,
-    );
-  } catch (error) {
-    if (signal.aborted) throw new Error("cancelled");
-    if (error instanceof ExecutionFailure) throw error;
-    if (dependencies.runModel) throw error;
-    throw new ExecutionFailure("execution_failed");
+  const batchResults: ReturnType<typeof validateProjectAnalysisOutput>[] = [];
+  for (const [index, modelInput] of modelInputs.entries()) {
+    throwIfAborted(signal);
+    let modelResponse: string;
+    try {
+      modelResponse = await runModel(
+        input.config,
+        input.taskId,
+        signal,
+        modelInput.prompt,
+        projectAnalysisSystemPrompt(),
+        3500,
+      );
+    } catch (error) {
+      if (signal.aborted) throw new Error("cancelled");
+      if (error instanceof ExecutionFailure) throw error;
+      if (dependencies.runModel) throw error;
+      throw new ExecutionFailure("execution_failed");
+    }
+    throwIfAborted(signal);
+    batchResults.push(validateProjectAnalysisOutput(
+      modelResponse,
+      modelInput.sources,
+      modelInput.focusCards,
+    ));
+    event(emit, {
+      type: "progress",
+      taskId: input.taskId,
+      batchCompleted: index + 1,
+      batchTotal: modelInputs.length,
+    });
   }
-  throwIfAborted(signal);
-  const result = validateProjectAnalysisOutput(
-    modelResponse,
-    modelInput.sources,
-    modelInput.focusCards,
+  const evidenceById = new Map(batchResults.flatMap((result) => result.evidence).map((item) => [item.evidenceId, item]));
+  const findings = mergeRepeatedResults<ProjectAnalysisFinding>(
+    batchResults.flatMap((result) => result.findings),
+    (item) => `${normalizeResultText(item.title)}\n${normalizeResultText(item.summary)}`,
   );
-  const includedEvidenceIds = new Set(modelInput.sources.map((source) => source.evidenceId));
-  const modelRepositorySources = modelInput.sources.filter((source) => source.source === "repository");
+  const suggestions = mergeRepeatedResults<ProjectAnalysisSuggestion>(
+    batchResults.flatMap((result) => result.suggestions),
+    (item) => `${item.kind}:${item.focusId ?? ""}:${normalizeResultText(item.content)}`,
+  );
+  const summaries = batchResults.map((result) => result.summary);
+  const summary = summaries.length === 1
+    ? summaries[0]
+    : `本次分 ${summaries.length} 批分析资料，形成 ${findings.length} 条发现和 ${suggestions.length} 条关注卡建议。${summaries.slice(0, 3).map((item, index) => `第 ${index + 1} 批：${item.slice(0, 180)}`).join(" ")}${summaries.length > 3 ? ` 其余 ${summaries.length - 3} 批的发现和建议列在下方。` : ""}`;
+  const modelSources = modelInputs.flatMap((prepared) => prepared.sources);
+  const includedEvidenceIds = new Set(modelSources.map((source) => source.evidenceId));
+  const modelRepositorySources = modelSources.filter((source) => source.source === "repository");
   const modelRepositoryPaths = new Set(modelRepositorySources.map((source) => source.label));
-  const modelCommitSources = modelInput.sources.filter((source) => source.source === "commit");
-  const modelCodexSources = modelInput.sources.filter((source) => source.source === "codex_session");
+  const modelCommitSources = modelSources.filter((source) => source.source === "commit");
+  const modelCodexSources = modelSources.filter((source) => source.source === "codex_session");
   const allMessages = sessions.sessions.flatMap((session) => session.messages);
   const userMessagesRead = allMessages.filter((message) => message.role === "user");
   const eligibleUserMessagesRead = userMessagesRead.filter((message) => !message.commandOnly);
@@ -257,10 +310,10 @@ export async function runProjectAnalysis(
     projectId: input.projectId,
     projectLabel: input.projectLabel,
     generatedAt: now().toISOString(),
-    summary: result.summary,
-    findings: result.findings.map((finding) => ({ ...finding, findingId: randomUUID() })),
-    suggestions: result.suggestions.map((suggestion) => ({ ...suggestion, suggestionId: randomUUID() })),
-    evidence: result.evidence,
+    summary,
+    findings: findings.map((finding) => ({ ...finding, findingId: randomUUID() })),
+    suggestions: suggestions.map((suggestion) => ({ ...suggestion, suggestionId: randomUUID() })),
+    evidence: [...evidenceById.values()],
     coverage: {
       repository: {
         head: repositoryHead,
@@ -324,14 +377,15 @@ export async function runProjectAnalysis(
       },
       focusCards: {
         available: input.focusCards.length,
-        modelIncluded: modelInput.counts.focusCardsIncluded,
-        modelOmitted: modelInput.counts.focusCardsOmitted,
+        modelIncluded: Math.max(...modelInputs.map((prepared) => prepared.counts.focusCardsIncluded)),
+        modelOmitted: input.focusCards.length - Math.max(...modelInputs.map((prepared) => prepared.counts.focusCardsIncluded)),
       },
       modelInput: {
-        characterCount: modelInput.counts.characters,
+        characterCount: Math.max(...modelInputs.map((prepared) => prepared.counts.characters)),
         maximumCharacters: 32_000,
-        evidenceIncluded: modelInput.counts.evidenceIncluded,
+        evidenceIncluded: includedEvidenceIds.size,
         evidenceOmittedByBudget: Math.max(0, sources.length - includedEvidenceIds.size),
+        batches: modelInputs.length,
       },
     },
   };
