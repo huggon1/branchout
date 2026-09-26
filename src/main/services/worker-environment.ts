@@ -1,6 +1,9 @@
 // Keep the worker's home directory aligned with preflight session discovery.
+import type { RuntimeLayout } from "./runtime-layout";
+
 export function createWorkerEnvironment(
   inherited: NodeJS.ProcessEnv = process.env,
+  layout?: RuntimeLayout,
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const key of [
@@ -28,5 +31,9 @@ export function createWorkerEnvironment(
     env.NODE_USE_ENV_PROXY = "1";
   else if (inherited.NODE_USE_ENV_PROXY)
     env.NODE_USE_ENV_PROXY = inherited.NODE_USE_ENV_PROXY;
+  if (layout) {
+    env.BRANCHOUT_DIST_ROOT = layout.distRoot;
+    env.BRANCHOUT_RUNTIME_ROOT = layout.runtimeRoot;
+  }
   return env;
 }

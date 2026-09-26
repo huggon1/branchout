@@ -1,8 +1,6 @@
 import { z } from "zod";
 import {
   sourceSchema,
-  xPostUrlSchema,
-  xhsNoteUrlSchema,
 } from "../../../shared/source-contracts";
 import {
   xExecutionSessionSchema,
@@ -10,9 +8,7 @@ import {
 } from "../../../shared/platform-contracts";
 import { executionSchema } from "../../../shared/model-contracts";
 import type { SourceContent } from "../../../shared/source-contracts";
-import { platforms } from "../../../platforms/registry";
-import { createXAdapter } from "../../../platforms/adapters/x";
-import { createXhsAdapter } from "../../../platforms/adapters/xhs";
+import { selectPlatformAdapter } from "../../../platforms/registry";
 import { understandingInput } from "../../understanding/platform-content";
 import { runWithPi } from "../../pi-runtime";
 import {
@@ -97,22 +93,11 @@ export interface ForwardingJobDependencies {
   ): Promise<unknown>;
 }
 
-function platformAdapter(command: RuntimeCommand) {
-  if (xPostUrlSchema.safeParse(command.sourceUrl).success)
-    return createXAdapter(command.xCredentials);
-  if (xhsNoteUrlSchema.safeParse(command.sourceUrl).success)
-    return createXhsAdapter(command.xhsSession, {
-      id: new URL(command.sourceUrl).pathname.split("/").at(-1)!,
-      token: command.xhsAccessToken ?? "",
-    });
-  return platforms.github;
-}
-
 function defaultDependencies(emit: ForwardingJobDependencies["emit"]): ForwardingJobDependencies {
   return {
     emit,
     async readSource(command, signal) {
-      const result = await platformAdapter(command).read(
+      const result = await selectPlatformAdapter(command.sourceUrl, command).read(
         command.taskId,
         command.sourceUrl,
         signal,

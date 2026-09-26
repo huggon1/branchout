@@ -1,12 +1,17 @@
 {
   "name": "branchout",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "main": "dist/main/main.cjs",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "setup:x": "node scripts/prepare-x-runtime.mjs",
-    "setup:xhs": "node scripts/prepare-xhs-runtime.mjs",
+    "setup:x": "node scripts/with-env-proxy.mjs scripts/prepare-x-runtime.mjs",
+    "setup:xhs": "node scripts/with-env-proxy.mjs scripts/prepare-xhs-runtime.mjs",
+    "prepare:runtime": "npm run setup:x && npm run setup:xhs",
+    "build:icon": "node scripts/build-icon.mjs",
+    "package:app": "npm run build && npm run build:icon && node scripts/verify-runtime.mjs && electron-builder --mac --arm64 --publish never",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:release": "node scripts/verify-release.mjs",
     "dev": "npm run build && electron .",
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
@@ -30,6 +35,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "electron": "44.4.3",
+    "electron-builder": "^26.0.12",
     "esbuild": "^0.28.2",
     "playwright": "^1.58.0",
     "prettier": "^3.9.8",
@@ -38,6 +44,7 @@
     "typescript": "^5.9.0"
   },
   "type": "module",
+  "description": "Relate collected content to the projects you are building",
   "engines": {
     "node": ">=24.0.0"
   }

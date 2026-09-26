@@ -1,18 +1,6 @@
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
 import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-
-if (
-  (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) &&
-  process.env.NODE_USE_ENV_PROXY !== "1"
-) {
-  const result = spawnSync(process.execPath, [process.argv[1]], {
-    env: { ...process.env, NODE_USE_ENV_PROXY: "1" },
-    stdio: "inherit",
-  });
-  process.exit(result.status ?? 1);
-}
 
 const version = "v2.5.3";
 const targets = {
@@ -58,6 +46,6 @@ const license = await fetch(
     signal: AbortSignal.timeout(30_000),
   },
 );
-if (license.ok)
-  await writeFile(join(root, "XIAOHONGSHU-LICENSE"), await license.text());
+if (!license.ok) throw new Error(`小红书组件许可文件下载失败：${license.status}`);
+await writeFile(join(root, "XIAOHONGSHU-LICENSE"), await license.text());
 console.log(`小红书组件 ${version} 已校验并安装`);

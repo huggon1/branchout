@@ -48,6 +48,7 @@ import { checkModel, readPiCatalog } from "./services/model-worker-client";
 import { createWindow } from "./window";
 import { XAuth } from "./services/x-auth";
 import { XhsAuth } from "./services/xhs-auth";
+import { resolveRuntimeLayout } from "./services/runtime-layout";
 
 if (process.env.BRANCHOUT_TEST_DATA)
   app.setPath("userData", process.env.BRANCHOUT_TEST_DATA);
@@ -120,6 +121,12 @@ else {
     .then(async () => {
       app.setName("Branchout");
       app.dock?.setIcon(join(__dirname, "../assets/branchout.png"));
+      const runtimeLayout = resolveRuntimeLayout({
+        packaged: app.isPackaged,
+        appPath: app.getAppPath(),
+        resourcesPath: process.resourcesPath,
+        cwd: process.cwd(),
+      });
 
       const authRoot = join(app.getPath("userData"), "model-auth");
       const codexExecutable = resolveCodexExecutable();
@@ -138,7 +145,7 @@ else {
         journal: new AuthCleanup(
           join(app.getPath("userData"), "auth-cleanup.json"),
         ),
-        client: (id) => new CodexClient(join(authRoot, id), codexExecutable),
+        client: (id) => new CodexClient(join(authRoot, id), codexExecutable, app.getVersion()),
         removeHome: (id) =>
           rm(join(authRoot, id), { recursive: true, force: true }),
         catalog: readPiCatalog,
@@ -151,6 +158,7 @@ else {
       xAuth = new XAuth(changed);
       xhsAuth = new XhsAuth(
         join(app.getPath("userData"), "xiaohongshu"),
+        runtimeLayout.runtimeRoot,
         changed,
       );
 
@@ -178,7 +186,7 @@ else {
         spawnWorker: (path) => {
           const worker = utilityProcess.fork(path, [], {
             stdio: "pipe",
-            env: createWorkerEnvironment(),
+            env: createWorkerEnvironment(process.env, runtimeLayout),
           });
           worker.stdout?.resume();
           worker.stderr?.resume();
@@ -209,7 +217,7 @@ else {
           const worker = utilityProcess.fork(
             join(__dirname, "../worker/jobs/forwarding/worker-entry.mjs"),
             [],
-            { stdio: "pipe", env: createWorkerEnvironment() },
+            { stdio: "pipe", env: createWorkerEnvironment(process.env, runtimeLayout) },
           );
           worker.stdout?.resume();
           worker.stderr?.resume();
@@ -321,7 +329,7 @@ else {
               ok: false,
               message: xhsAuth!.installed()
                 ? "小红书连接未完成，请检查网络或稍后重试"
-                : "小红书组件尚未安装，请运行 npm run setup:xhs",
+                : "小红书组件不可用，请重新安装应用",
             };
           }
         });

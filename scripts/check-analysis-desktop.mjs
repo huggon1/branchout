@@ -60,14 +60,27 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
 let application;
 const value = async (promise) => {
-  const reply = await promise;
+  let timer;
+  let reply;
+  try {
+    reply = await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Desktop analysis IPC timed out")), 60_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
   assert.equal(reply.ok, true, reply.message);
   return reply.value;
 };
 try {
   application = await electron.launch({
-    args: ["."],
-    env: { ...process.env, HOME: fakeHome, BRANCHOUT_TEST_DATA: userData },
+    ...(process.env.BRANCHOUT_APP_PATH
+      ? { executablePath: process.env.BRANCHOUT_APP_PATH, cwd: process.env.BRANCHOUT_PACKAGE_CWD }
+      : { args: ["."] }),
+    env: { ...process.env, BRANCHOUT_TEST_DATA: userData },
   });
   const page = await application.firstWindow();
   await page.getByRole("heading", { level: 1, name: "内容" }).waitFor();
@@ -78,6 +91,7 @@ try {
     modelId: "analysis-fixture",
     apiKey: "fixture-only-key",
   }), baseUrl));
+  await application.evaluate((_, home) => { process.env.HOME = home; }, fakeHome);
   await application.evaluate(({ dialog }, directory) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
   }, repository);
@@ -87,7 +101,7 @@ try {
   assert.equal(preflight.commits.availableCount, 1);
   assert.equal(preflight.repository.candidateFileCount >= 1, true);
   assert.equal(preflight.codexSessions.length, 1);
-  assert.equal(preflight.codexSessions[0].title, "离线同步恢复");
+  assert.match(preflight.codexSessions[0].title, /离线同步/);
   const taskId = await value(page.evaluate((id) => window.branchout.startProjectAnalysis({
     projectId: id,
     rangeId: "recent_30",

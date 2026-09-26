@@ -1,6 +1,6 @@
 # Platforms
 
-本文描述转发内容的平台接入目标职责。转发来源范围见[产品规格](../../docs/product-spec.md#转发理解与关联)，读取结果见[数据与消息契约](../../docs/data-contracts.md#转发来源与报告)。
+本文描述转发内容的平台接入职责。目标来源范围见[产品规格](../../docs/product-spec.md#转发理解与关联)，读取结果见[数据与消息契约](../../docs/data-contracts.md#转发来源与报告)。
 
 ## 职责与依赖
 
@@ -11,5 +11,5 @@
 ## 文件分工
 
 - `types.ts`：定义转发平台的读取请求、内容结果和能力状态接口。
-- `registry.ts`：登记平台适配器并按链接来源选择读取实现。
+- `registry.ts`：按链接来源选择平台适配器并传入对应的临时读取凭据。
 - [adapters](adapters/README.md)：封装 GitHub、X 和小红书的来源读取与规范化。
