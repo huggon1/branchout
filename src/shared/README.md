@@ -8,7 +8,8 @@
 
 - `project-contracts`：项目绑定与规范化目录身份。
 - `focus-contracts`：关注卡、冻结版本和活跃集合快照。
-- `material-contracts`：转发链接、来源快照及内容块。
+- `source-contracts`：转发链接、来源快照及内容块。
+- `forwarding-view-contracts`：界面读取的转发任务与报告结构。
 - `analysis-contracts`：仓库、commit、Codex 会话输入，证据、分析报告和卡片建议。
 - `task-contracts`：统一任务状态、阶段结果、活动与取消。
 - `model-contracts`：模型连接状态及任务执行配置。

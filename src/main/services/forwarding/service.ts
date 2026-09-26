@@ -6,9 +6,11 @@ import {
   xhsNoteUrlSchema,
   xhsShortUrlSchema,
   type SourceContent,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import type { XCredentials, XhsSession } from "../../../shared/platform-contracts";
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
+import type { ForwardingTaskSummary, ForwardingTaskDetail } from "../../../shared/forwarding-view-contracts";
+export type { ForwardingTaskSummary, ForwardingTaskDetail } from "../../../shared/forwarding-view-contracts";
 import {
   focusSetSnapshotSchema,
   forwardingJobEventSchema,
@@ -21,7 +23,6 @@ import type { ForwardingJobCommand } from "../../../worker/jobs/forwarding/contr
 import {
   addForwardingActivity,
   ForwardingStore,
-  type ForwardingActivity,
   type ForwardingTaskRecord,
 } from "./store";
 
@@ -61,33 +62,6 @@ export interface ForwardingTelegramSubmission {
   entry: "telegram";
   telegramMessageKey: string;
   xhsAccessToken?: string;
-}
-
-export interface ForwardingTaskSummary {
-  taskId: string;
-  materialId: string;
-  resultId: string;
-  target: ForwardingTaskRecord["target"];
-  state: ForwardingTaskRecord["state"];
-  phase: ForwardingTaskRecord["phase"];
-  progress: { evaluated: number; total: number };
-  hasSource: boolean;
-  hasUnderstanding: boolean;
-  activities: ForwardingActivity[];
-  createdAt: string;
-  finishedAt?: string;
-  updatedAt: string;
-  message?: string;
-}
-
-export interface ForwardingTaskDetail {
-  task: Omit<ForwardingTaskRecord, "xhsAccessTokenCiphertext">;
-  partial: {
-    source?: SourceContent;
-    generalUnderstanding?: string;
-    evaluatedFocusVersionIds: string[];
-    relations: FocusRelation[];
-  };
 }
 
 interface ActiveEntry {

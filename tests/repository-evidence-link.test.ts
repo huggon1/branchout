@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { repositoryEvidenceUrlSchema } from "../src/shared/material-contracts";
+import { repositoryEvidenceUrlSchema } from "../src/shared/source-contracts";
 
 test("repository evidence links accept scoped GitHub repository, commit, tree and file URLs", () => {
   const sha = "a".repeat(40);

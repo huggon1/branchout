@@ -1,4 +1,4 @@
-import type { SourceContent } from "../shared/material-contracts";
+import type { SourceContent } from "../shared/source-contracts";
 export type Platform = "github" | "x" | "xiaohongshu";
 export type ReadResult = {
   taskId: string;

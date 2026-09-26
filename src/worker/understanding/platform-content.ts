@@ -1,4 +1,4 @@
-import type { SourceContent } from "../../shared/material-contracts";
+import type { SourceContent } from "../../shared/source-contracts";
 export function understandingInput(source: SourceContent) {
   const text = source.contentBlocks
     .map((block) =>

@@ -10,6 +10,8 @@ import {
 } from "./contracts";
 import { parseSingleTelegramLink } from "./link-parser";
 import { TelegramStore } from "./store";
+import type { TelegramStatus } from "../../../shared/telegram-contracts";
+export type { TelegramStatus } from "../../../shared/telegram-contracts";
 
 const receivedMessage =
   "已收取，正在处理。你可以在 Branchout 中查看进度。";
@@ -36,17 +38,6 @@ export interface TelegramQueuedRequest {
 
 export interface TelegramQueueSink {
   submit(request: TelegramQueuedRequest): Promise<void>;
-}
-
-export interface TelegramStatus {
-  configured: boolean;
-  status: "disconnected" | "polling" | "failed";
-  authorizedChatIds: string[];
-  pendingChats: TelegramPendingChat[];
-  queued: number;
-  pendingAcknowledgements: number;
-  lastPollAt?: string;
-  lastError?: string;
 }
 
 function chatTitle(message: ReturnType<typeof telegramMessageSchema.parse>) {

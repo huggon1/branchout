@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   sourceSchema,
   xPostUrlSchema,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import type { PlatformAdapter } from "../../types";
 import type { XCredentials } from "../../../shared/platform-contracts";
 

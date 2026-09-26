@@ -19,8 +19,8 @@ import type { ModelReply, ModelView, SaveModelInput } from "./model-contracts";
 import type {
   ForwardingTaskDetail,
   ForwardingTaskSummary,
-} from "../main/services/forwarding/service";
-import type { TelegramStatus } from "../main/integrations/telegram/service";
+} from "./forwarding-view-contracts";
+import type { TelegramStatus } from "./telegram-contracts";
 
 export const projectChannels = {
   view: "project:view",

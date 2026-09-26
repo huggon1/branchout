@@ -1,4 +1,4 @@
-import type { SourceContent } from "../../../shared/material-contracts";
+import type { SourceContent } from "../../../shared/source-contracts";
 import type {
   FocusRelation,
   ForwardingFocusCard,

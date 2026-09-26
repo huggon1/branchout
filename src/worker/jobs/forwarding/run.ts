@@ -3,13 +3,13 @@ import {
   sourceSchema,
   xPostUrlSchema,
   xhsNoteUrlSchema,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import {
   xExecutionSessionSchema,
   xhsExecutionSessionSchema,
 } from "../../../shared/platform-contracts";
 import { executionSchema } from "../../../shared/model-contracts";
-import type { SourceContent } from "../../../shared/material-contracts";
+import type { SourceContent } from "../../../shared/source-contracts";
 import { platforms } from "../../../platforms/registry";
 import { createXAdapter } from "../../../platforms/adapters/x";
 import { createXhsAdapter } from "../../../platforms/adapters/xhs";

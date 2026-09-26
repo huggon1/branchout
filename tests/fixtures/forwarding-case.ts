@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { sourceSchema } from "../../src/shared/material-contracts";
-import type { SourceContent } from "../../src/shared/material-contracts";
+import { sourceSchema } from "../../src/shared/source-contracts";
+import type { SourceContent } from "../../src/shared/source-contracts";
 import type { ForwardingFocusCard } from "../../src/worker/jobs/forwarding/contracts";
 
 // Exact README excerpts captured from public withastro/astro commit 3f3d580b83b0cb9f14d451b86dab547ccffe4eab.

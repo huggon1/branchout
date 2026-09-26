@@ -11,7 +11,7 @@ import {
   imageUrlSchema,
   sourceUrlSchema,
   xhsNoteUrlSchema,
-} from "../src/shared/material-contracts";
+} from "../src/shared/source-contracts";
 
 const noteId = "684123456789012345678901";
 test("小红书 URL 仅接受笔记与限定短链接，保存时移除访问参数", () => {

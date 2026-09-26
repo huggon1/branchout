@@ -1,4 +1,4 @@
-import { forwardingInputSchema } from "../../../shared/material-contracts";
+import { forwardingInputSchema } from "../../../shared/source-contracts";
 
 type TelegramEntity = {
   type?: unknown;

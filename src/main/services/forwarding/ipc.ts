@@ -1,7 +1,7 @@
 import { ipcMain, shell } from "electron";
 import { z } from "zod";
 import { forwardingChannels } from "../../../shared/ipc-contracts";
-import { repositoryEvidenceUrlSchema } from "../../../shared/material-contracts";
+import { repositoryEvidenceUrlSchema } from "../../../shared/source-contracts";
 import type { ForwardingPipelineService } from "./service";
 
 function isMainFrame(event: Electron.IpcMainInvokeEvent, expected: string) {

@@ -14,3 +14,19 @@ export const telegramForwardingSubmissionSchema = z
 export type TelegramForwardingSubmission = z.infer<
   typeof telegramForwardingSubmissionSchema
 >;
+
+export interface TelegramStatus {
+  configured: boolean;
+  status: "disconnected" | "polling" | "failed";
+  authorizedChatIds: string[];
+  pendingChats: {
+    chatId: string;
+    title: string;
+    username?: string;
+    lastSeenAt: string;
+  }[];
+  queued: number;
+  pendingAcknowledgements: number;
+  lastPollAt?: string;
+  lastError?: string;
+}

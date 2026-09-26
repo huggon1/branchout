@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   sourceSchema,
   sourceUrlSchema,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import {
   focusSetSnapshotSchema,
   forwardingReportDraftSchema,

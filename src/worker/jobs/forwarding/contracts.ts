@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sourceSchema } from "../../../shared/material-contracts";
+import { sourceSchema } from "../../../shared/source-contracts";
 
 export const forwardingFocusCardSchema = z
   .object({

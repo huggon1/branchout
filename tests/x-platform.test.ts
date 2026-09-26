@@ -7,7 +7,7 @@ import {
   sourceSchema,
   sourceUrlSchema,
   xPostUrlSchema,
-} from "../src/shared/material-contracts";
+} from "../src/shared/source-contracts";
 
 test("X URL scope accepts posts only, and preserves existing GitHub links", () => {
   assert.ok(

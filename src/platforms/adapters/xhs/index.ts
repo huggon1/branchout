@@ -3,7 +3,7 @@ import {
   sourceSchema,
   xhsNoteUrlSchema,
   imageUrlSchema,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import type { XhsSession } from "../../../shared/platform-contracts";
 import type { PlatformAdapter } from "../../types";
 

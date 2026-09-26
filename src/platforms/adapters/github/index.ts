@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   repositoryUrlSchema,
   sourceSchema,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import type { PlatformAdapter } from "../../types";
 import { normalizeReadme } from "./normalize";
 export async function readGithubRepository(
