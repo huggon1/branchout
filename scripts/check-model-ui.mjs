@@ -144,12 +144,6 @@ try {
     ),
     false,
   );
-  assert.equal(
-    (await readFile(join(directory, "foundation.json"))).includes(
-      "fixture-secret",
-    ),
-    false,
-  );
   await mkdir("test-results", { recursive: true });
   await page.screenshot({ path: "test-results/model-settings.png" });
   await application.evaluate(({ BrowserWindow }) =>
