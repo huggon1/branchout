@@ -1114,6 +1114,9 @@ blockquote span {
   justify-items: end;
   gap: 8px;
 }
+.project-detail-actions .button {
+  white-space: nowrap;
+}
 .project-overview {
   display: flex;
   align-items: center;
