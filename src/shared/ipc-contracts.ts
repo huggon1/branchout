@@ -10,7 +10,9 @@ import type {
 import type {
   AcceptFocusSuggestion,
   AcceptSuggestionResult,
+  ProjectAnalysisPreflight,
   ProjectAnalysisReport,
+  StartProjectAnalysis,
 } from "./analysis-contracts";
 import type { TaskActivity, TaskSnapshot } from "./task-contracts";
 import type { ModelReply, ModelView, SaveModelInput } from "./model-contracts";
@@ -18,6 +20,7 @@ import type {
   ForwardingTaskDetail,
   ForwardingTaskSummary,
 } from "../main/services/forwarding/service";
+import type { TelegramStatus } from "../main/integrations/telegram/service";
 
 export const projectChannels = {
   view: "project:view",
@@ -53,6 +56,15 @@ export const forwardingChannels = {
   cancel: "forwarding:cancel",
   openSource: "forwarding:open-source",
   openRepositoryLink: "forwarding:open-repository-link",
+} as const;
+
+export const telegramChannels = {
+  status: "telegram:status",
+  saveToken: "telegram:save-token",
+  clearToken: "telegram:clear-token",
+  verifyBot: "telegram:verify-bot",
+  authorizeChat: "telegram:authorize-chat",
+  revokeChat: "telegram:revoke-chat",
 } as const;
 
 export const modelChannels = {
@@ -99,6 +111,12 @@ export interface DesktopBridge {
   readProjectAnalysisReport(
     analysisReportId: string,
   ): Promise<ModelReply<ProjectAnalysisReport>>;
+  projectAnalysisPreflight(
+    projectId: string,
+  ): Promise<ModelReply<ProjectAnalysisPreflight>>;
+  startProjectAnalysis(
+    input: StartProjectAnalysis,
+  ): Promise<ModelReply<string>>;
   acceptFocusSuggestion(
     input: AcceptFocusSuggestion,
   ): Promise<ModelReply<AcceptSuggestionResult>>;
@@ -109,6 +127,12 @@ export interface DesktopBridge {
   cancelForwarding(taskId: string): Promise<ModelReply<void>>;
   openSource(materialId: string): Promise<ModelReply<void>>;
   openRepositoryLink(url: string): Promise<ModelReply<void>>;
+  telegramStatus(): Promise<ModelReply<TelegramStatus>>;
+  saveTelegramBotToken(token: string): Promise<ModelReply<void>>;
+  clearTelegramBotToken(): Promise<ModelReply<void>>;
+  verifyTelegramBot(): Promise<ModelReply<{ username: string }>>;
+  authorizeTelegramChat(chatId: string): Promise<ModelReply<void>>;
+  revokeTelegramChat(chatId: string): Promise<ModelReply<void>>;
   modelView(): Promise<ModelReply<ModelView>>;
   saveModel(input: SaveModelInput): Promise<ModelReply<void>>;
   loginModel(): Promise<ModelReply<void>>;

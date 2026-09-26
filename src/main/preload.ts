@@ -6,6 +6,7 @@ import {
   analysisChannels,
   taskChannels,
   forwardingChannels,
+  telegramChannels,
   modelChannels,
   xChannels,
   xhsChannels,
@@ -27,6 +28,10 @@ const bridge: DesktopBridge = {
     ipcRenderer.invoke(analysisChannels.reports, projectId),
   readProjectAnalysisReport: (analysisReportId) =>
     ipcRenderer.invoke(analysisChannels.readReport, analysisReportId),
+  projectAnalysisPreflight: (projectId) =>
+    ipcRenderer.invoke(analysisChannels.preflight, projectId),
+  startProjectAnalysis: (input) =>
+    ipcRenderer.invoke(analysisChannels.start, input),
   acceptFocusSuggestion: (input) =>
     ipcRenderer.invoke(analysisChannels.acceptSuggestion, input),
   unifiedTaskSnapshots: () => ipcRenderer.invoke(taskChannels.snapshots),
@@ -44,6 +49,15 @@ const bridge: DesktopBridge = {
     ipcRenderer.invoke(forwardingChannels.openSource, materialId),
   openRepositoryLink: (url) =>
     ipcRenderer.invoke(forwardingChannels.openRepositoryLink, url),
+  telegramStatus: () => ipcRenderer.invoke(telegramChannels.status),
+  saveTelegramBotToken: (token) =>
+    ipcRenderer.invoke(telegramChannels.saveToken, token),
+  clearTelegramBotToken: () => ipcRenderer.invoke(telegramChannels.clearToken),
+  verifyTelegramBot: () => ipcRenderer.invoke(telegramChannels.verifyBot),
+  authorizeTelegramChat: (chatId) =>
+    ipcRenderer.invoke(telegramChannels.authorizeChat, chatId),
+  revokeTelegramChat: (chatId) =>
+    ipcRenderer.invoke(telegramChannels.revokeChat, chatId),
   modelView: () => ipcRenderer.invoke(modelChannels.view),
   saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
   loginModel: () => ipcRenderer.invoke(modelChannels.login),

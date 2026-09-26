@@ -89,7 +89,7 @@ export class TelegramService {
     ]);
     return {
       configured: !!token,
-      status: snapshot.connection.status,
+      status: token ? snapshot.connection.status : "disconnected",
       authorizedChatIds: snapshot.authorizedChatIds,
       pendingChats: snapshot.pendingChats,
       queued: snapshot.queuedForwarding.filter((item) => item.state === "queued")
@@ -98,7 +98,9 @@ export class TelegramService {
         (item) => item.acknowledgement?.state === "pending",
       ).length,
       lastPollAt: snapshot.connection.lastPollAt,
-      lastError: snapshot.connection.lastError,
+      ...(token && snapshot.connection.lastError
+        ? { lastError: snapshot.connection.lastError }
+        : {}),
     };
   }
 
@@ -107,7 +109,7 @@ export class TelegramService {
     if (!client) throw new Error("请先保存 Telegram Bot Token");
     const bot = await client.getMe();
     await this.store.update((state) => {
-      state.connection = { status: "disconnected" };
+      state.connection = { status: this.running ? "polling" : "disconnected" };
     });
     this.changed();
     return { username: bot.username ?? bot.first_name };
@@ -280,9 +282,18 @@ export class TelegramService {
   private async sendPendingAcknowledgements(signal?: AbortSignal) {
     const client = await this.client();
     if (!client) return;
-    const pending = this.store
-      .snapshot()
-      .inbound.filter((item) => item.acknowledgement?.state === "pending");
+    const snapshot = this.store.snapshot();
+    const submittedTasks = new Set(
+      snapshot.queuedForwarding
+        .filter((item) => item.state === "submitted")
+        .map((item) => item.taskId),
+    );
+    const pending = snapshot.inbound.filter(
+      (item) =>
+        item.acknowledgement?.state === "pending" &&
+        (item.outcome !== "queued" ||
+          (!!item.taskId && submittedTasks.has(item.taskId))),
+    );
     for (const inbound of pending) {
       try {
         await client.sendMessage(

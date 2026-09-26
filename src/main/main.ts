@@ -23,6 +23,10 @@ import { TaskStore } from "./storage/task-store";
 import { ForwardingStore } from "./services/forwarding/store";
 import { ForwardingPipelineService } from "./services/forwarding/service";
 import { registerForwardingIpc } from "./services/forwarding/ipc";
+import { TelegramStore } from "./integrations/telegram/store";
+import { TelegramCredentialStore } from "./integrations/telegram/credential-store";
+import { TelegramService } from "./integrations/telegram/service";
+import { registerTelegramIpc } from "./integrations/telegram/ipc";
 import { ProjectService } from "./services/projects/project-service";
 import { registerProjectIpc } from "./services/projects/project-ipc";
 import { FocusCardService } from "./services/focus-cards/focus-card-service";
@@ -52,6 +56,8 @@ if (!locked) app.quit();
 else {
   let models: ModelService | undefined;
   let forwarding: ForwardingPipelineService | undefined;
+  let telegram: TelegramService | undefined;
+  let telegramCredentials: TelegramCredentialStore | undefined;
   let projects: ProjectService | undefined;
   let focusCards: FocusCardService | undefined;
   let analysisReports: ProjectAnalysisReportService | undefined;
@@ -91,8 +97,7 @@ else {
     if (shuttingDown || !servicesReady) return;
     event.preventDefault();
     shuttingDown = true;
-    void forwarding
-      ?.shutdown()
+    void Promise.all([forwarding?.shutdown(), telegram?.stop()])
       .then(() => models?.close())
       .catch(() => {
         dialog.showErrorBox(
@@ -202,6 +207,35 @@ else {
       await forwarding.recover();
       taskView = new UnifiedTaskService(tasks, forwarding);
 
+      const telegramStore = new TelegramStore(
+        join(app.getPath("userData"), "telegram.json"),
+      );
+      await telegramStore.open();
+      telegramCredentials = new TelegramCredentialStore(
+        join(app.getPath("userData"), "telegram-bot-token.enc"),
+        {
+          isEncryptionAvailable: () =>
+            safeStorage.isEncryptionAvailable() &&
+            (process.platform !== "linux" ||
+              safeStorage.getSelectedStorageBackend() !== "basic_text"),
+          encryptString: (value) => safeStorage.encryptString(value),
+          decryptString: (bytes) => safeStorage.decryptString(bytes),
+        },
+      );
+      telegram = new TelegramService(
+        telegramStore,
+        () => telegramCredentials!.getBotToken(),
+        telegramCredentials,
+        {
+          submit: async (request) => {
+            await forwarding!.submitTelegram(request);
+          },
+        },
+        fetch,
+        changed,
+      );
+      if (await telegramCredentials.getBotToken()) await telegram.start();
+
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
@@ -210,6 +244,7 @@ else {
       registerAnalysisReportIpc(analysisReports, expected);
       registerTaskIpc(taskView, expected);
       registerForwardingIpc(forwarding, expected);
+      registerTelegramIpc(telegram, telegramCredentials, expected, changed);
 
       for (const channel of Object.values(xChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
