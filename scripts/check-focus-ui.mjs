@@ -61,8 +61,13 @@ try {
   await birch.waitFor();
   assert.match(await birch.innerText(), /1 张活跃卡 · 2 份分析报告/);
   await page.getByRole("button", { name: /Atlas Notes/ }).first().click();
-  await page.getByRole("button", { name: "开始项目分析" }).click();
+  await page.getByRole("button", { name: "解析项目材料" }).click();
+  const parsingButton = page.getByRole("button", { name: "正在解析项目材料…" });
+  assert.equal(await parsingButton.isDisabled(), true);
+  assert.equal(await parsingButton.locator(".button-spinner").count(), 1);
+  assert.equal(await page.getByRole("status").filter({ hasText: "正在解析仓库" }).isVisible(), true);
   await page.getByLabel("选择 commit 读取范围").waitFor();
+  assert.equal(await page.getByRole("button", { name: "重新解析项目材料" }).isEnabled(), true);
   assert.equal(await page.getByLabel("选择 commit 读取范围").inputValue(), "recent_30");
   await page.getByLabel("选择 commit 读取范围").selectOption("recent_100");
   await page.getByLabel(/研究多端数据恢复/).check();

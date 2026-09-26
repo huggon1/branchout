@@ -347,7 +347,10 @@ const bridge = {
   createFocusCard,
   editFocusCard,
   setFocusCardActive,
-  projectAnalysisPreflight: async () => ok({ repository: { gitHead: "e19f7a2", hasUncommittedChanges: true, candidateFileCount: 24 }, commits: { availableCount: 100, commitIds: Array.from({ length: 100 }, (_, index) => `commit-${100 - index}`) }, codexSessions: [{ sessionId: "session-confirmed", date: "2026-09-25T12:00:00.000Z", attribution: "confirmed", reason: "修复离线同步冲突 · 工作目录匹配本地项目。" }, { sessionId: "session-uncertain", date: "2026-09-24T11:00:00.000Z", attribution: "review", reason: "研究多端数据恢复 · 会话目录缺少仓库身份，需要你确认是否属于该项目。" }] }),
+  projectAnalysisPreflight: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    return ok({ repository: { gitHead: "e19f7a2", hasUncommittedChanges: true, candidateFileCount: 24 }, commits: { availableCount: 100, commitIds: Array.from({ length: 100 }, (_, index) => `commit-${100 - index}`) }, codexSessions: [{ sessionId: "session-confirmed", date: "2026-09-25T12:00:00.000Z", attribution: "confirmed", reason: "修复离线同步冲突 · 工作目录匹配本地项目。" }, { sessionId: "session-uncertain", date: "2026-09-24T11:00:00.000Z", attribution: "review", reason: "研究多端数据恢复 · 会话目录缺少仓库身份，需要你确认是否属于该项目。" }] });
+  },
   startProjectAnalysis,
   acceptFocusSuggestion,
   addLink,

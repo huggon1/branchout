@@ -61,10 +61,12 @@ export function ProjectsPage({
   );
   const [reportId, setReportId] = useState(initialReportId ?? "");
   const [preflight, setPreflight] = useState<UiAnalysisPreflight>();
+  const [inspecting, setInspecting] = useState(false);
   const [commitRangeId, setCommitRangeId] = useState("");
   const [preflightError, setPreflightError] = useState("");
   const [unbindingId, setUnbindingId] = useState("");
   const requestedPreflight = useRef<number | undefined>(undefined);
+  const inspectionToken = useRef(0);
   const project = projects.find((item) => item.projectId === projectId);
   const projectReports = useMemo(
     () =>
@@ -117,17 +119,27 @@ export function ProjectsPage({
       setReportId(report.analysisReportId);
   }, [report, reportId]);
   const inspect = async () => {
-    if (!project) return;
+    if (!project || inspecting) return;
+    const token = ++inspectionToken.current;
+    setInspecting(true);
     setPreflightError("");
-    const next = await onPreflight(project.projectId);
-    if (next) {
-      setPreflight(next);
-      setCommitRangeId(
-        next.commits.ranges.find((range) => range.selected)?.rangeId ??
-          next.commits.ranges[0]?.rangeId ??
-          "",
-      );
-    } else setPreflightError("分析范围读取失败。检查项目目录状态后重试。");
+    try {
+      const next = await onPreflight(project.projectId);
+      if (token !== inspectionToken.current) return;
+      if (next) {
+        setPreflight(next);
+        setCommitRangeId(
+          next.commits.ranges.find((range) => range.selected)?.rangeId ??
+            next.commits.ranges[0]?.rangeId ??
+            "",
+        );
+      } else setPreflightError("项目材料解析失败。检查项目目录状态后重试。");
+    } catch {
+      if (token === inspectionToken.current)
+        setPreflightError("项目材料解析失败。检查项目目录状态后重试。");
+    } finally {
+      if (token === inspectionToken.current) setInspecting(false);
+    }
   };
   useEffect(() => {
     if (
@@ -188,6 +200,8 @@ export function ProjectsPage({
                   className={`project-card ${item.projectId === projectId ? "is-selected" : ""}`}
                   key={item.projectId}
                   onClick={() => {
+                    inspectionToken.current += 1;
+                    setInspecting(false);
                     setProjectId(item.projectId);
                     setPreflight(undefined);
                     setReportId("");
@@ -230,9 +244,15 @@ export function ProjectsPage({
                   <button
                     className="button button-primary"
                     onClick={() => void inspect()}
-                    disabled={busy}
+                    disabled={busy || inspecting}
+                    aria-busy={inspecting}
                   >
-                    {preflight ? "重新检查范围" : "开始项目分析"}
+                    {inspecting && <span className="button-spinner" aria-hidden="true" />}
+                    {inspecting
+                      ? "正在解析项目材料…"
+                      : preflight
+                        ? "重新解析项目材料"
+                        : "解析项目材料"}
                   </button>
                   <button
                     className="text-button danger-text"
@@ -329,6 +349,11 @@ export function ProjectsPage({
               {preflightError && (
                 <p className="form-error" role="alert">
                   {preflightError}
+                </p>
+              )}
+              {inspecting && (
+                <p className="project-inspecting-status" role="status">
+                  正在解析仓库、Git 历史和 Codex 对话的候选范围…
                 </p>
               )}
               {preflight && (
@@ -473,8 +498,8 @@ export function ProjectsPage({
                   />
                 ) : (
                   <EmptyState title="还没有分析报告">
-                    开始项目分析，阅读仓库、commit 和你选中的 Codex
-                    对话所形成的发现与建议。
+                    解析项目材料并确认范围后，提交分析以阅读仓库、commit
+                    和你选中的 Codex 对话所形成的发现与建议。
                   </EmptyState>
                 )}
               </section>
