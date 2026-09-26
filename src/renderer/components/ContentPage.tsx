@@ -30,7 +30,7 @@ export function ContentPage({
   openMaterialId?: string;
   onMaterialOpened?: () => void;
   onAddLink: (url: string) => Promise<boolean>;
-  onOpenSource: (url: string) => Promise<void>;
+  onOpenSource: (materialId: string) => Promise<void>;
   onOpenFocus: (
     projectId: string,
     focusId: string,
@@ -154,7 +154,7 @@ export function ContentPage({
               </div>
               <button
                 className="button button-quiet"
-                onClick={() => void onOpenSource(selected.sourceUrl)}
+                onClick={() => void onOpenSource(selected.materialId)}
               >
                 打开原链接 ↗
               </button>

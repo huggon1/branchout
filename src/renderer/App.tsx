@@ -16,6 +16,7 @@ import type {
 } from "./product-ui";
 
 const pages: ProductPage[] = ["内容", "关注卡", "项目", "任务", "设置"];
+let projectPreflightRequestId = 0;
 const pageTitle: Record<ProductPage, string> = {
   内容: "内容",
   关注卡: "关注卡",
@@ -41,6 +42,7 @@ export function App() {
   const [projectTarget, setProjectTarget] = useState<{
     projectId: string;
     reportId?: string;
+    preflightRequestId?: number;
   }>();
   const ui = useMemo(() => productUiBridge(), []);
   const projects = projectsState?.projects ?? [];
@@ -256,8 +258,8 @@ export function App() {
               openMaterialId={openMaterialId || undefined}
               onMaterialOpened={() => setOpenMaterialId("")}
               onAddLink={(url) => run(() => ui.uiAddLink(url))}
-              onOpenSource={async (url) => {
-                await run(() => ui.uiOpenSource(url));
+              onOpenSource={async (materialId) => {
+                await run(() => ui.uiOpenSource(materialId));
               }}
               onOpenFocus={navigateToFocus}
               onRetryTask={async (taskId) => {
@@ -318,6 +320,7 @@ export function App() {
               tasks={tasks}
               initialProjectId={projectTarget?.projectId}
               initialReportId={projectTarget?.reportId}
+              initialPreflightRequestId={projectTarget?.preflightRequestId}
               busy={busy}
               onBind={() =>
                 run(
@@ -361,6 +364,15 @@ export function App() {
                 await run(() => ui.uiCancelTask(taskId));
               }}
               onRetry={async (taskId) => {
+                const task = tasks.find((item) => item.taskId === taskId);
+                if (task?.kind === "project_analysis" && task.projectId) {
+                  setProjectTarget({
+                    projectId: task.projectId,
+                    preflightRequestId: ++projectPreflightRequestId,
+                  });
+                  setPage("项目");
+                  return;
+                }
                 await run(() => ui.uiRetryTask(taskId));
               }}
               onOpenResult={openTaskResult}
@@ -374,7 +386,11 @@ export function App() {
             <SettingsPage
               settings={settings}
               busy={busy}
-              onSaveTelegram={(input) => run(() => ui.uiSaveTelegram(input))}
+              onSaveTelegramToken={(token) => run(() => ui.uiSaveTelegramToken(token))}
+              onClearTelegramBotToken={() => run(() => ui.uiClearTelegramBotToken())}
+              onVerifyTelegramBot={() => run(() => ui.uiVerifyTelegramBot())}
+              onAuthorizeTelegramChat={(chatId) => run(() => ui.uiAuthorizeTelegramChat(chatId))}
+              onRevokeTelegramChat={(chatId) => run(() => ui.uiRevokeTelegramChat(chatId))}
             />
           </section>
         </div>

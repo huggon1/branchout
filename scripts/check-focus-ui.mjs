@@ -35,7 +35,7 @@ try {
   await page.getByText("关注卡关联失败尚未完成").waitFor();
   assert.equal(await page.getByText(/已保存的来源和理解仍可阅读/).isVisible(), true);
   await page.getByRole("button", { name: "重试关联判断" }).click();
-  assert.equal(await page.evaluate(() => window.branchout.uiFixtureLog().some((item) => item.type === "retry" && item.taskId === "task-partial")), true);
+  assert.equal(await page.evaluate(() => window.branchout.fixtureLog().some((item) => item.type === "retry" && item.taskId === "task-partial")), true);
 
   await page.getByRole("button", { name: "关注卡", exact: true }).click();
   await page.getByRole("button", { name: "+ 新建关注卡" }).click();
@@ -65,9 +65,9 @@ try {
   await page.screenshot({ path: "test-results/focus-analysis-preflight.png", fullPage: true });
   await page.getByRole("button", { name: "提交分析" }).click();
   await page.locator(".project-analysis-state").getByText("读取 100 条 commit").waitFor();
-  assert.equal(await page.evaluate(() => window.branchout.uiFixtureLog().some((item) => item.type === "start-analysis" && item.commitRangeId === "recent_100" && item.sessionIds.includes("session-uncertain"))), true);
+  assert.equal(await page.evaluate(() => window.branchout.fixtureLog().some((item) => item.type === "start-analysis" && item.commitRangeId === "recent_100" && item.sessionIds.includes("session-uncertain"))), true);
   await page.getByRole("button", { name: "查看任务活动 →" }).click();
-  await page.getByRole("heading", { name: "分析项目" }).waitFor();
+  await page.getByRole("heading", { name: "分析 Atlas Notes" }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
 
   await page.getByRole("button", { name: /接受这条建议/ }).first().click();
@@ -76,13 +76,17 @@ try {
   await page.getByText(/Atlas Notes 的离线编辑与同步/).waitFor();
   await page.getByRole("button", { name: "确认复审并接受" }).click();
   await page.getByText("建议已接受，关注卡版本已更新。", { exact: true }).waitFor();
-  assert.equal(await page.evaluate(() => window.branchout.uiFixtureLog().some((item) => item.type === "accept-suggestion" && item.reviewedCurrentFocusVersionId === "atlas-v3-current")), true);
+  assert.equal(await page.evaluate(() => window.branchout.fixtureLog().some((item) => item.type === "accept-suggestion" && item.reviewedCurrentFocusVersionId === "atlas-v3-current")), true);
   await page.screenshot({ path: "test-results/focus-analysis-report.png", fullPage: true });
 
   await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: /^任务/ }).click();
   await page.getByRole("heading", { name: "Agent 正在做什么" }).waitFor();
   await page.screenshot({ path: "test-results/focus-task-activity.png", fullPage: true });
-  await page.getByRole("button", { name: /解析离线优先应用/ }).click();
+  await page.getByRole("button", { name: /分析 Birch Sync/ }).click();
+  await page.getByRole("button", { name: "重新检查分析范围" }).click();
+  await page.getByLabel("选择 commit 读取范围").waitFor();
+  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: /^任务/ }).click();
+  await page.getByRole("button", { name: /解析\s*离线优先应用/ }).click();
   await page.getByRole("button", { name: "打开结果报告" }).click();
   await page.getByRole("heading", { name: "离线优先应用如何合并设备冲突" }).waitFor();
 
@@ -98,11 +102,18 @@ try {
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("heading", { name: "模型连接" }).waitFor();
   await page.getByLabel("Bot Token").fill("fixture-secret-token");
-  await page.getByRole("button", { name: "保存 Telegram 设置" }).click();
+  await page.getByRole("button", { name: "保存 Bot Token" }).click();
   await page.getByText("设置已保存", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "验证 Bot" }).click();
+  await page.getByText("Bot 验证成功", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "授权 稍后绑定的测试聊天" }).click();
+  await page.getByText("聊天授权已更新", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "撤销 稍后绑定的测试聊天 授权" }).waitFor();
+  await page.getByRole("button", { name: "撤销 稍后绑定的测试聊天 授权" }).click();
+  await page.getByText("聊天授权已撤销", { exact: true }).waitFor();
   const settingsResult = await page.evaluate(async () => ({
-    secret: window.branchout.uiFixtureSecret(),
-    returned: JSON.stringify(await window.branchout.uiSettings()),
+    secret: window.branchout.fixtureSecret(),
+    returned: JSON.stringify(await window.branchout.telegramStatus()),
   }));
   assert.equal(settingsResult.secret, "fixture-secret-token");
   assert.equal(settingsResult.returned.includes("fixture-secret-token"), false);
@@ -110,7 +121,7 @@ try {
   await page.waitForTimeout(180);
   await page.screenshot({ path: "test-results/focus-settings-narrow.png", fullPage: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
-  const saveButton = await page.getByRole("button", { name: "保存 Telegram 设置" }).boundingBox();
+  const saveButton = await page.getByRole("button", { name: "保存 Bot Token" }).boundingBox();
   assert.ok(saveButton && saveButton.x >= 0 && saveButton.x + saveButton.width <= 640);
   await page.keyboard.press("Tab");
   assert.equal(await page.evaluate(() => document.activeElement?.tagName), "BUTTON");

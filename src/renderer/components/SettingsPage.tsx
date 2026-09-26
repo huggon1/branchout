@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { UiSettings } from "../product-ui";
 import { ModelSettings } from "./ModelSettings";
 import { XSettings } from "./XSettings";
@@ -6,40 +6,33 @@ import { XSettings } from "./XSettings";
 export function SettingsPage({
   settings,
   busy,
-  onSaveTelegram,
+  onSaveTelegramToken,
+  onClearTelegramBotToken,
+  onVerifyTelegramBot,
+  onAuthorizeTelegramChat,
+  onRevokeTelegramChat,
 }: {
   settings?: UiSettings;
   busy: boolean;
-  onSaveTelegram: (input: {
-    botToken?: string;
-    chats: string[];
-  }) => Promise<boolean>;
+  onSaveTelegramToken: (token: string) => Promise<boolean>;
+  onClearTelegramBotToken: () => Promise<boolean>;
+  onVerifyTelegramBot: () => Promise<boolean>;
+  onAuthorizeTelegramChat: (chatId: string) => Promise<boolean>;
+  onRevokeTelegramChat: (chatId: string) => Promise<boolean>;
 }) {
   const [botToken, setBotToken] = useState("");
-  const [chats, setChats] = useState<string[]>([]);
-  const [saved, setSaved] = useState(false);
-  useEffect(
-    () =>
-      setChats(
-        settings?.telegram.chats
-          .filter((chat) => chat.allowed)
-          .map((chat) => chat.chatId) ?? [],
-      ),
-    [settings?.telegram.chats],
-  );
-  const saveTelegram = async () => {
-    if (await onSaveTelegram({ ...(botToken ? { botToken } : {}), chats })) {
-      setBotToken("");
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 2600);
+  const [statusMessage, setStatusMessage] = useState("");
+  const finishAction = (
+    success: boolean,
+    message: string,
+    clearToken = false,
+  ) => {
+    if (success) {
+      if (clearToken) setBotToken("");
+      setStatusMessage(message);
+      window.setTimeout(() => setStatusMessage(""), 2600);
     }
   };
-  const toggleChat = (chatId: string, enabled: boolean) =>
-    setChats((current) =>
-      enabled
-        ? [...new Set([...current, chatId])]
-        : current.filter((item) => item !== chatId),
-    );
   return (
     <div className="settings-page">
       <header className="page-intro">
@@ -65,7 +58,11 @@ export function SettingsPage({
           <span
             className={`status-tag ${settings?.telegram.connected ? "status-active" : "status-paused"}`}
           >
-            {settings?.telegram.connected ? "已连接" : "未连接"}
+            {settings?.telegram.connected
+              ? "正在接收"
+              : settings?.telegram.configured
+                ? "已配置"
+                : "未连接"}
           </span>
         </div>
         <label className="settings-field">
@@ -76,7 +73,7 @@ export function SettingsPage({
             value={botToken}
             onChange={(event) => setBotToken(event.target.value)}
             placeholder={
-              settings?.telegram.connected
+              settings?.telegram.configured
                 ? "已配置，留空保留当前凭据"
                 : "从 Telegram BotFather 获取"
             }
@@ -108,42 +105,105 @@ export function SettingsPage({
           </p>
         )}
         <fieldset className="telegram-chat-list">
-          <legend>允许接收链接的聊天</legend>
+          <legend>已授权聊天</legend>
           {settings?.telegram.chats.length ? (
             settings.telegram.chats.map((chat) => (
-              <label className="chat-option" key={chat.chatId}>
-                <input
-                  type="checkbox"
-                  checked={chats.includes(chat.chatId)}
-                  onChange={(event) =>
-                    toggleChat(chat.chatId, event.target.checked)
-                  }
-                  disabled={busy}
-                />
+              <div className="chat-option" key={chat.chatId}>
                 <span>
                   <strong>{chat.label}</strong>
                   <small>{chat.chatId}</small>
                 </span>
-              </label>
+                <button
+                  className="text-button danger-text"
+                  onClick={() =>
+                    void onRevokeTelegramChat(chat.chatId).then((success) =>
+                      finishAction(success, "聊天授权已撤销"),
+                    )
+                  }
+                  disabled={busy}
+                  data-chat-id={chat.chatId}
+                  aria-label={`撤销 ${chat.label} 授权`}
+                >
+                  撤销
+                </button>
+              </div>
             ))
           ) : (
             <p className="muted-copy">
-              连接 Bot 后，在 Telegram
-              向它发送一条消息，再刷新已发现聊天列表以完成绑定。
+              授权聊天发送给 Bot 的链接后，应用会在这里显示获准接收的聊天。
             </p>
+          )}
+        </fieldset>
+        <fieldset className="telegram-chat-list">
+          <legend>待授权聊天</legend>
+          {settings?.telegram.pendingChats.length ? (
+            settings.telegram.pendingChats.map((chat) => (
+              <div className="chat-option" key={chat.chatId}>
+                <span>
+                  <strong>{chat.label}</strong>
+                  <small>
+                    {chat.chatId} · 最近发现{" "}
+                    {new Date(chat.lastSeenAt).toLocaleString()}
+                  </small>
+                </span>
+                <button
+                  className="button button-quiet"
+                  onClick={() =>
+                    void onAuthorizeTelegramChat(chat.chatId).then((success) =>
+                      finishAction(success, "聊天授权已更新"),
+                    )
+                  }
+                  disabled={busy}
+                  data-chat-id={chat.chatId}
+                  aria-label={`授权 ${chat.label}`}
+                >
+                  授权
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="muted-copy">还没有发现新的 Telegram 聊天。</p>
           )}
         </fieldset>
         <div className="settings-actions">
           <button
             className="button button-primary"
-            onClick={() => void saveTelegram()}
+            onClick={() =>
+              void onSaveTelegramToken(botToken.trim()).then((success) =>
+                finishAction(success, "设置已保存", true),
+              )
+            }
             disabled={
-              busy || (!settings?.telegram.connected && !botToken.trim())
+              busy || !botToken.trim()
             }
           >
-            {busy ? "正在保存…" : "保存 Telegram 设置"}
+            {busy ? "正在保存…" : "保存 Bot Token"}
           </button>
-          {saved && <span role="status">设置已保存</span>}
+          <button
+            className="button button-quiet"
+            onClick={() =>
+              void onVerifyTelegramBot().then((success) =>
+                finishAction(success, "Bot 验证成功"),
+              )
+            }
+            disabled={busy || !settings?.telegram.configured}
+          >
+            验证 Bot
+          </button>
+          {settings?.telegram.configured && (
+            <button
+              className="text-button danger-text"
+              onClick={() =>
+                void onClearTelegramBotToken().then((success) =>
+                  finishAction(success, "Bot Token 已清除", true),
+                )
+              }
+              disabled={busy}
+            >
+              清除 Token
+            </button>
+          )}
+          {statusMessage && <span role="status">{statusMessage}</span>}
         </div>
       </section>
       <section

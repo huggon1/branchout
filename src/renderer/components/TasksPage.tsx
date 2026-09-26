@@ -233,7 +233,9 @@ export function TasksPage({
                     disabled={busy}
                     onClick={() => void onRetry(selected.taskId)}
                   >
-                    重试任务
+                    {selected.kind === "project_analysis"
+                      ? "重新检查分析范围"
+                      : "重试任务"}
                   </button>
                 )}
                 {selected.status === "queued" ||

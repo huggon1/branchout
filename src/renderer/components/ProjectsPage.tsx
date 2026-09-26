@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   UiAnalysisPreflight,
   UiAnalysisReport,
@@ -16,6 +16,7 @@ export function ProjectsPage({
   tasks,
   initialProjectId,
   initialReportId,
+  initialPreflightRequestId,
   busy,
   onBind,
   onUnbind,
@@ -32,6 +33,7 @@ export function ProjectsPage({
   tasks: UiTask[];
   initialProjectId?: string;
   initialReportId?: string;
+  initialPreflightRequestId?: number;
   busy: boolean;
   onBind: () => Promise<boolean>;
   onUnbind: (projectId: string) => Promise<boolean>;
@@ -62,6 +64,7 @@ export function ProjectsPage({
   const [commitRangeId, setCommitRangeId] = useState("");
   const [preflightError, setPreflightError] = useState("");
   const [unbindingId, setUnbindingId] = useState("");
+  const requestedPreflight = useRef<number | undefined>(undefined);
   const project = projects.find((item) => item.projectId === projectId);
   const projectReports = useMemo(
     () =>
@@ -126,6 +129,17 @@ export function ProjectsPage({
       );
     } else setPreflightError("分析范围读取失败。检查项目目录状态后重试。");
   };
+  useEffect(() => {
+    if (
+      initialPreflightRequestId === undefined ||
+      !initialProjectId ||
+      projectId !== initialProjectId ||
+      requestedPreflight.current === initialPreflightRequestId
+    )
+      return;
+    requestedPreflight.current = initialPreflightRequestId;
+    void inspect();
+  }, [initialPreflightRequestId, initialProjectId, projectId]);
   const toggleSession = (sessionId: string, selected: boolean) =>
     setPreflight(
       (current) =>
