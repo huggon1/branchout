@@ -106,6 +106,7 @@ button {
 }
 .brand img {
   object-fit: contain;
+  flex: none;
 }
 .app-sidebar nav {
   display: grid;

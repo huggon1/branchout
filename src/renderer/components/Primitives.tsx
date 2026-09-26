@@ -107,7 +107,7 @@ export function EmptyState({
 export function Brand() {
   return (
     <div className="brand">
-      <img src="../assets/branchout.png" width="23" height="23" alt="" />
+      <img src="../assets/branchout-mark.svg" width="28" height="28" alt="" />
       <span>Branchout</span>
     </div>
   );

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="75" y1="70" x2="930" y2="954" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0F7F0"/>
+      <stop offset="1" stop-color="#D9EADD"/>
+    </linearGradient>
+    <filter id="shadow" x="160" y="130" width="730" height="780" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="28"/>
+    </filter>
+  </defs>
+  <rect x="24" y="24" width="976" height="976" rx="218" fill="url(#tile)"/>
+  <path d="M438 628C383 459 319 351 368 213C401 133 490 101 651 93C619 239 554 400 438 628Z" fill="#4A987E" opacity=".18" filter="url(#shadow)"/>
+  <g transform="translate(154 154) scale(5.6)">
+    <path d="M56 75C49 55 39 42 45 25C49 15 60 11 79 10C75 28 67 48 56 75Z" fill="#4A987E"/>
+    <path d="M56 75C65 54 86 38 116 40C108 64 89 78 56 75Z" fill="#2C806D"/>
+    <path d="M12 113C34 100 42 84 59 78C77 72 89 85 115 81C105 105 88 116 65 104C48 95 32 109 12 113Z" fill="#155D52"/>
+    <path d="M56 75C52 56 48 37 52 26C56 20 65 16 79 10C71 37 64 56 56 75Z" fill="#83B99D"/>
+    <path d="M56 75C69 58 88 48 116 40C106 55 83 68 56 75Z" fill="#69AA8D"/>
+    <path d="M32 101C48 89 52 81 65 78C77 77 88 85 115 81C96 96 78 98 65 90C54 84 45 91 32 101Z" fill="#3B9178"/>
+  </g>
+</svg>

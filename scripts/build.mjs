@@ -13,6 +13,7 @@ await copyFile(
   "docs/design/branchout-icon-light-master.png",
   "dist/assets/branchout.png",
 );
+await copyFile("assets/branchout-mark.svg", "dist/assets/branchout-mark.svg");
 await build({
   entryPoints: [
     "src/main/main.ts",
