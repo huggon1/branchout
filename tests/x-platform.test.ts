@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createXAdapter, normalizeTweet } from "../src/platforms/adapters/x";
 import {
   imageUrlSchema,
-  materialSchema,
+  sourceSchema,
   sourceUrlSchema,
   xPostUrlSchema,
 } from "../src/shared/material-contracts";
@@ -32,7 +32,7 @@ test("X URL scope accepts posts only, and preserves existing GitHub links", () =
     assert.equal(xPostUrlSchema.safeParse(value).success, false, value);
 });
 
-test("X normalization retains text, safe photos, source identity and independent material category", () => {
+test("X normalization retains text, safe photos, and source identity", () => {
   const source = normalizeTweet({
     id: "12345",
     text: "A useful observation\nSecond line",
@@ -49,33 +49,17 @@ test("X normalization retains text, safe photos, source identity and independent
   assert.equal(source.contentBlocks[0].type, "text");
   assert.equal(source.images.length, 1);
   assert.ok(imageUrlSchema.safeParse(source.images[0].url).success);
-  assert.ok(
-    materialSchema.safeParse({
-      source,
-      generalUnderstanding: { content: "A short explanation" },
-      materialId: randomUUID(),
-      taskId: randomUUID(),
-      resultId: randomUUID(),
-      platform: "x",
-      collectedAt: new Date().toISOString(),
-      displayLabel: source.title,
-      category: "forwarding",
-      forwardingEntry: "app",
-    }).success,
-  );
+  assert.ok(sourceSchema.safeParse(source).success);
 });
 
-test("X without app login reports not covered, not no results", async () => {
+test("X without app login reports not covered", async () => {
   const adapter = createXAdapter();
   const id = randomUUID();
   const signal = new AbortController().signal;
-  const search = await adapter.search(id, "reading application", signal);
   const read = await adapter.read(
     id,
     "https://x.com/alice/status/12345",
     signal,
   );
-  assert.equal(search.outcome, "not_covered");
   assert.equal(read.outcome, "not_covered");
-  assert.equal(search.candidates.length, 0);
 });

@@ -11,11 +11,9 @@
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:ui": "npm run build && node scripts/check-electron.mjs",
+    "test:ui": "npm run build && node scripts/check-focus-ui.mjs",
     "test:model-ui": "npm run build && node scripts/check-model-ui.mjs",
-    "test:material-ui": "npm run build && node scripts/check-material-ui.mjs",
-    "test:project-ui": "npm run build && node scripts/check-project-ui.mjs",
-    "test:graph-ui": "npm run build && node scripts/check-graph-ui.mjs"
+    "test:project-ui": "npm run build && node scripts/check-focus-ui.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.87.1",

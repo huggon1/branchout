@@ -1,4 +1,3 @@
-import { searchGithub } from "./search";
 import { z } from "zod";
 import {
   repositoryUrlSchema,
@@ -71,8 +70,6 @@ export async function readGithubRepository(
 }
 export const github: PlatformAdapter = {
   platform: "github",
-  searchCapability: "available",
-  search: searchGithub,
   readCapability: "available",
   async read(taskId, sourceUrl, signal) {
     const base = { taskId, platform: "github" as const, sourceUrl };
