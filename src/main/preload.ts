@@ -59,6 +59,10 @@ const bridge: DesktopBridge = {
   revokeTelegramChat: (chatId) =>
     ipcRenderer.invoke(telegramChannels.revokeChat, chatId),
   modelView: () => ipcRenderer.invoke(modelChannels.view),
+  retryProjectAnalysis: (taskId) =>
+    ipcRenderer.invoke(analysisChannels.retry, taskId),
+  cancelProjectAnalysis: (taskId) =>
+    ipcRenderer.invoke(analysisChannels.cancel, taskId),
   saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
   loginModel: () => ipcRenderer.invoke(modelChannels.login),
   cancelModelLogin: () => ipcRenderer.invoke(modelChannels.cancelLogin),

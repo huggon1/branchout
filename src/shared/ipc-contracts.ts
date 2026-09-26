@@ -45,6 +45,8 @@ export const analysisChannels = {
   readReport: "analysis:read-report",
   preflight: "analysis:preflight",
   start: "analysis:start",
+  retry: "analysis:retry",
+  cancel: "analysis:cancel",
   acceptSuggestion: "analysis:accept-suggestion",
 } as const;
 
@@ -76,7 +78,6 @@ export const modelChannels = {
   check: "model:check",
   cancelCheck: "model:cancelCheck",
 } as const;
-
 export const xChannels = {
   status: "x:status",
   login: "x:login",
@@ -134,6 +135,8 @@ export interface DesktopBridge {
   authorizeTelegramChat(chatId: string): Promise<ModelReply<void>>;
   revokeTelegramChat(chatId: string): Promise<ModelReply<void>>;
   modelView(): Promise<ModelReply<ModelView>>;
+  retryProjectAnalysis(taskId: string): Promise<ModelReply<string>>;
+  cancelProjectAnalysis(taskId: string): Promise<ModelReply<void>>;
   saveModel(input: SaveModelInput): Promise<ModelReply<void>>;
   loginModel(): Promise<ModelReply<void>>;
   cancelModelLogin(): Promise<ModelReply<void>>;
