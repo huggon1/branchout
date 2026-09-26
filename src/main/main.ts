@@ -41,7 +41,7 @@ import { registerTaskIpc } from "./services/tasks/task-ipc";
 import { UnifiedTaskService } from "./services/tasks/unified-task-service";
 import { createWorkerEnvironment } from "./services/worker-environment";
 import { ModelService } from "./services/model-service";
-import { CodexClient } from "./services/codex-client";
+import { CodexClient, resolveCodexExecutable } from "./services/codex-client";
 import { ModelStore } from "./storage/model-store";
 import { AuthCleanup } from "./storage/auth-cleanup";
 import { checkModel, readPiCatalog } from "./services/model-worker-client";
@@ -122,6 +122,7 @@ else {
       app.dock?.setIcon(join(__dirname, "../assets/branchout.png"));
 
       const authRoot = join(app.getPath("userData"), "model-auth");
+      const codexExecutable = resolveCodexExecutable();
       models = new ModelService({
         storage: new ModelStore(
           join(app.getPath("userData"), "model-connection.enc"),
@@ -137,7 +138,7 @@ else {
         journal: new AuthCleanup(
           join(app.getPath("userData"), "auth-cleanup.json"),
         ),
-        client: (id) => new CodexClient(join(authRoot, id)),
+        client: (id) => new CodexClient(join(authRoot, id), codexExecutable),
         removeHome: (id) =>
           rm(join(authRoot, id), { recursive: true, force: true }),
         catalog: readPiCatalog,
