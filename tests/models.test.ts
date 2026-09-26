@@ -20,6 +20,7 @@ import {
 import type { CodexRpc } from "../src/main/services/codex-client";
 import { checkWithPi, compatibleCodexModels } from "../src/worker/pi-runtime";
 import { saveModelSchema } from "../src/shared/model-contracts";
+import { ExecutionFailure } from "../src/shared/task-failure";
 test("Pi 兼容目录包含 GPT-6 Sol 与 Luna，但账号目录仍需单独确认", () => {
   const ids = compatibleCodexModels();
   assert.ok(ids.includes("gpt-6-sol"));
@@ -541,5 +542,19 @@ test("old completed check cannot mark a replacement connection as verified", asy
   await settle();
   assert.equal(service.view().check, "passed");
   assert.equal(service.view().checkIsCurrent, false);
+  await service.close();
+});
+
+test("model check exposes a safe failure category", async () => {
+  const { service } = fixture({
+    check: async () => {
+      throw new ExecutionFailure("model_rate_limit");
+    },
+  });
+  await service.save(api);
+  await service.runCheck();
+  await settle();
+  assert.equal(service.view().check, "failed");
+  assert.equal(service.view().checkFailure, "model_rate_limit");
   await service.close();
 });

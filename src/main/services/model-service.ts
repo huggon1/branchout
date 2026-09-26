@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { classifyModelError } from "../../shared/task-failure";
 import {
   saveModelSchema,
   type ModelExecutionConfig,
@@ -379,6 +380,7 @@ export class ModelService {
     if (this.checking) throw new Error("连接检查正在运行");
     const controller = (this.abort = new AbortController());
     this.state.check = "running";
+    this.state.checkFailure = undefined;
     this.changed();
     const work = (this.checking = (async () => {
       let lease: Awaited<ReturnType<ModelService["acquire"]>> | undefined;
@@ -389,8 +391,10 @@ export class ModelService {
         if (controller.signal.aborted) throw new Error("cancelled");
         await this.dependencies.check(lease.config, controller.signal);
         this.state.check = controller.signal.aborted ? "cancelled" : "passed";
-      } catch {
+      } catch (error) {
         this.state.check = controller.signal.aborted ? "cancelled" : "failed";
+        if (!controller.signal.aborted)
+          this.state.checkFailure = classifyModelError(error);
       } finally {
         this.state.checkIsCurrent = lease?.generation === this.generation;
         await lease?.release();

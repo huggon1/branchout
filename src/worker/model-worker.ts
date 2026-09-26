@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { executionSchema } from "../shared/model-contracts";
 import { checkWithPi, compatibleCodexModels } from "./pi-runtime";
+import { classifyModelError } from "../shared/task-failure";
 const command = z.discriminatedUnion("type", [
   z.object({ type: z.literal("catalog") }).strict(),
   z
@@ -34,7 +35,12 @@ port.on("message", ({ data }) => {
   void checkWithPi(message.config, message.sessionId, active.signal)
     .then(
       () => port.postMessage({ type: "checked", success: true }),
-      () => port.postMessage({ type: "checked", success: false }),
+      (error) =>
+        port.postMessage({
+          type: "checked",
+          success: false,
+          failureCode: classifyModelError(error),
+        }),
     )
     .finally(() => {
       message.config.credential = "";

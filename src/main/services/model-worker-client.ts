@@ -3,10 +3,17 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { z } from "zod";
 import type { ModelExecutionConfig } from "../../shared/model-contracts";
+import { ExecutionFailure, failureCodeSchema } from "../../shared/task-failure";
 import { createWorkerEnvironment } from "./worker-environment";
 const replySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("catalog"), ids: z.array(z.string()) }).strict(),
-  z.object({ type: z.literal("checked"), success: z.boolean() }).strict(),
+  z
+    .object({
+      type: z.literal("checked"),
+      success: z.boolean(),
+      failureCode: failureCodeSchema.optional(),
+    })
+    .strict(),
 ]);
 function request(message: unknown, signal?: AbortSignal) {
   return new Promise<z.infer<typeof replySchema>>((resolve, reject) => {
@@ -59,5 +66,9 @@ export async function checkModel(
     signal,
   );
   if (result.type !== "checked" || !result.success)
-    throw new Error("模型检查失败");
+    throw new ExecutionFailure(
+      result.type === "checked"
+        ? (result.failureCode ?? "model_rejected")
+        : "model_rejected",
+    );
 }
