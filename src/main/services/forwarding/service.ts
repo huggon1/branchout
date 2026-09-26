@@ -189,11 +189,13 @@ export class ForwardingPipelineService {
           const stage = knownStage(task.phase);
           task.state = "failed";
           task.phase = "上次解析中断";
+          task.finishedAt = now();
           task.message = "应用关闭时任务中断；已保存阶段可用于重试";
           task.failureStage = stage;
           addForwardingActivity(task, {
             kind: "recovered",
             summary: task.message,
+            occurredAt: task.finishedAt,
           });
         }
     });
@@ -361,9 +363,11 @@ export class ForwardingPipelineService {
       if (task && ["queued", "running"].includes(task.state)) {
         task.state = "cancelled";
         task.phase = "已取消";
+        task.finishedAt = now();
         addForwardingActivity(task, {
           kind: "cancelled",
           summary: "转发任务已取消",
+          occurredAt: task.finishedAt,
         });
         task.message = undefined;
         changed = true;
@@ -792,11 +796,13 @@ export class ForwardingPipelineService {
       if (!task || !["queued", "running"].includes(task.state)) return;
       task.state = "failed";
       task.phase = "解析失败";
+      task.finishedAt = now();
       task.failureStage = stage;
       task.message = message.slice(0, 500);
       addForwardingActivity(task, {
         kind: "failed",
         summary: task.message,
+        occurredAt: task.finishedAt,
       });
       changed = true;
     });
@@ -838,11 +844,13 @@ export class ForwardingPipelineService {
             const stage = knownStage(task.phase);
             task.state = "failed";
             task.phase = "上次解析中断";
+            task.finishedAt = now();
             task.failureStage = stage;
             task.message = "应用退出时任务中断；已保存阶段可用于重试";
             addForwardingActivity(task, {
               kind: "recovered",
               summary: task.message,
+              occurredAt: task.finishedAt,
             });
           }
         });
