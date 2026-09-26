@@ -39,12 +39,13 @@ async function writeSession(
   sessionId: string,
   cwd: string,
   transcript = "",
+  title?: string,
 ) {
   const dateDir = join(root, "2026", "09", "26");
   await mkdir(dateDir, { recursive: true });
   const path = join(dateDir, fileName);
   const header = [
-    jsonl({ type: "session_meta", payload: { id: sessionId, timestamp: "2026-09-26T03:00:00.000Z", cwd } }),
+    jsonl({ type: "session_meta", payload: { id: sessionId, timestamp: "2026-09-26T03:00:00.000Z", cwd, ...(title ? { thread_name: title } : {}) } }),
     jsonl({ type: "turn_context", payload: { cwd } }),
   ].join("\n");
   await writeFile(path, `${header}\n${transcript}`, "utf8");
@@ -126,12 +127,22 @@ test("discovers same-repository sessions as verified and same-remote clones for 
       jsonl({ type: "response_item", payload: { type: "function_call_output", output: "CANDIDATE_TOOL_SENTINEL" } }),
       jsonl({ type: "response_item", payload: { type: "message", role: "assistant", phase: "final", content: [{ type: "output_text", text: syntheticFinal }] } }),
     ].join("\n");
-    await writeSession(sessionsRoot, "rollout-same-path.jsonl", "session-path-match", project, transcript);
+    await writeSession(sessionsRoot, "rollout-same-path.jsonl", "session-path-match", project, transcript, "Project analysis API_KEY=synthetic-secret");
+    const previewTranscript = [
+      jsonl({ type: "response_item", payload: { type: "reasoning", text: "PREVIEW_REASONING_SENTINEL" } }),
+      jsonl({ type: "response_item", payload: { type: "function_call_output", output: "PREVIEW_TOOL_SENTINEL" } }),
+      jsonl({ type: "event_msg", payload: { type: "user_message", message: syntheticUser } }),
+    ].join("\n");
+    await writeSession(sessionsRoot, "rollout-user-preview.jsonl", "session-user-preview", project, previewTranscript);
     await writeSession(sessionsRoot, "rollout-same-remote.jsonl", "session-remote-match", separateClone);
     await writeSession(sessionsRoot, "rollout-unrelated.jsonl", "session-unrelated", unrelated);
     const discovered = await discoverCodexSessionCandidates(project, { roots: [sessionsRoot] });
-    assert.equal(discovered.candidates.length, 2);
+    assert.equal(discovered.candidates.length, 3);
     assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-path-match")?.attribution, "confirmed");
+    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-path-match")?.title, "Project analysis API_KEY=[credential redacted]");
+    const preview = discovered.candidates.find((candidate) => candidate.sessionId === "session-user-preview");
+    assert.equal(preview?.title, syntheticUser);
+    assert.equal(preview?.title.includes("PREVIEW_"), false);
     assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-remote-match")?.attribution, "review");
     assert.equal(discovered.candidates.some((candidate) => candidate.sessionId === "session-unrelated"), false);
     const selected = await readSelectedCodexSessions(project, ["session-path-match"], controller(), { roots: [sessionsRoot] });

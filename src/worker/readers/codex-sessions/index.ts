@@ -32,6 +32,7 @@ export type SessionAttribution = "confirmed" | "review";
 
 export type CodexSessionCandidate = {
   sessionId: string;
+  title: string;
   date: string;
   startedAt?: string;
   lastModifiedAt: string;
@@ -74,6 +75,7 @@ type Header = {
   startedAt?: string;
   workingDirectories: string[];
   title?: string;
+  firstUserMessage?: string;
 };
 
 type PrivateCandidate = {
@@ -330,6 +332,10 @@ async function readHeader(filePath: string, maxBytes: number): Promise<Header> {
           if (typeof payload.thread_name === "string") result.title = payload.thread_name;
         } else if (record.type === "turn_context" && payload && typeof payload.cwd === "string") {
           result.workingDirectories.push(payload.cwd);
+        } else if (!result.firstUserMessage && record.type === "event_msg" && payload?.type === "user_message" && typeof payload.message === "string") {
+          result.firstUserMessage = payload.message;
+        } else if (!result.firstUserMessage && record.type === "response_item" && payload?.type === "message" && payload.role === "user") {
+          result.firstUserMessage = textFromMessage(payload, "user");
         }
       } catch {
         break;
@@ -537,6 +543,13 @@ async function discoverPrivateCandidates(
     const modified = new Date(file.modifiedAt).toISOString();
     const startedAt = normalizedTimestamp(header.startedAt);
     const candidateDate = startedAt ?? modified;
+    const displayText = (value: string | undefined) => value
+      ? redactSensitiveText(value, homedir()).replace(/[\r\n\t\0]+/g, " ").replace(/\s{2,}/g, " ").trim().slice(0, 180)
+      : "";
+    const directoryLabel = cwdPaths[0]
+      ? redactSensitiveText(basename(cwdPaths[0])).replace(/[\r\n\0]/g, " ").slice(0, 120)
+      : "";
+    const title = displayText(header.title) || displayText(header.firstUserMessage) || [directoryLabel, candidateDate.slice(0, 16).replace("T", " ")].filter(Boolean).join(" · ") || "Codex 会话";
     const attributionText = reason === "same_repository_path"
       ? "工作目录位于该项目仓库内"
       : reason === "same_git_repository"
@@ -547,10 +560,11 @@ async function discoverPrivateCandidates(
       cwdPaths,
       candidate: {
         sessionId: header.sessionId,
+        title,
         date: candidateDate,
         ...(startedAt ? { startedAt } : {}),
         lastModifiedAt: modified,
-        ...(cwdPaths[0] ? { workingDirectoryLabel: redactSensitiveText(basename(cwdPaths[0])).replace(/[\r\n\0]/g, " ").slice(0, 120) } : {}),
+        ...(directoryLabel ? { workingDirectoryLabel: directoryLabel } : {}),
         attribution,
         attributionReason: reason,
         reason: attributionText,
