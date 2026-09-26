@@ -1,6 +1,6 @@
 # Renderer
 
-本文描述界面进程的目标结构。页面行为见[UX 规格](../../docs/ux-spec.md)，共用规则见[设计系统](../../docs/design-system.md)。
+本文描述界面进程的当前结构。目标页面行为见[UX 规格](../../docs/ux-spec.md)，共用规则见[设计系统](../../docs/design-system.md)。
 
 ## 职责
 
