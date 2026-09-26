@@ -30,6 +30,7 @@ await build({
   entryPoints: [
     "src/worker/model-worker.ts",
     "src/worker/jobs/forwarding/worker-entry.ts",
+    "src/worker/jobs/project-analysis/worker-entry.ts",
   ],
   outdir: "dist/worker",
   outExtension: { ".js": ".mjs" },
