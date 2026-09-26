@@ -4,10 +4,25 @@ import type {
   UiAnalysisReport,
   UiFocusSuggestion,
   UiProject,
+  UiSessionCandidate,
   UiSuggestionAcceptance,
   UiTask,
 } from "../product-ui";
 import { EmptyState } from "./Primitives";
+
+type SessionSignal = NonNullable<UiSessionCandidate["preview"]>["signal"];
+const sessionSignalLabels: Record<SessionSignal, string> = {
+  project_intent: "有可读用户发言",
+  execution_focused: "执行记录较多",
+  no_usable_messages: "无可用用户发言",
+};
+const attributionReasonLabels: Record<string, string> = {
+  same_repository_path: "工作目录位于项目仓库内",
+  same_git_repository: "与项目共享同一 Git 仓库",
+  same_remote_repository: "远程仓库相同，等待确认",
+};
+const formatSessionTime = (value?: string) =>
+  value ? new Date(value).toLocaleString() : "时间未知";
 
 export function ProjectsPage({
   projects,
@@ -63,6 +78,11 @@ export function ProjectsPage({
   const [preflight, setPreflight] = useState<UiAnalysisPreflight>();
   const [inspecting, setInspecting] = useState(false);
   const [commitRangeId, setCommitRangeId] = useState("");
+  const [sessionQuery, setSessionQuery] = useState("");
+  const [sessionSignalFilter, setSessionSignalFilter] = useState<"all" | SessionSignal>("all");
+  const [sessionOwnershipFilter, setSessionOwnershipFilter] = useState<"all" | "confirmed" | "uncertain">("all");
+  const [sessionGroupMode, setSessionGroupMode] = useState<"working-directory" | "month">("working-directory");
+  const [expandedSessionIds, setExpandedSessionIds] = useState<string[]>([]);
   const [preflightError, setPreflightError] = useState("");
   const [unbindingId, setUnbindingId] = useState("");
   const requestedPreflight = useRef<number | undefined>(undefined);
@@ -95,6 +115,45 @@ export function ProjectsPage({
         })[0],
     [tasks, projectId],
   );
+  const filteredSessions = useMemo(() => {
+    const query = sessionQuery.trim().toLocaleLowerCase();
+    return (preflight?.sessions ?? [])
+      .filter((session) => {
+        if (sessionSignalFilter !== "all" && session.preview?.signal !== sessionSignalFilter) return false;
+        if (sessionOwnershipFilter !== "all" && session.ownership !== sessionOwnershipFilter) return false;
+        if (!query) return true;
+        return [
+          session.label,
+          session.workingDirectoryLabel,
+          session.reason,
+          session.preview
+            ? sessionSignalLabels[session.preview.signal]
+            : "内容信号待索引",
+          ...(session.preview?.excerpts ?? []),
+        ].some((value) => value?.toLocaleLowerCase().includes(query));
+      })
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }, [preflight?.sessions, sessionQuery, sessionSignalFilter, sessionOwnershipFilter]);
+  const selectedSessionCount = preflight?.sessions.filter((session) => session.selected).length ?? 0;
+  const sessionGroups = useMemo(() => {
+    const groups = new Map<string, UiSessionCandidate[]>();
+    for (const session of filteredSessions) {
+      const date = new Date(session.updatedAt);
+      const month = Number.isNaN(date.valueOf()) ? "时间未知" : `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
+      const key = sessionGroupMode === "working-directory"
+        ? session.workingDirectoryLabel?.trim() || "工作目录未知"
+        : month;
+      groups.set(key, [...(groups.get(key) ?? []), session]);
+    }
+    return [...groups.entries()];
+  }, [filteredSessions, sessionGroupMode]);
+  const selectVisibleSessions = (selected: boolean) => {
+    const visibleIds = new Set(filteredSessions.map((session) => session.sessionId));
+    setPreflight((current) => current && {
+      ...current,
+      sessions: current.sessions.map((session) => visibleIds.has(session.sessionId) ? { ...session, selected } : session),
+    });
+  };
 
   useEffect(() => {
     if (!projects.some((item) => item.projectId === projectId))
@@ -413,43 +472,146 @@ export function ProjectsPage({
                     <article>
                       <span>Codex 工作对话</span>
                       <strong>{preflight.sessions.length} 个候选</strong>
-                      <p>归属待确认的会话需要你明确选入。</p>
+                      <p>归属状态与内容提示分别筛选；内容提示便于浏览，展开摘录后自行判断相关性。</p>
                     </article>
                   </div>
+                  {preflight.codexDiscovery?.bounded && (
+                    <p className="session-discovery-notice" role="status">
+                      本次索引扫描了 {preflight.codexDiscovery.filesScanned} 个会话文件，扫描范围已达上限，部分历史对话可能尚未列出。
+                    </p>
+                  )}
                   {preflight.sessions.length > 0 && (
                     <fieldset className="session-picker">
                       <legend>选择要纳入的对话</legend>
-                      {preflight.sessions.map((session) => (
-                        <label
-                          className="session-option"
-                          key={session.sessionId}
-                        >
+                      <div className="session-picker-summary" aria-live="polite">
+                        <div><small>候选</small><strong>{preflight.sessions.length}</strong></div>
+                        <div><small>已选</small><strong>{selectedSessionCount}</strong></div>
+                        <div><small>提交读取</small><strong>{selectedSessionCount}</strong></div>
+                      </div>
+                      <div className="session-picker-controls">
+                        <label className="session-search">
+                          <span className="visually-hidden">搜索 Codex 对话</span>
                           <input
-                            type="checkbox"
-                            checked={session.selected}
-                            onChange={(event) =>
-                              toggleSession(
-                                session.sessionId,
-                                event.target.checked,
-                              )
-                            }
+                            type="search"
+                            aria-label="搜索 Codex 对话"
+                            placeholder="搜索标题、工作目录或发言"
+                            value={sessionQuery}
+                            onChange={(event) => setSessionQuery(event.target.value)}
                           />
-                          <span>
-                            <strong>{session.label}</strong>
-                            <small>
-                              {new Date(session.updatedAt).toLocaleString()} ·{" "}
-                              {session.ownership === "confirmed"
-                                ? "已确认属于此项目"
-                                : "归属待确认"}
-                            </small>
-                            <span>{session.reason}</span>
-                          </span>
                         </label>
-                      ))}
+                        <label className="session-filter-control">
+                          内容信号
+                          <select aria-label="按内容信号筛选" value={sessionSignalFilter} onChange={(event) => setSessionSignalFilter(event.target.value as "all" | SessionSignal)}>
+                            <option value="all">全部</option>
+                            <option value="project_intent">有可读用户发言</option>
+                            <option value="execution_focused">执行记录较多</option>
+                            <option value="no_usable_messages">无可用用户发言</option>
+                          </select>
+                        </label>
+                        <label className="session-filter-control">
+                          Git 归属
+                          <select aria-label="按 Git 归属筛选" value={sessionOwnershipFilter} onChange={(event) => setSessionOwnershipFilter(event.target.value as "all" | "confirmed" | "uncertain")}>
+                            <option value="all">全部</option>
+                            <option value="confirmed">已确认</option>
+                            <option value="uncertain">待确认</option>
+                          </select>
+                        </label>
+                        <label className="session-filter-control">
+                          分组
+                          <select aria-label="对话分组方式" value={sessionGroupMode} onChange={(event) => setSessionGroupMode(event.target.value as "working-directory" | "month")}>
+                            <option value="working-directory">按工作目录</option>
+                            <option value="month">按最近活动月份</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="session-picker-bulk-actions">
+                        <span>显示 {filteredSessions.length} / {preflight.sessions.length} 个</span>
+                        <div>
+                          <button type="button" className="text-button" onClick={() => selectVisibleSessions(true)} disabled={!filteredSessions.length}>全选当前结果</button>
+                          <button type="button" className="text-button" onClick={() => selectVisibleSessions(false)} disabled={!filteredSessions.length}>清空当前结果</button>
+                        </div>
+                      </div>
+                      <div className="session-list" role="region" aria-label="Codex 对话候选">
+                        {sessionGroups.map(([groupLabel, sessions]) => (
+                          <section className="session-group" key={groupLabel}>
+                            <h5>{sessionGroupMode === "working-directory" ? `工作目录 · ${groupLabel}` : groupLabel}<span>{sessions.length}</span></h5>
+                            {sessions.map((session) => {
+                              const expanded = expandedSessionIds.includes(session.sessionId);
+                              const signal = session.preview?.signal;
+                              const attribution = session.attributionReason
+                                ? attributionReasonLabels[session.attributionReason] ?? session.reason
+                                : session.reason;
+                              return (
+                                <article className={`session-option ${session.selected ? "is-selected" : ""}`} key={session.sessionId}>
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`纳入分析：${session.label}`}
+                                    checked={session.selected}
+                                    onChange={(event) => toggleSession(session.sessionId, event.target.checked)}
+                                  />
+                                  <div className="session-option-main">
+                                    <div className="session-option-heading">
+                                      <strong title={session.label}>{session.label}</strong>
+                                      <span className={`session-signal signal-${signal ?? "pending"}`}>
+                                        {signal ? sessionSignalLabels[signal] : "内容信号待索引"}
+                                      </span>
+                                    </div>
+                                    <small className="session-option-time">
+                                      {session.startedAt ? `开始 ${formatSessionTime(session.startedAt)} · ` : ""}
+                                      最近活动 {formatSessionTime(session.updatedAt)}
+                                    </small>
+                                    <div className="session-option-attribution">
+                                      <span className={`ownership-tag ownership-${session.ownership}`}>
+                                        {session.ownership === "confirmed" ? "Git 归属已确认" : "Git 归属待确认"}
+                                      </span>
+                                      <span>{attribution}</span>
+                                      {session.workingDirectoryLabel && <span>工作目录：{session.workingDirectoryLabel}</span>}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="session-preview-toggle"
+                                      aria-expanded={expanded}
+                                      aria-controls={`session-preview-${session.sessionId}`}
+                                      onClick={() => setExpandedSessionIds((current) => expanded ? current.filter((id) => id !== session.sessionId) : [...current, session.sessionId])}
+                                    >
+                                      {expanded
+                                        ? "收起发言预览"
+                                        : `查看发言预览${session.preview ? session.preview.bounded
+                                          ? ` · 部分预览，至少 ${session.preview.usableUserMessageCount} 条有效用户发言`
+                                          : ` · ${session.preview.usableUserMessageCount} 条有效用户发言`
+                                          : ""}`}
+                                    </button>
+                                    {expanded && (
+                                      <div className="session-preview" id={`session-preview-${session.sessionId}`}>
+                                        {session.preview ? (
+                                          <>
+                                            <small>
+                                              {session.preview.bounded
+                                                ? `预览只覆盖会话的一部分；${session.preview.usableUserMessageCount} 条有效用户发言和 ${session.preview.executionRecordCount} 条执行记录是已读取部分的下界。`
+                                                : `内容判断为启发式信号 · ${session.preview.usableUserMessageCount} 条有效用户发言 · 执行记录 ${session.preview.executionRecordCount} 条`}
+                                            </small>
+                                            {session.preview.excerpts.length ? (
+                                              <ul>{session.preview.excerpts.map((excerpt, index) => <li key={`${session.sessionId}-${index}`}>{excerpt}</li>)}</ul>
+                                            ) : <p>没有可展示的用户发言摘录。</p>}
+                                          </>
+                                        ) : <p>此会话暂时没有内容预览信息。</p>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </section>
+                        ))}
+                        {!filteredSessions.length && <p className="session-list-empty">没有符合当前搜索和筛选条件的对话。</p>}
+                      </div>
                     </fieldset>
                   )}
+                  {!preflight.sessions.length && (
+                    <p className="session-list-empty">目前没有找到 Codex 对话候选；本次项目分析仍会使用仓库和 Git 历史。</p>
+                  )}
                   <div className="preflight-actions">
-                    <span>分析报告会记录实际读取和跳过的范围。</span>
+                    <span>所选会话都会提交读取；无法读取或正文超出预算的部分会在报告中说明。</span>
                     <button
                       className="button button-primary"
                       onClick={() => void startAnalysis()}

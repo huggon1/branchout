@@ -349,7 +349,67 @@ const bridge = {
   setFocusCardActive,
   projectAnalysisPreflight: async () => {
     await new Promise((resolve) => setTimeout(resolve, 180));
-    return ok({ repository: { gitHead: "e19f7a2", hasUncommittedChanges: true, candidateFileCount: 24 }, commits: { availableCount: 100, commitIds: Array.from({ length: 100 }, (_, index) => `commit-${100 - index}`) }, codexSessions: [{ sessionId: "session-confirmed", date: "2026-09-25T12:00:00.000Z", attribution: "confirmed", reason: "修复离线同步冲突 · 工作目录匹配本地项目。" }, { sessionId: "session-uncertain", date: "2026-09-24T11:00:00.000Z", attribution: "review", reason: "研究多端数据恢复 · 会话目录缺少仓库身份，需要你确认是否属于该项目。" }] });
+    return ok({
+      repository: { gitHead: "e19f7a2", hasUncommittedChanges: true, candidateFileCount: 24 },
+      commits: { availableCount: 100, commitIds: Array.from({ length: 100 }, (_, index) => `commit-${100 - index}`) },
+      codexDiscovery: { filesScanned: 2000, bounded: true },
+      codexSessions: [
+        {
+          sessionId: "session-confirmed",
+          title: "离线同步策略与冲突取舍",
+          date: "2026-09-25T12:00:00.000Z",
+          startedAt: "2026-09-25T09:30:00.000Z",
+          lastModifiedAt: "2026-09-25T12:00:00.000Z",
+          attribution: "confirmed",
+          attributionReason: "same_git_repository",
+          workingDirectoryLabel: "feed-repo",
+          reason: "修复离线同步冲突 · 工作目录匹配本地项目。",
+          preview: {
+            signal: "project_intent",
+            usableUserMessageCount: 8,
+            executionRecordCount: 3,
+            excerpts: ["离线编辑时冲突状态要能保留，用户需要知道哪些改动会覆盖。", "我们优先保障多端合并后的数据完整性，再优化同步速度。"],
+            bounded: true,
+          },
+        },
+        {
+          sessionId: "session-uncertain",
+          title: "研究多端数据恢复",
+          date: "2026-09-24T11:00:00.000Z",
+          startedAt: "2026-09-24T10:15:00.000Z",
+          lastModifiedAt: "2026-09-24T11:00:00.000Z",
+          attribution: "review",
+          attributionReason: "same_remote_repository",
+          workingDirectoryLabel: "sync-recovery-worktree",
+          reason: "研究多端数据恢复 · 会话目录缺少仓库身份，需要你确认是否属于该项目。",
+          preview: {
+            signal: "execution_focused",
+            usableUserMessageCount: 3,
+            executionRecordCount: 12,
+            excerpts: ["帮我检查这次恢复任务为什么反复重试。", "比较一下恢复日志里的游标变化。"],
+            bounded: false,
+          },
+        },
+        {
+          sessionId: "session-empty",
+          title: "插件列表配置",
+          date: "2026-09-23T08:30:00.000Z",
+          startedAt: "2026-09-23T08:20:00.000Z",
+          lastModifiedAt: "2026-09-23T08:30:00.000Z",
+          attribution: "confirmed",
+          attributionReason: "same_repository_path",
+          workingDirectoryLabel: "feed-repo",
+          reason: "插件列表配置 · 工作目录位于本地仓库。",
+          preview: {
+            signal: "no_usable_messages",
+            usableUserMessageCount: 0,
+            executionRecordCount: 5,
+            excerpts: [],
+            bounded: false,
+          },
+        },
+      ],
+    });
   },
   startProjectAnalysis,
   acceptFocusSuggestion,

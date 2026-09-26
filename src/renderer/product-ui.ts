@@ -113,10 +113,20 @@ export interface UiAnalysisReport {
 export interface UiSessionCandidate {
   sessionId: string;
   label: string;
+  startedAt?: string;
   updatedAt: string;
+  workingDirectoryLabel?: string;
   ownership: "confirmed" | "uncertain";
   selected: boolean;
   reason: string;
+  attributionReason?: string;
+  preview?: {
+    signal: "project_intent" | "execution_focused" | "no_usable_messages";
+    usableUserMessageCount: number;
+    executionRecordCount: number;
+    excerpts: string[];
+    bounded?: boolean;
+  };
 }
 
 export interface UiAnalysisPreflight {
@@ -141,6 +151,7 @@ export interface UiAnalysisPreflight {
     }>;
   };
   sessions: UiSessionCandidate[];
+  codexDiscovery?: { filesScanned: number; bounded: boolean };
 }
 
 export interface UiTaskActivity {
@@ -333,12 +344,24 @@ type CanonicalPreflight = {
     candidateFileCount: number;
   };
   commits: { availableCount: number; commitIds: string[] };
+  codexDiscovery?: { filesScanned: number; bounded: boolean };
   codexSessions: Array<{
     sessionId: string;
     title?: string;
     date: string;
+    startedAt?: string;
+    lastModifiedAt?: string;
+    workingDirectoryLabel?: string;
     attribution: "confirmed" | "review";
     reason: string;
+    attributionReason?: string;
+    preview?: {
+      signal: "project_intent" | "execution_focused" | "no_usable_messages";
+      usableUserMessageCount: number;
+      executionRecordCount: number;
+      excerpts: string[];
+      bounded?: boolean;
+    };
   }>;
 };
 type CanonicalTaskSnapshot = {
@@ -614,13 +637,19 @@ const mapPreflight = (preflight: CanonicalPreflight): UiAnalysisPreflight => {
       sessionId: session.sessionId,
       label:
         session.title?.trim() ||
-        session.reason.split(/[·。]/, 1)[0]?.trim() ||
         `会话 ${new Date(session.date).toLocaleDateString()}`,
-      updatedAt: session.date,
+      startedAt: session.startedAt,
+      updatedAt: session.lastModifiedAt ?? session.date,
+      workingDirectoryLabel: session.workingDirectoryLabel,
       ownership: session.attribution === "confirmed" ? "confirmed" : "uncertain",
-      selected: session.attribution === "confirmed",
+      selected:
+        session.attribution === "confirmed" &&
+        (session.preview?.usableUserMessageCount ?? 0) > 0,
       reason: session.reason,
+      attributionReason: session.attributionReason,
+      preview: session.preview,
     })),
+    codexDiscovery: preflight.codexDiscovery,
   };
 };
 const mapSourceBlocks = (source: CanonicalSource): UiContentBlock[] => {

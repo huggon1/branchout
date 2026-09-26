@@ -70,7 +70,38 @@ try {
   assert.equal(await page.getByRole("button", { name: "重新解析项目材料" }).isEnabled(), true);
   assert.equal(await page.getByLabel("选择 commit 读取范围").inputValue(), "recent_30");
   await page.getByLabel("选择 commit 读取范围").selectOption("recent_100");
-  await page.getByLabel(/研究多端数据恢复/).check();
+  assert.deepEqual(await page.locator(".session-picker-summary strong").allTextContents(), ["3", "1", "1"]);
+  assert.equal(await page.getByLabel("纳入分析：插件列表配置").isChecked(), false);
+  await page.getByRole("button", { name: /^查看发言预览 · 部分预览/ }).click();
+  await page.getByText(/预览只覆盖会话的一部分/).waitFor();
+  await page.getByText(/离线编辑时冲突状态要能保留/).waitFor();
+  await page.getByLabel("搜索 Codex 对话").fill("离线同步");
+  assert.equal(await page.locator(".session-list .session-option").count(), 1);
+  await page.getByRole("button", { name: "清空当前结果" }).click();
+  assert.deepEqual(await page.locator(".session-picker-summary strong").allTextContents(), ["3", "0", "0"]);
+  await page.getByRole("button", { name: "全选当前结果" }).click();
+  await page.getByLabel("搜索 Codex 对话").fill("");
+  await page.getByLabel("按内容信号筛选").selectOption("execution_focused");
+  assert.equal(await page.locator(".session-list .session-option").count(), 1);
+  await page.getByRole("button", { name: "全选当前结果" }).click();
+  assert.deepEqual(await page.locator(".session-picker-summary strong").allTextContents(), ["3", "2", "2"]);
+  await page.getByLabel("按内容信号筛选").selectOption("all");
+  await page.getByLabel("按 Git 归属筛选").selectOption("confirmed");
+  assert.equal(await page.locator(".session-list .session-option").count(), 2);
+  await page.getByRole("button", { name: "清空当前结果" }).click();
+  assert.deepEqual(await page.locator(".session-picker-summary strong").allTextContents(), ["3", "1", "1"]);
+  await page.getByLabel("按 Git 归属筛选").selectOption("all");
+  await page.getByLabel("对话分组方式").selectOption("month");
+  await page.getByRole("heading", { name: "2026 年 9 月" }).waitFor();
+  await page.getByLabel("对话分组方式").selectOption("working-directory");
+  assert.equal(await page.getByText(/本次索引扫描了 2000 个会话文件/).isVisible(), true);
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(640, 850));
+  await page.waitForTimeout(180);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+  await page.screenshot({ path: "test-results/focus-analysis-preflight-narrow.png", fullPage: true });
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1280, 900));
+  await page.waitForTimeout(180);
+  await page.getByLabel("纳入分析：研究多端数据恢复").check();
   await page.screenshot({ path: "test-results/focus-analysis-preflight.png", fullPage: true });
   await page.getByRole("button", { name: "提交分析" }).click();
   await page.locator(".project-analysis-state").getByText("读取 100 条 commit").waitFor();
@@ -136,7 +167,7 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement?.tagName), "BUTTON");
   assert.deepEqual(pageErrors, []);
 
-  console.log("Electron UI flow passed: content, partial retry, exact card history, card CRUD/state, project analysis, stale review, tasks, redacted Telegram settings and narrow layout.");
+  console.log("Electron UI flow passed: content, partial retry, exact card history, card CRUD/state, searchable Codex session selection with bounded previews, project analysis, stale review, tasks, redacted Telegram settings and narrow layout.");
 } finally {
   await app.close();
 }
