@@ -102,6 +102,23 @@ test("supports response-item-only user messages, final replies, and command-only
   assert.equal(JSON.stringify(parsed).includes("DEVELOPER_SENTINEL"), false);
 });
 
+test("strips only leading Codex attachment blocks and preserves the user's request", () => {
+  const attachedMessage = [
+    "<recommended_plugins>Plugin catalog content that should stay out of the conversation.</recommended_plugins>",
+    "<environment_context>Injected environment details.</environment_context>",
+    "<permissions instructions>Injected application permissions.</permissions instructions>",
+    `${syntheticUser} Please preserve the literal <recommended_plugins> tag in my documentation example.`,
+  ].join("\n");
+  const parsed = parseCodexSessionJsonl(jsonl({
+    type: "event_msg",
+    payload: { type: "user_message", message: attachedMessage },
+  }));
+  assert.equal(parsed.messages[0].text, `${syntheticUser} Please preserve the literal <recommended_plugins> tag in my documentation example.`);
+  assert.equal(parsed.messages[0].text.includes("Plugin catalog content"), false);
+  assert.equal(parsed.messages[0].text.includes("Injected environment details"), false);
+  assert.equal(parsed.messages[0].text.includes("Injected application permissions"), false);
+});
+
 test("parser bounds long sessions while preserving early and recent user messages", () => {
   const records: string[] = [];
   for (let index = 1; index <= 8; index++) {
@@ -123,7 +140,7 @@ test("discovers same-repository sessions as verified and same-remote clones for 
   const sessionsRoot = await mkdtemp(join(tmpdir(), "branchout-sessions-"));
   try {
     const transcript = [
-      jsonl({ type: "event_msg", payload: { type: "user_message", message: syntheticUser } }),
+      jsonl({ type: "event_msg", payload: { type: "user_message", message: `${syntheticUser} API_KEY=synthetic-secret` } }),
       jsonl({ type: "response_item", payload: { type: "function_call_output", output: "CANDIDATE_TOOL_SENTINEL" } }),
       jsonl({ type: "response_item", payload: { type: "message", role: "assistant", phase: "final", content: [{ type: "output_text", text: syntheticFinal }] } }),
     ].join("\n");
@@ -131,26 +148,126 @@ test("discovers same-repository sessions as verified and same-remote clones for 
     const previewTranscript = [
       jsonl({ type: "response_item", payload: { type: "reasoning", text: "PREVIEW_REASONING_SENTINEL" } }),
       jsonl({ type: "response_item", payload: { type: "function_call_output", output: "PREVIEW_TOOL_SENTINEL" } }),
-      jsonl({ type: "event_msg", payload: { type: "user_message", message: syntheticUser } }),
+      jsonl({
+        type: "event_msg",
+        payload: {
+          type: "user_message",
+          message: `<recommended_plugins>Injected plugin catalog with unrelated recommendations.</recommended_plugins>\n${syntheticUser}`,
+        },
+      }),
     ].join("\n");
     await writeSession(sessionsRoot, "rollout-user-preview.jsonl", "session-user-preview", project, previewTranscript);
+    const commandTranscript = [
+      "npm test",
+      "git status",
+      "Please check whether project analysis saves the current card version.",
+    ].map((message) => jsonl({ type: "event_msg", payload: { type: "user_message", message } })).join("\n");
+    await writeSession(sessionsRoot, "rollout-command-focused.jsonl", "session-command-focused", project, commandTranscript);
+    const unusableTranscript = jsonl({
+      type: "event_msg",
+      payload: { type: "user_message", message: "<recommended_plugins>Only injected plugin catalog content.</recommended_plugins>" },
+    });
+    await writeSession(sessionsRoot, "rollout-no-usable.jsonl", "session-no-usable", project, unusableTranscript);
     await writeSession(sessionsRoot, "rollout-same-remote.jsonl", "session-remote-match", separateClone);
     await writeSession(sessionsRoot, "rollout-unrelated.jsonl", "session-unrelated", unrelated);
     const discovered = await discoverCodexSessionCandidates(project, { roots: [sessionsRoot] });
-    assert.equal(discovered.candidates.length, 3);
+    assert.equal(discovered.candidates.length, 5);
     assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-path-match")?.attribution, "confirmed");
-    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-path-match")?.title, "Project analysis API_KEY=[credential redacted]");
+    const pathPreview = discovered.candidates.find((candidate) => candidate.sessionId === "session-path-match");
+    assert.equal(pathPreview?.title, `${syntheticUser} API_KEY=[credential redacted]`);
+    assert.equal(pathPreview?.preview.signal, "project_intent");
+    assert.equal(pathPreview?.preview.usableUserMessageCount, 1);
+    assert.equal(pathPreview?.preview.executionRecordCount, 0);
+    assert.equal(pathPreview?.preview.excerpts[0], `${syntheticUser} API_KEY=[credential redacted]`);
+    assert.equal(pathPreview?.preview.bounded, false);
     const preview = discovered.candidates.find((candidate) => candidate.sessionId === "session-user-preview");
     assert.equal(preview?.title, syntheticUser);
+    assert.equal(preview?.preview.signal, "project_intent");
+    assert.equal(preview?.preview.usableUserMessageCount, 1);
+    assert.deepEqual(preview?.preview.excerpts, [syntheticUser]);
+    assert.equal(preview?.preview.excerpts.some((excerpt) => excerpt.includes("Injected plugin")), false);
     assert.equal(preview?.title.includes("PREVIEW_"), false);
+    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-command-focused")?.preview.signal, "execution_focused");
+    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-command-focused")?.preview.usableUserMessageCount, 3);
+    assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-command-focused")?.preview.executionRecordCount, 2);
+    const noUsable = discovered.candidates.find((candidate) => candidate.sessionId === "session-no-usable");
+    assert.equal(noUsable?.preview.signal, "no_usable_messages");
+    assert.equal(noUsable?.preview.usableUserMessageCount, 0);
+    assert.equal(noUsable?.preview.excerpts.length, 0);
     assert.equal(discovered.candidates.find((candidate) => candidate.sessionId === "session-remote-match")?.attribution, "review");
     assert.equal(discovered.candidates.some((candidate) => candidate.sessionId === "session-unrelated"), false);
     const selected = await readSelectedCodexSessions(project, ["session-path-match"], controller(), { roots: [sessionsRoot] });
     assert.equal(selected.coverage.read, 1);
     assert.deepEqual(selected.sessions[0].messages.map((message) => message.role), ["user", "assistant_final"]);
     assert.equal(JSON.stringify(selected).includes("CANDIDATE_TOOL_SENTINEL"), false);
+    assert.equal(selected.sessions[0].messages[0].text, `${syntheticUser} API_KEY=[credential redacted]`);
+    assert.equal(JSON.stringify(selected).includes("Injected plugin catalog"), false);
+
+    const moreSessionIds: string[] = [];
+    for (let index = 0; index < 13; index++) {
+      const sessionId = `session-selected-${index + 1}`;
+      moreSessionIds.push(sessionId);
+      await writeSession(
+        sessionsRoot,
+        `rollout-selected-${index + 1}.jsonl`,
+        sessionId,
+        project,
+        jsonl({ type: "event_msg", payload: { type: "user_message", message: `Please retain project requirement ${index + 1}.` } }),
+      );
+    }
+    const selectedMany = await readSelectedCodexSessions(project, moreSessionIds, controller(), { roots: [sessionsRoot] });
+    assert.equal(selectedMany.coverage.selected, 13);
+    assert.equal(selectedMany.coverage.read, 13);
+    assert.equal(selectedMany.coverage.failed, 0);
   } finally {
     await Promise.all([project, separateClone, unrelated, sessionsRoot].map((path) => rm(path, { recursive: true, force: true })));
+  }
+});
+
+test("streams selected sessions past oversized tool output and reports oversized user messages as bounded", async () => {
+  const project = await makeRepo();
+  const sessionsRoot = await mkdtemp(join(tmpdir(), "branchout-streamed-sessions-"));
+  try {
+    const toolOutputTranscript = [
+      jsonl({ type: "event_msg", payload: { type: "user_message", message: "Keep the session request and final reply." } }),
+      jsonl({ type: "response_item", payload: { type: "function_call_output", output: "TOOL_OUTPUT_SENTINEL".padEnd(8 * 1024 * 1024 + 64, "x") } }),
+      jsonl({ type: "response_item", payload: { type: "message", role: "assistant", phase: "final", content: [{ type: "output_text", text: "The final reply remains available." }] } }),
+    ].join("\n");
+    await writeSession(sessionsRoot, "rollout-large-tool-output.jsonl", "session-large-tool-output", project, toolOutputTranscript);
+
+    const oversizedUserTranscript = [
+      jsonl({ type: "event_msg", payload: { type: "user_message", message: "Oversized request ".padEnd(2 * 1024 * 1024 + 64, "u") } }),
+      jsonl({ type: "response_item", payload: { type: "message", role: "assistant", phase: "final", content: [{ type: "output_text", text: "The request line exceeded the reader's record bound." }] } }),
+    ].join("\n");
+    await writeSession(sessionsRoot, "rollout-large-user-message.jsonl", "session-large-user-message", project, oversizedUserTranscript);
+
+    const selected = await readSelectedCodexSessions(
+      project,
+      ["session-large-tool-output", "session-large-user-message"],
+      controller(),
+      { roots: [sessionsRoot] },
+    );
+    assert.equal(selected.coverage.selected, 2);
+    assert.equal(selected.coverage.read, 2);
+    assert.equal(selected.coverage.failed, 0);
+    assert.deepEqual(selected.skipped, []);
+
+    const toolOutputSession = selected.sessions.find((session) => session.sessionId === "session-large-tool-output");
+    assert.deepEqual(toolOutputSession?.messages.map(({ role, lineNumber }) => ({ role, lineNumber })), [
+      { role: "user", lineNumber: 3 },
+      { role: "assistant_final", lineNumber: 5 },
+    ]);
+    assert.equal(toolOutputSession?.parsed.ignored.toolOutputs, 1);
+    assert.equal(toolOutputSession?.parsed.malformedLines, 0);
+    assert.equal(toolOutputSession?.parsed.bounded, false);
+    assert.equal(JSON.stringify(toolOutputSession).includes("TOOL_OUTPUT_SENTINEL"), false);
+
+    const oversizedUserSession = selected.sessions.find((session) => session.sessionId === "session-large-user-message");
+    assert.equal(oversizedUserSession?.parsed.bounded, true);
+    assert.equal(oversizedUserSession?.parsed.malformedLines, 0);
+    assert.equal(selected.coverage.bounded, true);
+  } finally {
+    await Promise.all([project, sessionsRoot].map((path) => rm(path, { recursive: true, force: true })));
   }
 });
 

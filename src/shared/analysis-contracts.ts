@@ -47,6 +47,10 @@ export const projectAnalysisPreflightSchema = z
         commitIds: z.array(z.string().min(1).max(200)).max(10000),
       })
       .strict(),
+    codexDiscovery: z.object({
+      filesScanned: z.number().int().nonnegative(),
+      bounded: z.boolean(),
+    }).strict().optional(),
     codexSessions: z.array(
       z
         .object({
@@ -55,6 +59,17 @@ export const projectAnalysisPreflightSchema = z
           date: z.string().datetime(),
           attribution: z.enum(["confirmed", "review"]),
           reason: z.string().min(1).max(2000),
+          attributionReason: z.enum(["same_repository_path", "same_git_repository", "same_remote_repository"]).optional(),
+          workingDirectoryLabel: z.string().max(120).optional(),
+          startedAt: z.string().datetime().optional(),
+          lastModifiedAt: z.string().datetime().optional(),
+          preview: z.object({
+            signal: z.enum(["project_intent", "execution_focused", "no_usable_messages"]),
+            usableUserMessageCount: z.number().int().nonnegative(),
+            executionRecordCount: z.number().int().nonnegative(),
+            excerpts: z.array(z.string().min(1).max(300)).max(3),
+            bounded: z.boolean(),
+          }).strict().optional(),
         })
         .strict(),
     ),

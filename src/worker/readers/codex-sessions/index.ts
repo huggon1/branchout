@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { open, readdir, realpath, lstat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { createInterface } from "node:readline";
 import { redactSensitiveText, runGit, throwIfAborted } from "../shared";
 
 export type CodexMessageRole = "user" | "assistant_final";
@@ -30,12 +31,23 @@ export type ParsedCodexSession = {
 
 export type SessionAttribution = "confirmed" | "review";
 
+export type CodexSessionPreviewSignal = "project_intent" | "execution_focused" | "no_usable_messages";
+
+export type CodexSessionPreview = {
+  signal: CodexSessionPreviewSignal;
+  usableUserMessageCount: number;
+  executionRecordCount: number;
+  excerpts: string[];
+  bounded: boolean;
+};
+
 export type CodexSessionCandidate = {
   sessionId: string;
   title: string;
   date: string;
   startedAt?: string;
   lastModifiedAt: string;
+  preview: CodexSessionPreview;
   workingDirectoryLabel?: string;
   attribution: SessionAttribution;
   attributionReason: "same_repository_path" | "same_git_repository" | "same_remote_repository";
@@ -49,7 +61,7 @@ export type ReadCodexSessionsResult = {
     parsed: ParsedCodexSession;
     readBytes: number;
   }[];
-  skipped: { sessionId: string; reason: "not_found" | "too_large" | "unreadable" | "selection_limit" }[];
+  skipped: { sessionId: string; reason: "not_found" | "too_large" | "unreadable" }[];
   coverage: {
     selected: number;
     read: number;
@@ -65,8 +77,9 @@ export type CodexSessionReaderOptions = {
   maxHeaderBytes?: number;
   maxSessionBytes?: number;
   maxTotalSessionBytes?: number;
+  maxSourceBytesPerSession?: number;
+  maxTotalSourceBytes?: number;
   maxMessagesPerSession?: number;
-  maxSelectedSessions?: number;
   now?: number;
 };
 
@@ -74,8 +87,9 @@ type Header = {
   sessionId?: string;
   startedAt?: string;
   workingDirectories: string[];
-  title?: string;
-  firstUserMessage?: string;
+  preview: CodexSessionPreview;
+  previewTitleSource?: string;
+  previewLatestTimestamp?: string;
 };
 
 type PrivateCandidate = {
@@ -130,6 +144,63 @@ function textFromMessage(payload: Record<string, unknown>, role: "user" | "assis
   return readTextParts(payload.content, allowed);
 }
 
+const injectedContextBlocks = [
+  { open: /^<recommended_plugins(?:\s+[^>]*)?>/i, close: /<\/recommended_plugins\s*>/i },
+  { open: /^<environment_context(?:\s+[^>]*)?>/i, close: /<\/environment_context\s*>/i },
+  { open: /^<app-context(?:\s+[^>]*)?>/i, close: /<\/app-context\s*>/i },
+  { open: /^<permissions instructions(?:\s+[^>]*)?>/i, close: /<\/permissions instructions\s*>/i },
+  { open: /^<skills_instructions(?:\s+[^>]*)?>/i, close: /<\/skills_instructions\s*>/i },
+  { open: /^<model_switch(?:\s+[^>]*)?>/i, close: /<\/model_switch\s*>/i },
+  { open: /^<multi_agent_role(?:\s+[^>]*)?>/i, close: /<\/multi_agent_role\s*>/i },
+  { open: /^<multi_agent_mode(?:\s+[^>]*)?>/i, close: /<\/multi_agent_mode\s*>/i },
+];
+
+function stripLeadingInjectedContext(value: string): string {
+  let text = value.trimStart();
+  for (let blocks = 0; blocks < 8; blocks++) {
+    const block = injectedContextBlocks.find(({ open }) => open.test(text));
+    if (!block) break;
+    const opening = block.open.exec(text);
+    if (!opening) break;
+    const close = block.close.exec(text.slice(opening[0].length));
+    if (!close) break;
+    text = text.slice(opening[0].length + close.index + close[0].length).trimStart();
+  }
+  return text.trim();
+}
+
+function cleanUserMessage(value: string, homeDirectory?: string, maxMessageChars = 5000): string {
+  return redactSensitiveText(stripLeadingInjectedContext(value), homeDirectory)
+    .trim()
+    .slice(0, Math.max(100, maxMessageChars));
+}
+
+function userTextFromRecord(type: unknown, payload: Record<string, unknown> | undefined): string | undefined {
+  if (type === "event_msg" && payload?.type === "user_message") {
+    return typeof payload.message === "string" ? payload.message : "";
+  }
+  if (type === "response_item" && payload?.type === "message" && payload.role === "user") {
+    return textFromMessage(payload, "user");
+  }
+  return undefined;
+}
+
+type UserMessageSample = { lineNumber: number; text: string; commandOnly: boolean };
+
+function isRecentUserDuplicate(
+  lineNumber: number,
+  text: string,
+  recentDuplicate: Map<string, number>,
+): boolean {
+  const key = text.replace(/\s+/g, " ").trim();
+  for (const [knownKey, knownLine] of recentDuplicate) {
+    if (lineNumber - knownLine > 3) recentDuplicate.delete(knownKey);
+  }
+  const previousLine = recentDuplicate.get(key);
+  recentDuplicate.set(key, lineNumber);
+  return previousLine !== undefined && lineNumber - previousLine <= 3;
+}
+
 function isFinalAssistant(payload: Record<string, unknown>): boolean {
   const phase = payload.phase;
   const channel = payload.channel;
@@ -143,7 +214,7 @@ function isFinalAssistant(payload: Record<string, unknown>): boolean {
 
 export function parseCodexSessionJsonl(
   input: string,
-  options: { sessionId?: string; maxMessages?: number; maxMessageChars?: number; homeDirectory?: string } = {},
+  options: { sessionId?: string; maxMessages?: number; maxMessageChars?: number; homeDirectory?: string; lineNumbers?: number[] } = {},
 ): ParsedCodexSession {
   const maxMessages = Math.max(1, options.maxMessages ?? 100);
   const maxMessageChars = Math.max(100, options.maxMessageChars ?? 5000);
@@ -163,7 +234,7 @@ export function parseCodexSessionJsonl(
         ? item.payload as Record<string, unknown>
         : undefined;
       parsedRecords.push({
-        lineNumber: index + 1,
+        lineNumber: options.lineNumbers?.[index] ?? index + 1,
         type: typeof item.type === "string" ? item.type : undefined,
         timestamp: typeof item.timestamp === "string" ? item.timestamp : undefined,
         payload,
@@ -181,10 +252,11 @@ export function parseCodexSessionJsonl(
     const payload = record.payload;
     const timestamp = normalizedTimestamp(record.timestamp);
     if (record.type === "event_msg" && payload?.type === "user_message") {
-      const text = redactSensitiveText(
+      const text = cleanUserMessage(
         typeof payload.message === "string" ? payload.message : "",
         options.homeDirectory,
-      ).trim().slice(0, maxMessageChars);
+        maxMessageChars,
+      );
       if (text) eventUsers.push({
         lineNumber: record.lineNumber,
         role: "user",
@@ -197,9 +269,7 @@ export function parseCodexSessionJsonl(
     if (record.type === "response_item" && payload?.type === "message") {
       const role = payload.role;
       if (role === "user") {
-        const text = redactSensitiveText(textFromMessage(payload, "user"), options.homeDirectory)
-          .trim()
-          .slice(0, maxMessageChars);
+        const text = cleanUserMessage(textFromMessage(payload, "user"), options.homeDirectory, maxMessageChars);
         if (text) responseUsers.push({
           lineNumber: record.lineNumber,
           role: "user",
@@ -247,10 +317,7 @@ export function parseCodexSessionJsonl(
   const users: CodexSessionMessage[] = [];
   const recentDuplicate = new Map<string, number>();
   for (const message of orderedUsers) {
-    const key = message.text.replace(/\s+/g, " ").trim();
-    const previousLine = recentDuplicate.get(key);
-    if (previousLine !== undefined && message.lineNumber - previousLine <= 3) continue;
-    recentDuplicate.set(key, message.lineNumber);
+    if (isRecentUserDuplicate(message.lineNumber, message.text, recentDuplicate)) continue;
     users.push(message);
   }
   const userLimit = Math.max(1, Math.floor(maxMessages * 0.8));
@@ -317,7 +384,13 @@ async function readHeader(filePath: string, maxBytes: number): Promise<Header> {
     const buffer = Buffer.alloc(byteCount);
     const { bytesRead } = await handle.read(buffer, 0, byteCount, 0);
     const text = new TextDecoder("utf-8").decode(buffer.subarray(0, bytesRead));
-    const result: Header = { workingDirectories: [] };
+    const summary = summarizeSessionText(text, homedir(), bytesRead < stat.size);
+    const result: Header = {
+      workingDirectories: [],
+      preview: summary.preview,
+      ...(summary.titleSource ? { previewTitleSource: summary.titleSource } : {}),
+      ...(summary.latestTimestamp ? { previewLatestTimestamp: summary.latestTimestamp } : {}),
+    };
     for (const line of text.split(/\r?\n/)) {
       if (!line.trim()) continue;
       try {
@@ -329,13 +402,8 @@ async function readHeader(filePath: string, maxBytes: number): Promise<Header> {
           if (typeof payload.id === "string" && /^[A-Za-z0-9._:-]{1,300}$/.test(payload.id)) result.sessionId = payload.id;
           if (typeof payload.timestamp === "string") result.startedAt = payload.timestamp;
           if (typeof payload.cwd === "string") result.workingDirectories.push(payload.cwd);
-          if (typeof payload.thread_name === "string") result.title = payload.thread_name;
         } else if (record.type === "turn_context" && payload && typeof payload.cwd === "string") {
           result.workingDirectories.push(payload.cwd);
-        } else if (!result.firstUserMessage && record.type === "event_msg" && payload?.type === "user_message" && typeof payload.message === "string") {
-          result.firstUserMessage = payload.message;
-        } else if (!result.firstUserMessage && record.type === "response_item" && payload?.type === "message" && payload.role === "user") {
-          result.firstUserMessage = textFromMessage(payload, "user");
         }
       } catch {
         break;
@@ -397,6 +465,230 @@ function normalizedTimestamp(value: string | undefined): string | undefined {
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
 }
 
+function shortText(value: string, maximum: number): string {
+  const compact = value.replace(/[\r\n\t\0]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  const characters = [...compact];
+  return characters.length > maximum
+    ? `${characters.slice(0, maximum - 1).join("").trimEnd()}…`
+    : compact;
+}
+
+function summarizeSessionText(input: string, homeDirectory: string, bounded: boolean): {
+  preview: CodexSessionPreview;
+  titleSource?: string;
+  latestTimestamp?: string;
+} {
+  let lineNumber = 0;
+  let usableUserMessageCount = 0;
+  let executionRecordCount = 0;
+  let latestTimestamp: string | undefined;
+  let firstMessage: string | undefined;
+  let firstSubstantiveMessage: string | undefined;
+  const firstSamples: UserMessageSample[] = [];
+  const recentSamples: UserMessageSample[] = [];
+  const recentDuplicate = new Map<string, number>();
+
+  for (const sourceLine of input.split(/\r?\n/)) {
+    lineNumber++;
+    if (!sourceLine.trim()) continue;
+    let record: Record<string, unknown>;
+    try {
+      const value: unknown = JSON.parse(sourceLine);
+      if (!value || typeof value !== "object") continue;
+      record = value as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    const timestamp = normalizedTimestamp(typeof record.timestamp === "string" ? record.timestamp : undefined);
+    if (timestamp && (!latestTimestamp || timestamp > latestTimestamp)) latestTimestamp = timestamp;
+    const payload = record.payload && typeof record.payload === "object"
+      ? record.payload as Record<string, unknown>
+      : undefined;
+    const rawText = userTextFromRecord(record.type, payload);
+    if (rawText === undefined) continue;
+    const text = cleanUserMessage(rawText, homeDirectory);
+    if (!text || isRecentUserDuplicate(lineNumber, text, recentDuplicate)) continue;
+    const commandOnly = isExecutionCommandOnly(text);
+    usableUserMessageCount++;
+    if (commandOnly) executionRecordCount++;
+    else if (!firstSubstantiveMessage) firstSubstantiveMessage = text;
+    if (!firstMessage) firstMessage = text;
+    const sample = { lineNumber, text, commandOnly };
+    if (firstSamples.length < 3) firstSamples.push(sample);
+    recentSamples.push(sample);
+    if (recentSamples.length > 3) recentSamples.shift();
+  }
+
+  const sampleMessages = usableUserMessageCount <= 3
+    ? firstSamples
+    : [firstSamples[0], ...recentSamples.slice(-2)].filter((sample, index, samples) =>
+      !!sample && samples.findIndex((candidate) => candidate?.lineNumber === sample.lineNumber) === index,
+    );
+  const signal: CodexSessionPreviewSignal = usableUserMessageCount === 0
+    ? "no_usable_messages"
+    : executionRecordCount * 2 >= usableUserMessageCount
+      ? "execution_focused"
+      : "project_intent";
+  return {
+    preview: {
+      signal,
+      usableUserMessageCount,
+      executionRecordCount,
+      excerpts: sampleMessages.map(({ text }) => shortText(text, 260)),
+      bounded,
+    },
+    ...(firstSubstantiveMessage || firstMessage
+      ? { titleSource: firstSubstantiveMessage ?? firstMessage }
+      : {}),
+    ...(latestTimestamp ? { latestTimestamp } : {}),
+  };
+}
+
+type IgnoredCounts = ParsedCodexSession["ignored"];
+
+function addIgnoredRecord(type: unknown, payload: Record<string, unknown> | undefined, ignored: IgnoredCounts): void {
+  if (type === "response_item" && payload) {
+    if (payload.type === "reasoning") ignored.reasoning++;
+    else if (payload.type === "function_call" || payload.type === "tool_call") ignored.toolCalls++;
+    else if (payload.type === "function_call_output" || payload.type === "tool_result") ignored.toolOutputs++;
+    else if (payload.role === "system" || payload.role === "developer") ignored.systemOrDeveloper++;
+    else ignored.other++;
+    return;
+  }
+  if (type === "event_msg" && payload) {
+    if (payload.type === "reasoning") ignored.reasoning++;
+    else if (payload.type === "tool_call" || payload.type === "tool_started") ignored.toolCalls++;
+    else if (payload.type === "tool_output" || payload.type === "tool_result") ignored.toolOutputs++;
+    else if (payload.type === "system_message" || payload.type === "developer_message") ignored.systemOrDeveloper++;
+    else ignored.other++;
+    return;
+  }
+  ignored.other++;
+}
+
+function ignoredCategoryForLargeLine(sourceLine: string): keyof IgnoredCounts | undefined {
+  const topType = /^\s*\{\s*"type"\s*:\s*"([^"]+)"/.exec(sourceLine)?.[1];
+  const payloadIndex = sourceLine.indexOf('"payload"');
+  const payloadType = payloadIndex < 0
+    ? undefined
+    : /"type"\s*:\s*"([^"]+)"/.exec(sourceLine.slice(payloadIndex, payloadIndex + 512))?.[1];
+  if (topType === "response_item") {
+    if (payloadType === "reasoning") return "reasoning";
+    if (payloadType === "function_call" || payloadType === "tool_call") return "toolCalls";
+    if (payloadType === "function_call_output" || payloadType === "tool_result") return "toolOutputs";
+  }
+  if (topType === "event_msg") {
+    if (payloadType === "reasoning") return "reasoning";
+    if (payloadType === "tool_call" || payloadType === "tool_started") return "toolCalls";
+    if (payloadType === "tool_output" || payloadType === "tool_result") return "toolOutputs";
+  }
+  return undefined;
+}
+
+function classifyLargeLine(sourceLine: string): { ignoredCategory?: keyof IgnoredCounts; bounded: boolean; malformed: boolean } {
+  const topType = /^\s*\{\s*"type"\s*:\s*"([^"]+)"/.exec(sourceLine)?.[1];
+  const payloadIndex = sourceLine.indexOf('"payload"');
+  const payloadPrefix = payloadIndex < 0 ? "" : sourceLine.slice(payloadIndex, payloadIndex + 2048);
+  const payloadType = /"type"\s*:\s*"([^"]+)"/.exec(payloadPrefix)?.[1];
+
+  const ignoredCategory = ignoredCategoryForLargeLine(sourceLine);
+  if (ignoredCategory) return { ignoredCategory, bounded: false, malformed: false };
+  if (topType === "response_item" && payloadType === "custom_tool_call") {
+    return { ignoredCategory: "toolCalls", bounded: false, malformed: false };
+  }
+  if (topType === "response_item" && payloadType === "custom_tool_call_output") {
+    return { ignoredCategory: "toolOutputs", bounded: false, malformed: false };
+  }
+  if (topType === "event_msg" && payloadType === "user_message") {
+    return { bounded: true, malformed: false };
+  }
+  if (topType === "response_item" && payloadType === "message") {
+    const role = /"role"\s*:\s*"(user|assistant|system|developer)"/.exec(payloadPrefix)?.[1];
+    if (role === "system" || role === "developer") {
+      return { ignoredCategory: "systemOrDeveloper", bounded: false, malformed: false };
+    }
+    if (role === "user" || role === "assistant") {
+      // The record may contain a user message or a final reply. Its full payload is outside the parse bound.
+      return { bounded: true, malformed: false };
+    }
+  }
+  return { bounded: true, malformed: true };
+}
+
+async function readCompactSessionTranscript(
+  filePath: string,
+  signal: AbortSignal,
+  maxSourceBytes: number,
+  maxUsefulBytes: number,
+): Promise<{ text: string; lineNumbers: number[]; usefulBytes: number; ignored: IgnoredCounts; malformedLines: number; bounded: boolean } | undefined> {
+  const handle = await open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  const stream = handle.createReadStream({ autoClose: false });
+  const lines = createInterface({ input: stream, crlfDelay: Infinity });
+  const parts: string[] = [];
+  const originalLineNumbers: number[] = [];
+  const ignored: IgnoredCounts = { reasoning: 0, toolCalls: 0, toolOutputs: 0, systemOrDeveloper: 0, other: 0 };
+  let lineNumber = 0;
+  let sourceBytes = 0;
+  let usefulBytes = 0;
+  let malformedLines = 0;
+  let bounded = false;
+
+  try {
+    for await (const sourceLine of lines) {
+      throwIfAborted(signal);
+      lineNumber++;
+      sourceBytes += Buffer.byteLength(sourceLine, "utf8") + 1;
+      if (sourceBytes > maxSourceBytes) {
+        bounded = true;
+        return undefined;
+      }
+      if (!sourceLine.trim()) continue;
+      if (Buffer.byteLength(sourceLine, "utf8") > 2 * 1024 * 1024) {
+        const classification = classifyLargeLine(sourceLine);
+        if (classification.ignoredCategory) ignored[classification.ignoredCategory]++;
+        if (classification.malformed) malformedLines++;
+        if (classification.bounded) bounded = true;
+        continue;
+      }
+      let record: Record<string, unknown>;
+      try {
+        const value: unknown = JSON.parse(sourceLine);
+        if (!value || typeof value !== "object") {
+          malformedLines++;
+          continue;
+        }
+        record = value as Record<string, unknown>;
+      } catch {
+        malformedLines++;
+        continue;
+      }
+      const payload = record.payload && typeof record.payload === "object"
+        ? record.payload as Record<string, unknown>
+        : undefined;
+      const keep = userTextFromRecord(record.type, payload) !== undefined || (
+        record.type === "response_item" && payload?.type === "message" &&
+        payload.role === "assistant" && isFinalAssistant(payload)
+      );
+      if (!keep) {
+        addIgnoredRecord(record.type, payload, ignored);
+        continue;
+      }
+      usefulBytes += Buffer.byteLength(sourceLine, "utf8") + 1;
+      if (usefulBytes > maxUsefulBytes) {
+        bounded = true;
+        return undefined;
+      }
+      parts.push(sourceLine);
+      originalLineNumbers.push(lineNumber);
+    }
+  } finally {
+    lines.close();
+    stream.destroy();
+    await handle.close();
+  }
+  return { text: parts.join("\n"), lineNumbers: originalLineNumbers, usefulBytes, ignored, malformedLines, bounded };
+}
+
 export async function discoverCodexSessionCandidates(
   projectDirectory: string,
   options: CodexSessionReaderOptions = {},
@@ -419,10 +711,8 @@ export async function readSelectedCodexSessions(
   signal: AbortSignal,
   options: CodexSessionReaderOptions = {},
 ): Promise<ReadCodexSessionsResult> {
-  const maximum = Math.max(1, Math.min(20, options.maxSelectedSessions ?? 12));
   const requested = [...new Set(selectedSessionIds)];
-  const selected = requested.slice(0, maximum);
-  if (!selected.length) {
+  if (!requested.length) {
     return {
       sessions: [],
       skipped: [],
@@ -433,11 +723,14 @@ export async function readSelectedCodexSessions(
   const fileById = new Map(candidates.candidates.map((candidate) => [candidate.candidate.sessionId, candidate.filePath]));
   const perSessionLimit = options.maxSessionBytes ?? 8 * 1024 * 1024;
   const totalLimit = options.maxTotalSessionBytes ?? 32 * 1024 * 1024;
-  let totalBytes = 0;
+  const sourcePerSessionLimit = options.maxSourceBytesPerSession ?? 256 * 1024 * 1024;
+  const totalSourceLimit = options.maxTotalSourceBytes ?? 512 * 1024 * 1024;
+  let totalUsefulBytes = 0;
+  let totalSourceBytes = 0;
   const sessions: ReadCodexSessionsResult["sessions"] = [];
-  const skipped: ReadCodexSessionsResult["skipped"] = requested.slice(maximum).map((sessionId) => ({ sessionId, reason: "selection_limit" }));
-  let bounded = requested.length > selected.length || candidates.bounded;
-  for (const sessionId of selected) {
+  const skipped: ReadCodexSessionsResult["skipped"] = [];
+  let bounded = candidates.bounded;
+  for (const sessionId of requested) {
     throwIfAborted(signal);
     const path = fileById.get(sessionId);
     if (!path) {
@@ -450,30 +743,44 @@ export async function readSelectedCodexSessions(
         skipped.push({ sessionId, reason: "unreadable" });
         continue;
       }
-      const nextBytes = Math.min(stat.size, perSessionLimit);
-      if (stat.size > perSessionLimit || totalBytes + nextBytes > totalLimit) {
+      if (stat.size > sourcePerSessionLimit || totalSourceBytes + stat.size > totalSourceLimit) {
         skipped.push({ sessionId, reason: "too_large" });
         bounded = true;
         continue;
       }
-      const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-      let text: string;
-      try {
-        const buffer = Buffer.alloc(nextBytes);
-        const { bytesRead } = await file.read(buffer, 0, nextBytes, 0);
-        text = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, bytesRead));
-        totalBytes += bytesRead;
-      } finally {
-        await file.close();
+      const remainingUsefulBytes = Math.min(perSessionLimit, totalLimit - totalUsefulBytes);
+      if (remainingUsefulBytes <= 0) {
+        skipped.push({ sessionId, reason: "too_large" });
+        bounded = true;
+        continue;
       }
-      const parsed = parseCodexSessionJsonl(text, {
+      const compact = await readCompactSessionTranscript(
+        path,
+        signal,
+        sourcePerSessionLimit,
+        remainingUsefulBytes,
+      );
+      if (!compact) {
+        skipped.push({ sessionId, reason: "too_large" });
+        totalSourceBytes += stat.size;
+        bounded = true;
+        continue;
+      }
+      totalSourceBytes += stat.size;
+      totalUsefulBytes += compact.usefulBytes;
+      const parsed = parseCodexSessionJsonl(compact.text, {
         sessionId,
         maxMessages: options.maxMessagesPerSession ?? 100,
         homeDirectory: homedir(),
+        lineNumbers: compact.lineNumbers,
       });
-      sessions.push({ sessionId, messages: parsed.messages, parsed, readBytes: nextBytes });
-      if (nextBytes < stat.size || parsed.bounded) bounded = true;
-    } catch {
+      parsed.ignored = compact.ignored;
+      parsed.malformedLines = compact.malformedLines;
+      if (compact.bounded) parsed.bounded = true;
+      sessions.push({ sessionId, messages: parsed.messages, parsed, readBytes: stat.size });
+      if (parsed.bounded) bounded = true;
+    } catch (error) {
+      if (signal.aborted) throw error;
       skipped.push({ sessionId, reason: "unreadable" });
     }
   }
@@ -497,6 +804,7 @@ async function discoverPrivateCandidates(
   throwIfAborted(signal);
   const roots = options.roots ?? defaultRoots();
   const scanned = await listJsonlFiles(roots, options.maxFilesScanned ?? 2000);
+  let bounded = scanned.bounded;
   const target = await gitIdentity(projectDirectory);
   if (!target) return { candidates: [], filesScanned: scanned.scanned, bounded: scanned.bounded };
   const result: PrivateCandidate[] = [];
@@ -543,13 +851,14 @@ async function discoverPrivateCandidates(
     const modified = new Date(file.modifiedAt).toISOString();
     const startedAt = normalizedTimestamp(header.startedAt);
     const candidateDate = startedAt ?? modified;
-    const displayText = (value: string | undefined) => value
-      ? redactSensitiveText(value, homedir()).replace(/[\r\n\t\0]+/g, " ").replace(/\s{2,}/g, " ").trim().slice(0, 180)
-      : "";
     const directoryLabel = cwdPaths[0]
       ? redactSensitiveText(basename(cwdPaths[0])).replace(/[\r\n\0]/g, " ").slice(0, 120)
       : "";
-    const title = displayText(header.title) || displayText(header.firstUserMessage) || [directoryLabel, candidateDate.slice(0, 16).replace("T", " ")].filter(Boolean).join(" · ") || "Codex 会话";
+    const titleSource = header.previewTitleSource ?? "";
+    const title = shortText(titleSource, 160) || [directoryLabel, candidateDate.slice(0, 16).replace("T", " ")].filter(Boolean).join(" · ") || "Codex 会话";
+    const latestModified = header.previewLatestTimestamp && header.previewLatestTimestamp > modified
+      ? header.previewLatestTimestamp
+      : modified;
     const attributionText = reason === "same_repository_path"
       ? "工作目录位于该项目仓库内"
       : reason === "same_git_repository"
@@ -563,7 +872,8 @@ async function discoverPrivateCandidates(
         title,
         date: candidateDate,
         ...(startedAt ? { startedAt } : {}),
-        lastModifiedAt: modified,
+        lastModifiedAt: latestModified,
+        preview: header.preview,
         ...(directoryLabel ? { workingDirectoryLabel: directoryLabel } : {}),
         attribution,
         attributionReason: reason,
@@ -571,5 +881,5 @@ async function discoverPrivateCandidates(
       },
     });
   }
-  return { candidates: result, filesScanned: scanned.scanned, bounded: scanned.bounded };
+  return { candidates: result, filesScanned: scanned.scanned, bounded };
 }

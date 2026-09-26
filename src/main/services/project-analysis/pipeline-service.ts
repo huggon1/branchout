@@ -176,6 +176,7 @@ const analysisDraftSchema = z
             maximumCharacters: z.number().int().positive(),
             evidenceIncluded: z.number().int().nonnegative(),
             evidenceOmittedByBudget: z.number().int().nonnegative(),
+            batches: z.number().int().positive().optional(),
           })
           .strict(),
       })
@@ -204,6 +205,8 @@ const workerEventSchema = z.discriminatedUnion("type", [
       commitsRead: z.number().int().nonnegative().optional(),
       sessionsRead: z.number().int().nonnegative().optional(),
       messagesRead: z.number().int().nonnegative().optional(),
+      batchCompleted: z.number().int().positive().optional(),
+      batchTotal: z.number().int().positive().optional(),
       message: z.string().max(500).optional(),
     })
     .strict(),
@@ -240,6 +243,10 @@ const preflightSchema = z
         commitIds: z.array(z.string().min(1).max(200)).max(10000),
       })
       .strict(),
+    codexDiscovery: z.object({
+      filesScanned: z.number().int().nonnegative(),
+      bounded: z.boolean(),
+    }).strict().optional(),
     codexSessions: z.array(
       z
         .object({
@@ -248,6 +255,17 @@ const preflightSchema = z
           date: z.string().datetime(),
           attribution: z.enum(["confirmed", "review"]),
           reason: z.string().min(1).max(2000),
+          attributionReason: z.enum(["same_repository_path", "same_git_repository", "same_remote_repository"]).optional(),
+          workingDirectoryLabel: z.string().max(120).optional(),
+          startedAt: z.string().datetime().optional(),
+          lastModifiedAt: z.string().datetime().optional(),
+          preview: z.object({
+            signal: z.enum(["project_intent", "execution_focused", "no_usable_messages"]),
+            usableUserMessageCount: z.number().int().nonnegative(),
+            executionRecordCount: z.number().int().nonnegative(),
+            excerpts: z.array(z.string().min(1).max(300)).max(3),
+            bounded: z.boolean(),
+          }).strict().optional(),
         })
         .strict(),
     ),
@@ -578,12 +596,18 @@ export class ProjectAnalysisPipelineService {
           availableCount: history.range.availableCount,
           commitIds: history.commits.map((commit) => commit.commitId),
         },
+        codexDiscovery: sessions.coverage,
         codexSessions: sessions.candidates.map((candidate) => ({
           sessionId: candidate.sessionId,
           title: candidate.title,
           date: candidate.date,
           attribution: candidate.attribution,
           reason: candidate.reason,
+          attributionReason: candidate.attributionReason,
+          ...(candidate.workingDirectoryLabel ? { workingDirectoryLabel: candidate.workingDirectoryLabel } : {}),
+          ...(candidate.startedAt ? { startedAt: candidate.startedAt } : {}),
+          lastModifiedAt: candidate.lastModifiedAt,
+          preview: candidate.preview,
         })),
       });
     });
@@ -801,17 +825,20 @@ export class ProjectAnalysisPipelineService {
       return;
     }
     if (event.type === "progress") {
+      const hasCount = [event.messagesRead, event.sessionsRead, event.commitsRead, event.repositoryFilesRead]
+        .some((value) => value !== undefined);
       const completed =
         event.messagesRead ??
         event.sessionsRead ??
         event.commitsRead ??
         event.repositoryFilesRead ??
         0;
-      await this.ports.tasks.receive(taskId, {
-        type: "progress",
-        taskId,
-        completed,
-      });
+      if (hasCount)
+        await this.ports.tasks.receive(taskId, {
+          type: "progress",
+          taskId,
+          completed,
+        });
       const summaries = [
         event.repositoryFilesRead === undefined
           ? undefined
@@ -826,13 +853,16 @@ export class ProjectAnalysisPipelineService {
           ? undefined
           : `会话消息 ${event.messagesRead} 条`,
       ].filter((value): value is string => value !== undefined);
-      if (summaries.length)
+      const batchSummary = event.batchCompleted !== undefined && event.batchTotal !== undefined
+        ? `已完成第 ${event.batchCompleted} / ${event.batchTotal} 批资料分析`
+        : undefined;
+      if (batchSummary || summaries.length)
         await this.ports.tasks.receive(taskId, {
           type: "activity",
           taskId,
-          action: "progress",
-          summary: `已读取 ${summaries.join("、")}`,
-          progress: { completed },
+          action: batchSummary ? "reasoning" : "progress",
+          summary: batchSummary ?? `已读取 ${summaries.join("、")}`,
+          ...(hasCount ? { progress: { completed } } : {}),
         });
       this.ports.notify();
       return;

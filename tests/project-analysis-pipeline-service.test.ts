@@ -351,6 +351,13 @@ function createFixture() {
           attribution: "confirmed",
           attributionReason: "same_repository_path",
           reason: "工作目录位于该项目仓库内",
+          preview: {
+            signal: "project_intent",
+            usableUserMessageCount: 1,
+            executionRecordCount: 0,
+            excerpts: ["Please retain project citations."],
+            bounded: false,
+          },
         },
       ],
       coverage: { filesScanned: 1, bounded: false },
