@@ -8,15 +8,14 @@
 
 界面从 preload 受控接口读取主进程已保存的快照，提交编辑、转发、分析和建议接受命令。页面切换保留用户的项目选择、列表筛选和阅读位置；任务状态从统一任务快照恢复。
 
-## 目标模块分工
+## 模块分工
 
-- `App.tsx` 与导航组件：页面切换、任务提示和全局错误入口。
-- `pages/Content`：转发提交、内容列表、来源阅读、通用理解和关注关联。
-- `pages/FocusCards`：项目分组、自由文本编辑、状态与版本阅读。
-- `pages/Projects`：仓库绑定、分析输入范围、项目报告及建议接受。
-- `pages/Tasks`：任务列表、当前阶段、Agent 活动、失败与重试。
-- `pages/Settings`：模型连接、Telegram 聊天绑定和内容来源配置。
-- `components/`：阅读导航、状态标识、证据引用、表单与布局组件。
-- `bridge.ts`：封装跨进程查询、命令和状态订阅。
+- `App.tsx`：导航、任务提示和页面切换。
+- `components/ContentPage.tsx`：转发提交、内容列表、来源阅读、通用理解和关注关联。
+- `components/FocusCardsPage.tsx`：项目分组、自由文本编辑、状态与版本阅读。
+- `components/ProjectsPage.tsx`：仓库绑定、分析输入范围、项目报告及建议接受。
+- `components/TasksPage.tsx`：任务列表、当前阶段、Agent 活动、失败与重试。
+- `components/SettingsPage.tsx`：模型连接、Telegram 聊天绑定和内容来源配置。
+- `product-ui.ts` 与 `bridge.ts`：将跨进程查询、命令和状态订阅整理为页面所需的数据。
 
 页面组件组合业务状态，共用组件处理可复用的呈现与交互。

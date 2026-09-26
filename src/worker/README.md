@@ -10,15 +10,14 @@
 
 工作进程接受已核定的项目目录、来源范围、卡片版本和取消信号。读取器输出可定位来源及实际覆盖范围；推理模块消费这些规范化输入。主进程负责结果校验、持久化、任务状态与建议接受。
 
-## 目标模块分工
+## 模块分工
 
-- `main.ts`：校验任务命令并分发到对应任务执行器。
-- `jobs/forwarding`：来源读取、通用理解、逐卡关联和分批结果合并。
-- `jobs/project-analysis`：输入快照、发现生成及卡片建议。
+- `jobs/forwarding/worker-entry.ts`：接收转发任务命令并运行来源读取、通用理解与逐卡关联。
+- `jobs/project-analysis/worker-entry.ts`：接收项目分析任务命令并生成发现与卡片建议。
 - `readers/repository`：当前仓库文件、工作区状态及来源定位。
 - `readers/git-history`：选定 commit 的元数据、消息与差异范围。
 - `readers/codex-sessions`：候选会话发现、项目归属核验、选定对话读取。
 - `reasoning/`：理解内容、判断关联和生成分析建议的模型输入与输出校验。
-- `pi-runtime.ts`：Pi 会话和模型执行边界。
+- `pi-runtime.ts` 与 `model-worker.ts`：Pi 会话、模型连接检查和执行边界。
 
 每个读取器报告实际范围和失败位置，任务阶段将用户可读摘要发送给主进程的任务后台。
