@@ -1,10 +1,12 @@
-// Pass only the network settings required by isolated workers.
+// Keep the worker's home directory aligned with preflight session discovery.
 export function createWorkerEnvironment(
   inherited: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const key of [
     "PATH",
+    "HOME",
+    "USERPROFILE",
     "SystemRoot",
     "TMPDIR",
     "HTTP_PROXY",

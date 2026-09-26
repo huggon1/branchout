@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   sourceSchema,
   xPostUrlSchema,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import type { PlatformAdapter } from "../../types";
 import type { XCredentials } from "../../../shared/platform-contracts";
 
@@ -106,46 +106,7 @@ export function normalizeTweet(raw: unknown, sourceUrl?: string) {
 export function createXAdapter(credentials?: XCredentials): PlatformAdapter {
   return {
     platform: "x",
-    searchCapability: "available",
     readCapability: "available",
-    async search(taskId, query, signal) {
-      const base = { taskId, platform: "x" as const, candidates: [] };
-      if (!credentials)
-        return { ...base, outcome: "not_covered", message: "X 尚未登录" };
-      if (!existsSync(join(runtime(), "bird-search.mjs")))
-        return {
-          ...base,
-          outcome: "not_covered",
-          message: "X 工具未安装；请先运行 npm run setup:x",
-        };
-      if (query.length > 120 || !/^[a-zA-Z0-9 ]+$/.test(query))
-        return { ...base, outcome: "failed", message: "无效的搜索概念" };
-      try {
-        const raw = await invoke(
-          join(runtime(), "bird-search.mjs"),
-          [query, "--count", "8", "--json"],
-          credentials,
-          signal,
-        );
-        const tweets = z.array(tweetSchema).max(20).parse(raw);
-        const candidates = tweets.map((tweet) => ({
-          sourceUrl: `https://x.com/i/status/${tweet.id}`,
-          title: tweet.text.split(/\n/)[0].slice(0, 160),
-          snippet: tweet.text.slice(0, 500),
-        }));
-        return {
-          ...base,
-          outcome: candidates.length ? "results" : "no_results",
-          candidates,
-        };
-      } catch {
-        return {
-          ...base,
-          outcome: "failed",
-          message: "X 搜索未完成；请检查登录、网络或平台可用性",
-        };
-      }
-    },
     async read(taskId, sourceUrl, signal) {
       const base = { taskId, platform: "x" as const, sourceUrl };
       const parsed = xPostUrlSchema.safeParse(sourceUrl);

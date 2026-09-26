@@ -121,7 +121,7 @@ export async function runWithPi(
       return last;
     };
     let last = validate();
-    // Preserve the real tool transcript; bounded follow-ups never invent search results.
+    // Preserve the actual tool transcript when a caller uses follow-up prompts.
     for (let attempt = 0; attempt < 2; attempt++) {
       const next = continuation?.();
       if (!next) break;

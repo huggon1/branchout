@@ -1,10 +1,10 @@
 import { build } from "esbuild";
-import { mkdir, copyFile, cp, rm } from "node:fs/promises";
+import { mkdir, copyFile, rm } from "node:fs/promises";
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist/renderer", { recursive: true });
 await mkdir("dist/assets", { recursive: true });
 await mkdir("dist/platforms", { recursive: true });
-await mkdir("dist/worker/vendor", { recursive: true });
+await mkdir("dist/worker", { recursive: true });
 await copyFile(
   "src/platforms/adapters/x/x-read.mjs",
   "dist/platforms/x-read.mjs",
@@ -13,15 +13,11 @@ await copyFile(
   "docs/design/branchout-icon-light-master.png",
   "dist/assets/branchout.png",
 );
-await cp("src/worker/vendor/archify", "dist/worker/vendor/archify", {
-  recursive: true,
-  filter: (source) => !source.split(/[\\/]/).includes("test"),
-});
+await copyFile("assets/branchout-mark.svg", "dist/assets/branchout-mark.svg");
 await build({
   entryPoints: [
     "src/main/main.ts",
     "src/main/preload.ts",
-    "src/worker/main.ts",
   ],
   outbase: "src",
   outdir: "dist",
@@ -34,10 +30,8 @@ await build({
 await build({
   entryPoints: [
     "src/worker/model-worker.ts",
-    "src/worker/forwarding-worker.ts",
-    "src/worker/project-worker.ts",
-    "src/worker/exploration-worker.ts",
-    "src/worker/analysis-worker.ts",
+    "src/worker/jobs/forwarding/worker-entry.ts",
+    "src/worker/jobs/project-analysis/worker-entry.ts",
   ],
   outdir: "dist/worker",
   outExtension: { ".js": ".mjs" },

@@ -4,7 +4,7 @@ import {
   imageUrlSchema,
   type SourceContent,
   type ContentBlock,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 export function normalizeReadme(
   markdown: string,
   sourceUrl: string,

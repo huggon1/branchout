@@ -4,7 +4,31 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createCodexEnvironment } from "../src/main/services/codex-client";
+import {
+  createCodexEnvironment,
+  resolveCodexExecutable,
+} from "../src/main/services/codex-client";
+
+test("Codex uses the newer available client for its model catalog", () => {
+  const desktop = "/Applications/ChatGPT.app/Contents/Resources/codex";
+  const versions = new Map([
+    ["codex", "codex-cli 0.154.0"],
+    [desktop, "codex-cli 0.155.0-alpha.16.4"],
+  ]);
+  assert.equal(
+    resolveCodexExecutable("darwin", "/fixture", (path) => versions.get(path)),
+    desktop,
+  );
+  versions.set("codex", "codex-cli 0.157.1");
+  assert.equal(
+    resolveCodexExecutable("darwin", "/fixture", (path) => versions.get(path)),
+    "codex",
+  );
+  assert.equal(
+    resolveCodexExecutable("linux", "/fixture", (path) => versions.get(path)),
+    "codex",
+  );
+});
 
 test("Codex isolates configuration while preserving OS home and the allowlist", () => {
   const inherited = {

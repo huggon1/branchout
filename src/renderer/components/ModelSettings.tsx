@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ModelReply, ModelView } from "../../shared/model-contracts";
+import { failureMessages } from "../../shared/task-failure";
 import { bridge } from "../bridge";
 import { Button } from "./Primitives";
 export function ModelSettings() {
@@ -274,7 +275,9 @@ export function ModelSettings() {
                   passed: view.checkIsCurrent
                     ? "连接检查通过"
                     : "先前连接检查通过",
-                  failed: "检查失败，请核对配置、权限或网络",
+                  failed: view.checkFailure
+                    ? failureMessages[view.checkFailure]
+                    : "模型检查失败，请重试。",
                   cancelled: "检查已取消",
                 }[view.check]
               }

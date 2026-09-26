@@ -1,43 +1,68 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
   channels,
-  modelChannels,
-  materialChannels,
   projectChannels,
-  explorationChannels,
+  focusCardChannels,
+  analysisChannels,
+  taskChannels,
+  forwardingChannels,
+  telegramChannels,
+  modelChannels,
   xChannels,
   xhsChannels,
   type DesktopBridge,
 } from "../shared/ipc-contracts";
+
 const bridge: DesktopBridge = {
-  exploration: () => ipcRenderer.invoke(explorationChannels.view),
-  bindLocalProject: () => ipcRenderer.invoke(explorationChannels.bind),
-  removeProjectBinding: (projectId) =>
-    ipcRenderer.invoke(explorationChannels.unbind, projectId),
-  currentGraph: (projectId, direction) =>
-    ipcRenderer.invoke(explorationChannels.currentGraph, projectId, direction),
-  readGraph: (graphVersionId) =>
-    ipcRenderer.invoke(explorationChannels.readGraph, graphVersionId),
-  generateGraph: (input) =>
-    ipcRenderer.invoke(explorationChannels.generateGraph, input),
-  analyzeRepository: (input) =>
-    ipcRenderer.invoke(explorationChannels.analyzeRepository, input),
-  cancelExplorationTask: (taskId) =>
-    ipcRenderer.invoke(explorationChannels.cancelTask, taskId),
-  taskSnapshots: () => ipcRenderer.invoke(explorationChannels.tasks),
   projects: () => ipcRenderer.invoke(projectChannels.view),
   bindProject: () => ipcRenderer.invoke(projectChannels.bind),
-  editBaseline: (input) => ipcRenderer.invoke(projectChannels.edit, input),
-  startProjectTask: (input) => ipcRenderer.invoke(projectChannels.start, input),
-  confirmBaseline: (id) => ipcRenderer.invoke(projectChannels.confirm, id),
-  cancelProjectTask: (id) => ipcRenderer.invoke(projectChannels.cancel, id),
-  materials: () => ipcRenderer.invoke(materialChannels.view),
-  addLink: (url) => ipcRenderer.invoke(materialChannels.add, url),
-  cancelForwarding: (id) => ipcRenderer.invoke(materialChannels.cancel, id),
-  openSource: (id) => ipcRenderer.invoke(materialChannels.open, id),
+  unbindProject: (projectId) =>
+    ipcRenderer.invoke(projectChannels.unbind, projectId),
+  focusCardView: () => ipcRenderer.invoke(focusCardChannels.view),
+  createFocusCard: (input) =>
+    ipcRenderer.invoke(focusCardChannels.create, input),
+  editFocusCard: (input) => ipcRenderer.invoke(focusCardChannels.edit, input),
+  setFocusCardActive: (input) =>
+    ipcRenderer.invoke(focusCardChannels.setActive, input),
+  projectAnalysisReports: (projectId) =>
+    ipcRenderer.invoke(analysisChannels.reports, projectId),
+  readProjectAnalysisReport: (analysisReportId) =>
+    ipcRenderer.invoke(analysisChannels.readReport, analysisReportId),
+  projectAnalysisPreflight: (projectId) =>
+    ipcRenderer.invoke(analysisChannels.preflight, projectId),
+  startProjectAnalysis: (input) =>
+    ipcRenderer.invoke(analysisChannels.start, input),
+  acceptFocusSuggestion: (input) =>
+    ipcRenderer.invoke(analysisChannels.acceptSuggestion, input),
+  unifiedTaskSnapshots: () => ipcRenderer.invoke(taskChannels.snapshots),
+  taskActivities: (taskId) =>
+    ipcRenderer.invoke(taskChannels.activities, taskId),
+  forwardingTasks: () => ipcRenderer.invoke(forwardingChannels.tasks),
+  forwardingTask: (taskId) =>
+    ipcRenderer.invoke(forwardingChannels.task, taskId),
+  addLink: (url) => ipcRenderer.invoke(forwardingChannels.add, url),
+  retryForwarding: (taskId) =>
+    ipcRenderer.invoke(forwardingChannels.retry, taskId),
+  cancelForwarding: (taskId) =>
+    ipcRenderer.invoke(forwardingChannels.cancel, taskId),
+  openSource: (materialId) =>
+    ipcRenderer.invoke(forwardingChannels.openSource, materialId),
   openRepositoryLink: (url) =>
-    ipcRenderer.invoke(materialChannels.openRepositoryLink, url),
+    ipcRenderer.invoke(forwardingChannels.openRepositoryLink, url),
+  telegramStatus: () => ipcRenderer.invoke(telegramChannels.status),
+  saveTelegramBotToken: (token) =>
+    ipcRenderer.invoke(telegramChannels.saveToken, token),
+  clearTelegramBotToken: () => ipcRenderer.invoke(telegramChannels.clearToken),
+  verifyTelegramBot: () => ipcRenderer.invoke(telegramChannels.verifyBot),
+  authorizeTelegramChat: (chatId) =>
+    ipcRenderer.invoke(telegramChannels.authorizeChat, chatId),
+  revokeTelegramChat: (chatId) =>
+    ipcRenderer.invoke(telegramChannels.revokeChat, chatId),
   modelView: () => ipcRenderer.invoke(modelChannels.view),
+  retryProjectAnalysis: (taskId) =>
+    ipcRenderer.invoke(analysisChannels.retry, taskId),
+  cancelProjectAnalysis: (taskId) =>
+    ipcRenderer.invoke(analysisChannels.cancel, taskId),
   saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
   loginModel: () => ipcRenderer.invoke(modelChannels.login),
   cancelModelLogin: () => ipcRenderer.invoke(modelChannels.cancelLogin),
@@ -50,13 +75,11 @@ const bridge: DesktopBridge = {
   xhsStatus: () => ipcRenderer.invoke(xhsChannels.status),
   loginXhs: () => ipcRenderer.invoke(xhsChannels.login),
   logoutXhs: () => ipcRenderer.invoke(xhsChannels.logout),
-  snapshot: () => ipcRenderer.invoke(channels.snapshot),
-  runCheck: () => ipcRenderer.invoke(channels.check),
-  cancel: (taskId) => ipcRenderer.invoke(channels.cancel, taskId),
   onChanged: (listener) => {
     const handler = () => listener();
     ipcRenderer.on(channels.changed, handler);
     return () => ipcRenderer.removeListener(channels.changed, handler);
   },
 };
+
 contextBridge.exposeInMainWorld("branchout", bridge);

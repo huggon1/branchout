@@ -40,17 +40,10 @@ export function XSettings() {
   };
   return (
     <section className="platform-settings">
-      <h2>内容平台</h2>
       <div className="setting-row">
         <div>
-          <strong>GitHub</strong>
-          <p>搜索与公开 README 读取可用 · 无需登录</p>
-        </div>
-      </div>
-      <div className="setting-row">
-        <div>
-          <strong>X</strong>
-          <p>搜索与帖子读取 · {signedIn ? "已保存登录状态" : "需要登录"}</p>
+          <strong>X 帖子读取</strong>
+          <p>读取受支持的公开帖子 · {signedIn ? "账号已连接" : "需要登录"}</p>
         </div>
         <Button onClick={() => setExpanded(!expanded)}>
           {expanded ? "收起" : "配置"}
@@ -58,10 +51,7 @@ export function XSettings() {
       </div>
       {expanded && (
         <div className="platform-details">
-          <p>
-            在独立的 X
-            窗口登录。登录状态由应用保存；探索会在当前账号可访问的范围内搜索和读取。
-          </p>
+          <p>在独立窗口登录 X。应用使用已连接账号读取当前可访问的帖子内容。</p>
           <div className="inline-actions">
             <Button disabled={busy} onClick={() => void action(bridge.loginX)}>
               {signedIn ? "打开 X" : "登录 X"}
@@ -166,7 +156,7 @@ function XhsSettings() {
     <>
       <div className="setting-row">
         <div>
-          <strong>小红书</strong>
+          <strong>小红书图文笔记读取</strong>
           <p>
             图文笔记搜索与读取 ·{" "}
             {status.signedIn
@@ -182,9 +172,7 @@ function XhsSettings() {
       </div>
       {expanded && (
         <div className="platform-details">
-          <p>
-            登录状态仅保存在这台电脑。首次连接可能需要下载浏览器组件；只读取图文笔记，不发布内容。
-          </p>
+          <p>在独立窗口连接小红书账号，用于读取受支持的图文笔记。</p>
           <div className="inline-actions">
             {!status.signedIn && (
               <Button

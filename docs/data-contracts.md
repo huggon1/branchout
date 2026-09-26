@@ -1,141 +1,70 @@
 # Branchout 数据与消息契约
 
-本文定义目标设计中的跨模块字段与保存边界。产品行为以[产品规格](product-spec.md)为准，页面流程以[UX 规格](ux-spec.md)为准，运行职责以[架构总览](architecture-overview.md)为准。这里的名称表示逻辑对象；数据库表、IPC 路径和 TypeScript 类型由实现确定。
+本文定义目标设计的逻辑对象、跨进程字段和保存顺序。产品规则见[产品规格](product-spec.md)，页面行为见[UX 规格](ux-spec.md)，运行职责见[架构总览](architecture-overview.md)。具体数据库文件、IPC 名称和 TypeScript 类型由实现确定。
 
-## 共同标识与数据归属
+## 标识与保存归属
 
-主进程保存项目绑定、图版本、任务和素材。工作进程交付待校验结果；界面通过受控接口提交命令并读取已保存状态。
+主进程拥有可写状态；界面提交命令并读取已保存快照；工作进程交付待校验结果。
 
 | 标识 | 指向 |
 | --- | --- |
-| `projectId` | 本机项目绑定；解绑后仍可用于历史素材的来源定位 |
-| `graphVersionId` | 一个项目、一个方向的一次成功生成结果 |
-| `nodeId` | 某个图版本内的节点；与 `graphVersionId` 一起定位节点 |
-| `taskId` | 一次图生成、仓库分析或转发处理 |
-| `resultId` | 任务内一条待保存结果；与 `taskId` 一起用于重复投递识别 |
-| `materialId` | 素材库中的独立记录 |
+| `projectId` | 一个本机 Git 项目绑定 |
+| `focusId`、`focusVersionId` | 一张关注卡及其一次正文或状态版本 |
+| `taskId` | 一次转发或项目分析任务 |
+| `resultId` | 任务内一份待保存结果，用于重复交付识别 |
+| `materialId` | 一份转发内容报告 |
+| `analysisReportId` | 一份项目分析报告 |
+| `suggestionId` | 分析报告内的一条关注卡变更建议 |
 
-方向值为 `uiux` 或 `functional_modules`。所有时间字段记录明确时区或使用统一的 UTC 表示；界面负责本地化显示。
+所有时间字段采用含时区的表示；界面按用户所在时区显示。项目绑定是项目身份的唯一来源，其他对象引用 `projectId` 并在历史记录中保存必要的可读项目名称。
 
-## 项目图版本与节点资料
+## 项目与关注卡
 
-一次成功生成形成不可变的 `GraphVersion`。主进程先完整保存图与节点资料，再更新该项目、该方向的当前版本指针。
+`ProjectBinding` 保存 `projectId`、可读名称、规范化本机目录、绑定时间和当前绑定状态。项目目录由主进程核验；同一规范化目录对应一个项目身份。解绑后项目记录进入历史区，其关注卡退出活跃集合。
 
-| 字段 | 必要性 | 含义 |
-| --- | --- | --- |
-| `graphVersionId` | 必需 | 图版本标识 |
-| `projectId`、`projectLabel` | 必需 | 项目绑定标识与生成时可读名称 |
-| `direction` | 必需 | `uiux` 或 `functional_modules` |
-| `generatedAt` | 必需 | 本次图生成完成时间 |
-| `projectState` | 必需 | 本次读取的本机项目状态 |
-| `graphSource` | 必需 | 通过校验的结构化图源，包含节点、关系及图自身的来源定位 |
-| `viewArtifact` | 必需 | 与图源同版的交互式展示工件或可持久化的重建输入 |
-| `nodes` | 必需 | 按 `nodeId` 索引的冻结节点资料 |
+`FocusCard` 保存 `focusId`、`projectId`、当前 `focusVersionId` 和创建时间。`FocusVersion` 是冻结记录，包含版本标识、卡片标识、用户原文 `content`、`active` 状态、版本序号和保存时间。界面展示名称从原文首行或摘录取得；关联任务使用完整原文。正文保持自由文本，系统元数据由应用维护。
 
-`projectState` 至少包含生成时的 Git 提交标识、工作区是否含未提交修改、输入快照标识和生成时间。输入快照标识由实际读取的文件内容确定，使同一提交下的不同工作区状态可以区分。图版本保存的是可回看、可核验的图与节点依据；实现可以另行管理生成期间的临时完整文件副本。
+转发任务启动时建立 `FocusSetSnapshot`，记录快照时间和当时每张活跃卡的 `projectId + projectLabel + focusId + focusVersionId`，并保存任务使用的正文版本。关联结果引用该快照；卡片后续编辑、暂停或项目解绑时，历史报告仍能读取对应的卡片正文与项目名称。
 
-每个 `NodePacket` 至少包含：
+## 转发来源与报告
 
-| 字段 | 必要性 | 含义 |
-| --- | --- | --- |
-| `nodeId` | 必需 | 对应 `graphSource` 中的节点 |
-| `title`、`summary` | 必需 | 节点名称和简述 |
-| `graphSourceRefs` | 必需 | 指向图源中支持该节点的来源标识；无来源时为空 |
-| `facts` | 必需 | 本项目的具体事实及其代码依据；无事实时为空 |
-| `suitability` | 必需 | `suitable` 或 `unsuitable`，以及判断原因 |
-| `analysisDescription` | 适合分析时必需 | 固定的比较说明，供侧栏展示并作为仓库分析输入 |
+应用内和 Telegram 的单条链接进入相同的 `ForwardingRequest`。请求包含 `taskId`、规范化链接、入口 `app` 或 `telegram`；Telegram 请求另含已验证聊天和消息身份。链接当前支持 GitHub 公开仓库、X 帖子及小红书笔记。
 
-每条本项目 `fact` 包含可读陈述和一个或多个 `LocalEvidenceRef`。依据记录项目内相对路径、可定位范围、生成时的内容摘录或等价可读证据、文件内容摘要，以及对应的 `projectState` 输入快照标识。未提交修改的依据还标明来自生成时的工作区内容。图源已有的来源标识通过 `graphSourceRefs` 与这些依据关联；Archify 图源与 Branchout 补充的事实共同保存在同一图版本中。节点详情与历史素材从保存的图版本读取。
+`SourceContent` 保存来源平台、原链接、标题或来源身份、获取时间、按阅读顺序排列且可定位的正文块与图片引用，以及 `completeness`：`complete`、`partial` 或 `unknown`。`partial` 与 `unknown` 附实际获取范围说明。来源适配器另可返回 `not_covered` 或 `read_failed` 及原因。
 
-图重新生成后创建新的 `graphVersionId`。素材通过 `graphVersionId + nodeId` 引用旧版节点；素材仍引用的图版本及节点资料随素材保留。项目解绑后，历史素材继续指向原图版本。
+`GeneralUnderstanding` 保存基于该来源快照生成的可读理解及所依据的来源快照标识。`FocusRelation` 包含 `projectId`、`focusId`、`focusVersionId`、关联说明，以及一个或多个指向来源正文块或片段的依据引用。关联集合允许空数组，数量由实际相关卡片决定。
 
-## 节点仓库分析输入与结果
+`ForwardingReport` 使用 `materialId`、`taskId` 和 `resultId` 定位，保存来源快照、通用理解、关注卡集合快照、关联集合、完成时间及显示名称。同一链接每次转发均形成独立报告。主进程以 `taskId + resultId` 对工作进程重复交付去重。
 
-用户提交一个可分析节点和公开 GitHub 仓库首页链接时，主进程创建 `RepositoryAnalysisInput`：
+关联阶段记录覆盖情况：`evaluatedFocusVersionIds` 为实际完成判断的卡片版本集合，`FocusSetSnapshot` 为应判断的全集。两者相等且各批结果均通过校验后，任务才能交付完整报告。无关联时保存空关联集合和已完成的覆盖情况。
 
-| 字段 | 必要性 | 含义 |
-| --- | --- | --- |
-| `taskId` | 必需 | 本次分析任务 |
-| `graphVersionId`、`nodeId` | 必需 | 选中的图版本和节点 |
-| `nodePacket` | 必需 | 从该版本读取的冻结节点资料，含分析说明与本项目依据 |
-| `targetRepositoryUrl` | 必需 | 用户输入并规范化的公开 GitHub 仓库首页链接 |
+## 项目分析输入与结果
 
-工作进程以冻结的节点资料作为本项目依据，读取目标仓库并完成比较。它交付的 `RepositoryAnalysisResult` 包含目标仓库规范地址、实际固定的提交标识、检查范围、结果状态、可读结论和证据。提交标识在成功解析后记录；读取失败时记录已完成的步骤与失败位置。
+`ProjectAnalysisInput` 包含 `taskId`、`projectId`、规范化仓库目录、仓库输入快照、Git commit 读取范围、用户确认的 Codex 会话身份和启动时的关注卡版本。仓库快照记录 Git HEAD、未提交修改状态、输入摘要及实际读取文件。commit 输入记录提交标识、时间和实际读取的消息或差异范围。
 
-结果状态为 `matched`、`no_match`、`insufficient_evidence` 或 `read_failed`。`no_match` 表示在明确记录的检查范围内有依据地确认未发现对应功能；`insufficient_evidence` 表示已检查但证据尚不足以判断。`matched` 的结果按比较点保存本项目做法、目标仓库做法与差异；每个做法关联支持它的依据。其他状态保存检查范围、判断原因和已取得的依据。
+Codex 会话候选记录会话身份、时间、工作目录、可核验的项目归属线索、可用用户发言数量、执行记录数量、脱敏摘录及选入状态。候选发现另记录索引扫描量和范围边界。选中的会话读取器交付经固定代码清理与解析的用户发言及必要的最终助手回复，每条片段保存角色、会话身份、消息定位和正文；解析覆盖量、模型批次数与读取失败情况进入报告覆盖范围。项目分析证据 `AnalysisEvidenceRef` 标明来源类别 `repository`、`commit` 或 `codex_session`，以及相应的版本标识、文件或消息位置和可读摘录。
 
-目标仓库的 `TargetEvidenceRef` 至少包含提交标识、仓库内相对路径、可定位范围和支撑结论的内容摘录；可打开的仓库提交与文件链接由这些字段构成。检查范围记录实际读取的文档、代码路径或目录，以及搜索与定位步骤的简述，使“未找到”和“证据不足”可以回看。提交定位或文件读取失败时，记录仓库地址、尝试阶段和错误摘要。
+`ProjectAnalysisReport` 保存 `analysisReportId`、`taskId`、项目身份与名称、生成时间、输入覆盖范围、可读发现、依据和建议列表。覆盖范围分别列出实际读取与跳过的仓库文件、commit 和 Codex 会话，以及失败位置。报告创建后保持原始结论与来源定位。
 
-## 转发读取与通用理解
+`FocusSuggestion` 含 `suggestionId`、`kind`（`create` 或 `update`）、建议正文、理由及证据引用。`update` 还包含目标 `focusId` 和生成建议时的 `baseFocusVersionId`。建议的接受状态及产生的 `focusVersionId` 作为单独的接受记录保存，保留报告原文。接受命令以 `analysisReportId + suggestionId` 去重；当前卡版本发生变化时返回需要重新审阅的状态。
 
-应用内添加链接、飞书和 Telegram 的转发入口共用链接读取契约。平台接入报告对应链接的读取能力与配置提示。
+## Telegram 入队
 
-一次 `ReadResult` 包含 `taskId`、来源平台、原链接和 `outcome`。结果为 `content` 时附 `SourceContent`；结果为 `not_covered` 或 `failed` 时附可展示原因。`not_covered` 表示未执行读取，`failed` 表示已尝试但失败。
+Telegram 接入保存获准聊天身份、Bot 连接状态和已确认的更新游标；Bot 凭据进入受保护的本地存储。每条消息使用聊天身份与消息身份组成稳定入站键。主进程在同一次持久化操作中记录入站键、待处理转发任务、待发送确认及游标进展；确认发送结果另行保存。重复获取同一消息时读取原任务状态。格式未受支持的消息保存游标与提示状态，随后向该聊天发送提交提示。
 
-`SourceContent` 保存本次取得的来源快照：
+应用启动后按已确认游标获取 Telegram 仍提供的更新，并继续发送待处理确认。接入状态记录上次成功拉取时间、错误摘要与待处理数量，供设置和任务后台呈现。消息内容由链接解析器校验；用户可见通知使用聊天与消息的脱敏标识。
 
-| 字段 | 必要性 | 含义 |
-| --- | --- | --- |
-| `sourceUrl`、`platform` | 必需 | 原链接与来源平台 |
-| `title`、`sourceIdentity`、`publishedAt` | 来源提供时 | 来源标题、作者或站点身份、来源声明的发布时间 |
-| `contentBlocks`、`images` | 必需 | 按阅读顺序排列的正文与图片引用，以及被引用的图片内容或持久引用 |
-| `fetchedAt` | 必需 | 本次读取时间 |
-| `completeness` | 必需 | `complete`、`partial` 或 `unknown` |
-| `completenessNote` | `partial` 或 `unknown` 时必需 | 已知缺失范围，或无法判断完整性的原因 |
+## 任务快照与活动消息
 
-`GeneralUnderstanding` 包含基于已获取内容生成的可读理解 `content`，与来源快照分开保存。其内部章节可随来源形态变化。
+`TaskSnapshot` 包含 `taskId`、任务种类 `forwarding` 或 `project_analysis`、目标身份、状态 `queued`、`running`、`completed`、`failed` 或 `cancelled`、当前阶段、已处理量、更新时间、可读错误及成功结果引用。转发阶段依次标识接收、读取来源、理解内容、检查关注卡和保存报告；项目分析阶段标识读取仓库、读取 commit、读取 Codex 会话、形成发现与建议、保存报告。
 
-## 素材记录
+`TaskActivity` 包含 `taskId`、递增序号、发生时间、动作种类、可读摘要、可选目标身份和已处理量。活动在主进程校验后持久化，界面读取最近活动及当前阶段；较长的依据内容从报告读取。任务消息只包含展示所需的摘要和计数。
 
-`MaterialRecord` 是素材库中的单条保存边界。每次转发或节点仓库分析各产生独立记录；相同链接或仓库在不同任务中可以生成不同素材。
+主进程按以下顺序处理工作进程事件：
 
-| 字段 | 必要性 | 含义 |
-| --- | --- | --- |
-| `materialId`、`taskId`、`resultId` | 必需 | 素材身份及其产生任务和任务内结果 |
-| `category` | 必需 | `forwarding` 或 `node_analysis` |
-| `collectedAt`、`displayLabel` | 必需 | 入库时间与列表名称 |
-| `forwarding` | 转发素材必需 | 入口 `app`、`feishu` 或 `telegram`，`SourceContent` 与 `GeneralUnderstanding` |
-| `nodeAnalysis` | 节点分析素材必需 | 项目、方向、图版本与节点引用，以及 `RepositoryAnalysisResult` |
+1. 保存初始任务快照及本次固定的输入身份，再启动工作进程。
+2. 校验并保存阶段结果、活动和进度，随后通知界面。
+3. 校验并保存最终报告及其引用，再将任务标记为完成并通知界面。
+4. 执行中断时保存失败阶段与已完成范围，保留可读阶段结果供重试。
 
-节点分析的 `nodeAnalysis` 保存生成时的 `projectId`、`projectLabel`、`direction`、`graphVersionId` 和 `nodeId`。本项目图、简述、事实与依据从对应的持久图版本读取；目标仓库依据从素材中的分析结果读取。转发素材的 `displayLabel` 优先使用来源标题，未知时使用来源身份或链接信息；节点分析素材使用节点和目标仓库组成可识别名称。
-
-主进程以 `taskId + resultId` 识别重复投递，持久化成功后才通知界面新的 `materialId`。部分获取或完整性未知的转发快照可连同说明保存。`read_failed` 的仓库分析素材保留尝试范围与失败原因。
-
-## 任务快照与消息顺序
-
-`TaskSnapshot` 由主进程持久化并供界面恢复：
-
-| 字段 | 必要性 | 含义 |
-| --- | --- | --- |
-| `taskId` | 必需 | 任务标识 |
-| `kind` | 必需 | `graph_generation`、`repository_analysis` 或 `forwarding` |
-| `target` | 必需 | 图任务的项目与方向；分析任务再含节点和目标仓库；转发任务含链接与入口 |
-| `state` | 必需 | `queued`、`running`、`completed`、`failed` 或 `cancelled` |
-| `phase`、`progress` | 必需 | 用户可理解的阶段与适用的进度；未知总量保持缺失 |
-| `updatedAt`、`message` | 时间必需，说明按需 | 最近持久化时间与可展示说明 |
-| `graphVersionId` | 图生成成功时 | 新建并已设为当前的图版本 |
-| `materialId` | 素材保存成功时 | 本次任务生成的素材 |
-
-1. 界面向主进程提交图初始化或重新生成、仓库分析、转发处理命令；主进程保存初始任务快照，再交付工作进程。
-2. 工作进程用同一 `taskId` 报告阶段。图生成交付完整图版本草稿；仓库分析或转发处理交付带稳定 `resultId` 的素材草稿。
-3. 主进程校验并持久化草稿，更新当前图指针或关联 `materialId`，随后保存任务进度并通知界面。
-4. 任务完成或失败时，主进程先保存最终快照，再通知界面。窗口重开后，界面读取持久化快照、当前图和素材列表恢复状态。
-
-仓库分析的 `read_failed` 是已形成可阅读检查记录的结果；任务本身的 `failed` 表示执行或保存中断，素材列表以成功持久化的记录为准。图生成失败时当前版本指针保持原值。
-
-## 模型连接与凭据
-
-主进程向界面提供脱敏的 `ModelConnectionSummary`：
-
-| 字段 | 必要性 | 含义 |
-| --- | --- | --- |
-| `method`、`status` | 必需 | `generic_api` 或 `codex_subscription`；未配置、需要登录、可用或不可用 |
-| `modelId` | 已选择时 | 当前模型标识 |
-| `baseUrl`、`api` | 通用 API 时 | 经脱敏的服务地址；`openai-responses` 或 `openai-completions` |
-| `hasCredential` | 必需 | 是否已保存凭据 |
-| `accountLabel` | Codex 登录后按需 | 非敏感账号标识 |
-| `message` | 按需 | 可展示的配置、登录或刷新状态 |
-
-界面提交通用 API 配置时可携带一次新 API Key；省略新 API Key 时沿用已保存凭据。Codex 模型目录由登录后的客户端查询，并由当前 Pi 运行时校验兼容性；目录项包含模型标识、可读名称和当前可选状态。刷新失败时保留已有选择，并呈现失败状态。
-
-主进程创建任务时固定内部 `ModelExecutionConfig`，供该任务的 Pi 会话使用。凭据仅在受控执行边界内传递，并随仍在使用它的任务保留；图版本、素材、任务快照、界面通知和普通日志只接收脱敏状态。对外错误信息在凭据边界内脱敏。
+模型连接在任务启动时固定；界面、任务快照、报告和活动均读取脱敏状态。主进程校验来源内容、模型输出、卡片引用和建议变更，再执行持久化。

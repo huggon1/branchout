@@ -1,11 +1,55 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import {
+  spawn,
+  spawnSync,
+  type ChildProcessWithoutNullStreams,
+} from "node:child_process";
 import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 export interface CodexRpc {
   request(method: string, params?: unknown): Promise<unknown>;
   onNotice(listener: (method: string, params: unknown) => void): () => void;
   close(): void;
+}
+export function resolveCodexExecutable(
+  platform = process.platform,
+  home = homedir(),
+  versionOf: (executable: string) => string | undefined = (executable) => {
+    const result = spawnSync(executable, ["--version"], {
+      timeout: 2000,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    });
+    return result.status === 0 ? result.stdout : undefined;
+  },
+) {
+  const desktopBinary = "ChatGPT.app/Contents/Resources/codex";
+  const candidates = [
+    "codex",
+    ...(platform === "darwin"
+      ? [
+          join("/Applications", desktopBinary),
+          join(home, "Applications", desktopBinary),
+        ]
+      : []),
+  ];
+  let selected = "codex";
+  let best = [0, 0, 0];
+  for (const candidate of candidates) {
+    const match = /codex-cli (\d+)\.(\d+)\.(\d+)/.exec(
+      versionOf(candidate) ?? "",
+    );
+    if (!match) continue;
+    const current = match.slice(1).map(Number);
+    const difference = current.findIndex((part, index) => part !== best[index]);
+    if (difference >= 0 && current[difference] > best[difference]) {
+      selected = candidate;
+      best = current;
+    }
+  }
+  return selected;
 }
 export function createCodexEnvironment(
   codexHome: string,

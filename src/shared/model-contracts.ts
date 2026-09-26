@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { FailureCode } from "./task-failure";
 const modelId = z
   .string()
   .trim()
@@ -58,6 +59,7 @@ export interface ModelView {
   models: ModelOption[];
   message: string;
   check: "idle" | "running" | "passed" | "failed" | "cancelled";
+  checkFailure?: FailureCode;
   checkModelId?: string;
   checkIsCurrent?: boolean;
 }

@@ -1,9 +1,8 @@
-import { searchGithub } from "./search";
 import { z } from "zod";
 import {
   repositoryUrlSchema,
   sourceSchema,
-} from "../../../shared/material-contracts";
+} from "../../../shared/source-contracts";
 import type { PlatformAdapter } from "../../types";
 import { normalizeReadme } from "./normalize";
 export async function readGithubRepository(
@@ -71,8 +70,6 @@ export async function readGithubRepository(
 }
 export const github: PlatformAdapter = {
   platform: "github",
-  searchCapability: "available",
-  search: searchGithub,
   readCapability: "available",
   async read(taskId, sourceUrl, signal) {
     const base = { taskId, platform: "github" as const, sourceUrl };

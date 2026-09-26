@@ -11,7 +11,7 @@ import {
   imageUrlSchema,
   sourceUrlSchema,
   xhsNoteUrlSchema,
-} from "../src/shared/material-contracts";
+} from "../src/shared/source-contracts";
 
 const noteId = "684123456789012345678901";
 test("小红书 URL 仅接受笔记与限定短链接，保存时移除访问参数", () => {
@@ -66,7 +66,7 @@ test("小红书详情保留图文顺序可读内容，只允许可信图片域�
   assert.equal(source.completeness, "partial");
 });
 
-test("搜索用临时 xsec_token 读取详情，结果与候选不持久化该参数", async () => {
+test("分享链接用临时 xsec_token 读取详情，结果不持久化该参数", async () => {
   const received: Array<{ path: string; body: unknown }> = [];
   const server = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
@@ -78,34 +78,10 @@ test("搜索用临时 xsec_token 读取详情，结果与候选不持久化该�
       "Bearer fixture-token-012345678901234567890123456789",
     );
     response.setHeader("Content-Type", "application/json");
-    response.end(
-      JSON.stringify(
-        request.url?.endsWith("/feeds/search")
-          ? {
-              success: true,
-              data: {
-                feeds: [
-                  {
-                    id: noteId,
-                    xsecToken: "private-xsec",
-                    noteCard: { displayTitle: "笔记" },
-                  },
-                  {
-                    id: "684123456789012345678902",
-                    xsecToken: "video-xsec",
-                    noteCard: { displayTitle: "视频", type: "video" },
-                  },
-                ],
-              },
-            }
-          : {
-              success: true,
-              data: {
-                data: { note: { title: "笔记", desc: "正文", imageList: [] } },
-              },
-            },
-      ),
-    );
+    response.end(JSON.stringify({
+      success: true,
+      data: { data: { note: { title: "笔记", desc: "正文", imageList: [] } } },
+    }));
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
@@ -117,20 +93,16 @@ test("搜索用临时 xsec_token 读取详情，结果与候选不持久化该�
     });
     const signal = new AbortController().signal;
     const taskId = randomUUID();
-    const search = await adapter.search(taskId, "reading application", signal);
-    assert.equal(search.outcome, "results");
-    assert.equal(search.candidates.length, 1);
-    assert.ok(!JSON.stringify(search).includes("private-xsec"));
     const read = await adapter.read(
       taskId,
-      search.candidates[0].sourceUrl,
+      `https://www.xiaohongshu.com/explore/${noteId}?xsec_token=private-xsec`,
       signal,
     );
     assert.equal(read.outcome, "content");
     if (read.outcome === "content")
       assert.ok(!JSON.stringify(read.content).includes("private-xsec"));
     assert.equal(
-      (received[1].body as { xsec_token: string }).xsec_token,
+      (received[0].body as { xsec_token: string }).xsec_token,
       "private-xsec",
     );
   } finally {
@@ -138,13 +110,9 @@ test("搜索用临时 xsec_token 读取详情，结果与候选不持久化该�
   }
 });
 
-test("未登录的小红书是未覆盖，不伪装成无结果", async () => {
+test("未登录的小红书读取是未覆盖", async () => {
   const adapter = createXhsAdapter();
   const signal = new AbortController().signal;
-  assert.equal(
-    (await adapter.search(randomUUID(), "reading application", signal)).outcome,
-    "not_covered",
-  );
   assert.equal(
     (
       await adapter.read(
