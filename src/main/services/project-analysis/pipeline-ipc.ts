@@ -2,8 +2,8 @@ import { ipcMain } from "electron";
 import { z } from "zod";
 import {
   analysisChannels,
-  type ProjectAnalysisPreflight,
 } from "../../../shared/ipc-contracts";
+import type { ProjectAnalysisPreflight } from "../../../shared/analysis-contracts";
 
 export interface ProjectAnalysisIpcService {
   preflight(projectId: string): Promise<ProjectAnalysisPreflight>;
@@ -16,7 +16,12 @@ export function registerProjectAnalysisPipelineIpc(
   service: ProjectAnalysisIpcService,
   expected: string,
 ) {
-  for (const channel of Object.values(analysisChannels))
+  for (const channel of [
+    analysisChannels.preflight,
+    analysisChannels.start,
+    analysisChannels.retry,
+    analysisChannels.cancel,
+  ])
     ipcMain.handle(channel, async (event, ...args: unknown[]) => {
       if (
         !event.senderFrame ||

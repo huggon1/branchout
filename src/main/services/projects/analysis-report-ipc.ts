@@ -20,7 +20,9 @@ export function registerAnalysisReportIpc(
   for (const channel of Object.values(analysisChannels)) {
     if (
       channel === analysisChannels.preflight ||
-      channel === analysisChannels.start
+      channel === analysisChannels.start ||
+      channel === analysisChannels.retry ||
+      channel === analysisChannels.cancel
     )
       continue;
     ipcMain.handle(channel, async (event, ...args: unknown[]) => {

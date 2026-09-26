@@ -33,6 +33,9 @@ import { FocusCardService } from "./services/focus-cards/focus-card-service";
 import { registerFocusCardIpc } from "./services/focus-cards/focus-card-ipc";
 import { ProjectAnalysisReportService } from "./services/projects/analysis-report-service";
 import { registerAnalysisReportIpc } from "./services/projects/analysis-report-ipc";
+import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipeline-service";
+import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
+import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
 import { TaskService } from "./services/tasks/task-service";
 import { registerTaskIpc } from "./services/tasks/task-ipc";
 import { UnifiedTaskService } from "./services/tasks/unified-task-service";
@@ -61,6 +64,7 @@ else {
   let projects: ProjectService | undefined;
   let focusCards: FocusCardService | undefined;
   let analysisReports: ProjectAnalysisReportService | undefined;
+  let analysisPipeline: ProjectAnalysisPipelineService | undefined;
   let tasks: TaskService | undefined;
   let taskView: UnifiedTaskService | undefined;
   let xAuth: XAuth | undefined;
@@ -97,7 +101,7 @@ else {
     if (shuttingDown || !servicesReady) return;
     event.preventDefault();
     shuttingDown = true;
-    void Promise.all([forwarding?.shutdown(), telegram?.stop()])
+    void Promise.all([forwarding?.shutdown(), analysisPipeline?.shutdown(), telegram?.stop()])
       .then(() => models?.close())
       .catch(() => {
         dialog.showErrorBox(
@@ -163,6 +167,34 @@ else {
       await taskStore.open();
       tasks = new TaskService(taskStore, changed);
       await tasks.recover();
+
+      const analysisInputStore = new ProjectAnalysisInputStore(
+        join(app.getPath("userData"), "project-analysis-inputs.json"),
+      );
+      await analysisInputStore.open();
+      analysisPipeline = new ProjectAnalysisPipelineService({
+        workerPath: join(__dirname, "../worker/jobs/project-analysis/worker-entry.mjs"),
+        spawnWorker: (path) => {
+          const worker = utilityProcess.fork(path, [], {
+            stdio: "pipe",
+            env: createWorkerEnvironment(),
+          });
+          worker.stdout?.resume();
+          worker.stderr?.resume();
+          return worker;
+        },
+        projects: {
+          get: (projectId) =>
+            projects!.view().projects.find((project) => project.projectId === projectId),
+        },
+        focusCards,
+        models,
+        tasks,
+        reports: analysisReports,
+        runInputs: analysisInputStore,
+        notify: changed,
+      });
+      await analysisPipeline.recover();
 
       const forwardingStore = new ForwardingStore(
         join(app.getPath("userData"), "forwarding.json"),
@@ -242,6 +274,7 @@ else {
       registerProjectIpc(projects, expected);
       registerFocusCardIpc(focusCards, expected);
       registerAnalysisReportIpc(analysisReports, expected);
+      registerProjectAnalysisPipelineIpc(analysisPipeline, expected);
       registerTaskIpc(taskView, expected);
       registerForwardingIpc(forwarding, expected);
       registerTelegramIpc(telegram, telegramCredentials, expected, changed);

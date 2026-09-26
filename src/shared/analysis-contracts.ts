@@ -51,6 +51,7 @@ export const projectAnalysisPreflightSchema = z
       z
         .object({
           sessionId: z.string().min(1).max(300),
+          title: z.string().min(1).max(200),
           date: z.string().datetime(),
           attribution: z.enum(["confirmed", "review"]),
           reason: z.string().min(1).max(2000),
@@ -98,6 +99,7 @@ export const projectAnalysisReportSchema = z
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
+    summary: z.string().min(1).max(1400).optional(),
     coverage: z
       .object({
         repositoryRead: z.array(z.string().min(1).max(4096)),
@@ -109,6 +111,11 @@ export const projectAnalysisReportSchema = z
         ),
         commitsRead: z.array(z.string().min(1).max(200)),
         commitsSkipped: z.array(z.string().min(1).max(200)),
+        commitRange: z.object({
+          rangeId: analysisRangeIdSchema,
+          availableCount: z.number().int().nonnegative(),
+          skippedByRange: z.number().int().nonnegative(),
+        }).strict().optional(),
         codexSessionsRead: z.array(z.string().min(1).max(300)),
         codexSessionsSkipped: z.array(z.string().min(1).max(300)),
         codexSessionsFailed: z.array(
@@ -116,6 +123,7 @@ export const projectAnalysisReportSchema = z
             .object({ sessionId: z.string().min(1).max(300), reason: z.string().max(1000) })
             .strict(),
         ),
+        detail: z.unknown().optional(),
       })
       .strict(),
     findings: z.array(
