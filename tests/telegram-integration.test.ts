@@ -158,6 +158,9 @@ test("authorization, durable enqueue, confirmation, and update de-duplication su
     assert.equal(submitted[0].taskId, afterReceive.queuedForwarding[0].taskId);
     assert.equal(submitted[0].telegramMessageKey, `${chatId}:2`);
     assert.equal(reopened.snapshot().queuedForwarding[0].state, "submitted");
+    assert.equal(reopened.snapshot().inbound[1].acknowledgement?.state, "pending");
+    assert.equal(replies.length, 0);
+    await recovered.pollOnce();
     assert.equal(reopened.snapshot().inbound[1].acknowledgement?.state, "sent");
     assert.equal(replies.length, 1);
     assert.ok(replies[0].includes("已收取"));
@@ -181,7 +184,7 @@ test("authorization, durable enqueue, confirmation, and update de-duplication su
     await duplicatePoller.pollOnce();
     assert.equal(reopened.snapshot().inbound.length, 2);
     assert.equal(submitted.length, 1);
-    assert.deepEqual(offsets, [0, 41, 42]);
+    assert.deepEqual(offsets, [0, 41, 42, 42]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
