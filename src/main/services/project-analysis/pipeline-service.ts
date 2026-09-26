@@ -5,9 +5,9 @@ import type {
   ProjectAnalysisWorkerInput,
 } from "../../../worker/jobs/project-analysis/types";
 import { failureMessages } from "../../../shared/task-failure";
-import { readProjectGitHistory } from "../../../worker/readers/git-history";
-import { readProjectRepository } from "../../../worker/readers/repository";
-import { discoverCodexSessionCandidates } from "../../../worker/readers/codex-sessions";
+import { readProjectGitHistory } from "../../../readers/git-history";
+import { readProjectRepository } from "../../../readers/repository";
+import { discoverCodexSessionCandidates } from "../../../readers/codex-sessions";
 import type { ModelService } from "../model-service";
 
 const rangeIdSchema = z.enum(["recent_30", "recent_100"]);

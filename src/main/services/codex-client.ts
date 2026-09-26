@@ -91,6 +91,7 @@ export class CodexClient implements CodexRpc {
   constructor(
     private home: string,
     private executable = "codex",
+    private version = "0.1.0",
   ) {}
   private start() {
     return (this.ready ??= (async () => {
@@ -148,7 +149,7 @@ export class CodexClient implements CodexRpc {
       child.on("error", () => this.close());
       child.on("exit", () => this.close());
       await this.send("initialize", {
-        clientInfo: { name: "branchout", version: "0.1.0" },
+        clientInfo: { name: "branchout", version: this.version },
         capabilities: { experimentalApi: false },
       });
       child.stdin.write(JSON.stringify({ method: "initialized" }) + "\n");
