@@ -90,7 +90,7 @@ jobs:
           REQUIRE_SIGNING_AUTHORITY: Branchout Release Signing
       - uses: actions/upload-artifact@v7
         with:
-          name: branchout-${{ github.ref_name }}
+          name: branchout-${{ github.run_id }}
           path: |
             release/*.dmg
             release/*.zip
@@ -115,7 +115,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: branchout-${{ github.ref_name }}
+          name: branchout-${{ github.run_id }}
           path: artifacts
       - name: Write checksums
         working-directory: artifacts

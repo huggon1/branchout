@@ -185,6 +185,10 @@ try {
     console.log(
       "Diagnostic status",
       (await window.evaluate(() => window.branchout.modelView())).value?.check,
+      "alerts",
+      await window.getByRole("alert").allTextContents(),
+      "connection status",
+      await window.getByRole("status").allTextContents(),
       "request paths",
       requests.map((item) => item.path),
     );
