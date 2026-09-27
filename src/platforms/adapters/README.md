@@ -1,11 +1,11 @@
-# 平台适配
+# Platform adapters
 
-`adapters` 实现转发链接的来源读取。各适配器把来源正文、图片、身份信息和获取范围转换为上级 `types.ts` 定义的结果；转发平台范围见[产品规格](../../../docs/product-spec.md#转发理解与关联)。
+`adapters` read the sources of submitted links. Each converts source text, images, identity, and retrieval scope into results defined by the parent `types.ts`. See [supported sources](../../../docs/product-spec.md#submission-understanding-and-connections).
 
-## 文件分工
+## File layout
 
-- `github/`：读取转发的公开 GitHub 仓库链接内容。
-- `x/`：读取转发的 X 帖子。
-- `xhs/`：读取转发的小红书笔记。
+- `github/`: public GitHub repository links.
+- `x/`: X posts.
+- `xhs/`: Xiaohongshu notes.
 
-每个平台的 `index.ts` 暴露适配器；平台专用的客户端调用与结果规范化留在对应目录。共用的读取结果格式由上级目录维护。
+Each platform exposes an adapter through its `index.ts`. Platform-specific clients and normalization stay in their directories; the parent module owns the shared result format.

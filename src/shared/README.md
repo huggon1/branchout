@@ -1,21 +1,19 @@
-# Shared
+# Shared contracts
 
-本文导览当前跨进程契约。字段含义与目标保存顺序见[数据与消息契约](../../docs/data-contracts.md)。
+This guide describes current cross-process contracts. The [data contracts](../../docs/data-contracts.md) define field meaning and target persistence order.
 
-`shared` 定义界面、Electron 主进程、Agent 工作进程和内容适配器共用的命令、结果及校验结构。业务动作由对应运行区域执行，跨进程入口对命令和结果再次校验。
+`shared` defines commands, results, and validation structures used by the renderer, Electron main process, Agent worker, and source adapters. Each runtime area executes its own business actions; cross-process entry points validate commands and results again.
 
-## 契约分工
+## Contract layout
 
-- `project-contracts`：项目绑定与规范化目录身份。
-- `focus-contracts`：关注卡、冻结版本和活跃集合快照。
-- `source-contracts`：转发链接、来源快照及内容块。
-- `forwarding-view-contracts`：界面读取的转发任务与报告结构。
-- `analysis-contracts`：仓库、commit、Codex 会话输入，证据、分析报告和卡片建议。
-- `task-contracts`：统一任务状态、阶段结果、活动与取消。
-- `model-contracts`：模型连接状态及任务执行配置。
-- `telegram-contracts` 与 `platform-contracts`：Telegram 接入及内容平台读取结果。
-- `ipc-contracts`：界面与主进程的命令及事件。
+- `project-contracts`: bindings and normalized directory identity.
+- `focus-contracts`: cards, frozen versions, and active-set snapshots.
+- `source-contracts`: links, source snapshots, and content blocks.
+- `forwarding-view-contracts`: content task and report structures read by the UI.
+- `analysis-contracts`: repository, commit, and Codex session inputs; evidence, reports, and suggestions.
+- `task-contracts`: unified state, stage results, activity, and cancellation.
+- `model-contracts`: model connection state and execution configuration.
+- `telegram-contracts` and `platform-contracts`: Telegram and source-reader results.
+- `ipc-contracts`: renderer-to-main commands and events.
 
-转发和项目分析的工作进程命令与结果分别由 `worker/jobs/forwarding/contracts.ts`、`worker/jobs/project-analysis/types.ts` 定义。
-
-卡片版本、报告和任务都通过稳定身份引用，工作进程交付草稿，主进程负责最终状态。
+Worker commands and results for content and analysis are defined in `worker/jobs/forwarding/contracts.ts` and `worker/jobs/project-analysis/types.ts` respectively. Cards, reports, and tasks use stable references. Workers deliver drafts; the main process owns final state.

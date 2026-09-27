@@ -1,21 +1,21 @@
 # Worker
 
-本文描述 Agent 工作进程的当前职责。任务输入和结果见[数据与消息契约](../../docs/data-contracts.md)，运行设计见[架构总览](../../docs/architecture-overview.md)。
+This document describes current Agent worker responsibilities. See [data contracts](../../docs/data-contracts.md) for task input and output and the [architecture overview](../../docs/architecture-overview.md) for runtime design.
 
-## 任务
+## Tasks
 
-- **转发任务**：读取规范化链接，生成来源内容的通用理解，对输入快照中的每张活跃关注卡作关联判断，并交付来源、理解、覆盖情况及关联结果。
-- **项目分析任务**：读取本机仓库当前内容、选定 Git commit 历史和确认归属的 Codex 会话，形成有依据的发现及新增或修改关注卡的建议。
-- **模型支持**：为每次任务创建独立 Pi 会话，使用主进程固定的模型配置，交付结构化阶段与活动事件。
+- **Content:** Read a normalized link, generate general understanding, evaluate every active card in the input snapshot, and return source, understanding, coverage, and connections.
+- **Project analysis:** Read current local repository content, selected Git commits, and attributed Codex sessions to produce evidence-backed findings and create or update suggestions.
+- **Model support:** Create an independent Pi session for each task using configuration frozen by the main process; deliver structured stage and activity events.
 
-工作进程接受已核定的项目目录、来源范围、卡片版本和取消信号。读取器输出可定位来源及实际覆盖范围；推理模块消费这些规范化输入。主进程负责结果校验、持久化、任务状态与建议接受。
+Workers receive approved directories, source scope, card versions, and cancellation signals. Readers return locatable sources and actual coverage; reasoning modules consume normalized inputs. The main process validates results, persists state, manages tasks, and accepts suggestions.
 
-## 模块分工
+## Module layout
 
-- `jobs/forwarding/worker-entry.ts`：接收转发任务命令并运行来源读取、通用理解与逐卡关联。
-- `jobs/project-analysis/worker-entry.ts`：接收项目分析任务命令并生成发现与卡片建议。
-- [readers](../readers/README.md)：主进程预览与工作进程分析共用的本机来源读取。
-- `reasoning/`：理解内容、判断关联和生成分析建议的模型输入与输出校验。
-- `pi-runtime.ts` 与 `model-worker.ts`：Pi 会话、模型连接检查和执行边界。
+- `jobs/forwarding/worker-entry.ts`: source retrieval, understanding, and per-card evaluation.
+- `jobs/project-analysis/worker-entry.ts`: findings and card suggestions.
+- [readers](../readers/README.md): local inputs shared by previews and analysis.
+- `reasoning/`: model input and output validation for understanding, connections, and suggestions.
+- `pi-runtime.ts` and `model-worker.ts`: Pi sessions, model checks, and execution boundaries.
 
-每个读取器报告实际范围和失败位置，任务阶段将用户可读摘要发送给主进程的任务后台。
+Each reader reports actual scope and failure locations. Task stages send readable summaries to the main-process task center.
