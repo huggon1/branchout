@@ -1,52 +1,52 @@
-# Branchout 架构总览
+# Branchout architecture overview
 
-本文描述目标架构。产品行为以[产品规格](product-spec.md)为准，跨模块字段与任务消息以[数据与消息契约](data-contracts.md)为准。源码目录的目标分工见[源码导览](../src/README.md)。
+This document describes the target architecture. The [product specification](product-spec.md) defines behavior, [data contracts](data-contracts.md) define cross-module fields and task messages, and the [source guide](../src/README.md) describes intended module boundaries.
 
-## 运行边界与数据所有权
+## Runtime boundaries and data ownership
 
-Branchout 使用 Electron、React 和 TypeScript。界面进程负责呈现及提交操作；桌面主进程拥有项目绑定、关注卡、转发报告、项目分析报告、任务与配置的可写状态；独立 Agent 工作进程读取指定输入并执行 Pi 模型会话。内容来源适配器负责 GitHub、X 和小红书的获取与规范化。
+Branchout uses Electron, React, and TypeScript. The renderer presents state and submits actions. The desktop main process owns writable project bindings, focus cards, content reports, analysis reports, tasks, and configuration. A separate Agent worker reads approved inputs and runs Pi model sessions. Source adapters retrieve and normalize GitHub, X, and Xiaohongshu content.
 
-主进程校验界面命令与工作进程结果，持久化成功后通知界面。窗口关闭时，仍存活的桌面主进程继续处理任务；应用进程重新启动后，从持久化快照恢复任务状态并接收 Telegram 待处理消息。运行中断的 Agent 任务根据保存的阶段标记为可重试，已经保存的报告和阶段结果继续可读。
+The main process validates renderer commands and worker results, persists them, then notifies the renderer. A surviving main process continues tasks when the window closes. After process restart, saved snapshots restore task state and Telegram pending messages are received. Interrupted Agent tasks become retryable according to saved stages; saved reports and stage results remain readable.
 
-系统使用一套项目身份，由项目绑定统一提供目录与名称。关注卡、任务和报告通过该项目身份关联；各存储模块按对象职责读写并引用同一项目记录。
+One project-binding service provides project identity, directory, and name. Cards, tasks, and reports reference that identity. Each storage module reads and writes its own objects against the same project record.
 
-## 转发处理流水线
+## Content submission pipeline
 
-应用内提交和 Telegram 消息进入同一转发入队服务。Telegram 接入在主进程中拉取 Bot 更新，校验聊天身份、解析单条链接，并以更新身份去重。消息、任务和待发送确认一起写入本地状态；接入服务发送确认后记录发送结果，重启时继续处理待发送确认。应用启动时从持久化的更新游标继续拉取 Telegram 仍提供的消息。
+In-app submissions and Telegram messages enter one content queue. Telegram integration fetches bot updates in the main process, validates chat identity, parses one link, and deduplicates by update identity. It persists the inbound message, task, pending acknowledgment, and cursor together. After sending acknowledgment, it saves delivery status and resumes pending sends after restart. Startup resumes from the persisted update cursor for messages Telegram still provides.
 
-主进程在启动转发任务时冻结全部活跃关注卡的当前版本，记录卡片数量和版本标识，并交给工作进程。工作进程先通过平台适配器获取来源快照，再生成通用理解，最后对冻结集合中的每张卡完成关联判断。卡片可以分批送入模型；每批输出经过校验与合并，遗漏卡片进入待重试批次。完成状态要求全部卡片都有判断结果。关联结论引用转发来源和冻结卡片。
+At task start, the main process freezes current versions of every active focus card and records their count and version IDs. The worker retrieves the source snapshot through a platform adapter, generates general understanding, then evaluates each frozen card. Cards may be processed in batches; validated batch results are merged, and missing cards enter retry batches. Completion requires an evaluation for every card. Connections cite the source and frozen card.
 
-来源、通用理解和关联分别作为可保存的阶段结果。主进程按任务与阶段的稳定身份去重，校验来源定位和卡片引用，再形成最终报告。某阶段失败时已保存阶段继续可读；重试从可复用的阶段结果继续，全部阶段成功后保存完整报告供用户阅读。
+Source, general understanding, and connections are separately saved stages. The main process deduplicates by stable task and stage identity, validates source locations and card references, then forms the final report. Saved stages remain readable after a failure; retries reuse valid stage results. The complete report is saved after every stage succeeds.
 
-## 项目分析流水线
+## Project analysis pipeline
 
-项目分析任务先建立本机仓库输入快照，记录仓库目录、Git HEAD、工作区状态、实际读取的文件和 commit 范围。Codex 会话读取器从本机索引和会话元数据发现候选，依据工作目录与 Git 仓库身份判断归属；用户在提交前确认待选会话。确定性的会话解析器清理应用附加内容，交付用户发言和必要的最终助手回复及其消息定位；同一规则生成候选预览与正式输入。模型思考、工具调用与输出、系统配置及凭据由解析器过滤。模型按输入预算分批读取来源，报告记录实际使用与跳过的范围。
+Analysis first records a local repository input snapshot: directory, Git HEAD, worktree status, files actually read, and commit range. A Codex session reader discovers candidates from local indexes and metadata and attributes them using working directory and Git repository identity. Users confirm selected sessions before submission. A deterministic parser removes application-added content and returns user messages and necessary final assistant replies with message locations. The same rules produce previews and full input. It filters model thinking, tool calls and output, system configuration, and credentials. The model reads bounded batches; reports record used and skipped scope.
 
-工作进程以项目快照、commit 记录和已选 Codex 对话生成发现、依据及关注卡变更建议。每条建议标明目标卡及其基准版本，或标明新增卡。主进程校验结果并保存冻结报告。接受建议由主进程执行：新增卡创建首个版本，修改卡先比较当前版本与建议的基准版本，再保存新版本与接受记录。
+The worker uses repository snapshots, commits, and selected Codex conversations to produce findings, evidence, and card-change suggestions. Suggestions identify a target card and base version or a new card. The main process validates and saves a frozen report. For acceptance, it creates a first card version or compares an existing card with the suggestion's base version before saving a new version and acceptance record.
 
-输入来源的实际覆盖范围随报告保存。各来源读取失败时，任务记录已完成的来源与失败位置，界面据此呈现可阅读的部分结果或重试入口。
+Actual input coverage is saved with the report. Source failures record completed sources and failure locations so the UI can present readable partial results or retry actions.
 
-## 任务后台与 Agent 活动
+## Task center and Agent activity
 
-主进程分别保存转发任务的阶段结果与项目分析任务的状态。任务后台从两类已保存记录生成统一视图。工作进程交付结构化阶段事件与简短活动事件，包括动作、目标类型、已处理量及可展示摘要；主进程校验并持久化近期事件，然后向界面广播。页面切换及窗口重开后，任务后台从保存记录恢复当前阶段和近期动作。
+The main process saves content stage results and analysis task states separately, then builds a unified task-center view. The worker emits structured stage and short activity events with action, target type, processed count, and displayable summary. The main process validates and persists recent events before broadcasting. Page changes and window reopening restore stage and activity from saved records.
 
-活动是执行过程的可读记录，报告中的来源依据承担结论核验。工作进程传出的活动文本经过长度、来源与敏感字段校验；模型凭据、工作对话原文和完整工具输出留在受控执行边界。任务完成、失败或取消时，主进程先写入最终状态和结果引用，再通知界面。
+Activities provide readable execution history; report evidence supports conclusions. Worker activity text is checked for length, origin, and sensitive fields. Model credentials, raw work conversations, and complete tool output stay inside controlled execution boundaries. On completion, failure, or cancellation, the main process writes final state and result reference before notifying the renderer.
 
-## 模型、Telegram 与本机访问
+## Models, Telegram, and local access
 
-模型连接由主进程管理，任务启动时取得固定的执行配置；工作进程只接收本次任务所需的连接和输入。通用 API 凭据使用操作系统保护的本地存储，Codex 订阅账号沿用 Codex 登录机制。Telegram Bot 凭据和获准聊天身份由主进程管理，界面读取脱敏状态。
+The main process manages model connections and freezes task configuration at launch. Workers receive only the connection and input needed for their tasks. General API credentials use operating-system-protected local storage; Codex subscription accounts use the Codex login mechanism. The main process manages Telegram bot credentials and authorized chat identities, exposing redacted status to the renderer.
 
-仓库文件、Git 历史和 Codex 会话经专门读取器取得。每个读取器接收主进程核定的项目目录、来源范围与取消信号，输出有界内容和来源定位。外部内容与本机对话均作为分析数据；工具权限与任务步骤由应用代码控制。
+Dedicated readers obtain repository files, Git history, and Codex sessions. Each receives an approved project directory, source range, and cancellation signal from the main process, then emits bounded content and source locations. External content and local conversations are analysis data; application code controls tool permissions and task steps.
 
-## 目标代码结构
+## Target code structure
 
-源码按稳定的领域边界组织：
+Stable domain boundaries organize the source:
 
-- `src/shared/`：项目、关注卡、转发报告、分析报告、任务、模型和接入消息的跨进程契约。
-- `src/main/`：项目与关注卡服务、统一任务调度、转发入队、分析报告与建议接受、Telegram 接入、原子持久化和受控 IPC。
-- `src/readers/`：仓库快照、Git 历史和 Codex 会话读取器，供主进程预览与工作进程分析使用。
-- `src/worker/`：转发与项目分析两类任务；内容理解、逐卡关联和建议生成。
-- `src/platforms/`：GitHub、X、小红书的来源内容适配器。
-- `src/renderer/`：内容阅读、关注卡、项目分析、任务后台与设置页面；页面共享状态组件。
+- `src/shared/`: cross-process contracts for projects, cards, content and analysis reports, tasks, models, and integration messages.
+- `src/main/`: project and card services, unified scheduling, content queue, analysis reports and suggestion acceptance, Telegram, atomic persistence, and controlled IPC.
+- `src/readers/`: repository snapshots, Git history, and Codex session readers shared by previews and analysis.
+- `src/worker/`: content and analysis tasks, understanding, per-card evaluation, and suggestion generation.
+- `src/platforms/`: GitHub, X, and Xiaohongshu source adapters.
+- `src/renderer/`: content reading, cards, analysis, task center, settings, and shared state components.
 
-跨模块契约以[数据与消息契约](data-contracts.md)为准。
+The [data contracts](data-contracts.md) define cross-module fields.

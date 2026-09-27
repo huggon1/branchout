@@ -1,56 +1,56 @@
-# Branchout 产品规格
+# Branchout product specification
 
-Branchout 帮助用户把主动收集的内容与正在构建的项目联系起来。用户为本机项目维护关注卡；每次转发解析形成内容报告，并指出内容与哪些活跃关注卡有关。项目分析读取仓库和相关工作记录，形成可审阅的关注卡变更建议。
+Branchout helps users connect actively collected content to projects they are building. Users maintain focus cards for local projects. Each submitted link produces a content report that identifies connections to active cards. Project analysis reads the repository and related work records to produce reviewable card-change suggestions.
 
-本文描述目标产品行为。当前已实现能力以根目录 [README](../README.md) 为准。
+This document describes target product behavior. The root [README](../README.md) describes currently available capabilities.
 
-## 产品范围
+## Product scope
 
-Branchout 提供两项相互衔接的能力：
+Branchout provides two connected capabilities:
 
-1. **内容关联**：绑定本机 Git 仓库，手动维护关注卡，通过应用内添加链接或 Telegram 转发，阅读内容理解与关注关联。
-2. **项目分析**：读取本机仓库当前内容、Git commit 历史和与项目关联的本机 Codex 工作对话，生成项目分析报告及关注卡变更建议；用户逐项接受建议。
+1. **Content connections:** Bind a local Git repository, maintain focus cards manually, submit links in the app or through Telegram, and read content understanding and focus connections.
+2. **Project analysis:** Read current local repository content, Git commit history, and local Codex work conversations associated with the project. Produce an analysis report and card-change suggestions for individual acceptance.
 
-## 项目与关注卡
+## Projects and focus cards
 
-用户绑定本机 Git 仓库作为项目。一个项目可以有多张关注卡；每张卡只属于一个项目。项目名称和本机目录由项目绑定管理，关注卡正文由用户编写。
+A user binds a local Git repository as a project. A project has multiple focus cards; each card belongs to one project. The project binding manages its name and local directory; the user writes the card text.
 
-关注卡是一段偏短、可以独立理解的自由文本。用户在其中写明必要的项目背景和感兴趣的角度，使后续关联任务仅凭卡片内容即可判断转发内容的关系。编辑器用说明和示例引导写法，保存时保持用户写下的正文；分类、关键词和章节由用户自行决定。用户手动创建和修改关注卡。
+A focus card is short, independently understandable free text. It includes enough project context and an angle of interest for later connection tasks to evaluate submitted content from the card alone. The editor guides writing with instructions and an example. Saving preserves the user's text; the user chooses any categories, keywords, or sections. Users create and edit cards manually.
 
-每张卡具有稳定身份、活跃或暂停状态及版本。活跃卡参与后续转发关联；暂停卡保留在项目中供编辑和重新启用。卡片内容或状态变化产生新版本，已保存报告继续引用生成时使用的版本。项目页可以按项目查看、创建、编辑、暂停和启用关注卡。
+Each card has a stable identity, an active or paused state, and versions. Active cards participate in later connections. Paused cards remain available for editing and reactivation. Content or state changes create new versions; saved reports retain the version used at generation time. The Focus Cards page supports viewing, creating, editing, pausing, and activating cards by project.
 
-用户解绑项目后，该项目移入历史项目区，所属关注卡退出活跃集合；已完成的转发报告和项目分析报告继续保存生成时的项目名称及卡片版本，供历史阅读。
+Unbinding moves a project into history and removes its cards from the active set. Completed content and analysis reports retain the project name and card versions used at generation time.
 
-## 转发、理解与关联
+## Submission, understanding, and connections
 
-用户通过应用内添加链接或 Telegram 向 Branchout 提交单条链接。可读取的内容来源为 GitHub 公开仓库、X 帖子和小红书笔记；来源适配器分别报告读取范围、内容完整性及失败原因。
+Users submit one link through the app or Telegram. Readable sources are public GitHub repositories, X posts, and Xiaohongshu notes. Each source adapter reports retrieval scope, completeness, and failures.
 
-Telegram 连接由用户在设置中配置并绑定获准的聊天。Bot 收到链接并完成本地入队后回复收取确认。桌面应用运行时处理队列；应用重新打开后获取 Telegram 仍提供的待处理消息，按消息身份去重并继续处理。完整报告在桌面应用内阅读。
+Users configure Telegram and bind authorized chats in Settings. Once the bot receives and locally queues a link, it acknowledges receipt. The desktop app processes the queue while running. When reopened, it retrieves pending messages still available from Telegram, deduplicates by message identity, and resumes processing. Full reports are read in the desktop app.
 
-每条转发形成一份独立报告，包含来源快照、基于已获取内容的通用理解，以及与活跃关注卡的关联。来源正文和图片、模型生成的理解、关联判断分别呈现。内容获取不完整或完整性未知时，报告说明实际获取范围；理解和关联以该范围为依据。
+Each submission creates an independent report containing a source snapshot, general understanding of retrieved content, and connections to active focus cards. The UI distinguishes source text and images, model-generated understanding, and connection judgments. For partial or unknown retrieval completeness, the report states actual coverage; understanding and connections rely on that coverage.
 
-关联任务使用转发来源快照及任务启动时的全部活跃关注卡版本，覆盖所有项目。它逐张判断相关性，呈现每条有依据的关联；结果可以为零，数量随实际相关卡片增长。每条关联指明项目、关注卡、关联方式和支撑判断的转发内容。关联判断以来源快照和冻结的卡片正文为输入；项目分析独立读取仓库与工作记录。
+A connection task uses the source snapshot and versions of every active card frozen at task start, across all projects. It evaluates each card and shows every evidence-backed connection. The result may contain zero connections and grows with actual relevance. Each connection names the project, card, relationship, and supporting source content. Project analysis reads repository and work records separately.
 
-来源读取、通用理解或关联阶段出现故障时，界面显示已完成的阶段与可重试操作。已取得且通过校验的来源和理解可供用户阅读；完整报告在关联阶段成功结束后形成。
+If source retrieval, understanding, or connection evaluation fails, the UI shows completed stages and a retry action. Valid saved source and understanding results remain readable. A complete report forms after connection evaluation succeeds.
 
-## 项目分析与建议
+## Project analysis and suggestions
 
-用户从项目页启动项目分析。一次分析读取该本机仓库的当前文件、可定位的 Git commit 历史，以及本机 Codex 中可核实属于该项目的工作对话。报告记录实际读取的来源、范围、项目状态和读取失败的部分，使结论可回看。
+Users start project analysis from a project page. Each run reads the current local repository, locatable Git commit history, and local Codex work conversations verifiably associated with that project. Its report records actual sources, coverage, project state, and read failures for later inspection.
 
-项目分析说明当前项目值得持续关注的角度，并给出新增关注卡或修改现有关注卡的建议。建议正文同样包含独立关联所需的项目背景和关注角度；每条建议还包含理由及所依据的仓库、commit 或对话片段。建议作为报告的一部分保存；用户逐项接受后，系统创建新卡或写入现有卡的新版本。接受时核对目标卡的当前版本，版本已变化时由用户重新审阅该建议。
+Analysis identifies angles worth watching and suggests creating or updating cards. Each suggested card includes the context and angle needed for independent matching. Each suggestion includes rationale and supporting repository, commit, or conversation excerpts. Suggestions remain part of the report. Accepting one creates a card or a new version of an existing card. Acceptance compares the target card's current version with its suggested base version; a change asks the user to review the suggestion again.
 
-仓库和 Codex 对话作为项目分析的输入。分析界面在启动前列出已识别的对话来源、项目归属、可用用户发言预览和覆盖范围；用户调整所选会话，归属待确认的会话由用户明确选入。会话读取器用固定代码清理应用附加内容，提取用户发言和有助于理解上下文的最终助手回复，保留消息定位。项目分析分批处理所选来源，从用户表达的目标、反复关注的问题、取舍及未解决事项提炼关注角度；报告记录实际使用的来源、批次数和读取失败的部分。
+The analysis UI lists identified conversations, project attribution, available previews of user messages, and coverage before launch. Users adjust selected sessions and explicitly include sessions with uncertain attribution. A deterministic reader removes application-added content, extracts user messages and final assistant replies needed for context, and retains message locations. Analysis processes selected sources in batches, drawing angles from user goals, recurring concerns, tradeoffs, and unresolved issues. The report records sources actually used, batch counts, and read failures.
 
-## 内容、报告与任务
+## Content, reports, and tasks
 
-内容页汇集转发报告，支持按标题、来源、时间和关联项目查找。阅读页以来源正文和图片为阅读主体，分别展示通用理解及关联卡片；从关联项可以进入对应项目和关注卡。历史报告保持生成时的关联理由和卡片版本。
+The Content page gathers reports and supports searching by title, source, time, and related project. Reading centers on source text and images, then shows general understanding and connected cards. A connection links to its project and card. Historical reports retain their original rationale and card versions.
 
-项目分析报告归属项目，在项目页集中查看。报告保存分析结论、输入覆盖范围、证据和建议的接受状态。项目和卡片后来变化时，旧报告仍呈现生成时的判断。
+Analysis reports belong to projects and are listed on project pages. They retain conclusions, input coverage, evidence, and suggestion acceptance status. Later project or card changes leave historical judgments intact.
 
-任务后台汇集转发与项目分析任务，显示排队、运行、完成、失败及取消状态。运行中展示当前阶段、最近的可读活动、已处理范围和下一步；用户可以从应用其他页面返回任务，完成后打开结果。窗口重新打开时，任务后台从已保存状态恢复。
+The task center combines content and analysis tasks, showing queued, running, completed, failed, and canceled states. Running tasks show the current stage, recent readable activity, processed scope, and next step. Users can return from other pages and open results on completion. Reopening the window restores saved task state.
 
-## 设置与运行边界
+## Settings and runtime boundaries
 
-设置包括一个当前模型连接、Telegram 接入以及各内容来源的读取配置。通用 API 连接配置 API Key、服务地址、接口类型和模型标识，接口类型为 OpenAI Responses 或 OpenAI Chat Completions。Codex 订阅连接通过 ChatGPT 账号登录，并从当前账号与客户端可用的模型中选择。新配置供后续任务使用，运行中的任务沿用启动时的配置。
+Settings contain one current model connection, Telegram access, and source reader configuration. A general API connection stores an API key, service URL, API type, and model ID; the API type is OpenAI Responses or OpenAI Chat Completions. A Codex subscription connection uses ChatGPT account login and selects an available model for that account and client. New configuration applies to later tasks; running tasks retain their start-time configuration.
 
-项目文件、Git 历史和 Codex 对话经本机受控读取，模型任务只获得本次分析选定的内容。Telegram 接入只接受已绑定聊天的消息；凭据保存在受保护的本地存储中。报告、任务活动和界面状态使用脱敏后的内容与错误说明。来源内容及工作对话作为分析数据处理，执行指令由应用控制。
+Controlled local readers access project files, Git history, and Codex conversations. Model tasks receive only the content selected for that analysis. Telegram accepts messages from bound chats; credentials reside in protected local storage. Reports, task activity, and UI state use redacted content and error summaries. Source content and work conversations are analysis data; application code controls execution instructions.

@@ -1,49 +1,49 @@
-# Branchout UX 规格
+# Branchout UX specification
 
-产品行为以[产品规格](product-spec.md)为准。本文描述目标页面结构、用户流程和可见状态；共用交互规则见[设计系统](design-system.md)。
+The [product specification](product-spec.md) defines product behavior. This document describes target page structure, user flows, and visible states. The [design system](design-system.md) defines shared interaction rules.
 
-## 导航与首屏
+## Navigation and opening screen
 
-左侧导航依次为“内容”“项目”“关注卡”“任务”“设置”，项目位于所属关注卡之前。应用打开后进入内容列表；任务运行时，导航中的任务入口持续显示当前运行数量与需要处理的状态。用户在任一页面都能打开任务后台，查看 Agent 的当前工作。
+The left navigation shows Content, Projects, Focus Cards, Tasks, and Settings, in that order. Projects precede their cards. The app opens on the Content list. While tasks run, the Tasks entry continually shows the running count and states needing attention. Users can open the task center from any page to inspect current Agent work.
 
-“内容”用于提交链接、查找转发报告和连续阅读。“关注卡”按项目汇总卡片。“项目”管理本机仓库绑定，并承载项目分析及其报告。“任务”显示正在执行和最近完成的工作。“设置”管理模型、Telegram 和内容来源。
+Content supports link submission, report search, and continuous reading. Focus Cards groups cards by project. Projects manages local repository bindings, analysis, and reports. Tasks shows current and recently completed work. Settings manages models, Telegram, and content sources.
 
-## 关注卡编辑
+## Focus card editing
 
-关注卡页先显示项目选择，再显示该项目的活跃与暂停卡。卡片列表用正文首行或简短摘录作识别名称，并显示状态和更新时间。进入卡片可阅读完整正文及版本；创建和编辑使用一处自由文本编辑区。
+The Focus Cards page shows project selection, then active and paused cards. Lists use the first line or a short excerpt as an identifying label, plus status and update time. Card details show full text and version. Creation and editing use a single free-text area.
 
-编辑区的辅助说明提醒用户写入必要的项目背景和感兴趣的角度，给出一张短卡示例。保存后的正文按用户原文呈现。卡片状态操作靠近当前卡；暂停与重新启用后，列表和后续转发任务使用更新后的状态。报告中的卡片入口打开当时版本，并提供进入当前版本的路径。
+Guidance asks for necessary project context and an angle of interest, with one short example. Saved text appears as written. Status actions sit by the card; after pausing or reactivation, lists and later submissions use the updated state. Card links in reports open the historical version and offer a route to the current one.
 
-## 内容列表与阅读
+## Content list and reading
 
-内容列表顶部提供“添加链接”，并支持搜索、来源、时间和关联项目筛选。每条内容显示来源标题或可识别的链接信息、获取状态、完成时间和相关项目。关联为零的报告在列表和阅读页都有明确状态。
+The Content list offers Add Link at the top and filters for search, source, time, and related project. Each item shows a title or identifiable link, retrieval status, completion time, and related projects. Reports with zero connections have an explicit state in the list and reading view.
 
-阅读页一次聚焦一条内容。稳定的返回、上一条和下一条操作保留列表筛选与浏览位置。页面顺序为来源身份和完整性、来源正文及图片、通用理解、“与你的关注有关”。关联区按项目分组，逐项显示卡片摘录、具体关联、支撑判断的来源片段和卡片入口。关联条数随结果完整展示，长列表通过分组与折叠维持可读性。
+The reading view focuses on one item. Stable back, previous, and next actions retain filters and list position. The page presents source identity and completeness, source text and images, general understanding, then “Connected to your focus.” Connections group by project and show the card excerpt, specific relationship, supporting source excerpt, and card link. All results remain available; grouping and collapse keep long lists readable.
 
-任务仅完成部分阶段时，阅读页显示已保存的来源或理解、当前未完成阶段及重试入口。来源完整性说明靠近正文；关联阶段的失败说明靠近关联区。
+When only some stages finish, the reading view shows saved source or understanding, the unfinished stage, and a retry action. Completeness appears by the source; connection failures appear by the connection area.
 
-## Telegram 转发体验
+## Telegram forwarding
 
-设置页展示 Telegram 的连接状态、获准聊天和连接步骤。用户在绑定的聊天中发送受支持链接；应用获取并持久化消息后，Bot 回复收取确认。桌面应用再次打开时，任务后台显示正在获取与处理的积压消息。用户在应用内查看完整报告。
+Settings shows Telegram connection status, authorized chats, and setup steps. Sending a supported link in a bound chat produces a receipt acknowledgment after the app retrieves and persists the message. On reopening, the task center shows pending messages being retrieved and processed. Full reports appear in the app.
 
-同一条 Telegram 消息只生成一条转发任务。消息含多条链接或格式未受支持时，Bot 给出可操作的提交提示；单条链接的处理状态以应用内任务后台为准。
+One Telegram message produces one content task. For multiple links or unsupported formats, the bot gives actionable submission guidance. The app task center is the authority for processing status.
 
-## 项目分析与报告
+## Project analysis and reports
 
-项目页显示本机仓库及绑定状态。进入项目后，页面提供关注卡概览、分析入口和历史报告列表。已解绑项目归入历史区，保留报告与引用卡片的阅读入口。
+Projects lists local repositories and binding status. A project page shows its card overview, analysis action, and historical reports. Unbound projects move to history while retaining report and referenced-card reading paths.
 
-开始分析前，界面列出计划读取的仓库范围、Git 历史范围及识别到的 Codex 会话。会话选择器展示候选数、选中数、预览范围内的用户发言数量与摘录、项目归属；搜索、筛选、分组和批量操作帮助用户调整范围。归属待确认的会话由用户明确选入，索引扫描范围和提交读取的会话数量在提交前可见。分析报告先显示结论与覆盖范围，再显示具体发现和证据，最后逐项显示新增或修改关注卡的建议。
+Before analysis, the UI lists the planned repository range, Git history range, and discovered Codex sessions. The session selector shows candidate and selected counts, user-message counts and excerpts in preview coverage, and project attribution. Search, filtering, grouping, and bulk actions help adjust the set. Users explicitly include sessions with uncertain attribution; scan scope and submitted session count are visible before launch. The report shows conclusions and coverage, then findings and evidence, then card suggestions.
 
-每条建议提供原卡与建议正文的对照、理由、依据和“接受”操作。接受后展示新卡或新版本的入口；目标卡已变化时，界面展示当前内容和建议内容，等待用户重新审阅。
+Each suggestion compares the original and proposed card, shows rationale and evidence, and offers Accept. Acceptance links to the new card or version. If the target changed, the UI displays current and proposed text for another review.
 
-## 任务后台
+## Task center
 
-任务页以任务名称、关联项目或来源链接、状态、开始时间和结果入口组织列表。运行中的任务置于前面。详情按时间显示 Agent 的近期活动，例如“读取来源”“理解内容”“检查第 8/16 张关注卡”“读取 12 条 commit”“分析已选 Codex 会话”“整理建议”。活动记录显示实际完成的动作和数量；总量未知时只显示已完成量。
+The task list uses task name, project or source link, status, start time, and result. Running tasks appear first. Details show recent Agent activities in time order, such as reading a source, understanding content, checking card 8 of 16, reading 12 commits, analyzing selected Codex sessions, or preparing suggestions. Activities show actual actions and counts; unknown totals leave only completed counts visible.
 
-用户离开任务页后，导航仍显示运行状态；再次进入时恢复最近活动和当前阶段。任务完成后直接打开内容报告或项目分析报告。失败与取消状态显示已完成范围、原因和可执行的重试操作。任务活动使用用户可理解的摘要，详细依据留在报告中。
+Navigation retains running status after leaving Tasks. Returning restores recent activity and current stage. Completed tasks open their content or analysis reports. Failed and canceled states show completed scope, reason, and retry action. Activities use readable summaries; reports contain detailed evidence.
 
-## 设置与常见状态
+## Settings and common states
 
-模型设置展示一个当前连接，在通用 API 与 Codex 订阅账号之间选择。Telegram 区域展示连接、聊天绑定及消息接收状态。内容来源区域展示 GitHub、X 和小红书的读取能力与配置状态。
+Model settings show one current connection, selected from general API and Codex subscription. Telegram shows connection, chat binding, and message receipt. Content sources show GitHub, X, and Xiaohongshu reader capability and configuration.
 
-空项目、空关注卡、无关联、无报告、模型未配置、来源读取失败和分析输入不足分别使用对应状态说明，并给出下一步操作。窗口变窄时保留内容阅读轴与主要操作，任务活动和关联列表在各自区域滚动。
+Empty projects, empty cards, zero connections, empty reports, missing model configuration, source failures, and insufficient analysis input each show a distinct state and next action. Narrow windows preserve the reading axis and primary actions; activities and connections scroll within their sections.

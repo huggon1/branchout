@@ -1,23 +1,23 @@
-# Main
+# Main process
 
-本文描述 Electron 主进程的当前职责。运行设计见[架构总览](../../docs/architecture-overview.md)，跨模块对象见[数据与消息契约](../../docs/data-contracts.md)。
+This document describes current Electron main-process responsibilities. See the [architecture overview](../../docs/architecture-overview.md) for runtime design and [data contracts](../../docs/data-contracts.md) for cross-module objects.
 
-## 职责
+## Responsibilities
 
-`main` 拥有项目绑定、关注卡版本、转发报告、项目分析报告、统一任务快照及模型与 Telegram 配置。界面命令和工作进程结果在这里校验；状态持久化成功后再通知界面或发送 Telegram 确认。
+`main` owns project bindings, card versions, content and analysis reports, unified task snapshots, and model and Telegram configuration. It validates renderer commands and worker results, persisting state before notifying the renderer or acknowledging Telegram.
 
-项目绑定使用一个身份源。关注卡编辑、状态切换及建议接受由同一服务维护版本；转发任务在启动时冻结全部活跃卡。Telegram 接入按入站消息身份去重，应用启动后继续获取可用的积压消息。转发与项目分析分别持久化执行状态，任务后台通过统一视图读取两类任务。
+One service owns project identity. Card editing, status changes, and suggestion acceptance maintain versions. Content tasks freeze all active cards at launch. Telegram deduplicates by inbound message identity and resumes available pending messages at startup. Content and analysis tasks persist their execution state separately; Tasks reads a unified view.
 
-## 模块分工
+## Module layout
 
-- `main.ts`、`window.ts`、`preload.ts`：应用生命周期、窗口、受控界面桥接。
-- `services/projects` 与 `services/focus-cards`：项目绑定、卡片版本及活跃集合快照。
-- `services/forwarding`：应用内与 Telegram 的统一转发入队、阶段结果保存及报告发布。
-- `services/project-analysis`：分析预览、任务输入、报告保存、建议接受与版本冲突处理；预览使用[本机来源读取器](../readers/README.md)。
-- `services/tasks`：项目分析任务的状态与活动，以及供任务后台读取两类任务的统一视图。
-- `integrations/telegram`：Bot 连接、获准聊天校验、更新游标与收取确认。
-- `services/model-service.ts`、`services/codex-client.ts` 与 `storage/model-store.ts`：模型连接、Codex 登录、任务执行配置与凭据生命周期。
-- `services/runtime-layout.ts`：确定开发与安装包中的应用资源路径，并交给工作进程。
-- `storage/`：项目、卡片版本、报告、任务和接入游标的原子持久化。
+- `main.ts`, `window.ts`, `preload.ts`: app lifecycle, window, and controlled renderer bridge.
+- `services/projects` and `services/focus-cards`: project binding, card versions, and active-set snapshots.
+- `services/forwarding`: shared in-app and Telegram queue, stage persistence, and report publication.
+- `services/project-analysis`: preview, task input, report persistence, suggestion acceptance, and version conflicts. Previews use [local readers](../readers/README.md).
+- `services/tasks`: analysis state and activity, plus a unified content and analysis view.
+- `integrations/telegram`: bot connection, authorized chats, update cursor, and receipt acknowledgment.
+- `services/model-service.ts`, `services/codex-client.ts`, `storage/model-store.ts`: model connection, Codex login, execution configuration, and credential lifecycle.
+- `services/runtime-layout.ts`: app resource paths in development and packaged builds for workers.
+- `storage/`: atomic persistence for projects, card versions, reports, tasks, and integration cursors.
 
-主进程调用工作进程时传递本次任务核定的输入与模型配置，界面只读取受控结果和脱敏状态。
+The main process passes approved task input and model configuration to workers. The renderer reads controlled results and redacted state.

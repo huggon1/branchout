@@ -1,15 +1,15 @@
 # Platforms
 
-本文描述转发内容的平台接入职责。目标来源范围见[产品规格](../../docs/product-spec.md#转发理解与关联)，读取结果见[数据与消息契约](../../docs/data-contracts.md#转发来源与报告)。
+This document describes source access for content tasks. See the [product specification](../../docs/product-spec.md#submission-understanding-and-connections) for target sources and [data contracts](../../docs/data-contracts.md#submitted-sources-and-reports) for results.
 
-## 职责与依赖
+## Responsibilities and dependencies
 
-`platforms` 为转发任务读取用户提交的 GitHub、X 和小红书链接，返回规范化的内容快照、读取状态和配置提示。Agent 工作进程通过统一接口调用对应适配器，平台实现负责来源内容的获取与规范化。
+`platforms` reads submitted GitHub, X, and Xiaohongshu links and returns normalized source snapshots, retrieval status, and configuration guidance. The Agent worker calls the appropriate adapter through a shared interface. Each adapter fetches and normalizes source content.
 
-平台适配可使用 Node.js 网络和进程能力、平台 SDK 或独立工具。Telegram Bot 负责接收链接并交给主进程入队，来源内容仍由这里的适配器读取。
+Adapters may use Node.js network and process capabilities, platform SDKs, or standalone tools. The Telegram bot receives links for main-process queuing; these adapters still read their source content.
 
-## 文件分工
+## File layout
 
-- `types.ts`：定义转发平台的读取请求、内容结果和能力状态接口。
-- `registry.ts`：按链接来源选择平台适配器并传入对应的临时读取凭据。
-- [adapters](adapters/README.md)：封装 GitHub、X 和小红书的来源读取与规范化。
+- `types.ts`: read requests, content results, and capability status interfaces.
+- `registry.ts`: adapter selection by URL and temporary reader credentials.
+- [adapters](adapters/README.md): GitHub, X, and Xiaohongshu retrieval and normalization.

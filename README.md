@@ -1,49 +1,53 @@
+<p align="center"><img src="assets/branchout-app-icon.svg" width="112" alt="Branchout app icon"></p>
+
 # Branchout
 
-**让收集到的内容，和你正在做的项目产生联系。**
+**Connect what you collect to the projects you are building.**
 
-读到一篇文章时，你也许知道它有用，却还说不清它能帮到哪个项目。Branchout 让你为本机 Git 项目写下简短的**关注卡**。添加链接或转发到 Telegram 后，它会保存来源内容，生成阅读报告，并指出内容与哪些关注卡有关、依据是什么。项目分析还能从仓库、Git 历史和你选定的 Codex 工作对话中提出新的关注角度，供你审阅。
+[简体中文](README.zh-CN.md)
 
-## 🧭 怎么使用
+You may recognize that an article is useful before you know which project it helps. Branchout lets you write short **focus cards** for local Git projects. When you add a link or forward one through Telegram, it saves the source content, creates a reading report, and shows which focus cards relate to it and why. Project analysis can also suggest new angles to watch based on the repository, Git history, and Codex work conversations you select for review.
 
-1. 绑定本机 Git 仓库，写一张关注卡，说明项目背景和持续关注的问题。卡片可以很短，例如：“项目允许用户离线保存内容；我关注保存失败时的提示和重试过程。”
-2. 在内容页添加链接，或从 Telegram 转发链接。报告展示取得的来源内容、内容理解，以及与活跃关注卡的关联和依据；内容与所有卡片都无关时，报告显示 0 条关联。
+![An article connecting to two relevant focus cards](assets/branchout-hero.png)
 
-## ✨ 你可以做什么
+## 🧭 How to use it
 
-- **维护项目与关注卡**：绑定本机 Git 仓库，手写、编辑、暂停或重新启用关注卡，保留卡片版本。
-- **阅读内容报告**：添加 GitHub 公开仓库、X 帖子和小红书笔记链接；查看来源正文、图片、获取范围、内容理解和有依据的关注关联。
-- **从 Telegram 收集链接**：在获准聊天中发送单条链接，收到入队确认；完整报告在桌面应用中阅读。应用再次打开时继续处理 Telegram 仍提供的积压消息。
-- **分析项目**：选取 Git commit 和相关 Codex 工作对话，查看实际覆盖范围、项目发现与关注卡建议；逐条审阅并接受建议。
-- **查看任务进展**：在任务后台查看当前阶段、近期动作、结果与失败原因。
+1. Bind a local Git repository and write a focus card describing the project and a question you want to keep watching. A short card is enough: “This project lets people save content offline. I care about the feedback and retry flow when a save fails.”
+2. Add a link on the Content page or forward one from Telegram. The report shows the retrieved source, an understanding of its content, and evidence for any connections to active focus cards. When no card is relevant, the report shows zero connections.
 
-项目、卡片、报告和任务保存在本机。模型任务会读取本次所需的来源内容或选定的项目材料，并交给你配置的模型连接处理。
+## ✨ What you can do
 
-## 📦 下载与开始使用
+- **Manage projects and focus cards:** Bind local Git repositories; write, edit, pause, and reactivate focus cards while retaining their versions.
+- **Read content reports:** Add links to public GitHub repositories, X posts, and Xiaohongshu notes. Review source text and images, retrieval coverage, content understanding, and evidence-backed connections.
+- **Collect links from Telegram:** Send one link in an authorized chat and receive a queue confirmation. Read the full report in the desktop app. When the app opens again, it continues processing pending messages still available from Telegram.
+- **Analyze a project:** Select Git commits and related Codex work conversations. Review actual input coverage, project findings, and focus card suggestions; accept suggestions one by one.
+- **Follow task progress:** See the current stage, recent actions, results, and failure reasons in the task center.
 
-安装包发布在 [GitHub Releases](https://github.com/huggon1/branchout/releases)。下载 DMG，打开后将 Branchout 拖入“应用程序”。
+Projects, cards, reports, and tasks are stored locally. Model tasks receive the source content or selected project material needed for that run and use the model connection you configure.
 
-**支持平台**
+## 📦 Download and get started
 
-- macOS · Apple 芯片
+Installers are available on [GitHub Releases](https://github.com/huggon1/branchout/releases). Download the DMG, open it, and drag Branchout into Applications.
 
-安装包使用项目自签名证书，尚未经过 Apple 公证；首次打开时 macOS 可能提示开发者身份无法验证。
+**Supported platform:** macOS on Apple silicon.
 
-打开应用后，在“设置”中连接通用 API 或 Codex 订阅账号。Codex 订阅连接使用本机可用的 Codex 命令行程序。然后绑定一个本机 Git 仓库，写一张关注卡，就可以从“内容”页添加链接。X 和小红书内容需在设置中完成对应登录；Telegram 转发需先配置 Bot 并授权聊天。
+The installer uses a project self-signed certificate and has not been notarized by Apple. macOS may warn that it cannot verify the developer when you first open the app.
 
-## 从源码运行
+In Settings, connect a general API or a Codex subscription account. The Codex subscription connection uses an available local Codex CLI. Then bind a local Git repository, write a focus card, and add a link from the Content page. X and Xiaohongshu require their respective sign-ins in Settings; Telegram forwarding requires a configured bot and an authorized chat.
 
-开发需要 Node.js 24 或更新版本：
+## Run from source
+
+Development requires Node.js 24 or newer:
 
 ```bash
 npm ci
 npm run dev
 ```
 
-源码运行时，X 和小红书读取组件分别通过 `npm run setup:x`、`npm run setup:xhs` 准备。发布构建会把这些组件放入应用资源中。
+When running from source, prepare the X and Xiaohongshu readers with `npm run setup:x` and `npm run setup:xhs`. Release builds include these components in the app resources.
 
-## 进一步了解
+## Learn more
 
-- [产品设计](docs/product-spec.md)与[页面流程](docs/ux-spec.md)
-- [设计系统](docs/design-system.md)
-- [架构总览](docs/architecture-overview.md)、[数据契约](docs/data-contracts.md)与[源码导览](src/README.md)
+- [Product specification](docs/product-spec.md) and [UX specification](docs/ux-spec.md)
+- [Design system](docs/design-system.md)
+- [Architecture overview](docs/architecture-overview.md), [data contracts](docs/data-contracts.md), and [source guide](src/README.md)

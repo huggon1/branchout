@@ -1,10 +1,10 @@
-# 本机来源读取
+# Local source readers
 
-`readers` 提供项目分析使用的本机输入。主进程用同一套读取器生成提交前预览，工作进程在任务执行时读取选定范围；两处使用一致的项目归属和来源定位规则。分析行为见[产品规格](../../docs/product-spec.md#项目分析与建议)，输入范围见[数据与消息契约](../../docs/data-contracts.md#项目分析输入与结果)。
+`readers` provide local project-analysis input. The main process uses them for pre-submit previews; workers read selected scope during execution. Both paths use the same project attribution and source-location rules. See [analysis behavior](../../docs/product-spec.md#project-analysis-and-suggestions) and [input contracts](../../docs/data-contracts.md#project-analysis-input-and-results).
 
-| 目录 | 职责 |
+| Path | Responsibility |
 | --- | --- |
-| `repository/` | 读取当前仓库文件、Git HEAD 和工作区状态，记录文件范围与位置 |
-| `git-history/` | 读取选定提交范围的元数据、消息与差异 |
-| `codex-sessions/` | 发现候选会话、核验项目归属，并提取选定对话的用户发言与最终回复 |
-| `shared.ts` | 受控 Git 调用、取消检查、路径与敏感内容处理 |
+| `repository/` | Current files, Git HEAD, worktree state, and file scope and locations |
+| `git-history/` | Metadata, messages, and diffs for selected commits |
+| `codex-sessions/` | Candidate discovery, project attribution, and user messages and final replies from selected conversations |
+| `shared.ts` | Controlled Git calls, cancellation checks, and path and sensitive-content handling |
