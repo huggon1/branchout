@@ -51,3 +51,8 @@ When running from source, prepare the X and Xiaohongshu readers with `npm run se
 - [Product specification](docs/product-spec.md) and [UX specification](docs/ux-spec.md)
 - [Design system](docs/design-system.md)
 - [Architecture overview](docs/architecture-overview.md), [data contracts](docs/data-contracts.md), and [source guide](src/README.md)
+- [Release process](docs/releasing.md) for maintainers
+
+## License
+
+Branchout is available under the [MIT License](LICENSE).
