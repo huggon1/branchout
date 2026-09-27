@@ -1,22 +1,22 @@
-# 文档规则
+# Documentation rules
 
-这些规则适用于仓库内所有项目文档。
+These rules apply to all project documentation in the repository.
 
-- 项目文档使用中文。对外 README 描述已实现且验证的可用产品，不把设计目标写成已上线能力。
-- 每项事实只保留一个权威来源，其他文档通过链接引用。已确认内容写入仓库；讨论中的问题、备选答案和会议过程留在仓库外。
-- 长期文档直接描述系统的目标行为与设计，不依赖对话、重构过程或旧实现；必要的历史理由写入决策记录。
-- 文档可以描述未来代码蓝图，但必须明确区分目标设计、当前实现和已验证运行结果。
-- 只有存在长期独立职责时才新增文档或局部 README/AGENTS.md；保持简洁，不创建空占位文档。
+- Write project documentation in English. Keep the root `README.md` as the English public entry point and `README.zh-CN.md` as its corresponding Chinese version. Describe available, verified capabilities in both READMEs; describe target behavior in specifications.
+- Keep one authoritative source for each fact and link to it from other documents. Record confirmed information in the repository; keep open questions, alternatives, and meeting discussion outside the long-lived docs.
+- Describe target behavior and design directly in long-lived documents. Put important historical rationale in decision records when needed.
+- Label target design, current implementation, and verified runtime results when a document discusses more than one state.
+- Add a document or local README/AGENTS.md when it has a lasting, distinct responsibility. Keep each document concise and substantive.
 
-文档职责：
+Document responsibilities:
 
-- 根 README：对外定位、当前能力和使用方式。
-- 根 AGENTS.md：全局规则和文档路由。
-- docs/AGENTS.md：文档治理规范。
-- 产品规格：功能范围和业务规则，是目标产品行为的唯一事实来源。
-- [UX 规格](ux-spec.md)：流程、信息层级和页面行为。
-- [设计系统](design-system.md)：共用视觉与交互规则。
-- 架构总览：系统关系、运行边界和数据所有权。
-- [数据与消息契约](data-contracts.md)：跨模块字段、保存边界与消息约定。
-- 模块 README：局部职责、依赖和关键文件蓝图。
-- 决策记录：按需解释重要决定的理由。
+- Root READMEs: public positioning, current capabilities, and usage in English and Chinese.
+- Root AGENTS.md: repository rules and documentation routing.
+- docs/AGENTS.md: documentation governance.
+- [Product specification](product-spec.md): feature scope and business rules; authority for target product behavior.
+- [UX specification](ux-spec.md): flows, information hierarchy, and page behavior.
+- [Design system](design-system.md): shared visual and interaction rules.
+- [Architecture overview](architecture-overview.md): system relationships, runtime boundaries, and data ownership.
+- [Data contracts](data-contracts.md): cross-module fields, persistence boundaries, and message conventions.
+- Module READMEs: local responsibilities, dependencies, and key file layout.
+- Decision records: rationale for important choices when needed.

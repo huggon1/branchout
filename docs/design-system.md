@@ -1,52 +1,52 @@
-# Branchout 设计系统
+# Branchout design system
 
-本文定义目标界面跨页面共用的信息层级与交互规则。页面任务见[UX 规格](ux-spec.md)。
+This document defines the target interface's shared information hierarchy and interaction rules. See the [UX specification](ux-spec.md) for page flows.
 
-## 信息层级与文案
+## Information hierarchy and copy
 
-- 一个界面突出当前任务最重要的信息；同级标题、说明和操作围绕用户正在处理的对象排列。
-- 来源内容、模型理解、关注关联和项目分析发现使用明确的区段标题与来源标识。
-- 状态文案区分排队、运行、未覆盖、零关联、内容不完整、读取失败和模型执行失败，并说明用户可以采取的下一步。
-- 卡片摘录、项目名称和来源标题在列表中保持可识别；完整正文和证据在详情中呈现。
-- 时间、数量和进度显示实际记录的值；总量未知时显示已完成量和当前动作。
+- Each screen emphasizes the most important information for the current task. Peer headings, explanations, and actions surround the object the user is handling.
+- Source content, model understanding, focus connections, and project analysis findings use distinct section headings and source labels.
+- Status copy distinguishes queued, running, uncovered, zero connections, incomplete content, source read failure, and model failure, and offers the next action.
+- Lists keep card excerpts, project names, and source titles identifiable. Detail views show complete text and evidence.
+- Times, counts, and progress use recorded values. When the total is unknown, show the completed count and current action.
 
-## 操作层级
+## Action hierarchy
 
-- 常见任务的主要操作靠近对象：添加链接位于内容页，编辑与状态切换位于关注卡，启动分析位于项目，接受建议位于对应建议。
-- 保存、取消、返回阅读流及任务结果入口保持稳定位置。处理中控件保留位置并显示状态。
-- 图标操作提供可读的无障碍名称与键盘焦点；涉及接受建议、暂停卡片或取消任务的操作使用明确文字。
-- 页面切换保持用户已选择的项目、列表筛选和阅读位置；任务入口持续显示运行状态。
+- Place common primary actions by their objects: add a link on Content, edit or change status on a focus card, start analysis on a project, and accept a suggestion on that suggestion.
+- Keep save, cancel, return-to-reading, and task-result actions in stable positions. Controls retain their positions and show status during processing.
+- Icon actions have readable accessible names and keyboard focus. Use explicit text for accepting suggestions, pausing cards, and canceling tasks.
+- Page transitions retain the selected project, list filters, and reading position. The task entry continues to show running status.
 
-## 关注卡与关联
+## Focus cards and connections
 
-- 关注卡编辑以单个自由文本区为核心，辅助说明以示例引导“必要项目背景 + 感兴趣角度”，与正文保持视觉区分。
-- 活跃与暂停状态同时使用文字和视觉标识。历史卡片版本标明保存时间及版本，当前版本入口清楚可见。
-- 内容报告的关联区按项目分组，逐项呈现卡片、关联理由和来源片段；每项的依据靠近其结论。零关联使用完整状态说明。
-- 关联条数随结果增长时，项目组可折叠；组内保留结果总数与清楚的展开入口。
+- Focus card editing centers on one free-text field. Guidance illustrates “necessary project context + angle of interest” and is visually separate from the saved content.
+- Active and paused states use both text and visual cues. Historical versions show save time and version, with a clear route to the current version.
+- Group report connections by project. Show each card, connection rationale, and source excerpt together. Give zero connections a complete state message.
+- As the connection count grows, project groups can collapse while retaining a result count and clear expand action.
 
-## 报告阅读
+## Reading reports
 
-- 阅读页保持一个主要纵向阅读轴。来源正文与图片优先呈现，通用理解和关注关联各成独立区段。
-- 来源正文、模型解释和历史卡片内容使用不同的标题与引用样式，便于辨认事实来源。
-- 项目分析报告先显示结论与覆盖范围，再展示发现、证据及卡片建议。新增与修改建议使用一致的对照结构，接受状态贴近建议。
-- 部分获取或阶段失败的说明靠近受影响内容，保留已经取得的可读部分。
+- The reading view follows one primary vertical axis. Source text and images lead; general understanding and focus connections form separate sections.
+- Distinct headings and quotation styles identify source text, model interpretation, and historical card content.
+- Project analysis reports show conclusions and coverage first, then findings, evidence, and card suggestions. Create and update suggestions use the same comparison structure, with acceptance status beside the suggestion.
+- Place partial retrieval and stage-failure messages by affected content, retaining readable completed results.
 
-## 任务后台
+## Task center
 
-- 运行中任务突出当前阶段、最新活动和已处理量；较早活动按时间排列，结果入口在完成后接替主要操作。
-- 活动摘要使用用户能理解的动作与对象，详细依据由报告呈现。
-- 任务状态通过文字、图标和颜色共同传达；失败与取消显示已完成范围和对应操作。
-- 导航任务提示与后台详情读取同一状态，页面切换与窗口重开后的呈现保持连续。
+- Running tasks emphasize the current stage, latest activity, and processed count. Earlier activities follow time order; a result link becomes the primary action on completion.
+- Activity summaries name understandable actions and objects; reports contain detailed evidence.
+- Text, icons, and color communicate status together. Failed and canceled tasks show completed scope and a corresponding action.
+- Navigation indicators and task details use the same saved status across page changes and window reopening.
 
-## 窗口与共用状态
+## Window and shared states
 
-- 窄左导航保持稳定，主要空间交给内容阅读、卡片编辑或任务活动。
-- 宽度变窄时先重排次要信息、关联分组和操作区；正文与控件保留可读尺寸。
-- 控件至少覆盖默认、悬停、按下、键盘焦点、禁用和处理中状态。焦点轮廓清楚可见，状态变化保持布局稳定。
-- 内容图片沿阅读轴按原始比例显示；长正文、长关联列表及活动记录分别在适合的区域滚动。
+- Keep a narrow, stable left navigation and devote the main area to reading, card editing, or task activity.
+- As width shrinks, reflow secondary information, connection groups, and actions while keeping text and controls readable.
+- Controls cover default, hover, pressed, keyboard focus, disabled, and processing states. Focus outlines remain visible and state changes preserve layout.
+- Show source images at their original aspect ratio along the reading axis. Scroll long text, connection lists, and activity logs in their appropriate areas.
 
-## 品牌图标
+## Brand icon
 
-应用图标使用[圆角浅绿色折带图标](design/branchout-icon-light-master.png)。界面品牌标志使用相同折带轮廓的透明背景版本，直接呈现在侧栏底色上。两处图形共用绿色层次和展开方向。
+The app icon uses the [rounded pale-green folded-ribbon master](design/branchout-icon-light-master.png). The interface brand mark uses the same silhouette on a transparent background over the sidebar color. Both share the green palette and opening direction.
 
-字体、间距、控件高度和断点通过 Electron 窗口与交互验证确定；内容区段以本文及 UX 规格为准。
+Choose font, spacing, control height, and breakpoints through Electron window and interaction validation. This document and the UX specification define the content sections.
