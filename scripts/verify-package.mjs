@@ -116,21 +116,8 @@ try {
     firstProcess.once("exit", onExit);
   });
   if (!exited) throw new Error("Relocated app stayed running after the smoke check");
-  console.log("Relocated app process exited before follow-up checks");
+  console.log("Relocated app exited after smoke check");
   application = undefined;
-
-  for (const check of [
-    "scripts/check-model-ui.mjs",
-    "scripts/check-analysis-desktop.mjs",
-  ])
-    execFileSync(process.execPath, [check], {
-      env: {
-        ...process.env,
-        BRANCHOUT_APP_PATH: executablePath,
-        BRANCHOUT_PACKAGE_CWD: root,
-      },
-      stdio: "inherit",
-    });
 } finally {
   if (application) await application.close();
   await rm(root, { recursive: true, force: true });

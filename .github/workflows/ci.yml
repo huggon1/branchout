@@ -30,6 +30,7 @@ jobs:
       - run: npm run prepare:runtime
       - run: npm run package:app
       - run: npm run verify:package
+      - run: npm run verify:package-ui
       - run: npm run verify:release
       - uses: actions/upload-artifact@v7
         with:
