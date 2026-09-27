@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   macos-arm64:
-    runs-on: macos-15-arm64
+    runs-on: macos-15
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
