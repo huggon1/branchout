@@ -85,7 +85,6 @@ jobs:
       - run: npm test
       - run: npm run prepare:runtime
       - run: npm run package:app
-      - run: npm run verify:package
       - run: npm run verify:release
         env:
           REQUIRE_SIGNING_AUTHORITY: Branchout Release Signing
@@ -97,6 +96,7 @@ jobs:
             release/*.zip
           if-no-files-found: error
           retention-days: 7
+      - run: npm run verify:package
       - name: Remove temporary signing material
         if: always()
         shell: bash
