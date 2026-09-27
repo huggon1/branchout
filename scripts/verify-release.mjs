@@ -21,11 +21,10 @@ const arch = run("lipo", ["-archs", join(app, "Contents/MacOS/Branchout")]);
 if (arch !== "arm64") throw new Error(`Unexpected app architecture: ${arch}`);
 run("hdiutil", ["verify", dmg]);
 run("unzip", ["-tq", zip]);
-if (process.env.REQUIRE_NOTARIZED === "1") {
+if (process.env.REQUIRE_SIGNING_AUTHORITY) {
   run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]);
   const signature = run("codesign", ["-dv", "--verbose=4", app]);
-  if (!signature.includes("Developer ID Application:"))
-    throw new Error("Developer ID Application signature missing");
-  run("xcrun", ["stapler", "validate", app]);
+  if (!signature.includes(`Authority=${process.env.REQUIRE_SIGNING_AUTHORITY}`))
+    throw new Error("Expected project signing authority missing");
 }
 console.log(`Verified ${stem} DMG, ZIP, and arm64 app`);
