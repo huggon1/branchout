@@ -1,105 +1,56 @@
-![Branchout — Grow your ideas. Build with confidence.](assets/hero.png)
-
 # Branchout
 
-**Grow your ideas. Build with confidence.**
+**让收集到的内容，和你正在做的项目产生联系。**
 
-English · [简体中文](README.zh-CN.md) · [Get started](#-get-started) · [Inside the app](#-inside-the-app)
+读到一篇文章时，你也许知道它有用，却还说不清它能帮到哪个项目。Branchout 让你为本机 Git 项目写下简短的**关注卡**。添加链接或转发到 Telegram 后，它会保存来源内容，生成阅读报告，并指出内容与哪些关注卡有关、依据是什么。项目分析还能从仓库、Git 历史和你选定的 Codex 工作对话中提出新的关注角度，供你审阅。
 
-Building a project isn't always about knowing how to code. Sometimes you're unsure what's worth pursuing. Sometimes you already have an idea, but the references, context, and insights that could help you develop it are scattered everywhere.
+![Branchout 内容报告与关注卡的示意示例](assets/readme-example.svg)
 
-**Branchout is a project companion for independent developers.** Grounded in your project, it helps you discover, collect, and understand useful information—turning scattered findings into perspectives and evidence you can build on. Whether you're exploring a new direction or developing an existing idea, the goal is the same: a clearer picture and more confidence to move forward.
+> 图中是专门编写的虚构示例，用于说明报告如何组织来源、理解与关联；它不是一次真实的模型输出。
 
-## 🌱 What makes Branchout different
+## 一个使用示例
 
-### Grounded in your project
+假设你正在开发本机阅读应用 **Daymark**，写下一张关注卡：
 
-Your code and commit history provide a meaningful starting point. Branchout uses them to understand what your project does and how it's evolving, so exploration starts with context rather than a blank prompt.
+> Daymark 保存用户稍后阅读的文章。我关注离线保存失败时的状态提示、重试过程，以及用户如何确认内容已经保留。
 
-### Exploration, ready to use
+你添加一篇讨论离线队列与失败重试的文章。Branchout 的报告会先展示实际取得的来源内容和通用理解，再判断这篇文章是否与关注卡相关。如果有关，关联项会说明文章中哪段内容支持这个判断；如果没有，报告也可以显示 **0 条关联**。关联判断直接使用卡片中的项目背景和关注角度。
 
-Research methods, exploration angles, and platform connections are already assembled. Choose from the available directions and start exploring—without designing a research workflow or writing prompts yourself.
+## 你可以做什么
 
-### Perspective for what you're building
+- **维护项目与关注卡**：绑定本机 Git 仓库，手写、编辑、暂停或重新启用关注卡，保留卡片版本。
+- **阅读内容报告**：添加 GitHub 公开仓库、X 帖子和小红书笔记链接；查看来源正文、图片、获取范围、内容理解和有依据的关注关联。
+- **从 Telegram 收集链接**：在获准聊天中发送单条链接，收到入队确认；完整报告在桌面应用中阅读。应用再次打开时继续处理 Telegram 仍提供的积压消息。
+- **分析项目**：选取 Git commit 和相关 Codex 工作对话，查看实际覆盖范围、项目发现与关注卡建议；逐条审阅并接受建议。
+- **查看任务进展**：在任务后台查看当前阶段、近期动作、结果与失败原因。
 
-Discover new possibilities and deepen ideas you already have. Bring useful information into focus, keep the context behind it, and develop a more informed view of where your project could go.
+项目、卡片、报告和任务保存在本机。模型任务会读取本次所需的来源内容或选定的项目材料，并交给你配置的模型连接处理。
 
-## 🚀 Get started
+## 下载与开始使用
 
-Currently supported: **macOS on Apple Silicon**. The interface is currently in Chinese. Development requires **Node.js 22.19.0 or later** and Git.
+安装包发布在 [GitHub Releases](https://github.com/huggon1/branchout/releases)。下载 DMG，打开后将 Branchout 拖入“应用程序”。
 
-```sh
-git clone https://github.com/huggon1/branchout.git
-cd branchout
+**支持平台**
+
+- macOS · Apple 芯片
+
+安装包使用项目签名，尚未经过 Apple 公证；首次打开时 macOS 可能提示开发者身份无法验证。
+
+打开应用后，在“设置”中连接通用 API 或 Codex 订阅账号。Codex 订阅连接使用本机可用的 Codex 命令行程序。然后绑定一个本机 Git 仓库，写一张关注卡，就可以从“内容”页添加链接。X 和小红书内容需在设置中完成对应登录；Telegram 转发需先配置 Bot 并授权聊天。
+
+## 从源码运行
+
+开发需要 Node.js 24 或更新版本：
+
+```bash
 npm ci
-npm start
+npm run dev
 ```
 
-The first start downloads the required platform runtimes if they're missing.
+源码运行时，X 和小红书读取组件分别通过 `npm run setup:x`、`npm run setup:xhs` 准备。发布构建会把这些组件放入应用资源中。
 
-1. Open **Settings (设置)** and choose a Codex or OpenAI-compatible model connection. Model access requires your own account or API credentials and may incur provider charges.
-2. In **Project understanding (项目理解)**, select a local Git project and run its initial analysis.
-3. In **Material exploration (素材探索)**, choose the project, an exploration angle, platforms, and a time range. Review the resulting material and its relevance to your project.
+## 进一步了解
 
-Connect Xiaohongshu or X when you want to use those sources. Telegram and Feishu bots are optional ways to forward links; you can also paste links directly into the app.
-
-## 🔎 Inside the app
-
-All screenshots below are captured from the actual application using fictional projects and content in an isolated demo workspace. They contain no personal projects, accounts, or live research results.
-
-### Understand the project you already have
-
-Read a project overview, meaningful recent changes, and the code evidence behind them. Analysis is tied to a specific commit; you decide when to update it.
-
-![Project overview and development timeline for the fictional Sproutboard project](assets/screenshots/project.png)
-
-### Explore with a starting point
-
-Built-in angles currently cover comparable products, user needs, product experience, acquisition and pricing, and relevant tools or capabilities. Explore GitHub, Xiaohongshu, and X; inspect sources and why they matter instead of receiving an unexplained list of links.
-
-![Project, exploration angles, platforms, and time-range selection](assets/screenshots/exploration.png)
-
-<details>
-<summary>See the material library</summary>
-
-Filter discoveries by project, angle, platform, or exploration run. Sources and their relationships to different projects remain distinct.
-
-![Four fictional discoveries with summaries and relevance to the demo project](assets/screenshots/materials.png)
-
-</details>
-
-### Keep the ideas you find along the way
-
-Paste GitHub or Xiaohongshu links, or forward them through a connected Telegram or Feishu bot. Branchout parses the content into a local reading workspace with collections, original text, and separately labeled AI summaries.
-
-![Collected fictional references alongside the original article and its summary](assets/screenshots/collection.png)
-
-Collection is also useful on its own. Saved links are not currently fed automatically into project exploration or Feed generation.
-
-### Turn selected discoveries into a Feed
-
-Choose material from exploration, arrange it into sections, and generate a readable Feed. Historical Feeds retain the source snapshots used to create them; missing evidence and failed items remain visible rather than being filled with invented content.
-
-## 🛠 Build and contribute
-
-```sh
-npm run check          # Tests, types, build, and document links
-npm run test:desktop   # Isolated desktop interaction tests
-npm run prepare:runtime
-npm run package:app
-```
-
-The packaged application is written to `build/Branchout-darwin-arm64/Branchout.app`. Signing, notarization, and clean-machine distribution validation are not yet complete.
-
-To reproduce the fictional screenshots, run `npm run screenshots`. It creates and removes a temporary workspace without using your normal application data. See [AGENTS.md](AGENTS.md) for repository rules.
-
-## A few things to know
-
-- Application data is stored locally in `~/Library/Application Support/Branchout`. This is a separate application identity; data from other installations is left untouched and is not automatically migrated.
-- Local storage does **not** mean all processing is offline. Project analysis and generation send relevant context to your configured model provider; external discovery queries the selected platforms.
-- Exploration uses a fixed project understanding. It does not silently re-analyze your repository. Source access depends on platform availability, login, and network conditions.
-- AI output is not source evidence. Read the linked material before relying on a conclusion.
-
-## License
-
-A project license has not yet been selected. Third-party components, fonts, and bundled runtimes retain their respective licenses.
+- [产品设计](docs/product-spec.md)与[页面流程](docs/ux-spec.md)
+- [设计系统](docs/design-system.md)
+- [架构总览](docs/architecture-overview.md)、[数据契约](docs/data-contracts.md)与[源码导览](src/README.md)

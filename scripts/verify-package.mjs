@@ -1,89 +1,121 @@
-import { _electron as electron, expect } from "@playwright/test";
-import { join } from "node:path";
-import { mkdtemp, readFile, rm, access } from "node:fs/promises";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { runtimeTarget } from "./runtime-platform.mjs";
+import { join, resolve } from "node:path";
+import { _electron as electron } from "playwright";
 
-const target = runtimeTarget();
-const product = "Branchout";
-const packageRoot = join(
-  process.cwd(),
-  "build",
-  `${product}-${target.platform}-${target.arch}`,
-);
-const executablePath =
-  target.platform === "darwin"
-    ? join(packageRoot, `${product}.app`, "Contents", "MacOS", product)
-    : join(packageRoot, `${product}.exe`);
-const resources =
-  target.platform === "darwin"
-    ? join(packageRoot, `${product}.app`, "Contents", "Resources")
-    : join(packageRoot, "resources");
+const appPath = resolve(process.argv[2] ?? "release/mac-arm64/Branchout.app");
 await Promise.all([
-  access(join(resources, ".runtime", target.executable)),
-  access(join(resources, ".runtime", "bird-search", "bird-search.mjs")),
+  access(join(appPath, "Contents", "MacOS", "Branchout")),
+  access(join(appPath, "Contents", "Resources", "app.asar")),
 ]);
 
-const home = await mkdtemp(join(tmpdir(), "branchout-package-"));
-const application = await electron.launch({
-  executablePath,
-  env: {
-    ...process.env,
-    HOME: home,
-    USERPROFILE: home,
-    BRANCHOUT_TEST_MODE: "1",
-    BRANCHOUT_DATA_DIR: join(home, "Branchout"),
-    BRANCHOUT_SKIP_AUTO_CONNECT: "1",
+const root = await mkdtemp(join(tmpdir(), "branchout-package-smoke-"));
+const installedApp = join(root, "Applications", "Branchout.app");
+await mkdir(join(root, "Applications"));
+execFileSync("ditto", [appPath, installedApp]);
+const resources = join(installedApp, "Contents", "Resources");
+const executablePath = join(installedApp, "Contents", "MacOS", "Branchout");
+execFileSync(
+  process.execPath,
+  ["scripts/verify-runtime.mjs", join(resources, ".runtime")],
+  {
+    stdio: "inherit",
   },
-});
+);
+const repository = join(root, "example-project");
+const data = join(root, "app-data");
+await mkdir(repository);
+execFileSync("git", ["init", "-q", repository]);
+await writeFile(
+  join(repository, "README.md"),
+  "# Daymark\nAn example local reading project.\n",
+);
+execFileSync("git", ["-C", repository, "add", "README.md"]);
+execFileSync("git", [
+  "-C",
+  repository,
+  "-c",
+  "user.name=Branchout Example",
+  "-c",
+  "user.email=example@invalid.test",
+  "commit",
+  "-qm",
+  "Add example",
+]);
+
+let application;
 try {
+  application = await electron.launch({
+    executablePath,
+    cwd: root,
+    env: { ...process.env, BRANCHOUT_TEST_DATA: data },
+  });
   const page = await application.firstWindow();
-  await expect(
-    page.getByRole("heading", { name: "素材库", exact: true }),
-  ).toBeVisible();
-  for (const [name, heading] of [
-    ["内容收集", "内容收集"],
-    ["项目理解", "项目理解"],
-    ["素材探索", "素材库"],
-    ["内容创作", "内容创作"],
-  ]) {
-    await page
-      .locator("nav")
-      .getByRole("button", { name, exact: true })
-      .click();
-    await expect(
-      page.getByRole("heading", { name: heading, exact: true }),
-    ).toBeVisible();
-  }
-  await page.getByRole("button", { name: "设置", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "设置", exact: true }),
-  ).toBeVisible();
-  if (target.platform === "darwin") {
-    const sourceIcon = await readFile(
-      join(process.cwd(), "assets", "app-icon.icns"),
-    );
-    const packagedIcon = await readFile(join(resources, "electron.icns"));
-    if (!sourceIcon.equals(packagedIcon))
-      throw Error("Packaged app icon differs from assets/app-icon.icns");
-  }
+  await page.getByRole("heading", { level: 1, name: "内容" }).waitFor();
   const meta = await application.evaluate(({ app }) => ({
     packaged: app.isPackaged,
-    version: app.getVersion(),
-    platform: process.platform,
     arch: process.arch,
+    version: app.getVersion(),
   }));
-  if (!meta.packaged) throw Error("Not packaged");
-  if (meta.platform !== target.platform || meta.arch !== target.arch)
-    throw Error(`Packaged app target mismatch: ${meta.platform}-${meta.arch}`);
-  console.log(
-    JSON.stringify({
-      ...meta,
-      smoke:
-        "navigation and packaged runtime passed; no credential or live-source validation",
-    }),
+  const packageVersion = JSON.parse(
+    await readFile("package.json", "utf8"),
+  ).version;
+  assert.deepEqual(meta, {
+    packaged: true,
+    arch: "arm64",
+    version: packageVersion,
+  });
+  await application.evaluate(({ dialog }, directory) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [directory],
+    });
+  }, repository);
+  const project = await page.evaluate(() => window.branchout.bindProject());
+  assert.equal(project.ok, true, project.message);
+  const card = await page.evaluate(
+    (projectId) =>
+      window.branchout.createFocusCard({
+        projectId,
+        content: "Daymark 是本机阅读项目。我关注离线保存失败后能否清楚恢复。",
+      }),
+    project.value,
   );
-} finally {
+  assert.equal(card.ok, true, card.message);
+  const state = await page.evaluate(() => window.branchout.focusCardView());
+  assert.equal(state.ok, true, state.message);
+  assert.equal(state.value.focusCards.length, 1);
+  const xhs = await page.evaluate(() => window.branchout.xhsStatus());
+  assert.equal(xhs.ok, true, xhs.message);
+  assert.equal(xhs.value.installed, true);
+  console.log(
+    `Relocated app smoke passed: ${meta.version} arm64, project and card persistence, platform runtime`,
+  );
   await application.close();
-  await rm(home, { recursive: true, force: true });
+  application = undefined;
+
+  for (const check of [
+    "scripts/check-model-ui.mjs",
+    "scripts/check-analysis-desktop.mjs",
+  ])
+    execFileSync(process.execPath, [check], {
+      env: {
+        ...process.env,
+        BRANCHOUT_APP_PATH: executablePath,
+        BRANCHOUT_PACKAGE_CWD: root,
+      },
+      stdio: "inherit",
+    });
+} finally {
+  if (application) await application.close();
+  await rm(root, { recursive: true, force: true });
 }

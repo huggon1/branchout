@@ -4,38 +4,20 @@ on:
   pull_request:
     branches: [develop, main]
   push:
-    branches: [develop, main, "feat/**", "fix/**"]
-
-concurrency:
-  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
-  cancel-in-progress: true
+    branches: [develop, main]
 
 permissions:
   contents: read
 
-jobs:
-  quality:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run check
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
-  package:
-    name: Package ${{ matrix.target }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: macos-arm64
-            os: macos-15
-          - target: windows-x64
-            os: windows-2022
-    runs-on: ${{ matrix.os }}
+jobs:
+  macos-arm64:
+    runs-on: macos-15
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -43,6 +25,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run typecheck
       - run: npm test
       - run: npm run prepare:runtime
       - run: npm run package:app
@@ -50,7 +33,9 @@ jobs:
       - run: npm run verify:release
       - uses: actions/upload-artifact@v7
         with:
-          name: branchout-${{ matrix.target }}-${{ github.sha }}
-          path: release/*
+          name: branchout-macos-arm64-${{ github.sha }}
+          path: |
+            release/*.dmg
+            release/*.zip
           if-no-files-found: error
           retention-days: 3
