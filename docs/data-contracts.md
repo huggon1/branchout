@@ -56,7 +56,7 @@ Telegram 接入保存获准聊天身份、Bot 连接状态和已确认的更新�
 
 ## 任务快照与活动消息
 
-`TaskSnapshot` 包含 `taskId`、任务种类 `forwarding` 或 `project_analysis`、目标身份、状态 `queued`、`running`、`completed`、`failed` 或 `cancelled`、当前阶段、已处理量、更新时间、可读错误及成功结果引用。转发阶段依次标识接收、读取来源、理解内容、检查关注卡和保存报告；项目分析阶段标识读取仓库、读取 commit、读取 Codex 会话、形成发现与建议、保存报告。
+`TaskSnapshot` 是任务后台读取的统一视图，包含 `taskId`、任务种类 `forwarding` 或 `project_analysis`、目标身份、状态 `queued`、`running`、`completed`、`failed` 或 `cancelled`、当前阶段、已处理量、更新时间、可读错误及成功结果引用。转发任务从已保存的阶段记录生成该视图。转发阶段依次标识接收、读取来源、理解内容、检查关注卡和保存报告；项目分析阶段标识读取仓库、读取 commit、读取 Codex 会话、形成发现与建议、保存报告。
 
 `TaskActivity` 包含 `taskId`、递增序号、发生时间、动作种类、可读摘要、可选目标身份和已处理量。活动在主进程校验后持久化，界面读取最近活动及当前阶段；较长的依据内容从报告读取。任务消息只包含展示所需的摘要和计数。
 

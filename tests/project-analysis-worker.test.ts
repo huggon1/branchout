@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseCodexSessionJsonl, readSelectedCodexSessions } from "../src/worker/readers/codex-sessions";
+import { parseCodexSessionJsonl, readSelectedCodexSessions } from "../src/readers/codex-sessions";
 import { makeProjectAnalysisPrompt, MAX_PROJECT_ANALYSIS_PROMPT_CHARS, projectAnalysisSystemPrompt, type ProjectAnalysisSource } from "../src/worker/reasoning/project-analysis";
 import { runProjectAnalysis } from "../src/worker/jobs/project-analysis";
 import type { ProjectAnalysisWorkerInput } from "../src/worker/jobs/project-analysis/types";

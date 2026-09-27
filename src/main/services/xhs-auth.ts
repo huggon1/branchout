@@ -6,12 +6,6 @@ import { join } from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { XhsSession } from "../../shared/platform-contracts";
 
-const executable = () =>
-  join(
-    process.cwd(),
-    ".runtime",
-    process.platform === "win32" ? "xiaohongshu-mcp.exe" : "xiaohongshu-mcp",
-  );
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function freePort() {
   return new Promise<number>((resolve, reject) => {
@@ -31,10 +25,17 @@ export class XhsAuth {
   private starting?: Promise<XhsSession>;
   constructor(
     private dataDir: string,
+    private runtimeRoot: string,
     private changed: () => void,
   ) {}
+  private executable() {
+    return join(
+      this.runtimeRoot,
+      process.platform === "win32" ? "xiaohongshu-mcp.exe" : "xiaohongshu-mcp",
+    );
+  }
   installed() {
-    return existsSync(executable());
+    return existsSync(this.executable());
   }
   private async request(path: string, method = "GET") {
     const connection = await this.connect();
@@ -56,7 +57,7 @@ export class XhsAuth {
     return this.starting;
   }
   private async start(): Promise<XhsSession> {
-    if (!this.installed()) throw new Error("请先运行 npm run setup:xhs");
+    if (!this.installed()) throw new Error("小红书组件不可用");
     await mkdir(this.dataDir, { recursive: true, mode: 0o700 });
     const port = await freePort();
     const connection = {
@@ -65,12 +66,9 @@ export class XhsAuth {
     };
     const browser =
       process.platform === "darwin"
-        ? join(
-            process.cwd(),
-            ".runtime/browser/Chromium.app/Contents/MacOS/Chromium",
-          )
+        ? join(this.runtimeRoot, "browser/Chromium.app/Contents/MacOS/Chromium")
         : undefined;
-    const child = spawn(executable(), ["-port", `127.0.0.1:${port}`], {
+    const child = spawn(this.executable(), ["-port", `127.0.0.1:${port}`], {
       cwd: this.dataDir,
       env: {
         ...process.env,

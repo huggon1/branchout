@@ -3,10 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
-import {
-  sourceSchema,
-  xPostUrlSchema,
-} from "../../../shared/source-contracts";
+import { sourceSchema, xPostUrlSchema } from "../../../shared/source-contracts";
 import type { PlatformAdapter } from "../../types";
 import type { XCredentials } from "../../../shared/platform-contracts";
 
@@ -27,7 +24,17 @@ const tweetSchema = z
     article: z.unknown().optional(),
   })
   .passthrough();
-const runtime = () => join(process.cwd(), ".runtime", "bird-search");
+const runtime = () =>
+  join(
+    process.env.BRANCHOUT_RUNTIME_ROOT ?? join(process.cwd(), ".runtime"),
+    "bird-search",
+  );
+const reader = () =>
+  join(
+    process.env.BRANCHOUT_DIST_ROOT ?? join(process.cwd(), "dist"),
+    "platforms",
+    "x-read.mjs",
+  );
 const childEnv = (credentials: XCredentials): NodeJS.ProcessEnv => {
   const env: NodeJS.ProcessEnv = {
     AUTH_TOKEN: credentials.authToken,
@@ -122,7 +129,7 @@ export function createXAdapter(credentials?: XCredentials): PlatformAdapter {
         return {
           ...base,
           outcome: "not_covered",
-          message: "X 工具未安装；请先运行 npm run setup:x",
+          message: "X 内容读取组件不可用，请重新安装应用",
         };
       try {
         const id = new URL(sourceUrl).pathname
@@ -130,7 +137,7 @@ export function createXAdapter(credentials?: XCredentials): PlatformAdapter {
           .filter(Boolean)
           .at(-1)!;
         const raw = await invoke(
-          join(process.cwd(), "dist", "platforms", "x-read.mjs"),
+          reader(),
           [runtime(), id],
           credentials,
           signal,

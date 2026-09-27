@@ -1,5 +1,5 @@
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
-import type { ProjectCommitRangeId } from "../../readers/git-history";
+import type { ProjectCommitRangeId } from "../../../readers/git-history";
 
 export type AnalysisSourceKind = "repository" | "commit" | "codex_session";
 

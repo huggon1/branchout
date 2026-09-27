@@ -1,6 +1,6 @@
 # Worker
 
-本文描述 Agent 工作进程的目标职责。任务输入和结果见[数据与消息契约](../../docs/data-contracts.md)，运行边界见[架构总览](../../docs/architecture-overview.md)。
+本文描述 Agent 工作进程的当前职责。任务输入和结果见[数据与消息契约](../../docs/data-contracts.md)，运行设计见[架构总览](../../docs/architecture-overview.md)。
 
 ## 任务
 
@@ -14,9 +14,7 @@
 
 - `jobs/forwarding/worker-entry.ts`：接收转发任务命令并运行来源读取、通用理解与逐卡关联。
 - `jobs/project-analysis/worker-entry.ts`：接收项目分析任务命令并生成发现与卡片建议。
-- `readers/repository`：当前仓库文件、工作区状态及来源定位。
-- `readers/git-history`：选定 commit 的元数据、消息与差异范围。
-- `readers/codex-sessions`：候选会话发现、项目归属核验、选定对话读取。
+- [readers](../readers/README.md)：主进程预览与工作进程分析共用的本机来源读取。
 - `reasoning/`：理解内容、判断关联和生成分析建议的模型输入与输出校验。
 - `pi-runtime.ts` 与 `model-worker.ts`：Pi 会话、模型连接检查和执行边界。
 

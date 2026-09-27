@@ -8,9 +8,9 @@ import {
   discoverCodexSessionCandidates,
   parseCodexSessionJsonl,
   readSelectedCodexSessions,
-} from "../src/worker/readers/codex-sessions";
-import { readProjectGitHistory } from "../src/worker/readers/git-history";
-import { readProjectRepository } from "../src/worker/readers/repository";
+} from "../src/readers/codex-sessions";
+import { readProjectGitHistory } from "../src/readers/git-history";
+import { readProjectRepository } from "../src/readers/repository";
 
 const controller = () => new AbortController().signal;
 const syntheticUser = "我主要在意项目分析是否保留用户反复表达的取舍，并能回到原消息核对关注卡建议。";

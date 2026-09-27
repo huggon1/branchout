@@ -1,0 +1,26 @@
+appId: com.branchout.app
+productName: Branchout
+directories:
+  output: release
+  buildResources: assets
+files:
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: .runtime
+    to: .runtime
+asar: true
+asarUnpack:
+  - "**/*.node"
+artifactName: Branchout-${version}-mac-arm64.${ext}
+mac:
+  category: public.app-category.productivity
+  icon: build/branchout.icns
+  hardenedRuntime: true
+  entitlements: packaging/entitlements.mac.plist
+  entitlementsInherit: packaging/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]

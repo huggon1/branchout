@@ -6,10 +6,10 @@ import { runWithPi } from "../../pi-runtime";
 import {
   readProjectGitHistory,
   type ProjectCommitRangeId,
-} from "../../readers/git-history";
-import { readProjectRepository } from "../../readers/repository";
-import { redactSensitiveText, throwIfAborted } from "../../readers/shared";
-import { readSelectedCodexSessions, type CodexSessionReaderOptions } from "../../readers/codex-sessions";
+} from "../../../readers/git-history";
+import { readProjectRepository } from "../../../readers/repository";
+import { redactSensitiveText, throwIfAborted } from "../../../readers/shared";
+import { readSelectedCodexSessions, type CodexSessionReaderOptions } from "../../../readers/codex-sessions";
 import {
   makeProjectAnalysisPrompt,
   projectAnalysisSystemPrompt,
