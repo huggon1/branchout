@@ -100,7 +100,23 @@ try {
   console.log(
     `Relocated app smoke passed: ${meta.version} arm64, project and card persistence, platform runtime`,
   );
+  const firstProcess = application.process();
   await application.close();
+  const exited = await new Promise((resolve) => {
+    if (firstProcess.exitCode !== null || firstProcess.signalCode !== null)
+      return resolve(true);
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      firstProcess.off("exit", onExit);
+      resolve(false);
+    }, 5000);
+    firstProcess.once("exit", onExit);
+  });
+  if (!exited) throw new Error("Relocated app stayed running after the smoke check");
+  console.log("Relocated app process exited before follow-up checks");
   application = undefined;
 
   for (const check of [
