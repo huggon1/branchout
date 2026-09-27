@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,7 +19,6 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check version and main ancestry
-        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
@@ -108,7 +106,6 @@ jobs:
 
   draft-release:
     needs: package
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -120,13 +117,23 @@ jobs:
       - name: Write checksums
         working-directory: artifacts
         run: sha256sum *.dmg *.zip > SHA256SUMS.txt
-      - name: Create draft GitHub Release
+      - name: Create or update draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          gh release create "${GITHUB_REF_NAME}" artifacts/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --verify-tag \
-            --draft \
-            --generate-notes \
-            --title "Branchout ${GITHUB_REF_NAME}"
+          set -euo pipefail
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            is_draft=$(gh release view "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" --json isDraft --jq '.isDraft')
+            test "${is_draft}" = true
+            gh release upload "${GITHUB_REF_NAME}" artifacts/* \
+              --repo "${GITHUB_REPOSITORY}" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" artifacts/* \
+              --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag \
+              --draft \
+              --generate-notes \
+              --title "Branchout ${GITHUB_REF_NAME}"
+          fi

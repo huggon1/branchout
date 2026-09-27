@@ -51,3 +51,8 @@ npm run dev
 - [产品规格](docs/product-spec.md)与[页面流程](docs/ux-spec.md)
 - [设计系统](docs/design-system.md)
 - [架构总览](docs/architecture-overview.md)、[数据契约](docs/data-contracts.md)与[源码导览](src/README.md)
+- 维护者可查看[发布流程](docs/releasing.md)
+
+## 许可证
+
+Branchout 使用 [MIT 许可证](LICENSE)。
