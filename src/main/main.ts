@@ -453,15 +453,16 @@ else {
       session.setPermissionCheckHandler(() => false);
     })
     .catch((error: unknown) => {
-      console.error("Branchout startup failed", {
-        stage: startupStage,
-        errorType: error instanceof Error ? error.name : typeof error,
-      });
       const integrationError = error instanceof Error &&
         ["forwarding_store", "telegram_store", "telegram_credentials"].includes(startupStage) &&
         /(?:待恢复数据|待恢复令牌|Telegram.*凭据|旧 Telegram 凭据)/.test(error.message)
           ? error.message
           : undefined;
+      console.error("Branchout startup failed", {
+        stage: startupStage,
+        errorType: error instanceof Error ? error.name : typeof error,
+        ...(integrationError ? { message: integrationError } : {}),
+      });
       dialog.showErrorBox(
         "Branchout 无法启动",
         integrationError ?? "无法读取本地数据或初始化应用。原数据已保留。",
