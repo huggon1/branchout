@@ -61,7 +61,7 @@ try {
   await mkdir(userData, { recursive: true, mode: 0o700 });
   const first = await launch();
   await first.getByRole("button", { name: "设置", exact: true }).click();
-  await first.getByLabel("Bot Token", { exact: true }).fill(fictionalBotToken);
+  await first.locator(".telegram-settings input[type=password]").fill(fictionalBotToken);
   await first.getByRole("button", { name: "保存 Bot Token" }).click();
   await first.getByText("设置已保存", { exact: true }).waitFor({ timeout: 20_000 });
   const storedBot = JSON.parse(await readFile(botPath, "utf8"));
