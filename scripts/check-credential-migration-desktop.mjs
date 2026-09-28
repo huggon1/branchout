@@ -40,6 +40,7 @@ const launch = async () => {
     env: { ...process.env, BRANCHOUT_TEST_DATA: userData },
     timeout: 45_000,
   });
+  application.process().stderr?.pipe(process.stderr, { end: false });
   stage("electron_launched");
   let timer;
   const page = await Promise.race([
