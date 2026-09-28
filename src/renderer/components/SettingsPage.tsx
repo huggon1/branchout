@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { UiSettings } from "../product-ui";
 import { ModelSettings } from "./ModelSettings";
+import { AnalysisPromptSettings } from "./AnalysisPromptSettings";
 import { XSettings } from "./XSettings";
 
 export function SettingsPage({
@@ -43,6 +44,7 @@ export function SettingsPage({
         </div>
       </header>
       <ModelSettings />
+      <AnalysisPromptSettings />
       <section
         className="settings-section telegram-settings"
         aria-labelledby="telegram-settings-title"
