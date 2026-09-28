@@ -47,7 +47,7 @@ Numbers below identify source order within each file. `Keep` marks an independen
 | `forwarding-service` 2 | Sink retry duplicates Telegram task | Keep idempotency contract; EV-11 exercises replay. |
 | `models` 1 | Pi model catalog is confused with account availability | Keep catalog distinction; EV-02 verifies selectable account models. |
 | `models` 2 | Connection switch leaks key or changes active task lease | Keep state/redaction contract; EV-02 checks UI and frozen task. |
-| `models` 3 | Encrypted storage refuses a cleartext key | Delete obsolete oracle after EV-13 migration/restart gate; current owner-only JSON policy supersedes it. |
+| `models` 3 | Encrypted storage refuses a cleartext key | Delete obsolete oracle immediately; owner-only JSON policy supersedes it, while EV-13 acceptance stays open until packaged migration/restart passes. |
 | `models` 4 | Failed catalog refresh changes selected model | Keep catalog-failure contract; EV-02 checks user state. |
 | `models` 5 | Saved Codex connection retains a stale catalog after restart | Replace after EV-02 packaged restart with CLI fixture. |
 | `models` 6 | Account catalog omits valid new model or invents absent model | Keep catalog filtering contract; EV-02 checks visible selection. |
