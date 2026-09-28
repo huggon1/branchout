@@ -143,7 +143,7 @@ export class ModelService {
         this.state.accountLabel = result.account?.email ?? undefined;
         this.state.message = result.account
           ? "请刷新模型目录后检查连接"
-          : "请登录 ChatGPT";
+          : "请登录 ChatGPT；此前使用钥匙串的账号需重新登录一次";
       } catch {
         this.state.auth = "unavailable";
         this.state.message = "Codex 客户端不可用，请检查安装后重启应用";

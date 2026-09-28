@@ -59,7 +59,7 @@ export function createCodexEnvironment(
   inherited: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { CODEX_HOME: codexHome };
-  // OS home must stay intact so secure storage can locate the user's keychain.
+  // Preserve the OS home for Codex runtime and platform discovery.
   for (const key of [
     "PATH",
     "SystemRoot",
@@ -107,7 +107,7 @@ export class CodexClient implements CodexRpc {
           "app-server",
           "--stdio",
           "-c",
-          'cli_auth_credentials_store="keyring"',
+          'cli_auth_credentials_store="file"',
           "-c",
           "analytics.enabled=false",
         ],

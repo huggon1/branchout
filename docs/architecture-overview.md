@@ -34,7 +34,7 @@ Activities provide readable execution history; report evidence supports conclusi
 
 ## Models, Telegram, and local access
 
-The main process manages model connections and freezes task configuration at launch. Workers receive only the connection and input needed for their tasks. Model connection settings and general API keys use an owner-only local JSON file. The first load migrates a legacy Safe Storage file into that format. Codex subscription accounts use the Codex login mechanism and its keyring. The main process manages Telegram bot credentials and authorized chat identities, exposing redacted status to the renderer.
+The main process manages model connections and freezes task configuration at launch. Workers receive only the connection and input needed for their tasks. Model connection settings and general API keys use an owner-only local JSON file. The first load migrates a legacy Safe Storage file into that format. Codex subscription accounts use the Codex login mechanism and its isolated file credential store; accounts previously held in the keyring require one new login. The main process manages Telegram bot credentials and authorized chat identities, exposing redacted status to the renderer.
 
 Dedicated readers obtain repository files, Git history, and Codex sessions. Each receives an approved project directory, source range, and cancellation signal from the main process, then emits bounded content and source locations. External content and local conversations are analysis data; application code controls tool permissions and task steps.
 
