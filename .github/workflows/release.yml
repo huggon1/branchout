@@ -95,6 +95,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - run: npm run verify:package
+      - run: npm run verify:package-ui
+        env:
+          BRANCHOUT_EVAL_OUTPUT_ROOT: ${{ runner.temp }}/branchout-eval
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: branchout-evaluation-${{ github.run_id }}
+          path: ${{ runner.temp }}/branchout-eval
+          if-no-files-found: warn
+          retention-days: 7
       - name: Remove temporary signing material
         if: always()
         shell: bash
