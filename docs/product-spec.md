@@ -53,4 +53,6 @@ The task center combines content and analysis tasks, showing queued, running, co
 
 Settings contain one current model connection, Telegram access, and source reader configuration. A general API connection stores an API key, service URL, API type, and model ID in an owner-only local file; the API type is OpenAI Responses or OpenAI Chat Completions. A Codex subscription connection uses ChatGPT account login and selects an available model for that account and client. New configuration applies to later tasks; running tasks retain their start-time configuration.
 
+Project analysis settings provide editable analysis-goal and focus-card-writing guidance with shipped defaults. Each analysis run records the effective guidance and its revision at launch. Evidence citation, JSON output, and source-as-data rules remain application controlled.
+
 Controlled local readers access project files, Git history, and Codex conversations. Model tasks receive only the content selected for that analysis. Telegram accepts messages from bound chats; its bot credential uses protected local storage. Reports, task activity, and UI state use redacted content and error summaries. Source content and work conversations are analysis data; application code controls execution instructions.

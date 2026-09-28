@@ -35,3 +35,18 @@ The evaluation record includes a short reviewer note and the evidence locations 
 Batch analysis produces validated evidence-linked candidates. A final global synthesis reads compact candidate descriptions, batch summaries, existing cards, and the evidence IDs already validated by the batch stage. It returns a small ranked set. The validator resolves each selected candidate ID to its validated evidence IDs and checks update targets against frozen card versions. The report records how many candidates fit the synthesis input and how many were omitted by the character budget.
 
 The prompt keeps evidence location, JSON shape, and source-as-data rules fixed. Users can edit the analysis goal and card-writing guidance. The resolved prompt text and deterministic revision hash belong to the frozen task input and evaluation record.
+
+## Prompt settings E2E acceptance
+
+The desktop acceptance runner exercises these cases before prompt settings implementation:
+
+| Setup and action | Expected observation |
+| --- | --- |
+| Open Settings with a fresh app data directory | Analysis goal and card-writing fields display the shipped defaults. |
+| Edit both fields, save, quit, and reopen | Settings shows the saved text and the same revision. |
+| Start analysis, edit settings during the run, and inspect its trace or run record | The run retains the text and revision captured at launch; the next run uses the edit. |
+| Restore defaults and start another run | The fields display shipped defaults and the new run records their revision. |
+| Submit blank or overlong values | The form shows a field-level error and preserves the previous saved version. |
+| Use a custom card-writing instruction that conflicts with evidence citation | The saved report still contains validated evidence references for each retained suggestion. |
+
+The local acceptance runner records the configuration revision beside each result. It stores prompt text in its local run record when the runner opts into full trace capture; shared CI fixtures use public or fictional text.
