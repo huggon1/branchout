@@ -433,6 +433,7 @@ export interface ProjectAnalysisPipelinePorts {
   workerPath: string;
   traceRoot: string;
   exportTrace(traceRoot: string, taskId: string): Promise<string | undefined>;
+  recordTraceLineage?(traceRoot: string, taskId: string, previousTaskId?: string): Promise<void>;
   spawnWorker(path: string): ProjectAnalysisWorker;
   projects: { get(projectId: string): ProjectRecord | undefined };
   focusCards: {
@@ -778,6 +779,7 @@ export class ProjectAnalysisPipelineService {
       });
       taskId = task.taskId;
       await this.ports.runInputs.save(taskId, input);
+      await this.ports.recordTraceLineage?.(this.ports.traceRoot, taskId, resumeFromTaskId);
       const worker = this.ports.spawnWorker(this.ports.workerPath);
       const entry: ActiveRun = {
         worker,

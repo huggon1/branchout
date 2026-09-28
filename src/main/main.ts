@@ -35,7 +35,7 @@ import { ProjectAnalysisReportService } from "./services/projects/analysis-repor
 import { registerAnalysisReportIpc } from "./services/projects/analysis-report-ipc";
 import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipeline-service";
 import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
-import { exportProjectAnalysisTrace } from "./services/project-analysis/trace-export";
+import { exportProjectAnalysisTrace, recordProjectAnalysisTraceLineage } from "./services/project-analysis/trace-export";
 import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
 import { ProjectAnalysisCheckpointStore } from "./storage/project-analysis-checkpoint-store";
 import { AnalysisPromptStore } from "./storage/analysis-prompt-store";
@@ -208,6 +208,7 @@ else {
         workerPath: join(__dirname, "../worker/jobs/project-analysis/worker-entry.mjs"),
         traceRoot: join(app.getPath("userData"), "analysis-traces"),
         exportTrace: exportProjectAnalysisTrace,
+        recordTraceLineage: recordProjectAnalysisTraceLineage,
         spawnWorker: (path) => {
           const worker = utilityProcess.fork(path, [], {
             stdio: "pipe",
