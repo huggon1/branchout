@@ -19,10 +19,14 @@ const server = createServer(async (request, response) => {
   for await (const _ of request) { /* drain fixture request */ }
   requests.push({ path: request.url, authorizationMatches: request.headers.authorization === `Bearer ${credential}` });
   response.writeHead(200, { "content-type": "text/event-stream" });
+  const item = { type: "message", id: "fixture", status: "completed", role: "assistant", content: [{ type: "output_text", text: "OK", annotations: [] }] };
   response.end([
     { type: "response.created", response: { id: "fixture" } },
+    { type: "response.output_item.added", output_index: 0, item: { ...item, content: [] } },
+    { type: "response.content_part.added", output_index: 0, content_index: 0, part: { type: "output_text", text: "" } },
     { type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "OK" },
-    { type: "response.completed", response: { id: "fixture", status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "OK" }] }], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
+    { type: "response.output_item.done", output_index: 0, item },
+    { type: "response.completed", response: { id: "fixture", status: "completed", output: [item], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2, input_tokens_details: { cached_tokens: 0 } } } },
   ].map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(""));
 });
 await new Promise((done) => server.listen(0, "127.0.0.1", done));
@@ -52,6 +56,7 @@ try {
   await mkdir(userData, { recursive: true, mode: 0o700 });
   await launch();
   const legacyConnection = { method: "generic_api", baseUrl, api: "openai-responses", modelId, apiKey: credential };
+  stage("legacy_encrypt_requested");
   const encrypted = await application.evaluate(({ safeStorage }, value) => {
     if (!safeStorage.isEncryptionAvailable()) throw new Error("safeStorage is unavailable for legacy fixture generation");
     return [...safeStorage.encryptString(JSON.stringify(value))];
