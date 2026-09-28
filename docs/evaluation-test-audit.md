@@ -1,6 +1,6 @@
 # Current test coverage audit
 
-This audit describes the `v0.4.0` source baseline at `af95bfe`. It records what existing checks actually observe and guides migration toward [evaluation scenarios](evaluation.md). The [test standard](evaluation-test-standard.md) defines acceptance labels and retirement gates. The baseline has 63 `test(...)` declarations across 15 files; a two-protocol loop registers 64 runtime cases. The credential migration implementation removes one obsolete storage declaration, yielding 63 expected runtime cases on that branch. Runtime outcomes require a separate run.
+This audit describes the `v0.4.0` source baseline at `af95bfe` and later migration decisions. It records what existing checks actually observe and guides migration toward [evaluation scenarios](evaluation.md). The [test standard](evaluation-test-standard.md) defines acceptance labels and retirement gates. The baseline had 63 `test(...)` declarations across 15 files; a two-protocol loop registered 64 runtime cases. The credential storage change retired one obsolete storage declaration. The Pi synthesis change retired three model-stub cases with one-turn response assumptions. The current suite registers 60 runtime cases, subject to a fresh run.
 
 ## Current gates
 
@@ -29,7 +29,7 @@ The current packaged gate covers generic API checks, a rendered Codex login acti
 
 The integration renderer added `analysisPromptView` to the real preload. The `focus-ui-main.cjs` fixture still lacks that method, producing a blank page with `analysisPromptView is not a function` in `npm run test:ui`. That result identifies fixture drift. EV-07 and packaged renderer checks establish startup and prompt settings behavior.
 
-Migration retains independent failure checks until a stronger check runs. An oracle that contradicts current product policy leaves the suite immediately, while the matching scenario remains open. The scenario catalog provides the oracle before new implementation or test code is written. CI can require fixture-mode structural gates; a local private run supplies real-model and semantic evidence for release review.
+Migration retains independent failure checks until a stronger check runs. An oracle that contradicts current product policy leaves the suite immediately, while the matching scenario remains open. The Pi synthesis migration retired three one-turn stubs after EV-04 covered source filtering and EV-05 covered multi-batch continuation; EV-08 still requires repository-only semantic review. The scenario catalog provides the oracle before new implementation or test code is written. CI can require fixture-mode structural gates; a local private run supplies real-model and semantic evidence for release review.
 
 ## Case-by-case migration map
 
@@ -76,10 +76,10 @@ Numbers below identify source order within each file. `Keep` marks an independen
 | `project-analysis-readers` 5 | Same-remote clone is silently treated as verified repository | Keep attribution boundary; EV-03 checks review status. |
 | `project-analysis-readers` 6 | Huge tool output exhausts reader; user message silently disappears | Keep streaming/bounds boundary; EV-03 checks coverage. |
 | `project-analysis-readers` 7 | Repository reader exceeds bounds or misstates commit range | Keep input boundary; EV-03 checks preview range. |
-| `project-analysis-worker` 1 | Prompt includes reasoning/tool data or accepts untraceable card | Keep disclosure/validation boundary; EV-08 determines card quality. |
+| `project-analysis-worker` 1 | Prompt includes reasoning/tool data or accepts untraceable card | Retired one-turn stub after EV-04 checked sentinels in packaged model requests; parser contracts stay in `project-analysis-readers`; EV-08 determines card quality. |
 | `project-analysis-worker` 2 | Budget displaces user/final messages with repository excerpts | Keep priority boundary; EV-03/EV-04 check coverage. |
-| `project-analysis-worker` 3 | Repository-only evidence produces an invented user-grounded card | Replace after EV-08 human review of repo-only input. |
-| `project-analysis-worker` 4 | One prompt cap drops selected sessions | Replace after EV-04 multi-batch coverage run. |
+| `project-analysis-worker` 3 | Repository-only evidence produces an invented user-grounded card | Retired one-turn stub; EV-08 repository-only semantic review remains an open gate. |
+| `project-analysis-worker` 4 | One prompt cap drops selected sessions | Retired one-turn stub after EV-05 covered 45 selected conversations across batches and restart. |
 | `project-analysis` 1 | Stale suggestion overwrites a newer focus version | Keep atomic conflict contract; EV-09 checks UI history. |
 | `projects` 1 | Rebind changes project identity or history | Keep store boundary; EV-01 checks restart UI. |
 | `projects` 2 | Concurrent edit overwrites newer focus version | Keep version conflict boundary; EV-09 checks UI. |
