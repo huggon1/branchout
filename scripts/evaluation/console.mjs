@@ -194,7 +194,7 @@ export function createEvaluationConsole({ outputRoot = defaultOutputRoot } = {})
       if (url.pathname === "/api/runs" && request.method === "POST") {
         const body = await readBody(request);
         if (activeRun?.state === "starting" || activeRun?.state === "running" || preflightActive) return sendError(response, 409, "run_already_active");
-        if (!(body.mode === "fixture" && ["EV-04", "EV-05", "EV-13"].includes(body.scenarioId)) && !(body.mode === "local" && body.scenarioId === "EV-04")) return sendError(response, 400, "scenario_unavailable");
+        if (!(body.mode === "fixture" && ["EV-04", "EV-05", "EV-13", "EV-14"].includes(body.scenarioId)) && !(body.mode === "local" && body.scenarioId === "EV-04")) return sendError(response, 400, "scenario_unavailable");
         if (typeof body.app !== "string" || body.app.trim().length === 0 || body.app.length > 4096) return sendError(response, 400, "invalid_app_path");
         const repository = body.mode === "local" ? await readConfig(configFile) : undefined;
         if (body.mode === "local" && (!repository || !Array.isArray(body.sessionIds) || body.sessionIds.length > 1000 || body.sessionIds.some((id) => typeof id !== "string" || !id || id.length > 300))) return sendError(response, 400, "invalid_selection");

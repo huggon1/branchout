@@ -18,7 +18,7 @@ try {
     },
     stdio: "inherit",
   });
-  for (const scenarioId of ["EV-04", "EV-05", "EV-13"]) {
+  for (const scenarioId of ["EV-04", "EV-05", "EV-13", "EV-14"]) {
     const { record, directory } = await runEvaluation({
       scenarioId,
       app: appPath,
