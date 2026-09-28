@@ -14,6 +14,7 @@ const fixtureScripts = Object.freeze({
   "EV-04": join(repositoryDirectory, "scripts/check-analysis-desktop.mjs"),
   "EV-05": join(repositoryDirectory, "scripts/check-analysis-recovery-desktop.mjs"),
   "EV-13": join(repositoryDirectory, "scripts/check-credential-migration-desktop.mjs"),
+  "EV-14": join(repositoryDirectory, "scripts/check-integration-credential-desktop.mjs"),
 });
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const EMPTY_FINGERPRINT = hash("");
@@ -143,7 +144,7 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
   if (mode === "local") return runLocalEvaluation({ scenarioId, app, outputRoot, signal, repository, sessionIds, rangeId }, onEvent);
   const fixtureScript = fixtureScripts[scenarioId];
   if (mode !== "fixture" || !fixtureScript)
-    throw new Error("Fixture runner supports EV-04, EV-05, and EV-13; other catalog scenarios are pending.");
+    throw new Error("Fixture runner supports EV-04, EV-05, EV-13, and EV-14; other catalog scenarios are pending.");
   const executable = await resolveAppExecutable(app);
   const root = await assertLocalOutput(resolve(outputRoot));
   const version = JSON.parse(await readFile(join(repositoryDirectory, "package.json"), "utf8")).version;
@@ -175,7 +176,7 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
   const driver = await runFixture(fixtureScript, executable, runDirectory, onEvent, signal);
   const finishedAt = new Date().toISOString();
   const artifacts = [];
-  const screenshotName = scenarioId === "EV-13" ? "model-storage.png" : scenarioId === "EV-05" ? "analysis-recovery.png" : "real-analysis-report.png";
+  const screenshotName = scenarioId === "EV-14" ? "integration-credentials.png" : scenarioId === "EV-13" ? "model-storage.png" : scenarioId === "EV-05" ? "analysis-recovery.png" : "real-analysis-report.png";
   for (const [kind, name] of [["driver_log", "driver.log"], ["screenshot", screenshotName]]) {
     try { artifacts.push(await fileArtifact(runDirectory, kind, name)); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -338,7 +339,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const options = parseArguments(process.argv.slice(2));
     if (options.help) {
-      process.stdout.write("Usage: node scripts/evaluation/run.mjs --mode fixture --scenario <EV-04|EV-05|EV-13> --app <Branchout.app> [--output-root <directory>]\n       node scripts/evaluation/run.mjs --mode local --preflight --app <Branchout.app> --repo <Git root> [--output-root <directory>]\n       node scripts/evaluation/run.mjs --mode local --scenario EV-04 --app <Branchout.app> --repo <Git root> --sessions <id,id> [--range recent_30|recent_100] [--output-root <directory>]\n");
+      process.stdout.write("Usage: node scripts/evaluation/run.mjs --mode fixture --scenario <EV-04|EV-05|EV-13|EV-14> --app <Branchout.app or executable> [--output-root <directory>]\n       node scripts/evaluation/run.mjs --mode local --preflight --app <Branchout.app> --repo <Git root> [--output-root <directory>]\n       node scripts/evaluation/run.mjs --mode local --scenario EV-04 --app <Branchout.app> --repo <Git root> --sessions <id,id> [--range recent_30|recent_100] [--output-root <directory>]\n");
     } else if (options.list) {
       process.stdout.write(`${JSON.stringify(scenarioSupport, null, 2)}\n`);
     } else if (options.preflight && options.mode === "local") {
