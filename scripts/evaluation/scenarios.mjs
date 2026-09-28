@@ -3,7 +3,7 @@ export const scenarios = Object.freeze([
   { id: "EV-02", title: "Model connection and login", fixture: "planned", local: "planned" },
   { id: "EV-03", title: "Analysis input selection", fixture: "planned", local: "planned" },
   { id: "EV-04", title: "Packaged project analysis", fixture: "implemented", local: "planned" },
-  { id: "EV-05", title: "Multi-batch recovery", fixture: "planned", local: "planned" },
+  { id: "EV-05", title: "Multi-batch recovery", fixture: "implemented", local: "planned" },
   { id: "EV-06", title: "Analysis trace", fixture: "planned", local: "planned" },
   { id: "EV-07", title: "Prompt provenance", fixture: "planned", local: "planned" },
   { id: "EV-08", title: "Focus-suggestion quality", fixture: "planned", local: "planned" },

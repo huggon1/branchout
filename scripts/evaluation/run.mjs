@@ -1,7 +1,7 @@
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { access, mkdir, readFile, realpath, stat } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, realpath, stat } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
@@ -12,6 +12,7 @@ const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryDirectory = resolve(scriptDirectory, "../..");
 const fixtureScripts = Object.freeze({
   "EV-04": join(repositoryDirectory, "scripts/check-analysis-desktop.mjs"),
+  "EV-05": join(repositoryDirectory, "scripts/check-analysis-recovery-desktop.mjs"),
   "EV-13": join(repositoryDirectory, "scripts/check-credential-migration-desktop.mjs"),
 });
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -123,7 +124,7 @@ async function fileArtifact(runDirectory, kind, name) {
 export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", app, outputRoot = defaultOutputRoot, signal } = {}, onEvent = () => {}) {
   const fixtureScript = fixtureScripts[scenarioId];
   if (mode !== "fixture" || !fixtureScript)
-    throw new Error("Fixture runner supports EV-04 and EV-13; other catalog scenarios are pending.");
+    throw new Error("Fixture runner supports EV-04, EV-05, and EV-13; other catalog scenarios are pending.");
   const executable = await resolveAppExecutable(app);
   const root = await assertLocalOutput(resolve(outputRoot));
   const version = JSON.parse(await readFile(join(repositoryDirectory, "package.json"), "utf8")).version;
@@ -155,7 +156,7 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
   const driver = await runFixture(fixtureScript, executable, runDirectory, onEvent, signal);
   const finishedAt = new Date().toISOString();
   const artifacts = [];
-  const screenshotName = scenarioId === "EV-13" ? "model-storage.png" : "real-analysis-report.png";
+  const screenshotName = scenarioId === "EV-13" ? "model-storage.png" : scenarioId === "EV-05" ? "analysis-recovery.png" : "real-analysis-report.png";
   for (const [kind, name] of [["driver_log", "driver.log"], ["screenshot", screenshotName]]) {
     try { artifacts.push(await fileArtifact(runDirectory, kind, name)); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -167,6 +168,14 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
   ]) {
     try { artifacts.push(await fileArtifact(runDirectory, "trace_html", name)); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
+  }
+  if (scenarioId === "EV-05") {
+    try { artifacts.push(await fileArtifact(runDirectory, "report", "recovery-diagnostic.json")); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    try {
+      for (const name of await readdir(join(runDirectory, "recovery-trace")))
+        artifacts.push(await fileArtifact(runDirectory, "trace_html", `recovery-trace/${name}`));
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
   }
   let fixture;
   try { fixture = fixtureResultSchema.parse(JSON.parse(await readFile(join(runDirectory, "fixture-result.json"), "utf8"))); }
@@ -209,7 +218,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const options = parseArguments(process.argv.slice(2));
     if (options.help) {
-      process.stdout.write("Usage: node scripts/evaluation/run.mjs --mode fixture --scenario <EV-04|EV-13> --app <Branchout.app or executable> [--output-root <directory>]\n");
+      process.stdout.write("Usage: node scripts/evaluation/run.mjs --mode fixture --scenario <EV-04|EV-05|EV-13> --app <Branchout.app or executable> [--output-root <directory>]\n");
     } else if (options.list) {
       process.stdout.write(`${JSON.stringify(scenarioSupport, null, 2)}\n`);
     } else {
