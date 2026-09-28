@@ -102,6 +102,9 @@ function runFixture(fixtureScript, executable, runDirectory, onEvent, abortSigna
       settled = true;
       clearTimeout(timer);
       abortSignal?.removeEventListener("abort", abort);
+      if (process.platform !== "win32" && child.pid) {
+        try { process.kill(-child.pid, "SIGKILL"); } catch {}
+      }
       log.once("finish", () => done(result));
       log.end();
     };
