@@ -24,6 +24,8 @@ Analysis first records a local repository input snapshot: directory, Git HEAD, w
 
 The worker uses repository snapshots, commits, and selected Codex conversations to produce findings, evidence, and card-change suggestions. Suggestions identify a target card and base version or a new card. The main process validates and saves a frozen report. For acceptance, it creates a first card version or compares an existing card with the suggestion's base version before saving a new version and acceptance record.
 
+Pi runs each analysis batch in a separate persisted session with an empty tool set. The main process saves and acknowledges validated batch checkpoints. Retry compares the frozen input and prompt manifest before reusing checkpoints. A synthesis pass combines supported batch candidates into report findings and focus angles. Session history remains available for an HTML export from the task center, with links to attempts reused by a resumed task.
+
 Actual input coverage is saved with the report. Source failures record completed sources and failure locations so the UI can present readable partial results or retry actions.
 
 ## Task center and Agent activity
