@@ -25,14 +25,17 @@ export function resolveCodexExecutable(
     return result.status === 0 ? result.stdout : undefined;
   },
 ) {
-  const desktopBinary = "ChatGPT.app/Contents/Resources/codex";
+  const desktopBinaries = [
+    "ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+    "ChatGPT.app/Contents/Resources/codex",
+  ];
   const candidates = [
     "codex",
     ...(platform === "darwin"
-      ? [
-          join("/Applications", desktopBinary),
-          join(home, "Applications", desktopBinary),
-        ]
+      ? desktopBinaries.flatMap((binary) => [
+          join("/Applications", binary),
+          join(home, "Applications", binary),
+        ])
       : []),
   ];
   let selected = "codex";
