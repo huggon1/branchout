@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron } from "playwright";
@@ -217,8 +217,7 @@ try {
   const exported = await value(page.evaluate((id) => window.branchout.exportProjectAnalysisTrace(id), retryTaskId));
   const index = await readFile(join(exported, "index.html"), "utf8");
   const exportDirectory = join(artifactDirectory, "recovery-trace");
-  await mkdir(exportDirectory, { recursive: true });
-  for (const name of await readdir(exported)) await copyFile(join(exported, name), join(exportDirectory, name));
+  await cp(exported, exportDirectory, { recursive: true });
   await writeFile(join(artifactDirectory, "recovery-diagnostic.json"), `${JSON.stringify({
     firstTaskState: task.state,
     checkpointBatches: firstCheckpoint.batches.length,
@@ -229,10 +228,10 @@ try {
     initialModelRequests: initialRequestCount,
     retryModelRequests: requests.length - initialRequestCount,
     firstBatchResent: requests.slice(initialRequestCount).some((item) => JSON.stringify(item) === firstBatchRequest),
-    exportedFiles: await readdir(exported),
+    exportedFiles: await readdir(exported, { recursive: true }),
   }, null, 2)}\n`, { mode: 0o600 });
-  assert.equal(index.includes("batch-1-attempt-1.html"), true, "retry trace must link the reused first batch");
-  assert.match(await readFile(join(exported, "batch-1-attempt-1.html"), "utf8"), /<html/i);
+  assert.equal(index.includes("run-1/batch-1-attempt-1.html"), true, "retry trace must link the reused first batch");
+  assert.match(await readFile(join(exported, "run-1", "batch-1-attempt-1.html"), "utf8"), /<html/i);
   stage("recovery_trace_verified");
   if (process.env.BRANCHOUT_EVAL_RESULT_PATH) {
     await writeFile(process.env.BRANCHOUT_EVAL_RESULT_PATH, `${JSON.stringify({
@@ -250,7 +249,7 @@ try {
         { id: "VALIDATED_BATCH_SAVED", observed: firstCheckpoint.batches.length, expected: 1 },
         { id: "REPORT_SAVED", observed: reports.length, expected: 1 },
         { id: "REUSED_BATCH_MODEL_CALLS", observed: requests.slice(initialRequestCount).filter((item) => JSON.stringify(item) === firstBatchRequest).length, expected: 0 },
-        { id: "REUSED_BATCH_EXPORTED", observed: Number(index.includes("batch-1-attempt-1.html")), expected: 1 },
+        { id: "REUSED_BATCH_EXPORTED", observed: Number(index.includes("run-1/batch-1-attempt-1.html")), expected: 1 },
       ],
     }, null, 2)}\n`, { mode: 0o600 });
   }

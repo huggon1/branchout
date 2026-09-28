@@ -176,8 +176,8 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
     try { artifacts.push(await fileArtifact(runDirectory, "report", "recovery-diagnostic.json")); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
     try {
-      for (const name of await readdir(join(runDirectory, "recovery-trace")))
-        artifacts.push(await fileArtifact(runDirectory, "trace_html", `recovery-trace/${name}`));
+      for (const name of await readdir(join(runDirectory, "recovery-trace"), { recursive: true }))
+        if (name.endsWith(".html")) artifacts.push(await fileArtifact(runDirectory, "trace_html", `recovery-trace/${name.replaceAll("\\", "/")}`));
     } catch (error) { if (error.code !== "ENOENT") throw error; }
   }
   let fixture;
