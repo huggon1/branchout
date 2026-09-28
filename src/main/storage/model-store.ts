@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { z } from "zod";
 import { apiSettingsSchema } from "../../shared/model-contracts";
@@ -27,7 +28,18 @@ export class ModelStore implements ProtectedStorage {
     private file: string,
     private cipher: SecretCipher,
   ) {}
+  private get plainFile(): string {
+    return this.file.endsWith(".enc")
+      ? `${this.file.slice(0, -4)}.json`
+      : `${this.file}.json`;
+  }
   async load() {
+    try {
+      return storedSchema.parse(JSON.parse(await readFile(this.plainFile, "utf8")));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+        throw new Error("模型配置无法读取，原文件已保留");
+    }
     let bytes: Buffer;
     try {
       bytes = await readFile(this.file);
@@ -35,20 +47,20 @@ export class ModelStore implements ProtectedStorage {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw new Error("模型配置读取失败");
     }
-    if (!this.cipher.available()) throw new Error("系统安全凭据存储不可用");
+    if (!this.cipher.available()) throw new Error("旧模型配置需要一次钥匙串读取，原文件已保留");
     try {
-      return storedSchema.parse(JSON.parse(this.cipher.decrypt(bytes)));
+      const value = storedSchema.parse(JSON.parse(this.cipher.decrypt(bytes)));
+      await this.save(value);
+      return value;
     } catch {
-      throw new Error("模型配置无法解密，原文件已保留");
+      throw new Error("旧模型配置无法迁移，原文件已保留");
     }
   }
   async save(value: StoredConnection) {
-    if (!this.cipher.available()) throw new Error("系统安全凭据存储不可用");
-    const bytes = this.cipher.encrypt(
-      JSON.stringify(storedSchema.parse(value)),
-    );
-    await mkdir(dirname(this.file), { recursive: true, mode: 0o700 });
-    await writeFile(`${this.file}.tmp`, bytes, { mode: 0o600 });
-    await rename(`${this.file}.tmp`, this.file);
+    const encoded = JSON.stringify(storedSchema.parse(value));
+    await mkdir(dirname(this.plainFile), { recursive: true, mode: 0o700 });
+    const temporary = `${this.plainFile}.${randomUUID()}.tmp`;
+    await writeFile(temporary, encoded, { mode: 0o600, flag: "wx" });
+    await rename(temporary, this.plainFile);
   }
 }

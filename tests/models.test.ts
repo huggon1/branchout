@@ -1,13 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  randomUUID,
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-} from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
   ModelService,
@@ -158,43 +151,6 @@ test("single connection hides secrets, preserves active snapshots and requires k
   assert.equal(old.config.credential, "");
   await fresh.release();
   await service.close();
-});
-test("encrypted storage rejects insecure fallback and never writes key in clear", async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), "branchout-vault-"));
-  t.after(() => rm(dir, { recursive: true, force: true }));
-  const file = join(dir, "connection.enc");
-  const key = randomBytes(32);
-  const store = new ModelStore(file, {
-    available: () => true,
-    encrypt: (text) => {
-      const nonce = randomBytes(12);
-      const cipher = createCipheriv("aes-256-gcm", key, nonce);
-      const data = Buffer.concat([cipher.update(text), cipher.final()]);
-      return Buffer.concat([nonce, cipher.getAuthTag(), data]);
-    },
-    decrypt: (bytes) => {
-      const cipher = createDecipheriv(
-        "aes-256-gcm",
-        key,
-        bytes.subarray(0, 12),
-      );
-      cipher.setAuthTag(bytes.subarray(12, 28));
-      return Buffer.concat([
-        cipher.update(bytes.subarray(28)),
-        cipher.final(),
-      ]).toString();
-    },
-  });
-  await store.save(api);
-  assert.equal((await readFile(file)).includes(api.apiKey), false);
-  assert.deepEqual(await store.load(), api);
-  await assert.rejects(
-    new ModelStore(file, {
-      available: () => false,
-      encrypt: () => Buffer.alloc(0),
-      decrypt: () => "",
-    }).save(api),
-  );
 });
 test("catalog uses Codex evidence and Pi intersection, failed refresh preserves selection", async () => {
   const { service, clients } = fixture();

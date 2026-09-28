@@ -67,4 +67,4 @@ The main process handles worker events in this order:
 3. Validate and save the final report and reference, then mark the task complete and notify the renderer.
 4. On interruption, save the failed stage and completed scope, retaining readable stage results for retry.
 
-Model configuration is frozen at launch. Renderer, snapshots, reports, and activities read redacted state. The main process validates source content, model output, card references, and suggestion changes before persistence.
+Model configuration is frozen at launch. The current model connection is stored in `model-connection.json` with owner-only file permissions; the first read of a legacy `model-connection.enc` saves its validated contents into the new file. Renderer, snapshots, reports, and activities read redacted state. The main process validates source content, model output, card references, and suggestion changes before persistence.
