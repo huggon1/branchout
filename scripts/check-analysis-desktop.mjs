@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { _electron as electron } from "playwright";
 
 const root = await mkdtemp(join(tmpdir(), "branchout-analysis-desktop-"));
@@ -19,7 +20,7 @@ execFileSync("git", ["init", "-q", repository]);
 await writeFile(join(repository, "README.md"), "# Sample project\nA local-only test project.\nThe user cares about offline sync recovery.\n");
 execFileSync("git", ["-C", repository, "add", "README.md"]);
 execFileSync("git", ["-C", repository, "-c", "user.name=Branchout Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "Document offline sync recovery"]);
-await writeFile(join(sessionDirectory, "rollout-synthetic.jsonl"), [
+const sessionText = [
   { type: "session_meta", payload: { id: sessionId, timestamp: "2026-09-26T03:00:00.000Z", cwd: repository, thread_name: "离线同步恢复" } },
   { type: "turn_context", payload: { cwd: repository } },
   { type: "event_msg", payload: { type: "user_message", message: userConcern } },
@@ -27,7 +28,10 @@ await writeFile(join(sessionDirectory, "rollout-synthetic.jsonl"), [
   { type: "response_item", payload: { type: "function_call", name: "read_file", arguments: "TOOL_CALL_SENTINEL_SHOULD_NOT_REACH_MODEL" } },
   { type: "response_item", payload: { type: "function_call_output", output: "TOOL_OUTPUT_SENTINEL_SHOULD_NOT_REACH_MODEL" } },
   { type: "response_item", payload: { type: "message", role: "assistant", phase: "final", content: [{ type: "output_text", text: "已检查离线同步恢复问题。" }] } },
-].map((record) => JSON.stringify(record)).join("\n"), "utf8");
+].map((record) => JSON.stringify(record)).join("\n");
+await writeFile(join(sessionDirectory, "rollout-synthetic.jsonl"), sessionText, "utf8");
+const fingerprint = (value) => createHash("sha256").update(value).digest("hex");
+const repositoryHead = execFileSync("git", ["-C", repository, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 
 const requests = [];
 const server = createServer(async (request, response) => {
@@ -59,6 +63,20 @@ const server = createServer(async (request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
 let application;
+let stopping = false;
+async function stopOnSignal() {
+  if (stopping) return;
+  stopping = true;
+  try {
+    if (application) await application.close();
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  } finally {
+    process.exit(143);
+  }
+}
+process.once("SIGTERM", () => { void stopOnSignal(); });
 const value = async (promise) => {
   let timer;
   let reply;
@@ -143,8 +161,28 @@ try {
   await page.getByRole("button", { name: /sample-project/ }).first().click();
   await page.getByRole("heading", { name: "项目报告" }).waitFor();
   await page.getByText("项目关注离线同步恢复，用户在工作对话中明确表达了这一方向。").waitFor();
-  await mkdir("test-results", { recursive: true });
-  await page.screenshot({ path: "test-results/real-analysis-report.png", fullPage: true });
+  const artifactDirectory = resolve(process.env.BRANCHOUT_EVAL_ARTIFACT_DIR ?? "test-results");
+  await mkdir(artifactDirectory, { recursive: true });
+  await page.screenshot({ path: join(artifactDirectory, "real-analysis-report.png"), fullPage: true });
+  if (process.env.BRANCHOUT_EVAL_RESULT_PATH) {
+    await writeFile(process.env.BRANCHOUT_EVAL_RESULT_PATH, `${JSON.stringify({
+      schemaVersion: 1,
+      inputScope: {
+        repository: { fingerprint: fingerprint(repositoryHead), selected: preflight.repository.candidateFileCount },
+        commits: { fingerprint: fingerprint(repositoryHead), selected: preflight.commits.availableCount },
+        conversations: { fingerprint: fingerprint(sessionText), selected: 1 },
+        messagesSelected: 1,
+      },
+      modelIdentifier: "analysis-fixture",
+      stages: ["preflight", "analysis", "report", "suggestion_acceptance"],
+      checks: [
+        { id: "INPUT_SELECTION", observed: preflight.codexSessions.length, expected: 1 },
+        { id: "REPORT_SAVED", observed: reports.length, expected: 1 },
+        { id: "SUGGESTION_ACCEPTED", observed: cards.focusCards.length, expected: 1 },
+        { id: "MODEL_CALLS", observed: requests.length, expected: 1 },
+      ],
+    }, null, 2)}\n`, { mode: 0o600 });
+  }
   console.log("Real desktop analysis flow passed: preflight, worker and model call, persisted report, evidence and accepted focus suggestion.");
 } finally {
   if (application) await application.close();
