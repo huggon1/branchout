@@ -91,8 +91,8 @@ Numbers below identify source order within each file. `Keep` marks an independen
 | `runtime-layout` 2 | Development worker path points outside checkout | Keep development path contract; product acceptance uses EV-12. |
 | `telegram-integration` 1 | Parser queues multiple or unsupported links | Keep parser boundary; EV-11 checks submitted link. |
 | `telegram-integration` 2 | Duplicate update or restart duplicates task/loses ack | Replace after EV-11 packaged replay and restart. |
-| `telegram-integration` 3 | Bot or temporary source token enters plain persistence | Keep credential boundary; EV-11 checks local artifacts. |
-| `telegram-integration` 4 | XHS share token leaks from queue or dispatch | Keep transient-token boundary; EV-11 checks artifacts. |
+| `telegram-integration` 3 | Bot or temporary source token enters persistence | The former Safe Storage assertion was retired when owner-only file storage became the product behavior. EV-14 checks packaged restart, file permissions, queued token recovery, and malformed-file preservation. |
+| `telegram-integration` 4 | XHS share token survives queued delivery | The mocked encryption assertion was retired with the Safe Storage implementation. EV-14 checks the packaged app's queued token recovery and owner-only file permissions. |
 | `worker-environment` 1 | Worker inherits unrelated secrets while proxy settings are needed | Keep environment boundary; EV-12 checks launched worker. |
 | `x-platform` 1 | X URL parser accepts wrong host/path | Keep source boundary; EV-10 checks accepted link. |
 | `x-platform` 2 | X normalization loses text/photos/source identity | Keep format boundary; EV-10 checks report evidence. |
