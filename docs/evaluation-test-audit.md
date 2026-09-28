@@ -19,13 +19,15 @@ This audit describes the `v0.4.0` source baseline at `af95bfe`. It records what 
 | `forwarding-jobs.test.ts`, `forwarding-service.test.ts` | Injected model/stage messages, card coverage and stage reuse | Keep stage and completeness contracts; exercise source-to-report path in packaged app | EV-10 |
 | `telegram-integration.test.ts`, `x-platform.test.ts`, `xhs-platform.test.ts` | Parsing, normalization, authorization, queue persistence and source safety | Keep protocol and credential cases; add restart and duplicate delivery scenarios | EV-10, EV-11 |
 | `runtime-layout.test.ts` | Packaged resource path construction | Keep as a fast package contract; observe launched worker in packaged E2E | EV-12 |
-| `check-focus-ui.mjs` with `focus-ui-preload.cjs` | Visible renderer states over a simulated backend | Keep for visual interaction coverage while labeling it a renderer fixture; require packaged paths for workflow claims | EV-01, EV-03, EV-09, EV-10 |
+| `check-focus-ui.mjs` with `focus-ui-preload.cjs` and `focus-ui-main.cjs` | Visible renderer states over a simulated backend | Replace stale mock methods as contracts change; label the result a renderer fixture and require packaged paths for workflow claims | EV-01, EV-03, EV-09, EV-10 |
 | `check-model-ui.mjs`, `check-analysis-desktop.mjs` | Packaged Electron plus controllable model responses | Generalize to the portable runner; add multi-batch faults, real Codex local mode, and trace checks | EV-02 through EV-08 |
 | `check-project-desktop.mjs`, `check-forwarding-desktop.mjs` | Electron actions with isolated app state | Integrate relevant flows into the runner and packaged gate | EV-01, EV-10, EV-12 |
 
 ## Highest-risk gaps
 
 The current packaged gate covers generic API checks, a rendered Codex login action, and one synthetic project-analysis batch. The next gates need completed Codex subscription login, multi-batch transient-error and process-restart continuation, persisted Pi session and HTML trace comparison, prompt-revision provenance, and independent focus-suggestion review. The analysis desktop stub writes the expected suggestion itself, so that assertion establishes wiring and validation. The runner should retain that deterministic check for plumbing and use a separately recorded human rubric for suggestion quality.
+
+The integration renderer added `analysisPromptView` to the real preload. The `focus-ui-main.cjs` fixture still lacks that method, producing a blank page with `analysisPromptView is not a function` in `npm run test:ui`. That result identifies fixture drift. EV-07 and packaged renderer checks establish startup and prompt settings behavior.
 
 Migration retains independent failure checks until a stronger check runs. An oracle that contradicts current product policy leaves the suite immediately, while the matching scenario remains open. The scenario catalog provides the oracle before new implementation or test code is written. CI can require fixture-mode structural gates; a local private run supplies real-model and semantic evidence for release review.
 
