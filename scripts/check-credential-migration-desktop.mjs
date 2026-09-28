@@ -8,12 +8,12 @@ import { _electron as electron } from "playwright";
 
 const stage = (name) => console.log(`${new Date().toISOString()} EV-13 ${name}`);
 const digest = (value) => createHash("sha256").update(value).digest("hex");
-const root = await mkdtemp(join(tmpdir(), "branchout-credential-migration-"));
+const root = await mkdtemp(join(tmpdir(), "branchout-model-storage-"));
 const userData = join(root, "app-data");
 const legacyPath = join(userData, "model-connection.enc");
 const plainPath = join(userData, "model-connection.json");
 const credential = "fictional-evaluation-key";
-const modelId = "fictional-migration-model";
+const modelId = "fictional-storage-model";
 const requests = [];
 const server = createServer(async (request, response) => {
   for await (const _ of request) { /* drain fixture request */ }
@@ -57,60 +57,64 @@ const launch = async () => {
 const close = async () => {
   if (application) {
     const current = application;
+    const child = current.process();
     let timer;
     await Promise.race([
       current.close(),
       new Promise((done) => { timer = setTimeout(done, 5_000); }),
     ]).finally(() => clearTimeout(timer));
-    if (current.process().exitCode === null) current.process().kill("SIGKILL");
+    if (child.exitCode === null) child.kill("SIGKILL");
   }
   application = undefined;
 };
 const checks = [];
 try {
   await mkdir(userData, { recursive: true, mode: 0o700 });
-  await launch();
-  const legacyConnection = { method: "generic_api", baseUrl, api: "openai-responses", modelId, apiKey: credential };
-  stage("legacy_encrypt_requested");
-  const encrypted = await application.evaluate(({ safeStorage }, value) => {
-    if (!safeStorage.isEncryptionAvailable()) throw new Error("safeStorage is unavailable for legacy fixture generation");
-    return [...safeStorage.encryptString(JSON.stringify(value))];
-  }, legacyConnection);
-  await close();
-  stage("legacy_fixture_generated");
-  await writeFile(legacyPath, Buffer.from(encrypted), { mode: 0o600, flag: "wx" });
-  const originalLegacy = await readFile(legacyPath);
   const page = await launch();
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByLabel("模型标识", { exact: true }).waitFor();
+  await page.getByLabel("服务地址", { exact: true }).fill(baseUrl);
+  await page.getByLabel("模型标识", { exact: true }).fill(modelId);
+  await page.getByLabel("API Key", { exact: true }).fill(credential);
+  stage("model_save_requested");
+  await page.getByRole("button", { name: "保存连接" }).click();
+  await page.getByText("已保存，新连接将用于后续任务").waitFor({ timeout: 20_000 });
+  stage("model_saved");
   assert.equal(await page.getByLabel("模型标识", { exact: true }).inputValue(), modelId);
   assert.equal(await page.getByLabel("API Key", { exact: true }).inputValue(), "");
   assert.equal(JSON.stringify(await page.evaluate(() => window.branchout.modelView())).includes(credential), false);
-  checks.push({ id: "MIGRATED_CONNECTION_VISIBLE", observed: 1, expected: 1 });
+  checks.push({ id: "FRESH_CONNECTION_SAVED_AND_REDACTED", observed: 1, expected: 1 });
   const plain = await readFile(plainPath);
-  assert.deepEqual(JSON.parse(plain.toString("utf8")), legacyConnection);
+  assert.deepEqual(JSON.parse(plain.toString("utf8")), { method: "generic_api", baseUrl, api: "openai-responses", modelId, apiKey: credential });
   assert.equal((await stat(plainPath)).mode & 0o077, 0);
-  assert.deepEqual(await readFile(legacyPath), originalLegacy);
-  checks.push({ id: "OWNER_ONLY_FILE_AND_LEGACY_INTACT", observed: 1, expected: 1 });
+  checks.push({ id: "OWNER_ONLY_JSON", observed: 1, expected: 1 });
   await page.getByRole("button", { name: "发送检查请求" }).click();
   await page.getByText("连接检查通过", { exact: true }).waitFor({ timeout: 30_000 });
   assert.equal(requests.length, 1);
   assert.equal(requests[0].authorizationMatches, true);
-  checks.push({ id: "MIGRATED_CONNECTION_USABLE", observed: requests.length, expected: 1 });
+  checks.push({ id: "SAVED_CONNECTION_USABLE", observed: requests.length, expected: 1 });
   const artifactDirectory = resolve(process.env.BRANCHOUT_EVAL_ARTIFACT_DIR ?? root);
   await mkdir(artifactDirectory, { recursive: true, mode: 0o700 });
-  await page.screenshot({ path: join(artifactDirectory, "credential-migration.png") });
+  await page.screenshot({ path: join(artifactDirectory, "model-storage.png") });
   await close();
-  stage("migration_verified");
-  await writeFile(legacyPath, Buffer.from("invalid legacy ciphertext"));
-  const restarted = await launch();
-  await restarted.getByRole("button", { name: "设置", exact: true }).click();
-  assert.equal(await restarted.getByLabel("模型标识", { exact: true }).inputValue(), modelId);
-  assert.equal(await restarted.getByLabel("API Key", { exact: true }).inputValue(), "");
+  stage("first_launch_verified");
+  const second = await launch();
+  await second.getByRole("button", { name: "设置", exact: true }).click();
+  assert.equal(await second.getByLabel("模型标识", { exact: true }).inputValue(), modelId);
+  assert.equal(await second.getByLabel("API Key", { exact: true }).inputValue(), "");
   assert.deepEqual(await readFile(plainPath), plain);
-  checks.push({ id: "RESTART_IGNORES_LEGACY_CIPHERTEXT", observed: 1, expected: 1 });
+  checks.push({ id: "SECOND_LAUNCH_READS_JSON", observed: 1, expected: 1 });
   await close();
-  stage("restart_verified");
+  stage("second_launch_verified");
+  await writeFile(legacyPath, Buffer.from("invalid legacy ciphertext"));
+  const third = await launch();
+  await third.getByRole("button", { name: "设置", exact: true }).click();
+  assert.equal(await third.getByLabel("模型标识", { exact: true }).inputValue(), modelId);
+  assert.equal(await third.getByLabel("API Key", { exact: true }).inputValue(), "");
+  assert.deepEqual(await readFile(plainPath), plain);
+  checks.push({ id: "THIRD_LAUNCH_IGNORES_LEGACY_CIPHERTEXT", observed: 1, expected: 1 });
+  await close();
+  stage("third_launch_verified");
   if (process.env.BRANCHOUT_EVAL_RESULT_PATH) await writeFile(process.env.BRANCHOUT_EVAL_RESULT_PATH, `${JSON.stringify({
     schemaVersion: 1,
     inputScope: {
@@ -120,7 +124,7 @@ try {
       messagesSelected: 0,
     },
     modelIdentifier: modelId,
-    stages: ["legacy_fixture", "migration", "connection_check", "restart"],
+    stages: ["fresh_save", "connection_check", "second_launch", "third_launch"],
     checks,
   }, null, 2)}\n`, { mode: 0o600 });
   stage("passed");
