@@ -32,13 +32,20 @@ export type CodexTokenProvider = (options: {
 }) => Promise<CodexAccessToken>;
 
 class CodexCredentialBridge implements CredentialStore {
+  private current?: CodexAccessToken;
+
   constructor(private readonly getToken: CodexTokenProvider) {}
 
   private async credential(
     forceRefresh: boolean,
     signal?: AbortSignal,
   ): Promise<Credential> {
-    let token = await this.getToken({ forceRefresh, signal });
+    let token =
+      !forceRefresh &&
+      this.current &&
+      this.current.expiresAt > Date.now() + MIN_TOKEN_LIFETIME_MS
+        ? this.current
+        : await this.getToken({ forceRefresh, signal });
     if (token.expiresAt <= Date.now() + MIN_TOKEN_LIFETIME_MS && !forceRefresh)
       token = await this.getToken({ forceRefresh: true, signal });
     if (
@@ -46,6 +53,7 @@ class CodexCredentialBridge implements CredentialStore {
       token.expiresAt <= Date.now() + MIN_TOKEN_LIFETIME_MS
     )
       throw new Error("Codex access token is unavailable or expires too soon");
+    this.current = token;
     return {
       type: "oauth",
       access: token.accessToken,
