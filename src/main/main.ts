@@ -37,6 +37,9 @@ import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipe
 import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
 import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
 import { ProjectAnalysisCheckpointStore } from "./storage/project-analysis-checkpoint-store";
+import { AnalysisPromptStore } from "./storage/analysis-prompt-store";
+import { AnalysisPromptSettingsService } from "./services/project-analysis/prompt-settings-service";
+import { registerAnalysisPromptSettingsIpc } from "./services/project-analysis/prompt-settings-ipc";
 import { TaskService } from "./services/tasks/task-service";
 import { registerTaskIpc } from "./services/tasks/task-ipc";
 import { UnifiedTaskService } from "./services/tasks/unified-task-service";
@@ -67,6 +70,7 @@ else {
   let focusCards: FocusCardService | undefined;
   let analysisReports: ProjectAnalysisReportService | undefined;
   let analysisPipeline: ProjectAnalysisPipelineService | undefined;
+  let analysisPromptSettings: AnalysisPromptSettingsService | undefined;
   let tasks: TaskService | undefined;
   let taskView: UnifiedTaskService | undefined;
   let xAuth: XAuth | undefined;
@@ -186,6 +190,11 @@ else {
         join(app.getPath("userData"), "project-analysis-checkpoints.json"),
       );
       await analysisCheckpointStore.open();
+      const analysisPromptStore = new AnalysisPromptStore(
+        join(app.getPath("userData"), "analysis-prompt.json"),
+      );
+      await analysisPromptStore.open();
+      analysisPromptSettings = new AnalysisPromptSettingsService(analysisPromptStore, changed);
       analysisPipeline = new ProjectAnalysisPipelineService({
         workerPath: join(__dirname, "../worker/jobs/project-analysis/worker-entry.mjs"),
         spawnWorker: (path) => {
@@ -290,6 +299,7 @@ else {
       registerFocusCardIpc(focusCards, expected);
       registerAnalysisReportIpc(analysisReports, expected);
       registerProjectAnalysisPipelineIpc(analysisPipeline, expected);
+      registerAnalysisPromptSettingsIpc(analysisPromptSettings, expected);
       registerTaskIpc(taskView, expected);
       registerForwardingIpc(forwarding, expected);
       registerTelegramIpc(telegram, telegramCredentials, expected, changed);

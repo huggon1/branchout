@@ -21,6 +21,7 @@ import type {
   ForwardingTaskSummary,
 } from "./forwarding-view-contracts";
 import type { TelegramStatus } from "./telegram-contracts";
+import type { AnalysisPromptSettings, AnalysisPromptView } from "./analysis-prompt-contracts";
 
 export const projectChannels = {
   view: "project:view",
@@ -48,6 +49,12 @@ export const analysisChannels = {
   retry: "analysis:retry",
   cancel: "analysis:cancel",
   acceptSuggestion: "analysis:accept-suggestion",
+} as const;
+
+export const analysisPromptChannels = {
+  view: "analysis-prompt:view",
+  save: "analysis-prompt:save",
+  reset: "analysis-prompt:reset",
 } as const;
 
 export const forwardingChannels = {
@@ -115,6 +122,9 @@ export interface DesktopBridge {
   projectAnalysisPreflight(
     projectId: string,
   ): Promise<ModelReply<ProjectAnalysisPreflight>>;
+  analysisPromptView(): Promise<ModelReply<AnalysisPromptView>>;
+  saveAnalysisPrompt(input: AnalysisPromptSettings): Promise<ModelReply<AnalysisPromptView>>;
+  resetAnalysisPrompt(): Promise<ModelReply<AnalysisPromptView>>;
   startProjectAnalysis(
     input: StartProjectAnalysis,
   ): Promise<ModelReply<string>>;
