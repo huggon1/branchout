@@ -12,6 +12,7 @@ Each new scenario records these fields before implementation:
 4. **Reproducible artifact:** code and app revision, scenario and harness revision, input fingerprints and counts, model and prompt revision, event timeline, checks, screenshots, and redacted failure details in a versioned run record.
 5. **Packaged boundary:** a product-flow acceptance result launches the packaged Electron executable with isolated app data and exercises the user path. Source-module checks carry the `contract` label.
 6. **Decision type:** deterministic checks state exact expected values; semantic outcomes use a documented human rubric and retain the reviewer decision with its evidence.
+7. **Process cleanup:** a timed-out or aborted packaged run terminates its isolated Electron process group and leaves the user's installed app and profile untouched. The run record keeps the driver timeout or interruption code.
 
 Private repository content, conversation text, credentials, full paths, and traces stay in the local run directory. Shared manifests contain counts, fingerprints, redacted summaries, and artifact types. A credential scenario uses only fictional credentials.
 
