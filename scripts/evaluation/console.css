@@ -43,6 +43,10 @@ h2 { font-size: 1.12rem; margin: 0; letter-spacing: -0.015em; }
 .directory-entries button { border: 0; border-radius: 0; text-align: left; border-top: 1px solid #e3ebe6; }
 .state-box { margin-top: 0.9rem; padding: 0.7rem 0.8rem; background: #eef4f0; border-radius: 8px; line-height: 1.5; overflow-wrap: anywhere; }
 .run-actions { display: flex; align-items: center; gap: 0.8rem; margin-top: 0.8rem; }
+.session-list { display: grid; max-height: 18rem; overflow: auto; margin: 0.8rem 0; }
+.session-row { display: flex; align-items: start; gap: 0.55rem; padding: 0.5rem 0; border-bottom: 1px solid #e3ebe6; font-weight: 400; overflow-wrap: anywhere; }
+.session-row input { width: auto; margin-top: 0.25rem; }
+.run-detail a { color: #225b3d; }
 .scenario-list, .run-list { display: grid; }
 .scenario-row, .run-row { display: grid; grid-template-columns: 4rem minmax(0, 1fr) auto; gap: 0.65rem; align-items: baseline; padding: 0.66rem 0; border-bottom: 1px solid #e3ebe6; }
 .scenario-row:last-child, .run-row:last-child { border-bottom: 0; }
@@ -69,6 +73,8 @@ h2 { font-size: 1.12rem; margin: 0; letter-spacing: -0.015em; }
   .browser-head, .state-box { background: #29392e; }
   .directory-browser { border-color: #3a4b40; }
   .directory-entries button, .scenario-row, .run-row { border-color: #3a4b40; }
+  .session-row { border-color: #3a4b40; }
+  .run-detail a { color: #87c99c; }
   .run-row:hover { background: #29392e; }
   .run-detail img { border-color: #3a4b40; }
   .fail { color: #ed9e92; }

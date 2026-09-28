@@ -8,7 +8,7 @@ One portable runner accepts two input modes. `fixture` creates a fictional Git r
 
 The same scenario definitions and result format serve both modes. A local web console can select inputs, launch the runner, and compare saved runs; the runner remains directly callable for CI and automation. Local source paths, conversation contents, reports, traces, and reviewer notes stay in a machine-local evaluation directory. Repository fixtures contain fictional data.
 
-Current implementation includes EV-04, EV-05, and EV-13 fixture modes. They drive packaged analysis, interrupted multi-batch recovery, and fresh model storage with versioned run records outside the repository. A localhost console selects a Git repository for metadata preflight, launches these fixtures, and displays scenario status and saved runs. [Runner usage](../scripts/evaluation/README.md) describes the entry points.
+Current implementation includes EV-04, EV-05, and EV-13 fixture modes plus EV-04 local mode. They drive packaged analysis, interrupted multi-batch recovery, and fresh model storage with versioned run records outside the repository. A localhost console selects a Git repository, runs packaged preflight, starts analysis of selected Codex sessions, and displays saved runs. [Runner usage](../scripts/evaluation/README.md) describes the entry points.
 
 ## Local target evaluation contract
 

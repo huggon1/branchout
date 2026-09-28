@@ -1,13 +1,13 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { access, mkdir, readFile, realpath, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, realpath, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { defaultOutputRoot, listRunRecords, readRunRecord } from "./run-record.mjs";
-import { runEvaluation } from "./run.mjs";
+import { preflightLocalEvaluation, runEvaluation } from "./run.mjs";
 import { scenarios } from "./scenarios.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -15,6 +15,7 @@ const directory = dirname(fileURLToPath(import.meta.url));
 const repositoryDirectory = resolve(directory, "../..");
 const token = randomBytes(32).toString("hex");
 let activeRun = null;
+let preflightActive = false;
 
 function argumentsFromCli(args) {
   let port = 4317;
@@ -85,9 +86,8 @@ async function repositoryPreflight(input) {
     head,
     branch: branch || "detached HEAD",
     hasUncommittedChanges: worktree.length > 0,
-    conversationDiscovery: "pending_product_preflight",
-    execution: "unavailable",
-    reason: "Local target execution awaits the portable runner and product session integration.",
+    conversationDiscovery: "ready_for_packaged_preflight",
+    execution: "available_after_model_setup_and_session_selection",
   };
 }
 
@@ -154,6 +154,33 @@ export function createEvaluationConsole({ outputRoot = defaultOutputRoot } = {})
         await saveConfig(configFile, selected.directory);
         return sendJson(response, 200, { selected });
       }
+      if (url.pathname === "/api/profile/open" && request.method === "POST") {
+        if (activeRun?.state === "starting" || activeRun?.state === "running" || preflightActive) return sendError(response, 409, "evaluation_busy");
+        const body = await readBody(request);
+        if (typeof body.app !== "string" || !body.app.trim() || body.app.length > 4096) return sendError(response, 400, "invalid_app_path");
+        const selected = resolve(body.app);
+        const executable = selected.endsWith(".app") ? join(selected, "Contents/MacOS/Branchout") : selected;
+        await access(executable);
+        const profile = join(dirname(outputRoot), "profile");
+        await mkdir(profile, { recursive: true, mode: 0o700 });
+        await chmod(profile, 0o700);
+        const child = spawn(executable, [], { cwd: dirname(executable), env: { ...process.env, BRANCHOUT_TEST_DATA: profile }, detached: true, stdio: "ignore", windowsHide: true });
+        await new Promise((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); });
+        child.unref();
+        return sendJson(response, 202, { opened: true });
+      }
+      if (url.pathname === "/api/target/preflight" && request.method === "POST") {
+        if (activeRun?.state === "starting" || activeRun?.state === "running" || preflightActive) return sendError(response, 409, "evaluation_busy");
+        const body = await readBody(request);
+        const repository = await readConfig(configFile);
+        if (!repository) return sendError(response, 400, "repository_required");
+        if (typeof body.app !== "string" || !body.app.trim() || body.app.length > 4096) return sendError(response, 400, "invalid_app_path");
+        preflightActive = true;
+        try {
+          const selection = await preflightLocalEvaluation({ app: body.app, outputRoot, repository });
+          return sendJson(response, 200, selection);
+        } finally { preflightActive = false; }
+      }
       if (url.pathname === "/api/runs" && request.method === "GET") {
         const runs = await listRunRecords(outputRoot);
         return sendJson(response, 200, runs.map(({ runId, scenarioId, mode, outcome, startedAt, finishedAt, checks, review }) => ({
@@ -166,26 +193,29 @@ export function createEvaluationConsole({ outputRoot = defaultOutputRoot } = {})
       if (url.pathname === "/api/active" && request.method === "GET") return sendJson(response, 200, activeRun);
       if (url.pathname === "/api/runs" && request.method === "POST") {
         const body = await readBody(request);
-        if (activeRun?.state === "starting" || activeRun?.state === "running") return sendError(response, 409, "run_already_active");
-        if (body.mode !== "fixture" || !["EV-04", "EV-05", "EV-13"].includes(body.scenarioId)) return sendError(response, 400, "scenario_unavailable");
+        if (activeRun?.state === "starting" || activeRun?.state === "running" || preflightActive) return sendError(response, 409, "run_already_active");
+        if (!(body.mode === "fixture" && ["EV-04", "EV-05", "EV-13"].includes(body.scenarioId)) && !(body.mode === "local" && body.scenarioId === "EV-04")) return sendError(response, 400, "scenario_unavailable");
         if (typeof body.app !== "string" || body.app.trim().length === 0 || body.app.length > 4096) return sendError(response, 400, "invalid_app_path");
+        const repository = body.mode === "local" ? await readConfig(configFile) : undefined;
+        if (body.mode === "local" && (!repository || !Array.isArray(body.sessionIds) || body.sessionIds.length > 1000 || body.sessionIds.some((id) => typeof id !== "string" || !id || id.length > 300))) return sendError(response, 400, "invalid_selection");
         activeRun = { state: "starting", scenarioId: body.scenarioId, mode: body.mode, startedAt: new Date().toISOString() };
-        void runEvaluation({ mode: body.mode, scenarioId: body.scenarioId, app: body.app, outputRoot }, (event) => {
+        void runEvaluation({ mode: body.mode, scenarioId: body.scenarioId, app: body.app, outputRoot, repository, sessionIds: body.sessionIds, rangeId: body.rangeId }, (event) => {
           if (event.type === "run_started") activeRun = { ...activeRun, state: "running", runId: event.runId };
+          if (event.type === "driver_stage") activeRun = { ...activeRun, stage: event.stage };
           if (event.type === "run_finished") activeRun = { ...activeRun, state: event.outcome, runId: event.runId };
         }).then(({ record }) => {
           activeRun = { ...activeRun, state: record.outcome, runId: record.runId, finishedAt: record.finishedAt };
         }).catch(() => {
-          activeRun = { ...activeRun, state: "failed", error: "Evaluation setup failed. Check the packaged app path.", finishedAt: new Date().toISOString() };
+          activeRun = { ...activeRun, state: "failed", error: "Evaluation setup failed. Check the packaged app, selection, and profile window.", finishedAt: new Date().toISOString() };
         });
         return sendJson(response, 202, activeRun);
       }
       const runMatch = url.pathname.match(/^\/api\/runs\/([a-f0-9-]{36})$/);
       if (runMatch && request.method === "GET") return sendJson(response, 200, await readRunRecord(outputRoot, runMatch[1]));
-      const artifactMatch = url.pathname.match(/^\/api\/runs\/([a-f0-9-]{36})\/artifacts\/([^/]+)$/);
+      const artifactMatch = url.pathname.match(/^\/api\/runs\/([a-f0-9-]{36})\/artifacts\/(.+)$/);
       if (artifactMatch && request.method === "GET") {
         const record = await readRunRecord(outputRoot, artifactMatch[1]);
-        const artifact = record.artifacts.find((item) => item.relativePath === artifactMatch[2]);
+        const artifact = record.artifacts.find((item) => item.relativePath === decodeURIComponent(artifactMatch[2]));
         if (!artifact) return sendError(response, 404, "artifact_missing");
         const bytes = await readFile(join(outputRoot, record.runId, artifact.relativePath));
         response.writeHead(200, {

@@ -20,8 +20,10 @@
       <section class="layout">
         <div class="column">
           <section class="panel" aria-labelledby="targetHeading">
-            <div class="panel-head"><h2 id="targetHeading">Local target</h2><span class="quiet">Selection only</span></div>
-            <p class="help">Choose a Git repository for future private-data runs. This selection reads Git metadata and stays on this computer.</p>
+            <div class="panel-head"><h2 id="targetHeading">Local target</h2><span class="quiet">Packaged app</span></div>
+            <p class="help">Choose a Git repository, configure the evaluation profile, then select Codex conversations from the packaged app preflight.</p>
+            <label for="appPath">Packaged app path</label>
+            <input id="appPath" type="text" autocomplete="off" spellcheck="false" placeholder="Path to packaged Branchout app" />
             <label for="repositoryPath">Repository directory</label>
             <div class="input-row">
               <input id="repositoryPath" type="text" autocomplete="off" spellcheck="false" />
@@ -33,6 +35,13 @@
               <div id="directoryEntries" class="directory-entries"></div>
             </div>
             <div id="targetState" class="state-box" role="status">Loading saved selection…</div>
+            <div class="run-actions"><button id="profileButton" type="button">Open evaluation profile</button><button id="preflightButton" type="button">Inspect conversations</button></div>
+            <p class="help">Configure the model in the opened Branchout window, then close it before inspecting conversations or starting a run. This profile lives in the private evaluation directory.</p>
+            <div id="modelState" class="state-box" role="status">Model state pending packaged preflight.</div>
+            <div id="sessionList" class="session-list"></div>
+            <label for="localRange">Commit range</label>
+            <select id="localRange"><option value="recent_30">Recent 30</option><option value="recent_100">Recent 100</option></select>
+            <div class="run-actions"><button id="localRunButton" type="button" class="primary" disabled>Run local EV-04</button><span id="localState" role="status">Select conversations after preflight.</span></div>
           </section>
 
           <section class="panel" aria-labelledby="runHeading">
@@ -40,8 +49,6 @@
             <p class="help">Run packaged-app analysis or model-credential migration with fictional inputs.</p>
             <label for="fixtureScenario">Scenario</label>
             <select id="fixtureScenario"><option value="EV-04">EV-04 · Project analysis</option><option value="EV-05">EV-05 · Recovery</option><option value="EV-13">EV-13 · Model storage</option></select>
-            <label for="appPath">Packaged app path</label>
-            <input id="appPath" type="text" autocomplete="off" spellcheck="false" placeholder="Path to packaged Branchout app" />
             <div class="run-actions"><button id="runButton" type="button" class="primary">Run fixture</button><span id="runState" role="status">Ready</span></div>
           </section>
 
