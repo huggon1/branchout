@@ -27,7 +27,7 @@ This audit describes the `v0.4.0` source baseline at `af95bfe`. It records what 
 
 The current packaged gate covers generic API checks, a rendered Codex login action, and one synthetic project-analysis batch. The next gates need completed Codex subscription login, multi-batch transient-error and process-restart continuation, persisted Pi session and HTML trace comparison, prompt-revision provenance, and independent focus-suggestion review. The analysis desktop stub writes the expected suggestion itself, so that assertion establishes wiring and validation. The runner should retain that deterministic check for plumbing and use a separately recorded human rubric for suggestion quality.
 
-Migration removes tests only after their independent failure mode is covered by a stronger check. The scenario catalog provides the oracle before new implementation or test code is written. CI can require fixture-mode structural gates; a local private run supplies real-model and semantic evidence for release review.
+Migration retains independent failure checks until a stronger check runs. An oracle that contradicts current product policy leaves the suite immediately, while the matching scenario remains open. The scenario catalog provides the oracle before new implementation or test code is written. CI can require fixture-mode structural gates; a local private run supplies real-model and semantic evidence for release review.
 
 ## Case-by-case migration map
 
