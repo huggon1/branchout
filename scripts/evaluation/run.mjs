@@ -155,9 +155,17 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
   const driver = await runFixture(fixtureScript, executable, runDirectory, onEvent, signal);
   const finishedAt = new Date().toISOString();
   const artifacts = [];
-  const screenshotName = scenarioId === "EV-13" ? "credential-migration.png" : "real-analysis-report.png";
+  const screenshotName = scenarioId === "EV-13" ? "model-storage.png" : "real-analysis-report.png";
   for (const [kind, name] of [["driver_log", "driver.log"], ["screenshot", screenshotName]]) {
     try { artifacts.push(await fileArtifact(runDirectory, kind, name)); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+  }
+  if (scenarioId === "EV-04") for (const name of [
+    "trace-export/index.html",
+    "trace-export/batch-1-attempt-1.html",
+    "trace-export/batch-2-attempt-1.html",
+  ]) {
+    try { artifacts.push(await fileArtifact(runDirectory, "trace_html", name)); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
   }
   let fixture;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron } from "playwright";
@@ -39,7 +39,7 @@ const server = createServer(async (request, response) => {
   for await (const chunk of request) body += chunk;
   requests.push(JSON.parse(body));
   const evidenceId = JSON.stringify(requests.at(-1)).match(/codex_session-\d+/)?.[0] ?? "codex_session-3";
-  const responseText = JSON.stringify({
+  const batchText = JSON.stringify({
     summary: "项目关注离线同步恢复，用户在工作对话中明确表达了这一方向。",
     findings: [{
       title: "离线同步恢复",
@@ -53,6 +53,17 @@ const server = createServer(async (request, response) => {
       evidence: [{ evidenceId, quote: userConcern }],
     }],
   });
+  const synthesisText = JSON.stringify({
+    summary: "项目关注离线同步恢复，用户在工作对话中明确表达了这一方向。",
+    findings: [{ title: "离线同步恢复", summary: "用户持续关注恢复体验与冲突来源。", supportCandidateIds: ["finding-1-1"] }],
+    suggestions: [{
+      kind: "create",
+      content: "Sample project 是一个本机项目。我关注离线同步失败后的恢复体验。",
+      reason: "用户在工作对话中明确表达了持续关注方向。",
+      supportCandidateIds: ["suggestion-1-1"],
+    }],
+  });
+  const responseText = requests.length === 1 ? batchText : synthesisText;
   response.writeHead(200, { "content-type": "text/event-stream" });
   response.end(
     `data: ${JSON.stringify({ id: "analysis-fixture", model: "analysis-fixture", choices: [{ index: 0, delta: { role: "assistant", content: responseText }, finish_reason: null }] })}\n\n` +
@@ -163,9 +174,11 @@ try {
   const cards = await value(page.evaluate(() => window.branchout.focusCardView()));
   assert.equal(cards.focusCards.length, 1);
   assert.equal(cards.focusVersions[0].content.includes("离线同步失败"), true);
-  assert.equal(requests.length, 1);
+  assert.equal(requests.length, 2);
   const modelRequest = JSON.stringify(requests[0]);
   assert.equal(modelRequest.includes(userConcern), true);
+  assert.equal(JSON.stringify(requests[1]).includes("suggestion-1-1"), true);
+  assert.equal(JSON.stringify(requests[1]).includes("finding-1-1"), true);
   for (const blocked of ["REASONING_SENTINEL", "TOOL_CALL_SENTINEL", "TOOL_OUTPUT_SENTINEL"])
     assert.equal(modelRequest.includes(blocked), false);
   await page.getByRole("button", { name: "项目", exact: true }).click();
@@ -175,6 +188,35 @@ try {
   const artifactDirectory = resolve(process.env.BRANCHOUT_EVAL_ARTIFACT_DIR ?? "test-results");
   await mkdir(artifactDirectory, { recursive: true });
   await page.screenshot({ path: join(artifactDirectory, "real-analysis-report.png"), fullPage: true });
+  const traceDirectory = join(userData, "analysis-traces", taskId);
+  const sessionsDirectory = join(traceDirectory, "sessions");
+  const sessionFiles = (await readdir(sessionsDirectory, { recursive: true })).filter((name) => name.endsWith(".jsonl"));
+  assert.equal(sessionFiles.length, 2);
+  for (const name of sessionFiles) {
+    const lines = (await readFile(join(sessionsDirectory, name), "utf8")).split("\n").filter(Boolean);
+    assert.equal(lines.length > 0, true);
+    for (const line of lines) JSON.parse(line);
+  }
+  const htmlFiles = (await readdir(join(traceDirectory, "html"))).filter((name) => /^batch-\d+-attempt-\d+\.html$/.test(name)).sort();
+  assert.deepEqual(htmlFiles, ["batch-1-attempt-1.html", "batch-2-attempt-1.html"]);
+  await application.evaluate(({ dialog, shell }, directory) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
+    shell.openPath = async () => "";
+  }, root);
+  const exported = await value(page.evaluate((id) => window.branchout.exportProjectAnalysisTrace(id), taskId));
+  assert.equal(exported.startsWith(root), true);
+  const index = await readFile(join(exported, "index.html"), "utf8");
+  assert.equal(index.includes("batch-1-attempt-1.html"), true);
+  assert.equal(index.includes("batch-2-attempt-1.html"), true);
+  const traceArtifactDirectory = join(artifactDirectory, "trace-export");
+  await mkdir(traceArtifactDirectory, { recursive: true });
+  await copyFile(join(exported, "index.html"), join(traceArtifactDirectory, "index.html"));
+  for (const name of htmlFiles) {
+    const pageHtml = await readFile(join(exported, name), "utf8");
+    assert.match(pageHtml, /<html/i);
+    await copyFile(join(exported, name), join(traceArtifactDirectory, name));
+  }
+  stage("trace_export_verified");
   if (process.env.BRANCHOUT_EVAL_RESULT_PATH) {
     await writeFile(process.env.BRANCHOUT_EVAL_RESULT_PATH, `${JSON.stringify({
       schemaVersion: 1,
@@ -185,12 +227,15 @@ try {
         messagesSelected: 1,
       },
       modelIdentifier: "analysis-fixture",
-      stages: ["preflight", "analysis", "report", "suggestion_acceptance"],
+      stages: ["preflight", "analysis", "report", "suggestion_acceptance", "trace_export"],
       checks: [
         { id: "INPUT_SELECTION", observed: preflight.codexSessions.length, expected: 1 },
         { id: "REPORT_SAVED", observed: reports.length, expected: 1 },
         { id: "SUGGESTION_ACCEPTED", observed: cards.focusCards.length, expected: 1 },
-        { id: "MODEL_CALLS", observed: requests.length, expected: 1 },
+        { id: "MODEL_CALLS", observed: requests.length, expected: 2 },
+        { id: "PERSISTED_JSONL", observed: sessionFiles.length, expected: 2 },
+        { id: "PERSISTED_HTML", observed: htmlFiles.length, expected: 2 },
+        { id: "EXPORTED_HTML", observed: (await readdir(traceArtifactDirectory)).length, expected: 3 },
       ],
     }, null, 2)}\n`, { mode: 0o600 });
   }
