@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Branchout Evaluation</title>
+    <link rel="stylesheet" href="/console.css" />
+    <script src="/console.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">LOCAL EVALUATION</p>
+          <h1>Branchout Evaluation</h1>
+          <p class="intro">Select a source, run a packaged-app scenario, and compare saved results.</p>
+        </div>
+      </header>
+
+      <section class="layout">
+        <div class="column">
+          <section class="panel" aria-labelledby="targetHeading">
+            <div class="panel-head"><h2 id="targetHeading">Local target</h2><span class="quiet">Selection only</span></div>
+            <p class="help">Choose a Git repository for future private-data runs. This selection reads Git metadata and stays on this computer.</p>
+            <label for="repositoryPath">Repository directory</label>
+            <div class="input-row">
+              <input id="repositoryPath" type="text" autocomplete="off" spellcheck="false" />
+              <button id="browseButton" type="button">Browse</button>
+              <button id="selectButton" type="button" class="primary">Select</button>
+            </div>
+            <div id="directoryBrowser" class="directory-browser" hidden>
+              <div class="browser-head"><strong id="browserLocation"></strong><button id="parentButton" type="button">Parent</button></div>
+              <div id="directoryEntries" class="directory-entries"></div>
+            </div>
+            <div id="targetState" class="state-box" role="status">Loading saved selection…</div>
+          </section>
+
+          <section class="panel" aria-labelledby="runHeading">
+            <div class="panel-head"><h2 id="runHeading">Run fixture</h2><span class="quiet">Packaged app</span></div>
+            <p class="help">The current runner exercises one synthetic project-analysis batch. It uses fictional repository and conversation data.</p>
+            <label for="appPath">Packaged app path</label>
+            <input id="appPath" type="text" autocomplete="off" spellcheck="false" placeholder="Path to packaged Branchout app" />
+            <div class="run-actions"><button id="runButton" type="button" class="primary">Run EV-04</button><span id="runState" role="status">Ready</span></div>
+          </section>
+
+          <section class="panel" aria-labelledby="scenariosHeading">
+            <div class="panel-head"><h2 id="scenariosHeading">Scenarios</h2><span class="quiet">Behavior and risk</span></div>
+            <div id="scenarioList" class="scenario-list"></div>
+          </section>
+        </div>
+
+        <div class="column">
+          <section class="panel" aria-labelledby="historyHeading">
+            <div class="panel-head"><h2 id="historyHeading">Saved runs</h2><button id="refreshButton" type="button">Refresh</button></div>
+            <p class="help">Records and artifacts are stored outside this repository on your computer.</p>
+            <div id="runList" class="run-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="detailHeading">
+            <div class="panel-head"><h2 id="detailHeading">Run detail</h2><span id="detailStatus" class="quiet">Select a run</span></div>
+            <div id="runDetail" class="run-detail"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

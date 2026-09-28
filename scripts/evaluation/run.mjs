@@ -6,16 +6,14 @@ import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { defaultOutputRoot, newRunRecord, writeRunRecord } from "./run-record.mjs";
+import { scenarios } from "./scenarios.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryDirectory = resolve(scriptDirectory, "../..");
 const fixtureScript = join(repositoryDirectory, "scripts/check-analysis-desktop.mjs");
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const EMPTY_FINGERPRINT = hash("");
-export const scenarioSupport = Object.freeze({
-  "EV-04": { fixture: "implemented", local: "planned" },
-  "EV-05": { fixture: "planned", local: "planned" },
-});
+export const scenarioSupport = Object.freeze(Object.fromEntries(scenarios.map(({ id, fixture, local }) => [id, { fixture, local }])));
 
 const fixtureResultSchema = z.object({
   schemaVersion: z.literal(1),
