@@ -41,14 +41,28 @@ const launch = async () => {
     timeout: 45_000,
   });
   stage("electron_launched");
-  const page = await application.firstWindow({ timeout: 30_000 });
+  let timer;
+  const page = await Promise.race([
+    application.firstWindow(),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("first_window_timeout")), 20_000);
+    }),
+  ]).finally(() => clearTimeout(timer));
   stage("first_window");
   await page.getByRole("button", { name: "设置", exact: true }).waitFor({ timeout: 30_000 });
   stage("renderer_ready");
   return page;
 };
 const close = async () => {
-  if (application) await application.close();
+  if (application) {
+    const current = application;
+    let timer;
+    await Promise.race([
+      current.close(),
+      new Promise((done) => { timer = setTimeout(done, 5_000); }),
+    ]).finally(() => clearTimeout(timer));
+    if (current.process().exitCode === null) current.process().kill("SIGKILL");
+  }
   application = undefined;
 };
 const checks = [];
@@ -109,6 +123,9 @@ try {
     checks,
   }, null, 2)}\n`, { mode: 0o600 });
   stage("passed");
+} catch (error) {
+  stage(`failed_${error.message === "first_window_timeout" ? "first_window_timeout" : "assertion"}`);
+  throw error;
 } finally {
   await close();
   server.closeAllConnections();
