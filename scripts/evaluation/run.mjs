@@ -10,7 +10,10 @@ import { scenarios } from "./scenarios.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryDirectory = resolve(scriptDirectory, "../..");
-const fixtureScript = join(repositoryDirectory, "scripts/check-analysis-desktop.mjs");
+const fixtureScripts = Object.freeze({
+  "EV-04": join(repositoryDirectory, "scripts/check-analysis-desktop.mjs"),
+  "EV-13": join(repositoryDirectory, "scripts/check-credential-migration-desktop.mjs"),
+});
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const EMPTY_FINGERPRINT = hash("");
 export const scenarioSupport = Object.freeze(Object.fromEntries(scenarios.map(({ id, fixture, local }) => [id, { fixture, local }])));
@@ -60,7 +63,7 @@ async function buildFingerprint(executable) {
   return hash(await readFile(target));
 }
 
-function runFixture(executable, runDirectory, onEvent, abortSignal) {
+function runFixture(fixtureScript, executable, runDirectory, onEvent, abortSignal) {
   return new Promise((done) => {
     const child = spawn(process.execPath, [fixtureScript], {
       cwd: repositoryDirectory,
@@ -118,8 +121,9 @@ async function fileArtifact(runDirectory, kind, name) {
 }
 
 export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", app, outputRoot = defaultOutputRoot, signal } = {}, onEvent = () => {}) {
-  if (mode !== "fixture" || scenarioId !== "EV-04")
-    throw new Error("The first runner supports fixture mode for EV-04; other catalog scenarios are pending.");
+  const fixtureScript = fixtureScripts[scenarioId];
+  if (mode !== "fixture" || !fixtureScript)
+    throw new Error("Fixture runner supports EV-04 and EV-13; other catalog scenarios are pending.");
   const executable = await resolveAppExecutable(app);
   const root = await assertLocalOutput(resolve(outputRoot));
   const version = JSON.parse(await readFile(join(repositoryDirectory, "package.json"), "utf8")).version;
@@ -148,10 +152,11 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
   onEvent({ type: "run_started", runId: record.runId, scenarioId, mode });
   record = { ...record, stages: [{ name: "desktop_fixture", outcome: "pending", startedAt: new Date().toISOString() }] };
   await writeRunRecord(root, record);
-  const driver = await runFixture(executable, runDirectory, onEvent, signal);
+  const driver = await runFixture(fixtureScript, executable, runDirectory, onEvent, signal);
   const finishedAt = new Date().toISOString();
   const artifacts = [];
-  for (const [kind, name] of [["driver_log", "driver.log"], ["screenshot", "real-analysis-report.png"]]) {
+  const screenshotName = scenarioId === "EV-13" ? "credential-migration.png" : "real-analysis-report.png";
+  for (const [kind, name] of [["driver_log", "driver.log"], ["screenshot", screenshotName]]) {
     try { artifacts.push(await fileArtifact(runDirectory, kind, name)); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
   }
@@ -196,7 +201,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const options = parseArguments(process.argv.slice(2));
     if (options.help) {
-      process.stdout.write("Usage: node scripts/evaluation/run.mjs --mode fixture --scenario EV-04 --app <Branchout.app or executable> [--output-root <directory>]\n");
+      process.stdout.write("Usage: node scripts/evaluation/run.mjs --mode fixture --scenario <EV-04|EV-13> --app <Branchout.app or executable> [--output-root <directory>]\n");
     } else if (options.list) {
       process.stdout.write(`${JSON.stringify(scenarioSupport, null, 2)}\n`);
     } else {

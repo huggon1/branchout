@@ -37,10 +37,12 @@
 
           <section class="panel" aria-labelledby="runHeading">
             <div class="panel-head"><h2 id="runHeading">Run fixture</h2><span class="quiet">Packaged app</span></div>
-            <p class="help">The current runner exercises one synthetic project-analysis batch. It uses fictional repository and conversation data.</p>
+            <p class="help">Run packaged-app analysis or model-credential migration with fictional inputs.</p>
+            <label for="fixtureScenario">Scenario</label>
+            <select id="fixtureScenario"><option value="EV-04">EV-04 · Project analysis</option><option value="EV-13">EV-13 · Credential migration</option></select>
             <label for="appPath">Packaged app path</label>
             <input id="appPath" type="text" autocomplete="off" spellcheck="false" placeholder="Path to packaged Branchout app" />
-            <div class="run-actions"><button id="runButton" type="button" class="primary">Run EV-04</button><span id="runState" role="status">Ready</span></div>
+            <div class="run-actions"><button id="runButton" type="button" class="primary">Run fixture</button><span id="runState" role="status">Ready</span></div>
           </section>
 
           <section class="panel" aria-labelledby="scenariosHeading">

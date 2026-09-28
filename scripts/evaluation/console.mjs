@@ -167,7 +167,7 @@ export function createEvaluationConsole({ outputRoot = defaultOutputRoot } = {})
       if (url.pathname === "/api/runs" && request.method === "POST") {
         const body = await readBody(request);
         if (activeRun?.state === "starting" || activeRun?.state === "running") return sendError(response, 409, "run_already_active");
-        if (body.mode !== "fixture" || body.scenarioId !== "EV-04") return sendError(response, 400, "scenario_unavailable");
+        if (body.mode !== "fixture" || !["EV-04", "EV-13"].includes(body.scenarioId)) return sendError(response, 400, "scenario_unavailable");
         if (typeof body.app !== "string" || body.app.trim().length === 0 || body.app.length > 4096) return sendError(response, 400, "invalid_app_path");
         activeRun = { state: "starting", scenarioId: body.scenarioId, mode: body.mode, startedAt: new Date().toISOString() };
         void runEvaluation({ mode: body.mode, scenarioId: body.scenarioId, app: body.app, outputRoot }, (event) => {

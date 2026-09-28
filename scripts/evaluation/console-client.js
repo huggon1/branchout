@@ -140,7 +140,7 @@ async function loadRun(runId) {
   detail.append(text("p", `Human review: ${run.review.status}`));
   const screenshot = run.artifacts.find((artifact) => artifact.kind === "screenshot");
   if (screenshot) {
-    const button = text("button", "View report screenshot");
+    const button = text("button", "View desktop screenshot");
     button.type = "button";
     button.addEventListener("click", async () => {
       const response = await fetch(`/api/runs/${runId}/artifacts/${encodeURIComponent(screenshot.relativePath)}`, {
@@ -148,7 +148,7 @@ async function loadRun(runId) {
       });
       if (!response.ok) return displayError(detail, "Screenshot could not be opened.");
       const image = document.createElement("img");
-      image.alt = "Desktop analysis report from this evaluation run";
+      image.alt = "Desktop screenshot from this evaluation run";
       image.src = URL.createObjectURL(await response.blob());
       detail.append(image);
       button.disabled = true;
@@ -174,7 +174,7 @@ async function startFixture() {
   try {
     await api("/api/runs", { method: "POST", body: JSON.stringify({
       mode: "fixture",
-      scenarioId: "EV-04",
+      scenarioId: byId("fixtureScenario").value,
       app: byId("appPath").value,
     }) });
     await loadActive();

@@ -11,5 +11,5 @@ export const scenarios = Object.freeze([
   { id: "EV-10", title: "Content connections", fixture: "planned", local: "planned" },
   { id: "EV-11", title: "Telegram queue", fixture: "planned", local: "planned" },
   { id: "EV-12", title: "Package restart", fixture: "planned", local: "planned" },
-  { id: "EV-13", title: "Model credential migration", fixture: "planned", local: "planned" },
+  { id: "EV-13", title: "Model credential migration", fixture: "implemented", local: "planned" },
 ]);

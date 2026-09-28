@@ -64,6 +64,7 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
 let application;
 let stopping = false;
+const stage = (name) => console.log(`${new Date().toISOString()} EV-04 ${name}`);
 async function stopOnSignal() {
   if (stopping) return;
   stopping = true;
@@ -94,14 +95,19 @@ const value = async (promise) => {
   return reply.value;
 };
 try {
+  stage("launch_requested");
   application = await electron.launch({
     ...(process.env.BRANCHOUT_APP_PATH
       ? { executablePath: process.env.BRANCHOUT_APP_PATH, cwd: process.env.BRANCHOUT_PACKAGE_CWD }
       : { args: ["."] }),
     env: { ...process.env, BRANCHOUT_TEST_DATA: userData },
   });
+  stage("electron_launched");
   const page = await application.firstWindow();
+  stage("first_window");
   await page.getByRole("heading", { level: 1, name: "内容" }).waitFor();
+  stage("renderer_ready");
+  stage("model_save_requested");
   await value(page.evaluate((url) => window.branchout.saveModel({
     method: "generic_api",
     baseUrl: url,
@@ -109,12 +115,15 @@ try {
     modelId: "analysis-fixture",
     apiKey: "fixture-only-key",
   }), baseUrl));
+  stage("model_saved");
   await application.evaluate((_, home) => { process.env.HOME = home; }, fakeHome);
   await application.evaluate(({ dialog }, directory) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
   }, repository);
   const projectId = await value(page.evaluate(() => window.branchout.bindProject()));
+  stage("project_bound");
   const preflight = await value(page.evaluate((id) => window.branchout.projectAnalysisPreflight(id), projectId));
+  stage("preflight_ready");
   assert.equal(preflight.projectId, projectId);
   assert.equal(preflight.commits.availableCount, 1);
   assert.equal(preflight.repository.candidateFileCount >= 1, true);
@@ -125,6 +134,7 @@ try {
     rangeId: "recent_30",
     codexSessionIds: ["synthetic-project-session"],
   }), projectId));
+  stage("analysis_started");
   for (let attempt = 0; attempt < 100; attempt++) {
     const reply = await value(page.evaluate(() => window.branchout.unifiedTaskSnapshots()));
     const state = reply.find((task) => task.taskId === taskId)?.state;
@@ -133,6 +143,7 @@ try {
   }
   const tasks = await value(page.evaluate(() => window.branchout.unifiedTaskSnapshots()));
   const task = tasks.find((item) => item.taskId === taskId);
+  stage(`analysis_terminal_${task?.state ?? "missing"}`);
   assert.equal(task.result?.kind, "project_analysis_report", `${JSON.stringify(task)}; requests=${requests.length}`);
   const reports = await value(page.evaluate((id) => window.branchout.projectAnalysisReports(id), projectId));
   assert.equal(reports.length, 1);
