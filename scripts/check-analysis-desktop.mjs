@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron } from "playwright";
@@ -199,6 +199,13 @@ try {
   }
   const htmlFiles = (await readdir(join(traceDirectory, "html"))).filter((name) => /^batch-\d+-attempt-\d+\.html$/.test(name)).sort();
   assert.deepEqual(htmlFiles, ["batch-1-attempt-1.html", "batch-2-attempt-1.html"]);
+  const ownerOnly = async (path) => ((await stat(path)).mode & 0o077) === 0;
+  const traceParentPrivate = (await Promise.all([userData, traceDirectory].map(ownerOnly))).some(Boolean);
+  const jsonlPrivate = traceParentPrivate || await ownerOnly(sessionsDirectory) ||
+    (await Promise.all(sessionFiles.map((name) => ownerOnly(join(sessionsDirectory, name))))).every(Boolean);
+  const htmlPrivate = traceParentPrivate || await ownerOnly(join(traceDirectory, "html")) ||
+    (await Promise.all(htmlFiles.map((name) => ownerOnly(join(traceDirectory, "html", name))))).every(Boolean);
+  assert.equal(jsonlPrivate && htmlPrivate, true, "Pi trace requires an owner-only directory or files");
   await application.evaluate(({ dialog, shell }, directory) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
     shell.openPath = async () => "";
@@ -208,6 +215,7 @@ try {
   const index = await readFile(join(exported, "index.html"), "utf8");
   assert.equal(index.includes("batch-1-attempt-1.html"), true);
   assert.equal(index.includes("batch-2-attempt-1.html"), true);
+  assert.equal(await ownerOnly(exported) || await ownerOnly(join(exported, "index.html")), true);
   const traceArtifactDirectory = join(artifactDirectory, "trace-export");
   await mkdir(traceArtifactDirectory, { recursive: true });
   await copyFile(join(exported, "index.html"), join(traceArtifactDirectory, "index.html"));
@@ -236,6 +244,8 @@ try {
         { id: "PERSISTED_JSONL", observed: sessionFiles.length, expected: 2 },
         { id: "PERSISTED_HTML", observed: htmlFiles.length, expected: 2 },
         { id: "EXPORTED_HTML", observed: (await readdir(traceArtifactDirectory)).length, expected: 3 },
+        { id: "TRACE_PRIVATE_BOUNDARY", observed: Number(jsonlPrivate && htmlPrivate), expected: 1 },
+        { id: "EXPORT_PRIVATE_BOUNDARY", observed: Number(await ownerOnly(exported)), expected: 1 },
       ],
     }, null, 2)}\n`, { mode: 0o600 });
   }
