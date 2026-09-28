@@ -8,6 +8,7 @@ export const failureMessages = {
   model_rejected: "模型服务拒绝了请求，请检查所选模型和连接配置。",
   model_output_limit: "模型输出被截断，本次执行未完成；请重试或更换模型。",
   model_empty: "模型未返回有效结果，请重试或更换模型。",
+  model_invalid_output: "模型返回的分析结构或证据不符合要求，请重试或调整模型连接。",
   model_turn_limit: "模型执行达到轮数上限，请缩小本次输入范围后重试。",
   tool_arguments: "模型工具调用参数无效，请重试或更换模型。",
   search_incomplete:

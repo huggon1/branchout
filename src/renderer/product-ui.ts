@@ -96,6 +96,7 @@ export interface UiAnalysisReport {
   projectLabel: string;
   createdAt: string;
   summary: string;
+  promptRevision?: string;
   coverage: Array<{
     source: string;
     read: string;
@@ -255,6 +256,7 @@ export interface ProductUiBridge {
   uiAddLink(url: string): Promise<ModelReply<string>>;
   uiCancelTask(taskId: string): Promise<ModelReply<void>>;
   uiRetryTask(taskId: string): Promise<ModelReply<string>>;
+  uiExportAnalysisTrace(taskId: string): Promise<ModelReply<void>>;
   uiSettings(): Promise<ModelReply<UiSettings>>;
   uiSaveTelegramToken(token: string): Promise<ModelReply<void>>;
   uiClearTelegramBotToken(): Promise<ModelReply<void>>;
@@ -310,6 +312,7 @@ type CanonicalAnalysisReport = {
   projectLabel: string;
   generatedAt: string;
   summary?: string;
+  promptGuidance?: { analysisGoal: string; cardWriting: string; revision: string };
   coverage: {
     repositoryRead: string[];
     repositorySkipped: string[];
@@ -505,6 +508,7 @@ interface CanonicalBridge {
   retryForwarding(taskId: string): Promise<ModelReply<void>>;
   cancelForwarding(taskId: string): Promise<ModelReply<void>>;
   retryProjectAnalysis?(taskId: string): Promise<ModelReply<string>>;
+  exportProjectAnalysisTrace?(taskId: string): Promise<ModelReply<string | undefined>>;
   cancelProjectAnalysis?(taskId: string): Promise<ModelReply<void>>;
   openSource(materialId: string): Promise<ModelReply<void>>;
   telegramStatus?(): Promise<ModelReply<CanonicalTelegramStatus>>;
@@ -585,6 +589,7 @@ const mapAnalysisReport = (
     projectLabel: report.projectLabel,
     createdAt: report.generatedAt,
     summary: report.summary || findings.map((finding) => finding.content).join("\n\n") || "本次分析没有形成可展示的发现。",
+    promptRevision: report.promptGuidance?.revision,
     coverage: sources,
     findings,
     suggestions: report.suggestions.map((suggestion) => {
@@ -982,7 +987,14 @@ export function productUiBridge(): ProductUiBridge {
         return reply.ok ? { ok: true, value: taskId } : reply;
       }
       const reply = await replyOperation(bridge.retryProjectAnalysis ? () => bridge.retryProjectAnalysis!(taskId) : undefined, "项目分析重试");
-      return reply.ok ? { ok: true, value: taskId } : reply;
+      return reply;
+    },
+    uiExportAnalysisTrace: async (taskId) => {
+      const reply = await replyOperation(
+        bridge.exportProjectAnalysisTrace ? () => bridge.exportProjectAnalysisTrace!(taskId) : undefined,
+        "分析记录导出",
+      );
+      return reply.ok ? { ok: true, value: undefined } : reply;
     },
     uiSettings: async () => {
       if (!bridge.telegramStatus) return failed("Telegram 设置服务尚未连接。");

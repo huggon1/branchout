@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { redactSensitiveText } from "../../readers/shared";
 import {
@@ -179,7 +180,7 @@ export function validateProjectAnalysisSynthesis(
     if (supported.length !== finding.supportCandidateIds.length) continue;
     const evidenceIds = evidenceIdsFor(supported);
     if (!evidenceIds.length) continue;
-    findings.push({ findingId: `finding-${findings.length + 1}`, title: finding.title, summary: finding.summary, evidenceIds });
+    findings.push({ findingId: randomUUID(), title: finding.title, summary: finding.summary, evidenceIds });
     for (const id of evidenceIds) usedEvidence.set(id, evidenceMap.get(id)!);
   }
   const suggestions: ProjectAnalysisSuggestion[] = [];
@@ -198,7 +199,7 @@ export function validateProjectAnalysisSynthesis(
     if (seen.has(key)) continue;
     seen.add(key);
     suggestions.push({
-      suggestionId: `suggestion-${suggestions.length + 1}`,
+      suggestionId: randomUUID(),
       kind: suggestion.kind,
       ...(focus ? { focusId: focus.focusId, baseFocusVersionId: focus.focusVersionId } : {}),
       content: suggestion.content,

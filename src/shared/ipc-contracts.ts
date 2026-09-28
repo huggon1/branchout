@@ -48,6 +48,7 @@ export const analysisChannels = {
   start: "analysis:start",
   retry: "analysis:retry",
   cancel: "analysis:cancel",
+  exportTrace: "analysis:export-trace",
   acceptSuggestion: "analysis:accept-suggestion",
 } as const;
 
@@ -128,6 +129,7 @@ export interface DesktopBridge {
   startProjectAnalysis(
     input: StartProjectAnalysis,
   ): Promise<ModelReply<string>>;
+  exportProjectAnalysisTrace(taskId: string): Promise<ModelReply<string | undefined>>;
   acceptFocusSuggestion(
     input: AcceptFocusSuggestion,
   ): Promise<ModelReply<AcceptSuggestionResult>>;

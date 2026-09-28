@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectAnalysisReportDraft } from "../src/worker/jobs/project-analysis/types";
+import { defaultAnalysisPromptSettings, projectAnalysisPromptRevision } from "../src/shared/analysis-prompt-contracts";
 import { ProjectAnalysisInputStore } from "../src/main/storage/project-analysis-input-store";
 import {
   ProjectAnalysisPipelineService,
@@ -192,6 +193,8 @@ function createFixture() {
   let notifyCount = 0;
   const ports: ProjectAnalysisPipelinePorts = {
     workerPath: "/app/dist/worker/jobs/project-analysis/worker-entry.mjs",
+    traceRoot: "/app/private/analysis-traces",
+    exportTrace: async () => undefined,
     checkpoints: {
       read: () => undefined,
       append: async () => {},
@@ -229,6 +232,7 @@ function createFixture() {
         ],
       }),
     },
+    prompts: { snapshot: () => ({ ...defaultAnalysisPromptSettings, revision: projectAnalysisPromptRevision() }) },
     models: {
       acquire: async () => ({
         config: {

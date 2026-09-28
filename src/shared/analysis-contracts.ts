@@ -115,6 +115,11 @@ export const projectAnalysisReportSchema = z
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
     summary: z.string().min(1).max(1400).optional(),
+    promptGuidance: z.object({
+      analysisGoal: z.string().min(1).max(4000),
+      cardWriting: z.string().min(1).max(4000),
+      revision: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    }).strict().optional(),
     coverage: z
       .object({
         repositoryRead: z.array(z.string().min(1).max(4096)),

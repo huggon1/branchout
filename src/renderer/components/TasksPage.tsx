@@ -17,6 +17,7 @@ export function TasksPage({
   onCancel,
   onRetry,
   onOpenResult,
+  onExportTrace,
 }: {
   tasks: UiTask[];
   initialTaskId?: string;
@@ -24,6 +25,7 @@ export function TasksPage({
   onCancel: (taskId: string) => Promise<void>;
   onRetry: (taskId: string) => Promise<void>;
   onOpenResult: (task: UiTask) => void;
+  onExportTrace: (taskId: string) => Promise<void>;
 }) {
   const [selectedId, setSelectedId] = useState(initialTaskId ?? "");
   const [filter, setFilter] = useState("all");
@@ -210,6 +212,11 @@ export function TasksPage({
                 )}
               </section>
               <div className="task-result-actions">
+                {selected.kind === "project_analysis" && selected.status !== "queued" && (
+                  <button className="button" disabled={busy} onClick={() => void onExportTrace(selected.taskId)}>
+                    导出并打开详细记录
+                  </button>
+                )}
                 {selected.status === "completed" && selected.resultId && (
                   <button
                     className="button button-primary"
@@ -234,7 +241,7 @@ export function TasksPage({
                     onClick={() => void onRetry(selected.taskId)}
                   >
                     {selected.kind === "project_analysis"
-                      ? "重新检查分析范围"
+                      ? "从已保存进度重试"
                       : "重试任务"}
                   </button>
                 )}

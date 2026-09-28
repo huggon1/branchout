@@ -265,6 +265,16 @@ function retryableModelFailure(message: string): boolean {
   );
 }
 
+function safeModelFailure(error: unknown): ExecutionFailure {
+  const message = error instanceof Error ? error.message : String(error);
+  const statusMatch = /(?:^|\D)(408|429|5\d\d)(?:\D|$)/.exec(message);
+  const status = statusMatch ? Number(statusMatch[1]) : undefined;
+  const code = status === 429 ? "model_rate_limit"
+    : status === 408 || (status !== undefined && status >= 500) ? "model_unavailable"
+    : classifyModelError(error);
+  return new ExecutionFailure(code, {}, status ? { httpStatus: status } : undefined);
+}
+
 async function waitForRetry(
   delayMs: number,
   signal: AbortSignal,
@@ -383,7 +393,7 @@ export async function runPiCodingBatch(
       announce("failed", attempt, "模型请求失败");
       throw error instanceof ExecutionFailure
         ? error
-        : new ExecutionFailure(classifyModelError(error));
+        : safeModelFailure(error);
     }
     const delayMs = 1_000 * 2 ** (attempt - 1);
     announce("retrying", attempt, `请求暂时失败，${delayMs / 1000} 秒后重试`);

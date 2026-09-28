@@ -10,6 +10,7 @@ export interface ProjectAnalysisIpcService {
   start(input: unknown): Promise<string>;
   retry(taskId: string): Promise<string>;
   cancel(taskId: string): Promise<void>;
+  exportTrace(taskId: string): Promise<string | undefined>;
 }
 
 export function registerProjectAnalysisPipelineIpc(
@@ -21,6 +22,7 @@ export function registerProjectAnalysisPipelineIpc(
     analysisChannels.start,
     analysisChannels.retry,
     analysisChannels.cancel,
+    analysisChannels.exportTrace,
   ])
     ipcMain.handle(channel, async (event, ...args: unknown[]) => {
       if (
@@ -38,6 +40,8 @@ export function registerProjectAnalysisPipelineIpc(
           value = await service.start(args[0]);
         else if (channel === analysisChannels.retry)
           value = await service.retry(z.string().uuid().parse(args[0]));
+        else if (channel === analysisChannels.exportTrace)
+          value = await service.exportTrace(z.string().uuid().parse(args[0]));
         else await service.cancel(z.string().uuid().parse(args[0]));
         return { ok: true, value };
       } catch (error) {

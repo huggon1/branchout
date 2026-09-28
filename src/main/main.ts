@@ -35,6 +35,7 @@ import { ProjectAnalysisReportService } from "./services/projects/analysis-repor
 import { registerAnalysisReportIpc } from "./services/projects/analysis-report-ipc";
 import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipeline-service";
 import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
+import { exportProjectAnalysisTrace } from "./services/project-analysis/trace-export";
 import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
 import { ProjectAnalysisCheckpointStore } from "./storage/project-analysis-checkpoint-store";
 import { AnalysisPromptStore } from "./storage/analysis-prompt-store";
@@ -78,6 +79,7 @@ else {
   let servicesReady = false;
   let shuttingDown = false;
   let mainWindow: BrowserWindow | undefined;
+  let startupStage = "electron_ready";
 
   const changed = () => {
     for (const window of BrowserWindow.getAllWindows())
@@ -124,6 +126,7 @@ else {
   void app
     .whenReady()
     .then(async () => {
+      startupStage = "runtime_layout";
       app.setName("Branchout");
       app.dock?.setIcon(join(__dirname, "../assets/branchout.png"));
       const runtimeLayout = resolveRuntimeLayout({
@@ -158,6 +161,7 @@ else {
         check: checkModel,
         changed,
       });
+      startupStage = "model_connection";
       await models.open();
 
       xAuth = new XAuth(changed);
@@ -170,6 +174,7 @@ else {
       const projectStore = new ProjectStore(
         join(app.getPath("userData"), "projects.json"),
       );
+      startupStage = "projects";
       await projectStore.open();
       projects = new ProjectService(projectStore, changed);
       focusCards = new FocusCardService(projectStore, changed);
@@ -178,6 +183,7 @@ else {
       const taskStore = new TaskStore(
         join(app.getPath("userData"), "tasks.json"),
       );
+      startupStage = "tasks";
       await taskStore.open();
       tasks = new TaskService(taskStore, changed);
       await tasks.recover();
@@ -185,18 +191,23 @@ else {
       const analysisInputStore = new ProjectAnalysisInputStore(
         join(app.getPath("userData"), "project-analysis-inputs.json"),
       );
+      startupStage = "analysis_inputs";
       await analysisInputStore.open();
       const analysisCheckpointStore = new ProjectAnalysisCheckpointStore(
         join(app.getPath("userData"), "project-analysis-checkpoints.json"),
       );
+      startupStage = "analysis_checkpoints";
       await analysisCheckpointStore.open();
       const analysisPromptStore = new AnalysisPromptStore(
         join(app.getPath("userData"), "analysis-prompt.json"),
       );
+      startupStage = "analysis_prompt";
       await analysisPromptStore.open();
       analysisPromptSettings = new AnalysisPromptSettingsService(analysisPromptStore, changed);
       analysisPipeline = new ProjectAnalysisPipelineService({
         workerPath: join(__dirname, "../worker/jobs/project-analysis/worker-entry.mjs"),
+        traceRoot: join(app.getPath("userData"), "analysis-traces"),
+        exportTrace: exportProjectAnalysisTrace,
         spawnWorker: (path) => {
           const worker = utilityProcess.fork(path, [], {
             stdio: "pipe",
@@ -211,6 +222,7 @@ else {
             projects!.view().projects.find((project) => project.projectId === projectId),
         },
         focusCards,
+        prompts: analysisPromptSettings,
         models,
         tasks,
         reports: analysisReports,
@@ -218,11 +230,13 @@ else {
         checkpoints: analysisCheckpointStore,
         notify: changed,
       });
+      startupStage = "analysis_recovery";
       await analysisPipeline.recover();
 
       const forwardingStore = new ForwardingStore(
         join(app.getPath("userData"), "forwarding.json"),
       );
+      startupStage = "forwarding_store";
       await forwardingStore.open();
       forwarding = new ForwardingPipelineService({
         store: forwardingStore,
@@ -260,12 +274,14 @@ else {
         xCredentials: () => xAuth!.credentials(),
         xhsSession: () => xhsAuth!.connect(),
       });
+      startupStage = "forwarding_recovery";
       await forwarding.recover();
       taskView = new UnifiedTaskService(tasks, forwarding);
 
       const telegramStore = new TelegramStore(
         join(app.getPath("userData"), "telegram.json"),
       );
+      startupStage = "telegram_store";
       await telegramStore.open();
       telegramCredentials = new TelegramCredentialStore(
         join(app.getPath("userData"), "telegram-bot-token.enc"),
@@ -290,20 +306,31 @@ else {
         fetch,
         changed,
       );
+      startupStage = "telegram_credentials";
       if (await telegramCredentials.getBotToken()) await telegram.start();
 
+      startupStage = "ipc_registration";
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
+      startupStage = "project_ipc";
       registerProjectIpc(projects, expected);
+      startupStage = "focus_ipc";
       registerFocusCardIpc(focusCards, expected);
+      startupStage = "report_ipc";
       registerAnalysisReportIpc(analysisReports, expected);
+      startupStage = "analysis_ipc";
       registerProjectAnalysisPipelineIpc(analysisPipeline, expected);
+      startupStage = "prompt_ipc";
       registerAnalysisPromptSettingsIpc(analysisPromptSettings, expected);
+      startupStage = "task_ipc";
       registerTaskIpc(taskView, expected);
+      startupStage = "forwarding_ipc";
       registerForwardingIpc(forwarding, expected);
+      startupStage = "telegram_ipc";
       registerTelegramIpc(telegram, telegramCredentials, expected, changed);
 
+      startupStage = "external_ipc";
       for (const channel of Object.values(xChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -394,6 +421,7 @@ else {
           }
         });
 
+      startupStage = "menu";
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
@@ -408,6 +436,7 @@ else {
           { role: "viewMenu" },
         ]),
       );
+      startupStage = "window";
       servicesReady = true;
       open();
       const session = mainWindow!.webContents.session;
@@ -416,7 +445,11 @@ else {
       );
       session.setPermissionCheckHandler(() => false);
     })
-    .catch(() => {
+    .catch((error: unknown) => {
+      console.error("Branchout startup failed", {
+        stage: startupStage,
+        errorType: error instanceof Error ? error.name : typeof error,
+      });
       dialog.showErrorBox(
         "Branchout 无法启动",
         "无法读取本地数据或初始化应用。原数据已保留。",

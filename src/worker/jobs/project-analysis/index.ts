@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { ExecutionFailure } from "../../../shared/task-failure";
+import { projectAnalysisPromptRevision, resolveProjectAnalysisPromptGuidance } from "../../../shared/analysis-prompt-contracts";
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
-import { runWithPi } from "../../pi-runtime";
+import { runPiCodingBatch } from "../../pi-coding-session";
 import {
   readProjectGitHistory,
   type ProjectCommitRangeId,
@@ -15,7 +16,9 @@ import {
   projectAnalysisSystemPrompt,
   validateProjectAnalysisOutput,
   type ProjectAnalysisSource,
+  type ValidatedProjectAnalysisOutput,
 } from "../../reasoning/project-analysis";
+import { makeProjectAnalysisSynthesisPrompt, validateProjectAnalysisSynthesis } from "../../reasoning/project-analysis-synthesis";
 import type {
   AnalysisSourceKind,
   ProjectAnalysisEvent,
@@ -32,6 +35,7 @@ export type ProjectAnalysisModelRunner = (
   prompt: string,
   systemPrompt: string,
   maxTokens: number,
+  batchIndex: number,
 ) => Promise<string>;
 
 export type ProjectAnalysisDependencies = {
@@ -42,16 +46,16 @@ export type ProjectAnalysisDependencies = {
   runModel?: ProjectAnalysisModelRunner;
   now?: () => Date;
   persistCheckpoint?: (event: Extract<ProjectAnalysisEvent, { type: "checkpoint" }>) => Promise<void>;
+  requestCredential?: () => Promise<string>;
 };
 
-const defaultModelRunner: ProjectAnalysisModelRunner = (
-  config,
-  sessionId,
-  signal,
-  prompt,
-  systemPrompt,
-  maxTokens,
-) => runWithPi(config, sessionId, signal, prompt, systemPrompt, maxTokens);
+function tokenExpiry(accessToken: string): number {
+  try {
+    const payload = JSON.parse(Buffer.from(accessToken.split(".")[1], "base64url").toString("utf8"));
+    if (typeof payload.exp === "number") return payload.exp * 1000;
+  } catch { /* Invalid tokens fail at the credential boundary. */ }
+  return 0;
+}
 
 function mergeRepeatedResults<T extends { evidenceIds: string[] }>(
   items: T[],
@@ -176,8 +180,31 @@ export async function runProjectAnalysis(
   const readRepository = dependencies.readRepository ?? readProjectRepository;
   const readGitHistory = dependencies.readGitHistory ?? readProjectGitHistory;
   const readCodexSessions = dependencies.readCodexSessions ?? readSelectedCodexSessions;
-  const runModel = dependencies.runModel ?? defaultModelRunner;
+  const runModel: ProjectAnalysisModelRunner = dependencies.runModel ?? (async (
+    config, sessionId, modelSignal, prompt, systemPrompt, maxTokens, batchIndex,
+  ) => {
+    if (!input.traceRoot) throw new ExecutionFailure("execution_failed");
+    const result = await runPiCodingBatch({
+      config, taskId: sessionId, cwd: input.directory, traceRoot: input.traceRoot,
+      batchIndex, prompt, systemPrompt, signal: modelSignal, maxTokens,
+      ...(config.method === "codex_subscription" && dependencies.requestCredential
+        ? { codexTokenProvider: async () => {
+            const accessToken = await dependencies.requestCredential!();
+            return { accessToken, expiresAt: tokenExpiry(accessToken) };
+          } }
+        : {}),
+      onActivity: (activity) => event(emit, {
+        type: "progress", taskId: input.taskId,
+        message: `第 ${batchIndex} 批：${activity.summary}`,
+      }),
+    });
+    return result.text;
+  });
   const now = dependencies.now ?? (() => new Date());
+  const promptGuidance = input.promptGuidance ?? {
+    ...resolveProjectAnalysisPromptGuidance(),
+    revision: projectAnalysisPromptRevision(),
+  };
   throwIfAborted(signal);
   event(emit, { type: "phase", taskId: input.taskId, phase: "repository" });
   const repository = await readRepository(input.directory, signal);
@@ -222,6 +249,7 @@ export async function runProjectAnalysis(
     commitCount: history.commits.length,
     selectedSessionCount: input.codexSessionIds.length,
     focusCards: input.focusCards,
+    guidance: promptGuidance,
   };
   const modelInputs: ReturnType<typeof makeProjectAnalysisPrompt>[] = [];
   let remainingSources = sources;
@@ -236,7 +264,8 @@ export async function runProjectAnalysis(
   event(emit, { type: "phase", taskId: input.taskId, phase: "reasoning" });
   const manifestHash = createHash("sha256").update(JSON.stringify({
     model: { method: input.config.method, modelId: input.config.modelId, baseUrl: input.config.baseUrl, api: input.config.api },
-    systemPrompt: projectAnalysisSystemPrompt(),
+    systemPrompt: projectAnalysisSystemPrompt(promptGuidance),
+    promptRevision: promptGuidance.revision,
     prompts: modelInputs.map((item) => item.prompt),
   })).digest("hex");
   const previous = input.resumeCheckpoint?.manifestHash === manifestHash &&
@@ -262,8 +291,9 @@ export async function runProjectAnalysis(
         input.taskId,
         signal,
         modelInput.prompt,
-        projectAnalysisSystemPrompt(),
+        projectAnalysisSystemPrompt(promptGuidance),
         3500,
+        index + 1,
       );
     } catch (error) {
       if (signal.aborted) throw new Error("cancelled");
@@ -276,11 +306,16 @@ export async function runProjectAnalysis(
       throw new ExecutionFailure("execution_failed");
     }
     throwIfAborted(signal);
-    const result = validateProjectAnalysisOutput(
-      modelResponse,
-      modelInput.sources,
-      modelInput.focusCards,
-    );
+    let result: ValidatedProjectAnalysisOutput;
+    try {
+      result = validateProjectAnalysisOutput(
+        modelResponse,
+        modelInput.sources,
+        modelInput.focusCards,
+      );
+    } catch {
+      throw new ExecutionFailure("model_invalid_output", {}, { batchIndex: index + 1, batchTotal: modelInputs.length });
+    }
     const checkpoint: Extract<ProjectAnalysisEvent, { type: "checkpoint" }> = {
       type: "checkpoint", taskId: input.taskId, manifestHash,
       batchTotal: modelInputs.length, index, result,
@@ -294,19 +329,63 @@ export async function runProjectAnalysis(
       batchTotal: modelInputs.length,
     });
   }
+  let synthesized: ValidatedProjectAnalysisOutput | undefined;
+  if (batchResults.some((result) => result.findings.length || result.suggestions.length)) {
+    let level = batchResults;
+    let synthesisIndex = modelInputs.length;
+    for (let depth = 0; depth < 5; depth++) {
+      const groups: ValidatedProjectAnalysisOutput[][] = [];
+      let current: ValidatedProjectAnalysisOutput[] = [];
+      for (const candidate of level) {
+        const prepared = makeProjectAnalysisSynthesisPrompt({
+          batches: [...current, candidate], focusCards: input.focusCards, guidance: promptGuidance,
+        });
+        if (prepared.omittedCandidateIds.length) {
+          if (!current.length) throw new ExecutionFailure("model_context");
+          groups.push(current);
+          current = [candidate];
+        } else current.push(candidate);
+      }
+      if (current.length) groups.push(current);
+      const next: ValidatedProjectAnalysisOutput[] = [];
+      for (const group of groups) {
+        const prepared = makeProjectAnalysisSynthesisPrompt({
+          batches: group, focusCards: input.focusCards, guidance: promptGuidance,
+        });
+        if (prepared.omittedCandidateIds.length) throw new ExecutionFailure("model_context");
+        synthesisIndex++;
+        event(emit, { type: "progress", taskId: input.taskId, message: `归纳第 ${depth + 1} 层关注角度` });
+        const response = await runModel(
+          input.config, input.taskId, signal, prepared.prompt, prepared.systemPrompt, 3500, synthesisIndex,
+        );
+        try {
+          next.push(validateProjectAnalysisSynthesis(response, prepared));
+        } catch {
+          throw new ExecutionFailure("model_invalid_output");
+        }
+      }
+      if (next.length === 1) {
+        synthesized = next[0];
+        break;
+      }
+      if (next.length >= level.length && depth > 0) throw new ExecutionFailure("model_context");
+      level = next;
+    }
+    if (!synthesized) throw new ExecutionFailure("model_context");
+  }
   const evidenceById = new Map(batchResults.flatMap((result) => result.evidence).map((item) => [item.evidenceId, item]));
   const findings = mergeRepeatedResults<ProjectAnalysisFinding>(
-    batchResults.flatMap((result) => result.findings),
+    synthesized?.findings ?? batchResults.flatMap((result) => result.findings),
     (item) => `${normalizeResultText(item.title)}\n${normalizeResultText(item.summary)}`,
   );
   const suggestions = mergeRepeatedResults<ProjectAnalysisSuggestion>(
-    batchResults.flatMap((result) => result.suggestions),
+    synthesized?.suggestions ?? batchResults.flatMap((result) => result.suggestions),
     (item) => `${item.kind}:${item.focusId ?? ""}:${normalizeResultText(item.content)}`,
   );
   const summaries = batchResults.map((result) => result.summary);
-  const summary = summaries.length === 1
+  const summary = synthesized?.summary ?? (summaries.length === 1
     ? summaries[0]
-    : `本次分 ${summaries.length} 批分析资料，形成 ${findings.length} 条发现和 ${suggestions.length} 条关注卡建议。${summaries.slice(0, 3).map((item, index) => `第 ${index + 1} 批：${item.slice(0, 180)}`).join(" ")}${summaries.length > 3 ? ` 其余 ${summaries.length - 3} 批的发现和建议列在下方。` : ""}`;
+    : `本次分 ${summaries.length} 批分析资料，形成 ${findings.length} 条发现和 ${suggestions.length} 条关注卡建议。${summaries.slice(0, 3).map((item, index) => `第 ${index + 1} 批：${item.slice(0, 180)}`).join(" ")}${summaries.length > 3 ? ` 其余 ${summaries.length - 3} 批的发现和建议列在下方。` : ""}`);
   const modelSources = modelInputs.flatMap((prepared) => prepared.sources);
   const includedEvidenceIds = new Set(modelSources.map((source) => source.evidenceId));
   const modelRepositorySources = modelSources.filter((source) => source.source === "repository");
@@ -340,6 +419,7 @@ export async function runProjectAnalysis(
     projectLabel: input.projectLabel,
     generatedAt: now().toISOString(),
     summary,
+    promptGuidance,
     findings: findings.map((finding) => ({ ...finding, findingId: randomUUID() })),
     suggestions: suggestions.map((suggestion) => ({ ...suggestion, suggestionId: randomUUID() })),
     evidence: [...evidenceById.values()],

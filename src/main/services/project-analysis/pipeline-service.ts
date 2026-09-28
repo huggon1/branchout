@@ -10,6 +10,7 @@ import { readProjectRepository } from "../../../readers/repository";
 import { discoverCodexSessionCandidates } from "../../../readers/codex-sessions";
 import type { ModelService } from "../model-service";
 import { analysisBatchResultSchema, type AnalysisCheckpoint } from "../../../shared/project-analysis-checkpoint";
+import { analysisPromptSettingsSchema, type AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
 
 const rangeIdSchema = z.enum(["recent_30", "recent_100"]);
 const startSchema = z
@@ -60,6 +61,7 @@ const analysisDraftSchema = z
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
     summary: z.string().min(1).max(1400),
+    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
     findings: z.array(
       z
         .object({
@@ -303,6 +305,7 @@ export const projectAnalysisReportForSaveSchema = z
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
     summary: z.string().min(1).max(1400),
+    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
     coverage: z
       .object({
         repositoryRead: z.array(z.string().min(1).max(4096)),
@@ -398,6 +401,7 @@ export const projectAnalysisRunInputSchema = z
     directory: z.string().min(1).max(4096),
     rangeId: rangeIdSchema,
     codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
+    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
     focusSetSnapshot: z
       .object({
         capturedAt: z.string().datetime(),
@@ -427,11 +431,14 @@ export interface ProjectAnalysisWorker {
 
 export interface ProjectAnalysisPipelinePorts {
   workerPath: string;
+  traceRoot: string;
+  exportTrace(traceRoot: string, taskId: string): Promise<string | undefined>;
   spawnWorker(path: string): ProjectAnalysisWorker;
   projects: { get(projectId: string): ProjectRecord | undefined };
   focusCards: {
     activeSnapshot(): { capturedAt: string; cards: FrozenFocusCard[] };
   };
+  prompts: { snapshot(): AnalysisPromptSnapshot };
   models: Pick<ModelService, "acquire">;
   tasks: {
     create(input: unknown): Promise<{ taskId: string }>;
@@ -486,6 +493,12 @@ const phaseLabels = {
   reasoning: "形成发现与建议",
 } as const;
 const safeFailureCodes = new Set(Object.keys(failureMessages));
+function safeModelActivity(message: string | undefined): string | undefined {
+  if (!message || message.length > 100) return undefined;
+  return /^归纳第 \d{1,3} 层关注角度$/.test(message) ||
+    /^第 \d{1,4} 批：(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(message)
+    ? message : undefined;
+}
 
 function encodeLocation(
   location: z.infer<typeof sourceLocationSchema>,
@@ -529,6 +542,7 @@ function reportFromDraft(
     projectLabel: draft.projectLabel,
     generatedAt: draft.generatedAt,
     summary: draft.summary,
+    ...(draft.promptGuidance ? { promptGuidance: draft.promptGuidance } : {}),
     coverage: {
       repositoryRead: draft.coverage.repository.readPaths,
       repositorySkipped: draft.coverage.repository.skippedPaths,
@@ -636,6 +650,13 @@ export class ProjectAnalysisPipelineService {
     return this.ports.reports.read(z.string().uuid().parse(analysisReportId));
   }
 
+  async exportTrace(taskId: string): Promise<string | undefined> {
+    const id = z.string().uuid().parse(taskId);
+    if (this.ports.tasks.read(id)?.kind !== "project_analysis")
+      throw new Error("找不到项目分析任务");
+    return this.ports.exportTrace(this.ports.traceRoot, id);
+  }
+
   async start(raw: unknown): Promise<string> {
     if (this.closed) throw new Error("应用正在退出");
     if (this.active.size >= 2) throw new Error("后台分析任务数量已达上限");
@@ -656,6 +677,7 @@ export class ProjectAnalysisPipelineService {
       directory: project.directory,
       rangeId: input.rangeId,
       codexSessionIds: [...new Set(input.codexSessionIds)],
+      promptGuidance: this.ports.prompts.snapshot(),
       focusSetSnapshot,
     });
   }
@@ -797,6 +819,8 @@ export class ProjectAnalysisPipelineService {
           active: true,
         })),
         config: lease.config,
+        promptGuidance: input.promptGuidance,
+        traceRoot: this.ports.traceRoot,
         ...(resumeFromTaskId ? { resumeCheckpoint: this.ports.checkpoints.read(resumeFromTaskId) } : {}),
       };
       worker.postMessage({ type: "run_project_analysis", ...command });
@@ -894,12 +918,13 @@ export class ProjectAnalysisPipelineService {
       const batchSummary = event.batchCompleted !== undefined && event.batchTotal !== undefined
         ? `已完成第 ${event.batchCompleted} / ${event.batchTotal} 批资料分析`
         : undefined;
-      if (batchSummary || summaries.length)
+      const modelActivity = safeModelActivity(event.message);
+      if (batchSummary || summaries.length || modelActivity)
         await this.ports.tasks.receive(taskId, {
           type: "activity",
           taskId,
           action: batchSummary ? "reasoning" : "progress",
-          summary: batchSummary ?? `已读取 ${summaries.join("、")}`,
+          summary: batchSummary ?? modelActivity ?? `已读取 ${summaries.join("、")}`,
           ...(hasCount ? { progress: { completed } } : {}),
         });
       this.ports.notify();
