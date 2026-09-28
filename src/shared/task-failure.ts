@@ -4,6 +4,7 @@ export const failureMessages = {
   model_rate_limit: "模型请求被限流或额度不足，请稍后重试并检查账号额度。",
   model_context: "输入超过模型上下文限制，请缩小本次输入范围或选择更大上下文的模型。",
   model_network: "模型服务连接失败，请检查网络及服务地址后重试。",
+  model_unavailable: "模型服务暂时不可用，请稍后重试。",
   model_rejected: "模型服务拒绝了请求，请检查所选模型和连接配置。",
   model_output_limit: "模型输出被截断，本次执行未完成；请重试或更换模型。",
   model_empty: "模型未返回有效结果，请重试或更换模型。",
@@ -35,10 +36,18 @@ export const failureSchema = z
   })
   .strict();
 export type TaskFailure = z.infer<typeof failureSchema>;
+export type ModelFailureDiagnostic = {
+  httpStatus?: number;
+  providerCode?: string;
+  transportCode?: string;
+  batchIndex?: number;
+  batchTotal?: number;
+};
 export class ExecutionFailure extends Error {
   constructor(
     public readonly code: FailureCode,
     public readonly counts: Pick<TaskFailure, "modelTurns" | "toolCalls"> = {},
+    public readonly diagnostic?: ModelFailureDiagnostic,
   ) {
     super(failureMessages[code]);
   }

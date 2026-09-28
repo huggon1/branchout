@@ -326,6 +326,7 @@ export class ModelService {
   async acquire(): Promise<{
     config: ModelExecutionConfig;
     generation: number;
+    refreshCredential(): Promise<string>;
     release(): Promise<void>;
   }> {
     return this.serial(async () => {
@@ -364,6 +365,15 @@ export class ModelService {
       return {
         config,
         generation: this.generation,
+        refreshCredential: async () => {
+          if (released) throw new Error("模型租约已结束");
+          if (!context) return config.credential;
+          const token = tokenSchema.parse(await context.client.request("getAuthStatus", {
+            includeToken: true,
+            refreshToken: true,
+          }));
+          return token.authToken;
+        },
         release: async () => {
           if (released) return;
           released = true;

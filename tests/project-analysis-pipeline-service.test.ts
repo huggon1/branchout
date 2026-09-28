@@ -192,6 +192,11 @@ function createFixture() {
   let notifyCount = 0;
   const ports: ProjectAnalysisPipelinePorts = {
     workerPath: "/app/dist/worker/jobs/project-analysis/worker-entry.mjs",
+    checkpoints: {
+      read: () => undefined,
+      append: async () => {},
+      remove: async () => {},
+    },
     spawnWorker: (path) => {
       assert.equal(
         path,
@@ -234,6 +239,7 @@ function createFixture() {
           credential: "test-credential",
         },
         generation: 1,
+        refreshCredential: async () => "test-key",
         release: async () => {
           releasedLeases++;
         },

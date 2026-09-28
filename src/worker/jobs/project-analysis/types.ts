@@ -1,5 +1,6 @@
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
 import type { ProjectCommitRangeId } from "../../../readers/git-history";
+import type { ValidatedProjectAnalysisOutput } from "../../reasoning/project-analysis";
 
 export type AnalysisSourceKind = "repository" | "commit" | "codex_session";
 
@@ -38,6 +39,11 @@ export type ProjectAnalysisWorkerInput = {
   codexSessionIds: string[];
   focusCards: ProjectAnalysisFocusCard[];
   config: ModelExecutionConfig;
+  resumeCheckpoint?: {
+    manifestHash: string;
+    batchTotal: number;
+    batches: { index: number; result: ValidatedProjectAnalysisOutput }[];
+  };
 };
 
 export type ProjectAnalysisFinding = {
@@ -138,6 +144,7 @@ export type ProjectAnalysisReportDraft = {
 };
 
 export type ProjectAnalysisEvent =
+  | { type: "checkpoint"; taskId: string; manifestHash: string; batchTotal: number; index: number; result: ValidatedProjectAnalysisOutput }
   | { type: "phase"; taskId: string; phase: "repository" | "git_history" | "codex_sessions" | "reasoning" }
   | {
       type: "progress";

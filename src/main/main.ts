@@ -36,6 +36,7 @@ import { registerAnalysisReportIpc } from "./services/projects/analysis-report-i
 import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipeline-service";
 import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
 import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
+import { ProjectAnalysisCheckpointStore } from "./storage/project-analysis-checkpoint-store";
 import { TaskService } from "./services/tasks/task-service";
 import { registerTaskIpc } from "./services/tasks/task-ipc";
 import { UnifiedTaskService } from "./services/tasks/unified-task-service";
@@ -181,6 +182,10 @@ else {
         join(app.getPath("userData"), "project-analysis-inputs.json"),
       );
       await analysisInputStore.open();
+      const analysisCheckpointStore = new ProjectAnalysisCheckpointStore(
+        join(app.getPath("userData"), "project-analysis-checkpoints.json"),
+      );
+      await analysisCheckpointStore.open();
       analysisPipeline = new ProjectAnalysisPipelineService({
         workerPath: join(__dirname, "../worker/jobs/project-analysis/worker-entry.mjs"),
         spawnWorker: (path) => {
@@ -201,6 +206,7 @@ else {
         tasks,
         reports: analysisReports,
         runInputs: analysisInputStore,
+        checkpoints: analysisCheckpointStore,
         notify: changed,
       });
       await analysisPipeline.recover();

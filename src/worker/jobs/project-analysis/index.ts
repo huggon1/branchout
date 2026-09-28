@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { ExecutionFailure } from "../../../shared/task-failure";
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
@@ -41,6 +41,7 @@ export type ProjectAnalysisDependencies = {
   codexReaderOptions?: CodexSessionReaderOptions;
   runModel?: ProjectAnalysisModelRunner;
   now?: () => Date;
+  persistCheckpoint?: (event: Extract<ProjectAnalysisEvent, { type: "checkpoint" }>) => Promise<void>;
 };
 
 const defaultModelRunner: ProjectAnalysisModelRunner = (
@@ -233,9 +234,27 @@ export async function runProjectAnalysis(
     remainingSources = remainingSources.filter((source) => !included.has(source.evidenceId));
   } while (remainingSources.length);
   event(emit, { type: "phase", taskId: input.taskId, phase: "reasoning" });
+  const manifestHash = createHash("sha256").update(JSON.stringify({
+    model: { method: input.config.method, modelId: input.config.modelId, baseUrl: input.config.baseUrl, api: input.config.api },
+    systemPrompt: projectAnalysisSystemPrompt(),
+    prompts: modelInputs.map((item) => item.prompt),
+  })).digest("hex");
+  const previous = input.resumeCheckpoint?.manifestHash === manifestHash &&
+    input.resumeCheckpoint.batchTotal === modelInputs.length &&
+    input.resumeCheckpoint.batches.every((batch, index) => batch.index === index)
+    ? input.resumeCheckpoint.batches : [];
   const batchResults: ReturnType<typeof validateProjectAnalysisOutput>[] = [];
   for (const [index, modelInput] of modelInputs.entries()) {
     throwIfAborted(signal);
+    if (index < previous.length) {
+      if (dependencies.persistCheckpoint) await dependencies.persistCheckpoint({
+        type: "checkpoint", taskId: input.taskId, manifestHash,
+        batchTotal: modelInputs.length, index, result: previous[index].result,
+      });
+      batchResults.push(previous[index].result);
+      event(emit, { type: "progress", taskId: input.taskId, batchCompleted: index + 1, batchTotal: modelInputs.length });
+      continue;
+    }
     let modelResponse: string;
     try {
       modelResponse = await runModel(
@@ -248,16 +267,26 @@ export async function runProjectAnalysis(
       );
     } catch (error) {
       if (signal.aborted) throw new Error("cancelled");
-      if (error instanceof ExecutionFailure) throw error;
+      if (error instanceof ExecutionFailure) throw new ExecutionFailure(error.code, error.counts, {
+        ...error.diagnostic,
+        batchIndex: index + 1,
+        batchTotal: modelInputs.length,
+      });
       if (dependencies.runModel) throw error;
       throw new ExecutionFailure("execution_failed");
     }
     throwIfAborted(signal);
-    batchResults.push(validateProjectAnalysisOutput(
+    const result = validateProjectAnalysisOutput(
       modelResponse,
       modelInput.sources,
       modelInput.focusCards,
-    ));
+    );
+    const checkpoint: Extract<ProjectAnalysisEvent, { type: "checkpoint" }> = {
+      type: "checkpoint", taskId: input.taskId, manifestHash,
+      batchTotal: modelInputs.length, index, result,
+    };
+    if (dependencies.persistCheckpoint) await dependencies.persistCheckpoint(checkpoint);
+    batchResults.push(result);
     event(emit, {
       type: "progress",
       taskId: input.taskId,
