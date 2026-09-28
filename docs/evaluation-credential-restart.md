@@ -21,3 +21,5 @@ This document defines the packaged-app acceptance for the [EV-14 scenario](evalu
 5. Run legacy-migration cases separately with an operator-provided ciphertext made under that app identity. Capture the exact pre-migration bytes, migrated local value, original-byte preservation, and second-restart behavior.
 
 The automatic fixture records file permissions, JSON fields, restart status, and legacy-cipher guard calls. The native macOS prompt observation is a separate human field in the EV-14 review artifact because a Playwright renderer capture cannot see system-owned password dialogs. A fixture pass and a human “no prompt observed” result form the release acceptance for the new local-file path.
+
+The queued-token field keeps its historical `xhsAccessTokenCiphertext` name for persisted-state compatibility. New values use a readable `local-v1:` prefix followed by the fictional or user-supplied token. A state migration rewrites old encrypted values to that format while retaining a byte-for-byte `.legacy` snapshot of the original state file.

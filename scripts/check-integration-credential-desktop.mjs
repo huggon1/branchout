@@ -88,7 +88,7 @@ try {
       resultId: randomUUID(),
       sourceUrl: "https://www.xiaohongshu.com/explore/fictional-note",
       telegramMessageKey: "fictional-chat:1",
-      xhsAccessTokenLocal: fictionalShareToken,
+      xhsAccessTokenCiphertext: `local-v1:${fictionalShareToken}`,
       state: "queued",
       queuedAt: now,
     }],
@@ -109,7 +109,7 @@ try {
       createdAt: now,
       finishedAt: now,
       failureStage: "source",
-      xhsAccessTokenLocal: fictionalShareToken,
+      xhsAccessTokenCiphertext: `local-v1:${fictionalShareToken}`,
       updatedAt: now,
       message: "fictional interrupted task",
     }],
@@ -121,8 +121,8 @@ try {
   assert.equal(status.ok, true, status.message);
   assert.equal(status.value.configured, true);
   assert.deepEqual(await readFile(botPath), botBytes);
-  assert.equal(JSON.parse(await readFile(telegramStatePath, "utf8")).queuedForwarding[0].xhsAccessTokenLocal, fictionalShareToken);
-  assert.equal(JSON.parse(await readFile(forwardingStatePath, "utf8")).tasks[0].xhsAccessTokenLocal, fictionalShareToken);
+  assert.equal(JSON.parse(await readFile(telegramStatePath, "utf8")).queuedForwarding[0].xhsAccessTokenCiphertext, `local-v1:${fictionalShareToken}`);
+  assert.equal(JSON.parse(await readFile(forwardingStatePath, "utf8")).tasks[0].xhsAccessTokenCiphertext, `local-v1:${fictionalShareToken}`);
   await Promise.all([ownerOnly(telegramStatePath), ownerOnly(forwardingStatePath)]);
   checks.push({ id: "RESTART_USES_LOCAL_BOT_WITH_LEGACY_PRESENT", observed: 1, expected: 1 });
   checks.push({ id: "RECOVERY_TOKENS_STAY_LOCAL", observed: 2, expected: 2 });
