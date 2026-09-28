@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -129,6 +130,36 @@ try {
   await close();
   stage("restart_verified");
 
+  const corruptBytes = Buffer.from("{corrupt-local-credential");
+  await writeFile(botPath, corruptBytes, { mode: 0o600 });
+  const corruptLaunch = spawn(process.env.BRANCHOUT_APP_PATH, [], {
+    cwd: process.env.BRANCHOUT_PACKAGE_CWD,
+    env: { ...process.env, BRANCHOUT_TEST_DATA: userData, BRANCHOUT_EVAL_DENY_KEYCHAIN: "1" },
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  let startupError = "";
+  try {
+    await new Promise((done, fail) => {
+      const timer = setTimeout(() => fail(new Error("Corrupt credential startup diagnostic timed out")), 15_000);
+      corruptLaunch.stderr.on("data", (chunk) => {
+        startupError += chunk.toString();
+        if (startupError.includes("Telegram 本地凭据无法读取")) {
+          clearTimeout(timer);
+          done();
+        }
+      });
+      corruptLaunch.once("exit", () => {
+        clearTimeout(timer);
+        fail(new Error(`Startup exited without a specific credential error: ${startupError}`));
+      });
+    });
+  } finally {
+    corruptLaunch.kill("SIGKILL");
+  }
+  assert.deepEqual(await readFile(botPath), corruptBytes);
+  checks.push({ id: "CORRUPT_LOCAL_CREDENTIAL_FAILS_EXPLICITLY", observed: 1, expected: 1 });
+  stage("corrupt_credential_rejected");
+
   if (process.env.BRANCHOUT_EVAL_RESULT_PATH) await writeFile(process.env.BRANCHOUT_EVAL_RESULT_PATH, `${JSON.stringify({
     schemaVersion: 1,
     inputScope: {
@@ -138,7 +169,7 @@ try {
       messagesSelected: 0,
     },
     modelIdentifier: "integration-credential-fixture",
-    stages: ["fresh_bot_save", "owner_only_files", "restart_with_queued_tokens"],
+    stages: ["fresh_bot_save", "owner_only_files", "restart_with_queued_tokens", "corrupt_credential_rejected"],
     checks,
   }, null, 2)}\n`, { mode: 0o600 });
   stage("passed");
