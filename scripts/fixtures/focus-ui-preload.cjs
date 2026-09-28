@@ -441,7 +441,7 @@ const bridge = {
   addLink,
   retryForwarding,
   cancelForwarding: cancelTask,
-  retryProjectAnalysis: async (taskId) => ok(taskId),
+  retryProjectAnalysis: async (taskId) => { log.push({ type: "retry-project-analysis", taskId }); return ok(taskId); },
   cancelProjectAnalysis: cancelTask,
   openSource: async (materialId) => { log.push({ type: "open-source", materialId }); return ok(undefined); },
   telegramStatus: async () => ok({ configured: state.settings.telegram.connected, status: "polling", authorizedChatIds: state.settings.telegram.chats.filter((chat) => chat.allowed).map((chat) => chat.chatId), pendingChats: state.settings.telegram.chats.map((chat) => ({ chatId: chat.chatId, title: chat.label, lastSeenAt: state.settings.telegram.lastPollAt })), queued: state.settings.telegram.pendingCount, pendingAcknowledgements: 0, lastPollAt: state.settings.telegram.lastPollAt }),

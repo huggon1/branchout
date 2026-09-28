@@ -123,8 +123,8 @@ try {
   await page.getByRole("heading", { name: "Agent 正在做什么" }).waitFor();
   await page.screenshot({ path: "test-results/focus-task-activity.png", fullPage: true });
   await page.getByRole("button", { name: /分析 Birch Sync/ }).click();
-  await page.getByRole("button", { name: "重新检查分析范围" }).click();
-  await page.getByLabel("选择 commit 读取范围").waitFor();
+  await page.getByRole("button", { name: "从已保存进度重试" }).click();
+  assert.equal(await page.evaluate(() => window.branchout.fixtureLog().some((item) => item.type === "retry-project-analysis" && item.taskId === "task-analysis-failed")), true);
   await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: /^任务/ }).click();
   await page.getByRole("button", { name: /解析\s*离线优先应用/ }).click();
   await page.getByRole("button", { name: "打开结果报告" }).click();
