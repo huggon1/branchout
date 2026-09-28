@@ -48,6 +48,11 @@ import { createWorkerEnvironment } from "./services/worker-environment";
 import { ModelService } from "./services/model-service";
 import { CodexClient, resolveCodexExecutable } from "./services/codex-client";
 import { ModelStore } from "./storage/model-store";
+import {
+  encodeLocalIntegrationSecret,
+  migrateQueuedIntegrationSecrets,
+  readLocalIntegrationSecret,
+} from "./storage/local-integration-secret";
 import { AuthCleanup } from "./storage/auth-cleanup";
 import { checkModel, readPiCatalog } from "./services/model-worker-client";
 import { createWindow } from "./window";
@@ -135,6 +140,18 @@ else {
         resourcesPath: process.resourcesPath,
         cwd: process.cwd(),
       });
+      const legacyIntegrationAvailable = () => {
+        if (process.env.BRANCHOUT_TEST_DATA && process.env.BRANCHOUT_EVAL_DENY_KEYCHAIN === "1")
+          throw new Error("EV-14: legacy Safe Storage access attempted");
+        return safeStorage.isEncryptionAvailable() &&
+          (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text");
+      };
+      const decryptLegacyIntegration = (value: string) => {
+        if (!legacyIntegrationAvailable()) throw new Error("旧凭据需要一次钥匙串读取");
+        if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value))
+          throw new Error("旧凭据格式无效");
+        return safeStorage.decryptString(Buffer.from(value, "base64"));
+      };
 
       const authRoot = join(app.getPath("userData"), "model-auth");
       const codexExecutable = resolveCodexExecutable();
@@ -238,6 +255,9 @@ else {
         join(app.getPath("userData"), "forwarding.json"),
       );
       startupStage = "forwarding_store";
+      await migrateQueuedIntegrationSecrets(
+        join(app.getPath("userData"), "forwarding.json"), "forwarding", decryptLegacyIntegration,
+      );
       await forwardingStore.open();
       forwarding = new ForwardingPipelineService({
         store: forwardingStore,
@@ -254,23 +274,10 @@ else {
           return worker;
         },
         changed,
-        protectSensitive: async (value) => {
-          if (
-            !safeStorage.isEncryptionAvailable() ||
-            (process.platform === "linux" &&
-              safeStorage.getSelectedStorageBackend() === "basic_text")
-          )
-            throw new Error("系统安全存储当前不可用");
-          return safeStorage.encryptString(value).toString("base64");
-        },
+        protectSensitive: async (value) => encodeLocalIntegrationSecret(value),
         revealSensitive: async (value) => {
-          if (
-            !safeStorage.isEncryptionAvailable() ||
-            (process.platform === "linux" &&
-              safeStorage.getSelectedStorageBackend() === "basic_text")
-          )
-            throw new Error("系统安全存储当前不可用");
-          return safeStorage.decryptString(Buffer.from(value, "base64"));
+          const local = readLocalIntegrationSecret(value);
+          return local ?? decryptLegacyIntegration(value);
         },
         xCredentials: () => xAuth!.credentials(),
         xhsSession: () => xhsAuth!.connect(),
@@ -283,15 +290,14 @@ else {
         join(app.getPath("userData"), "telegram.json"),
       );
       startupStage = "telegram_store";
+      await migrateQueuedIntegrationSecrets(
+        join(app.getPath("userData"), "telegram.json"), "telegram", decryptLegacyIntegration,
+      );
       await telegramStore.open();
       telegramCredentials = new TelegramCredentialStore(
         join(app.getPath("userData"), "telegram-bot-token.enc"),
         {
-          isEncryptionAvailable: () =>
-            safeStorage.isEncryptionAvailable() &&
-            (process.platform !== "linux" ||
-              safeStorage.getSelectedStorageBackend() !== "basic_text"),
-          encryptString: (value) => safeStorage.encryptString(value),
+          isEncryptionAvailable: legacyIntegrationAvailable,
           decryptString: (bytes) => safeStorage.decryptString(bytes),
         },
       );
