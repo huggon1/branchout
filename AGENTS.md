@@ -6,4 +6,3 @@
 - For user flows, information hierarchy, page behavior, or shared design rules, read [docs/ux-spec.md](docs/ux-spec.md) and [docs/design-system.md](docs/design-system.md) first.
 - For architecture or module responsibilities, read [docs/architecture-overview.md](docs/architecture-overview.md) and [src/README.md](src/README.md) first.
 - For cross-module data fields, platform outputs, material storage, or task messages, read [docs/data-contracts.md](docs/data-contracts.md) first.
-- For changes to project-analysis input, prompts, tools, execution, reports, or recovery, read [evaluation/cases/project-analysis/README.md](evaluation/cases/project-analysis/README.md). Update its target-function mapping, input and output description, and human review instructions when the behavior changes. Follow [evaluation/AGENTS.md](evaluation/AGENTS.md) for workbench code.

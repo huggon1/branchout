@@ -13,9 +13,7 @@
     "package:app": "npm run build && npm run build:icon && electron-builder --mac --arm64 --publish never",
     "dev": "npm run build && electron .",
     "start": "npm run build && electron .",
-    "typecheck": "tsc --noEmit",
-    "analysis:preview": "tsx evaluation/cases/project-analysis/preview.ts",
-    "analysis:run": "tsx evaluation/cases/project-analysis/run.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.87.1",
