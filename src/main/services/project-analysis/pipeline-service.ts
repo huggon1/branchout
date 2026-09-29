@@ -497,7 +497,7 @@ const safeFailureCodes = new Set(Object.keys(failureMessages));
 function safeModelActivity(message: string | undefined): string | undefined {
   if (!message || message.length > 100) return undefined;
   return /^归纳第 \d{1,3} 层关注角度$/.test(message) ||
-    /^第 \d{1,4} 批：(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(message)
+    /^第 \d{1,4} 批：(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败|已查看 [1-8] 项资料)$/.test(message)
     ? message : undefined;
 }
 

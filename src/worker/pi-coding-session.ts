@@ -17,6 +17,8 @@ import {
 import type { ModelExecutionConfig } from "../shared/model-contracts";
 import { ExecutionFailure, classifyModelError } from "../shared/task-failure";
 import { resolveModel } from "./pi-runtime";
+import { createAnalysisEvidenceTool, MAX_EVIDENCE_READS } from "./analysis-evidence-tool";
+import type { ProjectAnalysisSource } from "./reasoning/project-analysis";
 
 const MIN_TOKEN_LIFETIME_MS = 5 * 60_000;
 
@@ -103,6 +105,8 @@ export interface PiCodingSessionOptions {
   systemPrompt: string;
   maxTokens?: number;
   codexTokenProvider?: CodexTokenProvider;
+  evidenceSources?: readonly ProjectAnalysisSource[];
+  onEvidenceRead?: (count: number) => void;
 }
 
 export interface PiCodingSessionHandle {
@@ -216,8 +220,11 @@ export async function createPiCodingBatchSession(
     sessionManager,
     settingsManager,
     resourceLoader,
-    tools: [],
-    noTools: "all",
+    tools: options.evidenceSources ? ["read_evidence"] : [],
+    noTools: options.evidenceSources ? "builtin" : "all",
+    ...(options.evidenceSources ? {
+      customTools: [createAnalysisEvidenceTool(options.evidenceSources, options.onEvidenceRead)],
+    } : {}),
   });
   return {
     session,
@@ -227,7 +234,7 @@ export async function createPiCodingBatchSession(
 }
 
 export type PiCodingBatchActivity = {
-  kind: "started" | "retrying" | "completed" | "failed";
+  kind: "started" | "retrying" | "completed" | "failed" | "evidence_read";
   attempt: number;
   maxAttempts: number;
   summary: string;
@@ -318,8 +325,21 @@ export async function runPiCodingBatch(
     if (options.signal.aborted) throw new Error("cancelled");
     announce("started", attempt, `开始第 ${attempt} 次模型请求`);
     let handle: PiCodingSessionHandle;
+    let readLimitExceeded = false;
     try {
-      handle = await createPiCodingBatchSession({ ...options, attempt });
+      handle = await createPiCodingBatchSession({
+        ...options,
+        attempt,
+        onEvidenceRead: (count) => {
+          if (count <= MAX_EVIDENCE_READS)
+            announce("evidence_read", attempt, `已查看 ${count} 项资料`);
+          else {
+            readLimitExceeded = true;
+            void handle.session.abort();
+          }
+          options.onEvidenceRead?.(count);
+        },
+      });
     } catch (error) {
       announce("failed", attempt, "模型会话初始化失败");
       throw error;
@@ -335,6 +355,7 @@ export async function runPiCodingBatch(
       await handle.session.prompt(options.prompt, {
         expandPromptTemplates: false,
       });
+      if (readLimitExceeded) throw new ExecutionFailure("model_context");
       const last = [...handle.session.messages]
         .reverse()
         .find((message) => message.role === "assistant");
@@ -351,7 +372,7 @@ export async function runPiCodingBatch(
         .trim();
       if (!text) throw new ExecutionFailure("model_empty");
     } catch (caught) {
-      error = caught;
+      error = readLimitExceeded ? new ExecutionFailure("model_context") : caught;
     } finally {
       options.signal.removeEventListener("abort", onAbort);
       if (handle.sessionFile && existsSync(handle.sessionFile)) {

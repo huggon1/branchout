@@ -4,6 +4,7 @@ import { ExecutionFailure } from "../../../shared/task-failure";
 import { projectAnalysisPromptRevision, resolveProjectAnalysisPromptGuidance } from "../../../shared/analysis-prompt-contracts";
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
 import { runPiCodingBatch } from "../../pi-coding-session";
+import { EVIDENCE_TOOL_PROTOCOL } from "../../analysis-evidence-tool";
 import {
   readProjectGitHistory,
   type ProjectCommitRangeId,
@@ -36,6 +37,7 @@ export type ProjectAnalysisModelRunner = (
   systemPrompt: string,
   maxTokens: number,
   batchIndex: number,
+  sources?: readonly ProjectAnalysisSource[],
 ) => Promise<string>;
 
 export type ProjectAnalysisDependencies = {
@@ -181,12 +183,13 @@ export async function runProjectAnalysis(
   const readGitHistory = dependencies.readGitHistory ?? readProjectGitHistory;
   const readCodexSessions = dependencies.readCodexSessions ?? readSelectedCodexSessions;
   const runModel: ProjectAnalysisModelRunner = dependencies.runModel ?? (async (
-    config, sessionId, modelSignal, prompt, systemPrompt, maxTokens, batchIndex,
+    config, sessionId, modelSignal, prompt, systemPrompt, maxTokens, batchIndex, evidenceSources,
   ) => {
     if (!input.traceRoot) throw new ExecutionFailure("execution_failed");
     const result = await runPiCodingBatch({
       config, taskId: sessionId, cwd: input.directory, traceRoot: input.traceRoot,
       batchIndex, prompt, systemPrompt, signal: modelSignal, maxTokens,
+      ...(evidenceSources ? { evidenceSources } : {}),
       ...(config.method === "codex_subscription" && dependencies.requestCredential
         ? { codexTokenProvider: async () => {
             const accessToken = await dependencies.requestCredential!();
@@ -266,7 +269,9 @@ export async function runProjectAnalysis(
     model: { method: input.config.method, modelId: input.config.modelId, baseUrl: input.config.baseUrl, api: input.config.api },
     systemPrompt: projectAnalysisSystemPrompt(promptGuidance),
     promptRevision: promptGuidance.revision,
+    evidenceToolProtocol: EVIDENCE_TOOL_PROTOCOL,
     prompts: modelInputs.map((item) => item.prompt),
+    selectedSources: modelInputs.map((item) => item.sources.map((source) => ({ evidenceId: source.evidenceId, text: source.text }))),
   })).digest("hex");
   const previous = input.resumeCheckpoint?.manifestHash === manifestHash &&
     input.resumeCheckpoint.batchTotal === modelInputs.length &&
@@ -294,6 +299,7 @@ export async function runProjectAnalysis(
         projectAnalysisSystemPrompt(promptGuidance),
         3500,
         index + 1,
+        modelInput.sources,
       );
     } catch (error) {
       if (signal.aborted) throw new Error("cancelled");
