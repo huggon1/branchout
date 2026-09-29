@@ -21,4 +21,3 @@ Document responsibilities:
 - Module READMEs: local responsibilities, dependencies, and key file layout.
 - Decision records: rationale for important choices when needed.
 - [Evaluation scenarios](evaluation.md): target acceptance catalog, scenario identities, and change mapping.
-- [Test coverage audit](evaluation-test-audit.md): observed coverage and migration decisions for the current test suite.

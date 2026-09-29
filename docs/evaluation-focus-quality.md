@@ -1,6 +1,6 @@
 # EV-08 focus-suggestion review
 
-This guide expands the [EV-08 scenario](evaluation.md) with a reproducible human oracle. The [product specification](product-spec.md#projects-and-focus-cards) defines the card's product role. The [public fictional case](../scripts/evaluation/fixtures/ev-08-public-case.json) supplies a shared calibration example. Review records follow the [local sidecar schema](../scripts/evaluation/focus-review.schema.json).
+This guide expands the [EV-08 scenario](evaluation.md) with a human review rubric. The [product specification](product-spec.md#projects-and-focus-cards) defines the card's product role. The SeedShelf example below provides a fictional calibration case.
 
 ## Review order
 
@@ -8,7 +8,7 @@ This guide expands the [EV-08 scenario](evaluation.md) with a reproducible human
 2. Read each proposed card by itself, as it would appear beside an unrelated future article. Score `standalone` and `concern` before opening its rationale.
 3. Open the cited source excerpts, existing cards, and other suggestions. Score `evidence` and `distinct`, then record the matching intent anchor, evidence locations, and a short reason for every `fail` or `unclear`.
 4. Check the full set against the pre-registered anchors. Record a missed angle when the report omits a supported durable concern. A zero-suggestion report receives an explicit coverage judgment.
-5. A second reviewer resolves every `unclear` score using the same frozen report and source locations. The local sidecar keeps both judgments and the resolution.
+5. A second reviewer resolves every `unclear` score using the same saved result and source locations. The review note keeps both judgments and the resolution.
 
 The reviewer inspects the saved report and selected input only. A later prompt edit, repository change, or card acceptance creates a separate comparison run.
 
@@ -39,6 +39,4 @@ These examples calibrate judgment. A fixture model response that repeats the pas
 
 ## Local record and comparison
 
-Save `focus-review.json` alongside the evaluation run's `run.json`, report, and trace in the machine-local run directory. The sidecar identifies `runId`, `analysisReportId`, code revision, input fingerprint, effective prompt revision, reviewer alias, and review time. Each card entry uses the report's `suggestionId` and a content fingerprint; evidence locations and existing-card comparisons explain judgments. The sidecar stores the intent anchors written before report inspection and the final coverage decision.
-
-The portable `run.json` keeps EV-08's four rubric labels and `criticalFailure` per suggestion fingerprint, plus a `review` artifact reference and digest. The local sidecar holds excerpts and reviewer notes. To compare runs, join by the selected-input fingerprint, then compare code revision, prompt revision, card decisions, and anchor coverage. A changed input fingerprint starts a new baseline rather than a direct quality delta.
+Save a `focus-review.md` note beside the manual prompt run's `run.json`, `result.md`, and `trace.html`. Record the intent anchors before opening the result, then write the four card judgments, cited locations, existing-card comparisons, and coverage decisions. Include the reviewer and review time. Compare runs with the same selected input fingerprint, then examine the code revision, prompt fingerprint, card decisions, and anchor coverage.

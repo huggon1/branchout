@@ -1,22 +1,12 @@
 # Evaluation scenarios
 
-This document defines the target acceptance catalog for Branchout. The [product specification](product-spec.md) owns product behavior; this catalog maps that behavior to observable outcomes. The [test audit](evaluation-test-audit.md) records current coverage. Scenario IDs remain stable when implementations change.
+This document records candidate acceptance scenarios for Branchout's next test design. The [product specification](product-spec.md) owns product behavior. Scenario IDs identify behaviors and failure modes for future review.
 
-## Evaluation modes
+## Current manual evaluation
 
-One portable runner accepts two input modes. `fixture` creates a fictional Git repository, fictional work conversation, isolated app data, and a controllable local model endpoint. CI runs this mode against a packaged desktop app. `local` accepts an operator-selected Git repository, confirmed conversation selection, and a model connection configured in its isolated app profile. It reads the selected source material while the app manages the model credential.
+The [analysis prompt scripts](../scripts/analysis-eval/README.md) accept an operator-selected Git repository and Codex conversations. They save cleaned conversation XML, the prompt, a raw result, and a Pi HTML trace in a private local directory. The operator starts each model run with `--execute` and reviews its semantic result.
 
-The same scenario definitions and result format serve both modes. A local web console can select inputs, launch the runner, and compare saved runs; the runner remains directly callable for CI and automation. Local source paths, conversation contents, reports, traces, and reviewer notes stay in a machine-local evaluation directory. Repository fixtures contain fictional data.
-
-Current implementation includes EV-04, EV-05, EV-13, and EV-14 fixture modes plus EV-04 local mode. They drive packaged analysis, interrupted multi-batch recovery, and credential restart with versioned run records outside the repository. A localhost console selects a Git repository, runs packaged preflight, starts analysis of selected Codex sessions, and displays saved runs. [Runner usage](../scripts/evaluation/README.md) describes the entry points.
-
-## Local target evaluation contract
-
-EV-04 local mode accepts a packaged app, an operator-selected Git repository, a range (`recent_30` or `recent_100`), selected Codex session IDs from the packaged app preflight, and an evaluation profile under the private output directory. The operator opens that profile to configure its model connection before launch. The packaged app reads the selected repository and conversations; the evaluator reads its preflight, task state, saved report, and exported trace. Each run creates a private directory with report and trace artifacts. The versioned run record contains repository, commit, and conversation fingerprints and counts, model and prompt identities, check outcomes, and artifact hashes. The profile owns credentials; the run record contains model identity and no connection secret.
-
-The local preflight lists session titles, attribution, preview counts, repository scope, and model connection state from the packaged app. The operator confirms the session selection before analysis. A selected session missing from the fresh preflight fails `INPUT_SELECTION`; a missing model connection fails `MODEL_CONFIGURED`; task failure or timeout fails `TASK_COMPLETED`; missing saved report fails `REPORT_SAVED`; absent JSONL or exported HTML fails `TRACE_SAVED`. The run keeps the final screenshot, report, trace, and redacted stage codes for review. The evaluator never launches against the default user-data directory. EV-04 automatic checks establish completion and artifact provenance; EV-08 human review judges concern-card quality separately.
-
-Each run records its code revision, app build identity, scenario ID, mode, model identifier, prompt revision, selected input counts and source fingerprints, observed task events, automatic checks, reviewer judgments, and artifact locations. A run also records the test harness revision and failure-injection schedule when applicable. Source fingerprints support comparisons while the local record keeps the paths needed for reopening a run. [Data contracts](data-contracts.md) owns cross-module run and event fields.
+The previous packaged-app evaluation runner, localhost console, and CI test suite were retired during the test reset. The scenarios below remain design candidates. Each future implementation will define its input, independent observation, and saved artifact before code is written.
 
 ## Scenario catalog
 
@@ -46,4 +36,4 @@ The reviewer records `pass`, `fail`, or `unclear` for four dimensions: (1) the c
 
 ## Change mapping
 
-Each product-facing pull request names affected scenario IDs, the behavior or risk being changed, and the relevant run records. A change to shared runtime code maps to every affected behavior; a change with stable external behavior records its contract check. CI publishes fixture-mode results by code revision. A local run remains on the operator's machine and may be referenced by its redacted summary. The evaluation console shows the latest result per scenario and links historical runs for comparison.
+For a product change, select the affected scenario IDs and record the behavior being checked. Save local runs on the operator's machine and reference their redacted summaries when reviewing a change. Future automated checks will attach their own repeatable artifacts to the scenario they cover.
