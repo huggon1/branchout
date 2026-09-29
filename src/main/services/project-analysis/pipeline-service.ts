@@ -54,7 +54,7 @@ const evidenceSchema = z
   })
   .strict();
 
-const analysisDraftSchema = z
+export const analysisDraftSchema = z
   .object({
     taskId: z.string().uuid(),
     projectId: z.string().uuid(),
@@ -510,7 +510,7 @@ function encodeLocation(
   return `sessionId=${location.sessionId};messageId=${location.messageId};role=${location.role}`;
 }
 
-function reportFromDraft(
+export function reportFromDraft(
   draft: ProjectAnalysisReportDraft,
   reportId: string,
 ): ProjectAnalysisReportForSave {

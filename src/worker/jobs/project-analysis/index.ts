@@ -47,6 +47,8 @@ export type ProjectAnalysisDependencies = {
   now?: () => Date;
   persistCheckpoint?: (event: Extract<ProjectAnalysisEvent, { type: "checkpoint" }>) => Promise<void>;
   requestCredential?: () => Promise<string>;
+  prepared?: PreparedProjectAnalysis;
+  onPrompt?: (value: { batchIndex: number; systemPrompt: string; prompt: string }) => Promise<void>;
 };
 
 function tokenExpiry(accessToken: string): number {
@@ -171,36 +173,15 @@ function event(
   emit(value);
 }
 
-export async function runProjectAnalysis(
-  input: ProjectAnalysisWorkerInput,
+export async function prepareProjectAnalysis(
+  input: Pick<ProjectAnalysisWorkerInput, "taskId" | "projectId" | "projectLabel" | "directory" | "rangeId" | "codexSessionIds" | "focusCards" | "promptGuidance">,
   signal: AbortSignal,
   emit: (event: ProjectAnalysisEvent) => void = () => {},
-  dependencies: ProjectAnalysisDependencies = {},
-): Promise<ProjectAnalysisReportDraft> {
+  dependencies: Pick<ProjectAnalysisDependencies, "readRepository" | "readGitHistory" | "readCodexSessions" | "codexReaderOptions"> = {},
+) {
   const readRepository = dependencies.readRepository ?? readProjectRepository;
   const readGitHistory = dependencies.readGitHistory ?? readProjectGitHistory;
   const readCodexSessions = dependencies.readCodexSessions ?? readSelectedCodexSessions;
-  const runModel: ProjectAnalysisModelRunner = dependencies.runModel ?? (async (
-    config, sessionId, modelSignal, prompt, systemPrompt, maxTokens, batchIndex,
-  ) => {
-    if (!input.traceRoot) throw new ExecutionFailure("execution_failed");
-    const result = await runPiCodingBatch({
-      config, taskId: sessionId, cwd: input.directory, traceRoot: input.traceRoot,
-      batchIndex, prompt, systemPrompt, signal: modelSignal, maxTokens,
-      ...(config.method === "codex_subscription" && dependencies.requestCredential
-        ? { codexTokenProvider: async () => {
-            const accessToken = await dependencies.requestCredential!();
-            return { accessToken, expiresAt: tokenExpiry(accessToken) };
-          } }
-        : {}),
-      onActivity: (activity) => event(emit, {
-        type: "progress", taskId: input.taskId,
-        message: `第 ${batchIndex} 批：${activity.summary}`,
-      }),
-    });
-    return result.text;
-  });
-  const now = dependencies.now ?? (() => new Date());
   const promptGuidance = input.promptGuidance ?? {
     ...resolveProjectAnalysisPromptGuidance(),
     revision: projectAnalysisPromptRevision(),
@@ -209,32 +190,22 @@ export async function runProjectAnalysis(
   event(emit, { type: "phase", taskId: input.taskId, phase: "repository" });
   const repository = await readRepository(input.directory, signal);
   event(emit, {
-    type: "progress",
-    taskId: input.taskId,
+    type: "progress", taskId: input.taskId,
     repositoryFilesRead: repository.coverage.filesRead,
   });
   throwIfAborted(signal);
   event(emit, { type: "phase", taskId: input.taskId, phase: "git_history" });
   const history = await readGitHistory(input.directory, signal, input.rangeId);
-  event(emit, {
-    type: "progress",
-    taskId: input.taskId,
-    commitsRead: history.commits.length,
-  });
+  event(emit, { type: "progress", taskId: input.taskId, commitsRead: history.commits.length });
   throwIfAborted(signal);
   event(emit, { type: "phase", taskId: input.taskId, phase: "codex_sessions" });
   const sessions = await readCodexSessions(
-    input.directory,
-    input.codexSessionIds,
-    signal,
-    dependencies.codexReaderOptions,
+    input.directory, input.codexSessionIds, signal, dependencies.codexReaderOptions,
   );
-  const parsedSessionMessages = sessions.sessions.flatMap((session) => session.messages);
   event(emit, {
-    type: "progress",
-    taskId: input.taskId,
+    type: "progress", taskId: input.taskId,
     sessionsRead: sessions.sessions.length,
-    messagesRead: parsedSessionMessages.length,
+    messagesRead: sessions.sessions.reduce((sum, session) => sum + session.messages.length, 0),
   });
   throwIfAborted(signal);
 
@@ -261,6 +232,40 @@ export async function runProjectAnalysis(
     const included = new Set(prepared.sources.map((source) => source.evidenceId));
     remainingSources = remainingSources.filter((source) => !included.has(source.evidenceId));
   } while (remainingSources.length);
+  return { repository, history, sessions, sources, promptGuidance, modelInputs };
+}
+
+export type PreparedProjectAnalysis = Awaited<ReturnType<typeof prepareProjectAnalysis>>;
+
+export async function runProjectAnalysis(
+  input: ProjectAnalysisWorkerInput,
+  signal: AbortSignal,
+  emit: (event: ProjectAnalysisEvent) => void = () => {},
+  dependencies: ProjectAnalysisDependencies = {},
+): Promise<ProjectAnalysisReportDraft> {
+  const runModel: ProjectAnalysisModelRunner = dependencies.runModel ?? (async (
+    config, sessionId, modelSignal, prompt, systemPrompt, maxTokens, batchIndex,
+  ) => {
+    if (!input.traceRoot) throw new ExecutionFailure("execution_failed");
+    const result = await runPiCodingBatch({
+      config, taskId: sessionId, cwd: input.directory, traceRoot: input.traceRoot,
+      batchIndex, prompt, systemPrompt, signal: modelSignal, maxTokens,
+      ...(config.method === "codex_subscription" && dependencies.requestCredential
+        ? { codexTokenProvider: async () => {
+            const accessToken = await dependencies.requestCredential!();
+            return { accessToken, expiresAt: tokenExpiry(accessToken) };
+          } }
+        : {}),
+      onActivity: (activity) => event(emit, {
+        type: "progress", taskId: input.taskId,
+        message: `第 ${batchIndex} 批：${activity.summary}`,
+      }),
+    });
+    return result.text;
+  });
+  const now = dependencies.now ?? (() => new Date());
+  const { repository, history, sessions, sources, promptGuidance, modelInputs } =
+    dependencies.prepared ?? await prepareProjectAnalysis(input, signal, emit, dependencies);
   event(emit, { type: "phase", taskId: input.taskId, phase: "reasoning" });
   const manifestHash = createHash("sha256").update(JSON.stringify({
     model: { method: input.config.method, modelId: input.config.modelId, baseUrl: input.config.baseUrl, api: input.config.api },
@@ -286,6 +291,11 @@ export async function runProjectAnalysis(
     }
     let modelResponse: string;
     try {
+      if (dependencies.onPrompt) await dependencies.onPrompt({
+        batchIndex: index + 1,
+        systemPrompt: projectAnalysisSystemPrompt(promptGuidance),
+        prompt: modelInput.prompt,
+      });
       modelResponse = await runModel(
         input.config,
         input.taskId,
@@ -355,6 +365,11 @@ export async function runProjectAnalysis(
         if (prepared.omittedCandidateIds.length) throw new ExecutionFailure("model_context");
         synthesisIndex++;
         event(emit, { type: "progress", taskId: input.taskId, message: `归纳第 ${depth + 1} 层关注角度` });
+        if (dependencies.onPrompt) await dependencies.onPrompt({
+          batchIndex: synthesisIndex,
+          systemPrompt: prepared.systemPrompt,
+          prompt: prepared.prompt,
+        });
         const response = await runModel(
           input.config, input.taskId, signal, prepared.prompt, prepared.systemPrompt, 3500, synthesisIndex,
         );
