@@ -48,7 +48,7 @@ A Codex candidate records session identity, time, working directory, verifiable 
 
 `ProjectAnalysisReport` stores `analysisReportId`, `taskId`, project identity and name, generation time, input coverage, readable findings, evidence, and suggestions. Coverage distinguishes repository files, commits, and Codex sessions actually read or skipped, plus failure locations. Saved conclusions and source locations stay fixed.
 
-`AnalysisBatchCheckpoint` stores a manifest digest of model selection, source batches, and effective prompts, the planned batch count, and each validated batch result in sequence. The main process acknowledges each saved result before the worker advances. A resumed task links its Pi session records to the saved batches it reuses. Each report stores the effective prompt guidance and revision used by its run.
+`AnalysisBatchCheckpoint` stores a manifest digest of model selection, complete selected and redacted source snapshots, evidence-tool protocol version, and effective prompts, the planned batch count, and each validated batch result in sequence. The main process acknowledges each saved result before the worker advances. A resumed task links its Pi session records to the saved batches it reuses. Each report stores the effective prompt guidance and revision used by its run.
 
 `FocusSuggestion` has `suggestionId`, `kind` (`create` or `update`), proposed text, rationale, and evidence references. An update also has target `focusId` and `baseFocusVersionId`. A separate acceptance record stores status and resulting `focusVersionId`, retaining the original report text. Acceptance deduplicates by `analysisReportId + suggestionId`; a changed current card version returns a review-required state.
 
@@ -71,6 +71,6 @@ The main process handles worker events in this order:
 3. Validate and save the final report and reference, then mark the task complete and notify the renderer.
 4. On interruption, save the failed stage and completed scope, retaining readable stage results for retry.
 
-Pi session files stay under the application's local data directory. A user initiated export copies the related HTML attempts into a selected local directory and writes an index linking them. Task activity stores short validated status summaries; model prompts and complete responses stay in the session files.
+Pi session files stay under the application's local data directory. A user initiated export copies the related HTML attempts into a selected local directory and writes an index linking them. Evidence-tool calls and bounded results remain in those sessions. Task activity stores short validated status summaries and evidence-read counts; model prompts and complete responses stay in the session files.
 
 Model configuration is frozen at launch. The current model connection is stored in `model-connection.json` with owner-only file permissions; the first read of a legacy `model-connection.enc` saves its validated contents into the new file. Renderer, snapshots, reports, and activities read redacted state. The main process validates source content, model output, card references, and suggestion changes before persistence.

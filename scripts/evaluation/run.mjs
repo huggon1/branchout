@@ -15,6 +15,7 @@ const fixtureScripts = Object.freeze({
   "EV-05": join(repositoryDirectory, "scripts/check-analysis-recovery-desktop.mjs"),
   "EV-13": join(repositoryDirectory, "scripts/check-credential-migration-desktop.mjs"),
   "EV-14": join(repositoryDirectory, "scripts/check-integration-credential-desktop.mjs"),
+  "EV-16": join(repositoryDirectory, "scripts/check-analysis-exploration-desktop.mjs"),
 });
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const EMPTY_FINGERPRINT = hash("");
@@ -144,7 +145,7 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
   if (mode === "local") return runLocalEvaluation({ scenarioId, app, outputRoot, signal, repository, sessionIds, rangeId }, onEvent);
   const fixtureScript = fixtureScripts[scenarioId];
   if (mode !== "fixture" || !fixtureScript)
-    throw new Error("Fixture runner supports EV-04, EV-05, EV-13, and EV-14; other catalog scenarios are pending.");
+    throw new Error("Fixture runner supports EV-04, EV-05, EV-13, EV-14, and EV-16; other catalog scenarios are pending.");
   const executable = await resolveAppExecutable(app);
   const root = await assertLocalOutput(resolve(outputRoot));
   const version = JSON.parse(await readFile(join(repositoryDirectory, "package.json"), "utf8")).version;
@@ -181,7 +182,7 @@ export async function runEvaluation({ mode = "fixture", scenarioId = "EV-04", ap
     try { artifacts.push(await fileArtifact(runDirectory, kind, name)); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
   }
-  if (scenarioId === "EV-04") for (const name of [
+  if (scenarioId === "EV-04" || scenarioId === "EV-16") for (const name of [
     "trace-export/index.html",
     "trace-export/batch-1-attempt-1.html",
     "trace-export/batch-2-attempt-1.html",
