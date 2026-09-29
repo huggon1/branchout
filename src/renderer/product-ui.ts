@@ -1,4 +1,5 @@
 import type { ModelReply } from "../shared/model-contracts";
+import { defaultSelectedConversationCount } from "../shared/project-analysis-limits";
 
 export type ProductPage = "内容" | "关注卡" | "项目" | "任务" | "设置";
 
@@ -138,19 +139,6 @@ export interface UiAnalysisPreflight {
     files: number;
     note: string;
   };
-  commits: {
-    count: number;
-    from?: string;
-    to?: string;
-    ranges: Array<{
-      rangeId: string;
-      label: string;
-      count: number;
-      from?: string;
-      to?: string;
-      selected: boolean;
-    }>;
-  };
   sessions: UiSessionCandidate[];
   codexDiscovery?: { filesScanned: number; bounded: boolean };
 }
@@ -223,7 +211,6 @@ export interface ProductUiBridge {
   uiStartAnalysis(input: {
     projectId: string;
     sessionIds: string[];
-    commitRangeId: string;
   }): Promise<ModelReply<string>>;
   uiAcceptSuggestion(input: {
     analysisReportId: string;
@@ -317,8 +304,8 @@ type CanonicalAnalysisReport = {
     repositoryRead: string[];
     repositorySkipped: string[];
     repositoryFailed: Array<{ path: string; reason: string }>;
-    commitsRead: string[];
-    commitsSkipped: string[];
+    commitsRead?: string[];
+    commitsSkipped?: string[];
     commitRange?: { rangeId: "recent_30" | "recent_100"; availableCount: number; skippedByRange: number };
     codexSessionsRead: string[];
     codexSessionsSkipped: string[];
@@ -346,7 +333,6 @@ type CanonicalPreflight = {
     hasUncommittedChanges: boolean;
     candidateFileCount: number;
   };
-  commits: { availableCount: number; commitIds: string[] };
   codexDiscovery?: { filesScanned: number; bounded: boolean };
   codexSessions: Array<{
     sessionId: string;
@@ -498,7 +484,7 @@ interface CanonicalBridge {
   editFocusCard(input: { focusId: string; expectedVersionId: string; content: string }): Promise<ModelReply<CanonicalFocusVersion>>;
   setFocusCardActive(input: { focusId: string; expectedVersionId: string; active: boolean }): Promise<ModelReply<CanonicalFocusVersion>>;
   projectAnalysisPreflight?(projectId: string): Promise<ModelReply<CanonicalPreflight>>;
-  startProjectAnalysis?(input: { projectId: string; codexSessionIds: string[]; rangeId: "recent_30" | "recent_100" }): Promise<ModelReply<string>>;
+  startProjectAnalysis?(input: { projectId: string; codexSessionIds: string[] }): Promise<ModelReply<string>>;
   acceptFocusSuggestion(input: { analysisReportId: string; suggestionId: string; currentVersionId?: string }): Promise<ModelReply<{ status: "accepted"; acceptance: { focusId: string; focusVersionId: string } } | { status: "stale"; currentVersionId: string; currentContent: string }>>;
   unifiedTaskSnapshots(): Promise<ModelReply<CanonicalTaskSnapshot[]>>;
   taskActivities(taskId: string): Promise<ModelReply<CanonicalTaskActivity[]>>;
@@ -567,16 +553,16 @@ const mapAnalysisReport = (
       ...(coverage.repositoryFailed.length ? { failed: `${coverage.repositoryFailed.length} 个文件读取失败` } : {}),
     },
     {
-      source: "Git commit",
-      read: `${readCoverage(coverage.commitsRead, "条")}${coverage.commitRange ? ` · 最近 ${coverage.commitRange.rangeId === "recent_100" ? 100 : 30} 条范围` : ""}`,
-      ...(coverage.commitsSkipped.length ? { skipped: readCoverage(coverage.commitsSkipped, "条") } : {}),
-    },
-    {
       source: "Codex 对话",
       read: readCoverage(coverage.codexSessionsRead, "个会话"),
       ...(coverage.codexSessionsSkipped.length ? { skipped: readCoverage(coverage.codexSessionsSkipped, "个会话") } : {}),
       ...(coverage.codexSessionsFailed.length ? { failed: `${coverage.codexSessionsFailed.length} 个会话读取失败` } : {}),
     },
+    ...(coverage.commitsRead ? [{
+      source: "历史 Git commit",
+      read: readCoverage(coverage.commitsRead, "条"),
+      ...(coverage.commitsSkipped?.length ? { skipped: readCoverage(coverage.commitsSkipped, "条") } : {}),
+    }] : []),
   ];
   const findings = report.findings.map((finding) => ({
     title: finding.title,
@@ -611,32 +597,20 @@ const mapAnalysisReport = (
   };
 };
 const mapPreflight = (preflight: CanonicalPreflight): UiAnalysisPreflight => {
-  const commitCount = preflight.commits.availableCount;
-  const commitIds = preflight.commits.commitIds;
-  const range = (size: 30 | 100) => {
-    const count = Math.min(size, commitCount);
-    const selectedIds = commitIds.slice(0, count);
-    return {
-      rangeId: `recent_${size}`,
-      label: `最近 ${size} 条`,
-      count,
-      from: selectedIds.at(-1),
-      to: selectedIds[0],
-      selected: size === 30,
-    };
-  };
+  const defaults = new Set(
+    preflight.codexSessions
+      .filter((session) => session.attribution === "confirmed" &&
+        (session.preview?.usableUserMessageCount ?? 0) > 0)
+      .sort((a, b) => Date.parse(b.lastModifiedAt ?? b.date) - Date.parse(a.lastModifiedAt ?? a.date))
+      .slice(0, defaultSelectedConversationCount)
+      .map((session) => session.sessionId),
+  );
   return {
     repository: {
       head: preflight.repository.gitHead,
       dirty: preflight.repository.hasUncommittedChanges,
       files: preflight.repository.candidateFileCount,
-      note: "项目分析按本机读取器返回的范围执行。",
-    },
-    commits: {
-      count: commitCount,
-      from: commitIds.at(-1),
-      to: commitIds[0],
-      ranges: [range(30), range(100)],
+      note: "Agent 将使用只读工具探索仓库。",
     },
     sessions: preflight.codexSessions.map((session) => ({
       sessionId: session.sessionId,
@@ -647,9 +621,7 @@ const mapPreflight = (preflight: CanonicalPreflight): UiAnalysisPreflight => {
       updatedAt: session.lastModifiedAt ?? session.date,
       workingDirectoryLabel: session.workingDirectoryLabel,
       ownership: session.attribution === "confirmed" ? "confirmed" : "uncertain",
-      selected:
-        session.attribution === "confirmed" &&
-        (session.preview?.usableUserMessageCount ?? 0) > 0,
+      selected: defaults.has(session.sessionId),
       reason: session.reason,
       attributionReason: session.attributionReason,
       preview: session.preview,
@@ -911,10 +883,10 @@ export function productUiBridge(): ProductUiBridge {
       );
       return reply.ok ? { ok: true, value: mapPreflight(reply.value) } : reply;
     },
-    uiStartAnalysis: ({ projectId, sessionIds, commitRangeId }) =>
+    uiStartAnalysis: ({ projectId, sessionIds }) =>
       replyOperation(
         bridge.startProjectAnalysis
-          ? () => bridge.startProjectAnalysis!({ projectId, codexSessionIds: sessionIds, rangeId: commitRangeId as "recent_30" | "recent_100" })
+          ? () => bridge.startProjectAnalysis!({ projectId, codexSessionIds: sessionIds })
           : undefined,
         "项目分析",
       ),

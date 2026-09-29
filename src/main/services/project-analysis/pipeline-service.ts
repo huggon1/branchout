@@ -5,19 +5,16 @@ import type {
   ProjectAnalysisWorkerInput,
 } from "../../../worker/jobs/project-analysis/types";
 import { failureMessages } from "../../../shared/task-failure";
-import { readProjectGitHistory } from "../../../readers/git-history";
 import { readProjectRepository } from "../../../readers/repository";
 import { discoverCodexSessionCandidates } from "../../../readers/codex-sessions";
 import type { ModelService } from "../model-service";
-import { analysisBatchResultSchema, type AnalysisCheckpoint } from "../../../shared/project-analysis-checkpoint";
-import { analysisPromptSettingsSchema, type AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
+import { analysisPromptSettingsSchema, defaultAnalysisPromptSettings, type AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
+import { maximumSelectedConversationCount } from "../../../shared/project-analysis-limits";
 
-const rangeIdSchema = z.enum(["recent_30", "recent_100"]);
 const startSchema = z
   .object({
     projectId: z.string().uuid(),
-    rangeId: rangeIdSchema.default("recent_30"),
-    codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
+    codexSessionIds: z.array(z.string().min(1).max(300)).max(maximumSelectedConversationCount),
   })
   .strict();
 
@@ -29,7 +26,6 @@ const sourceLocationSchema = z.union([
       endLine: z.number().int().positive().optional(),
     })
     .strict(),
-  z.object({ commitId: z.string().min(1).max(200) }).strict(),
   z
     .object({
       sessionId: z.string().min(1).max(300),
@@ -43,7 +39,7 @@ const sourceLocationSchema = z.union([
 const evidenceSchema = z
   .object({
     evidenceId: z.string().min(1).max(120),
-    source: z.enum(["repository", "commit", "codex_session"]),
+    source: z.enum(["repository", "codex_session"]),
     sourceId: z.string().min(1).max(300),
     location: sourceLocationSchema,
     quote: z.string().min(1).max(12000),
@@ -102,21 +98,6 @@ const analysisDraftSchema = z
             modelFilesIncluded: z.number().int().nonnegative(),
             modelFilesOmitted: z.number().int().nonnegative(),
             workingTreeClean: z.boolean(),
-          })
-          .strict(),
-        commits: z
-          .object({
-            rangeId: rangeIdSchema,
-            newestCommit: z.string().nullable(),
-            oldestCommit: z.string().nullable(),
-            readCommitIds: z.array(z.string()),
-            read: z.number().int().nonnegative(),
-            available: z.number().int().nonnegative(),
-            skippedByRange: z.number().int().nonnegative(),
-            modelIncluded: z.number().int().nonnegative(),
-            modelOmitted: z.number().int().nonnegative(),
-            modelSkippedCommitIds: z.array(z.string()),
-            bounded: z.boolean(),
           })
           .strict(),
         codexSessions: z
@@ -179,7 +160,6 @@ const analysisDraftSchema = z
             maximumCharacters: z.number().int().positive(),
             evidenceIncluded: z.number().int().nonnegative(),
             evidenceOmittedByBudget: z.number().int().nonnegative(),
-            batches: z.number().int().positive().optional(),
           })
           .strict(),
       })
@@ -189,14 +169,12 @@ const analysisDraftSchema = z
 
 const workerEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("credential_request"), taskId: z.string().uuid(), requestId: z.string().uuid() }).strict(),
-  z.object({ type: z.literal("checkpoint"), taskId: z.string().uuid(), manifestHash: z.string().regex(/^[a-f0-9]{64}$/), batchTotal: z.number().int().positive().max(1000), index: z.number().int().nonnegative(), result: analysisBatchResultSchema }).strict(),
   z
     .object({
       type: z.literal("phase"),
       taskId: z.string().uuid(),
       phase: z.enum([
         "repository",
-        "git_history",
         "codex_sessions",
         "reasoning",
       ]),
@@ -207,11 +185,8 @@ const workerEventSchema = z.discriminatedUnion("type", [
       type: z.literal("progress"),
       taskId: z.string().uuid(),
       repositoryFilesRead: z.number().int().nonnegative().optional(),
-      commitsRead: z.number().int().nonnegative().optional(),
       sessionsRead: z.number().int().nonnegative().optional(),
       messagesRead: z.number().int().nonnegative().optional(),
-      batchCompleted: z.number().int().positive().optional(),
-      batchTotal: z.number().int().positive().optional(),
       message: z.string().max(500).optional(),
     })
     .strict(),
@@ -231,8 +206,6 @@ const workerEventSchema = z.discriminatedUnion("type", [
         httpStatus: z.number().int().min(100).max(599).optional(),
         providerCode: z.string().regex(/^[a-zA-Z0-9_.-]{1,64}$/).optional(),
         transportCode: z.string().regex(/^[a-zA-Z0-9_.-]{1,64}$/).optional(),
-        batchIndex: z.number().int().positive().optional(),
-        batchTotal: z.number().int().positive().optional(),
       }).strict().optional(),
     })
     .strict(),
@@ -247,12 +220,6 @@ const preflightSchema = z
         gitHead: z.string().min(1).max(200),
         hasUncommittedChanges: z.boolean(),
         candidateFileCount: z.number().int().nonnegative(),
-      })
-      .strict(),
-    commits: z
-      .object({
-        availableCount: z.number().int().nonnegative(),
-        commitIds: z.array(z.string().min(1).max(200)).max(10000),
       })
       .strict(),
     codexDiscovery: z.object({
@@ -318,15 +285,6 @@ export const projectAnalysisReportForSaveSchema = z
             })
             .strict(),
         ),
-        commitsRead: z.array(z.string().min(1).max(200)),
-        commitsSkipped: z.array(z.string().min(1).max(200)),
-        commitRange: z
-          .object({
-            rangeId: rangeIdSchema,
-            availableCount: z.number().int().nonnegative(),
-            skippedByRange: z.number().int().nonnegative(),
-          })
-          .strict(),
         codexSessionsRead: z.array(z.string().min(1).max(300)),
         codexSessionsSkipped: z.array(z.string().min(1).max(300)),
         codexSessionsFailed: z.array(
@@ -399,7 +357,8 @@ export const projectAnalysisRunInputSchema = z
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
     directory: z.string().min(1).max(4096),
-    rangeId: rangeIdSchema,
+    // Accepted only while loading saved tasks created by earlier versions.
+    rangeId: z.enum(["recent_30", "recent_100"]).optional(),
     codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
     promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
     focusSetSnapshot: z
@@ -464,16 +423,10 @@ export interface ProjectAnalysisPipelinePorts {
     read(taskId: string): RunInput | undefined;
     remove(taskId: string): Promise<void>;
   };
-  checkpoints: {
-    read(taskId: string): AnalysisCheckpoint | undefined;
-    append(taskId: string, manifestHash: string, batchTotal: number, index: number, result: unknown): Promise<void>;
-    remove(taskId: string): Promise<void>;
-  };
   notify: () => void;
   parseStart?: (raw: unknown) => StartProjectAnalysis;
   parseReport?: (raw: unknown) => ProjectAnalysisReportForSave;
   readRepository?: typeof readProjectRepository;
-  readGitHistory?: typeof readProjectGitHistory;
   discoverSessions?: typeof discoverCodexSessionCandidates;
   timeoutMs?: number;
 }
@@ -488,16 +441,15 @@ type ActiveRun = {
 };
 
 const phaseLabels = {
-  repository: "读取仓库",
-  git_history: "读取 commit",
+  repository: "检查仓库",
   codex_sessions: "读取 Codex 会话",
-  reasoning: "形成发现与建议",
+  reasoning: "探索仓库并形成建议",
 } as const;
 const safeFailureCodes = new Set(Object.keys(failureMessages));
 function safeModelActivity(message: string | undefined): string | undefined {
   if (!message || message.length > 100) return undefined;
   return /^归纳第 \d{1,3} 层关注角度$/.test(message) ||
-    /^第 \d{1,4} 批：(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(message)
+    /^(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(message)
     ? message : undefined;
 }
 
@@ -506,7 +458,6 @@ function encodeLocation(
 ): string {
   if ("path" in location)
     return `path=${location.path};lines=${location.startLine}${location.endLine && location.endLine !== location.startLine ? `-${location.endLine}` : ""}`;
-  if ("commitId" in location) return `commitId=${location.commitId}`;
   return `sessionId=${location.sessionId};messageId=${location.messageId};role=${location.role}`;
 }
 
@@ -548,13 +499,6 @@ function reportFromDraft(
       repositoryRead: draft.coverage.repository.readPaths,
       repositorySkipped: draft.coverage.repository.skippedPaths,
       repositoryFailed: [],
-      commitsRead: draft.coverage.commits.readCommitIds,
-      commitsSkipped: draft.coverage.commits.modelSkippedCommitIds,
-      commitRange: {
-        rangeId: draft.coverage.commits.rangeId,
-        availableCount: draft.coverage.commits.available,
-        skippedByRange: draft.coverage.commits.skippedByRange,
-      },
       codexSessionsRead: draft.coverage.codexSessions.sessionsRead.map(
         (item) => item.sessionId,
       ),
@@ -595,12 +539,10 @@ export class ProjectAnalysisPipelineService {
   private readonly active = new Map<string, ActiveRun>();
   private closed = false;
   private readonly readRepository: typeof readProjectRepository;
-  private readonly readGitHistory: typeof readProjectGitHistory;
   private readonly discoverSessions: typeof discoverCodexSessionCandidates;
 
   constructor(private readonly ports: ProjectAnalysisPipelinePorts) {
     this.readRepository = ports.readRepository ?? readProjectRepository;
-    this.readGitHistory = ports.readGitHistory ?? readProjectGitHistory;
     this.discoverSessions =
       ports.discoverSessions ?? discoverCodexSessionCandidates;
   }
@@ -609,22 +551,16 @@ export class ProjectAnalysisPipelineService {
     const project = this.boundProject(projectId);
     const controller = new AbortController();
     return Promise.all([
-      this.readRepository(project.directory, controller.signal),
-      this.readGitHistory(project.directory, controller.signal, "recent_100"),
+      this.readRepository(project.directory, controller.signal, { maxFiles: 0 }),
       this.discoverSessions(project.directory),
-    ]).then(([repository, history, sessions]) => {
-      if (!repository.head) throw new Error("项目仓库尚无可读取的 commit");
+    ]).then(([repository, sessions]) => {
       return preflightSchema.parse({
         projectId: project.projectId,
         projectLabel: project.name,
         repository: {
-          gitHead: repository.head,
+          gitHead: repository.head ?? "未提交",
           hasUncommittedChanges: !repository.workingTree.clean,
           candidateFileCount: repository.coverage.candidateFileCount,
-        },
-        commits: {
-          availableCount: history.range.availableCount,
-          commitIds: history.commits.map((commit) => commit.commitId),
         },
         codexDiscovery: sessions.coverage,
         codexSessions: sessions.candidates.map((candidate) => ({
@@ -676,9 +612,13 @@ export class ProjectAnalysisPipelineService {
       projectId: project.projectId,
       projectLabel: project.name,
       directory: project.directory,
-      rangeId: input.rangeId,
       codexSessionIds: [...new Set(input.codexSessionIds)],
-      promptGuidance: this.ports.prompts.snapshot(),
+      promptGuidance: (() => {
+        const guidance = this.ports.prompts.snapshot();
+        return guidance.analysisGoal === defaultAnalysisPromptSettings.analysisGoal &&
+          guidance.cardWriting === defaultAnalysisPromptSettings.cardWriting
+          ? undefined : guidance;
+      })(),
       focusSetSnapshot,
     });
   }
@@ -697,6 +637,8 @@ export class ProjectAnalysisPipelineService {
       ? projectAnalysisRunInputSchema.parse(saved)
       : undefined;
     if (!previous) throw new Error("任务的冻结输入无法读取");
+    if (previous.codexSessionIds.length > maximumSelectedConversationCount)
+      throw new Error(`原任务选了 ${previous.codexSessionIds.length} 条对话，请重新选择至多 ${maximumSelectedConversationCount} 条后分析`);
     const current = this.boundProject(previous.projectId);
     if (current.directory !== previous.directory)
       throw new Error("项目目录已变化，请重新执行分析预检");
@@ -774,7 +716,7 @@ export class ProjectAnalysisPipelineService {
           projectId: input.projectId,
           projectLabel: input.projectLabel,
         },
-        phase: "读取仓库",
+        phase: "检查仓库",
         focusSetSnapshot: input.focusSetSnapshot,
       });
       taskId = task.taskId;
@@ -812,7 +754,6 @@ export class ProjectAnalysisPipelineService {
         projectId: input.projectId,
         projectLabel: input.projectLabel,
         directory: input.directory,
-        rangeId: input.rangeId,
         codexSessionIds: input.codexSessionIds,
         focusCards: input.focusSetSnapshot.cards.map((card) => ({
           focusId: card.focusId,
@@ -823,7 +764,6 @@ export class ProjectAnalysisPipelineService {
         config: lease.config,
         promptGuidance: input.promptGuidance,
         traceRoot: this.ports.traceRoot,
-        ...(resumeFromTaskId ? { resumeCheckpoint: this.ports.checkpoints.read(resumeFromTaskId) } : {}),
       };
       worker.postMessage({ type: "run_project_analysis", ...command });
       this.ports.notify();
@@ -860,19 +800,8 @@ export class ProjectAnalysisPipelineService {
       }
       return;
     }
-    // The limit bounds inactivity, so a multi-batch analysis can finish without
-    // being killed solely because earlier batches took time.
+    // Bound inactivity while allowing a long Agent exploration to continue.
     active.timer.refresh();
-    if (event.type === "checkpoint") {
-      try {
-        await this.ports.checkpoints.append(taskId, event.manifestHash, event.batchTotal, event.index, event.result);
-        active.worker.postMessage({ type: "checkpoint_ack", index: event.index, ok: true });
-      } catch {
-        active.worker.postMessage({ type: "checkpoint_ack", index: event.index, ok: false });
-        await this.fail(taskId, "task_protocol");
-      }
-      return;
-    }
     if (event.type === "phase") {
       await this.ports.tasks.receive(taskId, {
         type: "phase",
@@ -889,12 +818,11 @@ export class ProjectAnalysisPipelineService {
       return;
     }
     if (event.type === "progress") {
-      const hasCount = [event.messagesRead, event.sessionsRead, event.commitsRead, event.repositoryFilesRead]
+      const hasCount = [event.messagesRead, event.sessionsRead, event.repositoryFilesRead]
         .some((value) => value !== undefined);
       const completed =
         event.messagesRead ??
         event.sessionsRead ??
-        event.commitsRead ??
         event.repositoryFilesRead ??
         0;
       if (hasCount)
@@ -907,9 +835,6 @@ export class ProjectAnalysisPipelineService {
         event.repositoryFilesRead === undefined
           ? undefined
           : `仓库文件 ${event.repositoryFilesRead} 项`,
-        event.commitsRead === undefined
-          ? undefined
-          : `commit ${event.commitsRead} 条`,
         event.sessionsRead === undefined
           ? undefined
           : `Codex 会话 ${event.sessionsRead} 个`,
@@ -917,16 +842,13 @@ export class ProjectAnalysisPipelineService {
           ? undefined
           : `会话消息 ${event.messagesRead} 条`,
       ].filter((value): value is string => value !== undefined);
-      const batchSummary = event.batchCompleted !== undefined && event.batchTotal !== undefined
-        ? `已完成第 ${event.batchCompleted} / ${event.batchTotal} 批资料分析`
-        : undefined;
       const modelActivity = safeModelActivity(event.message);
-      if (batchSummary || summaries.length || modelActivity)
+      if (summaries.length || modelActivity)
         await this.ports.tasks.receive(taskId, {
           type: "activity",
           taskId,
-          action: batchSummary ? "reasoning" : "progress",
-          summary: batchSummary ?? modelActivity ?? `已读取 ${summaries.join("、")}`,
+          action: "progress",
+          summary: modelActivity ?? `已读取 ${summaries.join("、")}`,
           ...(hasCount ? { progress: { completed } } : {}),
         });
       this.ports.notify();
@@ -971,12 +893,11 @@ export class ProjectAnalysisPipelineService {
       result: { kind: "project_analysis_report", id: reportId },
     });
     await this.ports.runInputs.remove(taskId);
-    await this.ports.checkpoints.remove(taskId);
     await this.release(taskId, active);
     this.ports.notify();
   }
 
-  private async fail(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string; batchIndex?: number; batchTotal?: number }): Promise<void> {
+  private async fail(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string }): Promise<void> {
     const active = this.active.get(taskId);
     if (active) active.stopping = true;
     try {
@@ -987,11 +908,10 @@ export class ProjectAnalysisPipelineService {
     this.ports.notify();
   }
 
-  private async taskFailure(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string; batchIndex?: number; batchTotal?: number }): Promise<void> {
+  private async taskFailure(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string }): Promise<void> {
     const safeCode = safeFailureCodes.has(code) ? code : "execution_failed";
     const message = failureMessages[safeCode as keyof typeof failureMessages];
     const details = [
-      diagnostic?.batchIndex && diagnostic?.batchTotal ? `第 ${diagnostic.batchIndex}/${diagnostic.batchTotal} 批` : undefined,
       diagnostic?.httpStatus ? `HTTP ${diagnostic.httpStatus}` : undefined,
       diagnostic?.providerCode ? `服务代码 ${diagnostic.providerCode}` : undefined,
       diagnostic?.transportCode ? `网络代码 ${diagnostic.transportCode}` : undefined,

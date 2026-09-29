@@ -10,7 +10,7 @@ This guide describes current cross-process contracts. The [data contracts](../..
 - `focus-contracts`: cards, frozen versions, and active-set snapshots.
 - `source-contracts`: links, source snapshots, and content blocks.
 - `forwarding-view-contracts`: content task and report structures read by the UI.
-- `analysis-contracts`: repository, commit, and Codex session inputs; evidence, reports, and suggestions.
+- `analysis-contracts`: repository and Codex session inputs; evidence, reports, suggestions, and historical report fields.
 - `task-contracts`: unified state, stage results, activity, and cancellation.
 - `model-contracts`: model connection state and execution configuration.
 - `telegram-contracts` and `platform-contracts`: Telegram and source-reader results.

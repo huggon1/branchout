@@ -49,7 +49,7 @@ export async function exportProjectAnalysisTrace(traceRoot: string, taskId: stri
   const sources = await Promise.all(taskIds.map(async (id, index) => {
     try {
       const files = (await readdir(join(traceRoot, id, "html")))
-        .filter((name) => /^batch-\d+-attempt-\d+\.html$/.test(name))
+        .filter((name) => /^(?:batch-\d+-)?attempt-\d+\.html$/.test(name))
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       return { id, index, files };
     } catch (error) {
@@ -75,7 +75,8 @@ export async function exportProjectAnalysisTrace(traceRoot: string, taskId: stri
     for (const file of source.files) {
       await copyFile(join(traceRoot, source.id, "html", file), join(destination, runDirectory, file));
       const relative = runDirectory ? `${runDirectory}/${file}` : file;
-      links.push(`<li><a href="${escapeHtml(relative)}">第 ${source.index + 1} 次运行 · ${escapeHtml(file.replace(/\.html$/, ""))}</a></li>`);
+      const attempt = /attempt-(\d+)\.html$/.exec(file)?.[1];
+      links.push(`<li><a href="${escapeHtml(relative)}">第 ${source.index + 1} 次运行 · 第 ${attempt ?? "?"} 次模型请求</a></li>`);
     }
   }
   const index = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>Branchout 分析记录</title><style>body{font:16px system-ui;max-width:48rem;margin:3rem auto;padding:0 1rem;line-height:1.6}a{color:#245b43}</style><h1>项目分析记录</h1><p>这些页面包含本次分析的项目资料与对话内容。</p><ol>${links.join("\n")}</ol></html>`;

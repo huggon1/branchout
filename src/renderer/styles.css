@@ -1211,20 +1211,6 @@ blockquote span {
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
-.commit-range-control {
-  display: grid;
-  gap: 5px;
-  margin-top: 10px;
-  color: #52645a;
-  font-size: 10px;
-  font-weight: 650;
-}
-.commit-range-control select {
-  width: 100%;
-  min-height: 33px;
-  padding-inline: 8px;
-  font-size: 10px;
-}
 .session-picker {
   display: grid;
   gap: 9px;

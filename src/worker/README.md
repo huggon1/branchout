@@ -5,7 +5,7 @@ This document describes current Agent worker responsibilities. See [data contrac
 ## Tasks
 
 - **Content:** Read a normalized link, generate general understanding, evaluate every active card in the input snapshot, and return source, understanding, coverage, and connections.
-- **Project analysis:** Read current local repository content, selected Git commits, and attributed Codex sessions to produce evidence-backed findings and create or update suggestions.
+- **Project analysis:** Give Pi the repository root and a cleaned XML of selected Codex sessions; use read-only tools to explore files and produce evidence-backed findings and card suggestions.
 - **Model support:** Create an independent Pi session for each task using configuration frozen by the main process; deliver structured stage and activity events.
 
 Workers receive approved directories, source scope, card versions, and cancellation signals. Readers return locatable sources and actual coverage; reasoning modules consume normalized inputs. The main process validates results, persists state, manages tasks, and accepts suggestions.

@@ -9,7 +9,7 @@ This document describes target product behavior. The root [README](../README.md)
 Branchout provides two connected capabilities:
 
 1. **Content connections:** Bind a local Git repository, maintain focus cards manually, submit links in the app or through Telegram, and read content understanding and focus connections.
-2. **Project analysis:** Read current local repository content, Git commit history, and local Codex work conversations associated with the project. Produce an analysis report and card-change suggestions for individual acceptance.
+2. **Project analysis:** Explore the current local repository and selected Codex work conversations. Produce an analysis report and card-change suggestions for individual acceptance.
 
 ## Projects and focus cards
 
@@ -35,15 +35,15 @@ If source retrieval, understanding, or connection evaluation fails, the UI shows
 
 ## Project analysis and suggestions
 
-Users start project analysis from a project page. Each run reads the current local repository, locatable Git commit history, and local Codex work conversations verifiably associated with that project. Its report records actual sources, coverage, project state, and read failures for later inspection.
+Users start project analysis from a project page. Each run receives the repository directory and selected Codex conversations associated with that project. Pi explores repository files with read-only tools and reads a locally generated conversation XML file. The report records files opened, selected conversation coverage, conversation read failures, and project state. The local Pi trace retains file tool failures.
 
-Analysis identifies angles worth watching and suggests creating or updating cards. Each suggested card includes the context and angle needed for independent matching. Each suggestion includes rationale and supporting repository, commit, or conversation excerpts. Suggestions remain part of the report. Accepting one creates a card or a new version of an existing card. Acceptance compares the target card's current version with its suggested base version; a change asks the user to review the suggestion again.
+Analysis identifies angles worth watching and suggests creating or updating cards. Each suggested card describes a lasting user concern in natural, independently readable language. The report holds rationale and supporting repository or conversation excerpts. Suggestions remain part of the report. Accepting one creates a card or a new version of an existing card. Acceptance compares the target card's current version with its suggested base version; a change asks the user to review the suggestion again.
 
-The analysis UI lists identified conversations, project attribution, available previews of user messages, and coverage before launch. Users adjust selected sessions and explicitly include sessions with uncertain attribution. A deterministic reader removes application-added content, extracts user messages and final assistant replies needed for context, and retains message locations. Analysis processes selected sources in batches, drawing angles from user goals, recurring concerns, tradeoffs, and unresolved issues. The report records sources actually used, batch counts, and read failures.
+The analysis UI lists identified conversations, project attribution, and previews of user messages before launch. It preselects the ten most recently active confirmed conversations with readable user messages. Users can adjust the set up to thirty conversations and explicitly include sessions with uncertain attribution. A deterministic reader extracts user messages and relevant final assistant replies into XML with message locations. The agent reads that file in sections, explores the repository, and draws angles from user goals, recurring concerns, tradeoffs, and unresolved issues.
 
-Each batch runs in a Pi Agent session with an empty tool set. The task records short status updates and saves validated batch results before advancing. A retry reuses saved batches when repository input, model selection, and effective prompts match the original run. The task shows the failed stage and a specific error category when execution stops. After batch analysis, a synthesis pass combines supported candidates into independently understandable focus angles.
+Each analysis starts a persisted Pi Agent session with read-only file exploration tools. Pi controls its own file reading within that session. A transient model request failure can start another session, with up to three attempts per task. The task records short status updates and saves its validated report. A user-initiated retry starts a new exploration session with the saved project, conversation, card, and prompt inputs and the current model connection. The task shows the failed stage and a specific error category when execution stops. Supported models use their reasoning capability during exploration.
 
-The task center offers an export action for its local Pi session history. The exported index links to the HTML record for each model attempt, including batches reused by a resumed task. The export contains project material and selected work conversations and opens from a directory chosen by the user.
+The task center offers an export action for its local Pi session history. The exported index links to the HTML record for each model attempt. The export contains project material and selected work conversations and opens from a directory chosen by the user.
 
 ## Content, reports, and tasks
 
@@ -57,6 +57,6 @@ The task center combines content and analysis tasks, showing queued, running, co
 
 Settings contain one current model connection, Telegram access, and source reader configuration. A general API connection stores an API key, service URL, API type, and model ID in an owner-only local file; the API type is OpenAI Responses or OpenAI Chat Completions. A Codex subscription connection uses ChatGPT account login and selects an available model for that account and client. New configuration applies to later tasks; running tasks retain their start-time configuration.
 
-Project analysis settings provide editable analysis-goal and focus-card-writing guidance with shipped defaults. Each analysis run records the effective guidance and its revision at launch. Evidence citation, JSON output, and source-as-data rules remain application controlled.
+Project analysis settings provide optional analysis-goal and focus-card-writing guidance. Filled fields enter the task message as user supplemental information. Each analysis run records the supplied guidance and its revision at launch. Evidence citation, JSON output, and source-as-data rules remain application controlled.
 
-Controlled local readers access project files, Git history, and Codex conversations. Model tasks receive only the content selected for that analysis. Telegram accepts messages from bound chats; its bot credential uses an owner-only local file. Reports, task activity, and UI state use redacted content and error summaries. Source content and work conversations are analysis data; application code controls execution instructions.
+Controlled local readers inspect repository identity and selected Codex conversations. Pi's read-only tools access the project directory and the task's conversation file. Telegram accepts messages from bound chats; its bot credential uses an owner-only local file. Reports, task activity, and UI state use redacted content and error summaries. Source content and work conversations are analysis data; application code controls execution instructions.

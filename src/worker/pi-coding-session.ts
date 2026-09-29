@@ -1,13 +1,18 @@
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { access, mkdir, readFile, realpath } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   createAgentSession,
+  createFindToolDefinition,
+  createGrepToolDefinition,
+  createLsToolDefinition,
+  createReadToolDefinition,
   DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
   SettingsManager,
   type AgentSession,
+  type CreateAgentSessionOptions,
 } from "@earendil-works/pi-coding-agent";
 import {
   InMemoryCredentialStore,
@@ -98,17 +103,18 @@ export interface PiCodingSessionOptions {
   cwd: string;
   traceRoot: string;
   taskId: string;
-  batchIndex: number;
   attempt: number;
   systemPrompt: string;
   maxTokens?: number;
   codexTokenProvider?: CodexTokenProvider;
+  conversationFile?: string;
 }
 
 export interface PiCodingSessionHandle {
   session: AgentSession;
   sessionManager: SessionManager;
   sessionFile: string | undefined;
+  conversationMessageIds: Set<string>;
 }
 
 function initialCodexToken(accessToken: string): CodexAccessToken {
@@ -124,19 +130,17 @@ function initialCodexToken(accessToken: string): CodexAccessToken {
   return { accessToken, expiresAt: 0 };
 }
 
-/** One isolated, persisted session for one analysis batch attempt. */
-export async function createPiCodingBatchSession(
+/** One isolated, persisted session for one model attempt. */
+export async function createPiCodingSession(
   options: PiCodingSessionOptions,
 ): Promise<PiCodingSessionHandle> {
-  const { config, taskId, batchIndex, attempt } = options;
+  const { config, taskId, attempt } = options;
   if (
     !/^[a-f\d-]{36}$/i.test(taskId) ||
-    !Number.isSafeInteger(batchIndex) ||
-    batchIndex < 1 ||
     !Number.isSafeInteger(attempt) ||
     attempt < 1
   )
-    throw new Error("Invalid analysis batch identity");
+    throw new Error("Invalid analysis attempt identity");
 
   const cwd = resolve(options.cwd);
   const traceRoot = resolve(options.traceRoot);
@@ -205,48 +209,99 @@ export async function createPiCodingBatchSession(
     ...(options.maxTokens ? { maxTokens: options.maxTokens } : {}),
   };
   const sessionManager = SessionManager.create(cwd, sessionDir, {
-    id: `${taskId}-batch-${batchIndex}-attempt-${attempt}`,
+    id: `${taskId}-attempt-${attempt}`,
   });
+  const conversationFile = options.conversationFile ? await realpath(options.conversationFile) : undefined;
+  const conversationMessageIds = new Set<string>();
+  const allowedPath = async (path: string, includeConversation = false) => {
+    const absolute = await realpath(resolve(cwd, path));
+    if (includeConversation && absolute === conversationFile) return absolute;
+    const within = relative(cwd, absolute);
+    if (within === ".." || within.startsWith(`..${sep}`) || isAbsolute(within) ||
+      within.split(sep).some((part) => part === ".git" || part === "node_modules" || part.startsWith(".env")))
+      throw new Error("项目分析只能读取项目目录及所选对话文件");
+    return absolute;
+  };
+  const readTool = createReadToolDefinition(cwd, {
+    operations: { access, readFile },
+  });
+  const nativeRead = readTool.execute;
+  readTool.execute = async (id, params, signal, update, context) => {
+    const path = await allowedPath(params.path, true);
+    const result = await nativeRead(id, params, signal, update, context);
+    if (path === conversationFile) {
+      for (const part of result.content) {
+        if (part.type !== "text") continue;
+        for (const match of part.text.matchAll(/<message id="([^"]+)"[\s\S]*?<\/message>/g))
+          conversationMessageIds.add(match[1]);
+      }
+    }
+    return result;
+  };
+  const grepTool = createGrepToolDefinition(cwd);
+  const nativeGrep = grepTool.execute;
+  grepTool.execute = async (id, params, signal, update, context) => {
+    await allowedPath(params.path ?? ".");
+    if (params.glob?.includes("..") || (params.glob && isAbsolute(params.glob)))
+      throw new Error("搜索范围超出项目目录");
+    return nativeGrep(id, params, signal, update, context);
+  };
+  const findTool = createFindToolDefinition(cwd);
+  const nativeFind = findTool.execute;
+  findTool.execute = async (id, params, signal, update, context) => {
+    await allowedPath(params.path ?? ".");
+    if (params.pattern.includes("..") || isAbsolute(params.pattern)) throw new Error("搜索范围超出项目目录");
+    return nativeFind(id, params, signal, update, context);
+  };
+  const lsTool = createLsToolDefinition(cwd);
+  const nativeLs = lsTool.execute;
+  lsTool.execute = async (id, params, signal, update, context) => {
+    await allowedPath(params.path ?? ".");
+    return nativeLs(id, params, signal, update, context);
+  };
   const { session } = await createAgentSession({
     cwd,
     agentDir,
     modelRuntime,
     model,
-    thinkingLevel: "off",
+    thinkingLevel: model.reasoning ? "medium" : "off",
     sessionManager,
     settingsManager,
     resourceLoader,
-    tools: [],
-    noTools: "all",
+    tools: ["read", "grep", "find", "ls"],
+    customTools: [readTool, grepTool, findTool, lsTool] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>,
   });
   return {
     session,
     sessionManager,
     sessionFile: sessionManager.getSessionFile(),
+    conversationMessageIds,
   };
 }
 
-export type PiCodingBatchActivity = {
+export type PiCodingSessionActivity = {
   kind: "started" | "retrying" | "completed" | "failed";
   attempt: number;
   maxAttempts: number;
   summary: string;
 };
 
-export interface RunPiCodingBatchOptions extends Omit<
+export interface RunPiCodingSessionOptions extends Omit<
   PiCodingSessionOptions,
   "attempt"
 > {
   prompt: string;
   signal: AbortSignal;
   maxAttempts?: number;
-  onActivity?: (activity: PiCodingBatchActivity) => void;
+  onActivity?: (activity: PiCodingSessionActivity) => void;
 }
 
-export interface PiCodingBatchResult {
+export interface PiCodingSessionResult {
   text: string;
   sessionFile: string;
   htmlFile?: string;
+  readPaths: string[];
+  conversationMessageIds: string[];
 }
 
 function retryableModelFailure(message: string): boolean {
@@ -293,10 +348,10 @@ async function waitForRetry(
   });
 }
 
-/** Executes one bounded batch with independent Pi sessions for retry attempts. */
-export async function runPiCodingBatch(
-  options: RunPiCodingBatchOptions,
-): Promise<PiCodingBatchResult> {
+/** Executes one analysis with independent Pi sessions for retry attempts. */
+export async function runPiCodingSession(
+  options: RunPiCodingSessionOptions,
+): Promise<PiCodingSessionResult> {
   if (
     options.maxAttempts !== undefined &&
     (!Number.isSafeInteger(options.maxAttempts) || options.maxAttempts < 1)
@@ -304,7 +359,7 @@ export async function runPiCodingBatch(
     throw new Error("Invalid model attempt limit");
   const maxAttempts = Math.min(3, options.maxAttempts ?? 3);
   const announce = (
-    kind: PiCodingBatchActivity["kind"],
+    kind: PiCodingSessionActivity["kind"],
     attempt: number,
     summary: string,
   ) => {
@@ -319,7 +374,7 @@ export async function runPiCodingBatch(
     announce("started", attempt, `开始第 ${attempt} 次模型请求`);
     let handle: PiCodingSessionHandle;
     try {
-      handle = await createPiCodingBatchSession({ ...options, attempt });
+      handle = await createPiCodingSession({ ...options, attempt });
     } catch (error) {
       announce("failed", attempt, "模型会话初始化失败");
       throw error;
@@ -331,6 +386,7 @@ export async function runPiCodingBatch(
     let error: unknown;
     let text = "";
     let htmlFile: string | undefined;
+    let readPaths: string[] = [];
     try {
       await handle.session.prompt(options.prompt, {
         expandPromptTemplates: false,
@@ -350,6 +406,12 @@ export async function runPiCodingBatch(
         .join("\n")
         .trim();
       if (!text) throw new ExecutionFailure("model_empty");
+      readPaths = handle.session.messages.flatMap((message) =>
+        message.role === "assistant" ? message.content.flatMap((part) =>
+          part.type === "toolCall" && part.name === "read" &&
+          typeof part.arguments?.path === "string" ? [part.arguments.path] : [],
+        ) : [],
+      );
     } catch (caught) {
       error = caught;
     } finally {
@@ -365,7 +427,7 @@ export async function runPiCodingBatch(
           htmlFile = await handle.session.exportToHtml(
             join(
               exportDir,
-              `batch-${options.batchIndex}-attempt-${attempt}.html`,
+              `attempt-${attempt}.html`,
             ),
           );
         } catch {
@@ -380,6 +442,8 @@ export async function runPiCodingBatch(
       return {
         text,
         sessionFile: handle.sessionFile,
+        readPaths,
+        conversationMessageIds: [...handle.conversationMessageIds],
         ...(htmlFile ? { htmlFile } : {}),
       };
     }

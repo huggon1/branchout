@@ -340,9 +340,9 @@ export function App() {
                 setError(result.message);
                 return undefined;
               }}
-              onStartAnalysis={(projectId, sessionIds, commitRangeId) =>
+              onStartAnalysis={(projectId, sessionIds) =>
                 run(() =>
-                  ui.uiStartAnalysis({ projectId, sessionIds, commitRangeId }),
+                  ui.uiStartAnalysis({ projectId, sessionIds }),
                 )
               }
               onAcceptSuggestion={acceptSuggestion}

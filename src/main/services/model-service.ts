@@ -157,7 +157,11 @@ export class ModelService {
       if (this.auth?.loggedIn) throw new Error("当前账号已登录");
       if (this.auth) await this.cleanup(this.auth);
       const context = this.context(randomUUID());
-      await this.dependencies.journal.add(context.id);
+      try {
+        await this.dependencies.journal.add(context.id);
+      } catch {
+        throw new Error("无法保存登录状态，请检查应用数据目录权限");
+      }
       this.auth = context;
       this.state.auth = "logging_in";
       this.state.catalog = "empty";
