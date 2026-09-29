@@ -1,41 +1,41 @@
-# Project analysis prompt evaluation
+# Project analysis evaluation
 
-These two commands prepare local inputs and run a manual prompt evaluation for a selected Git repository. They reuse Branchout's Codex conversation reader and Pi session runner. The desktop product keeps its current analysis pipeline; this evaluation records a separate exploration run for prompt review.
+These commands use the same `prepareProjectAnalysis` and `runProjectAnalysis` functions as the desktop worker. The model receives the same system instruction, JSON evidence batches, and synthesis prompts. The script supplies an operator-selected repository and conversations with an empty focus-card set; the desktop app supplies its frozen focus cards. This run analyzes the selected commit range because the current product pipeline does.
 
-The input scope contains current repository files and explicitly selected Codex conversations. Git HEAD and worktree state identify the repository version. The command writes run artifacts under `~/.branchout/evaluation/prompt-runs` by default.
+Run files are saved under `~/.branchout/evaluation/prompt-runs` by default. Each invocation creates a private directory.
 
-## 1. Inspect the conversation input
+## Inspect the selected conversations and actual prompts
 
-List conversations attributed to the repository:
+List conversations attributed to a Git repository:
 
 ```sh
 npm run analysis:preview -- --repo /path/to/git-root --list
 ```
 
-Choose IDs from that list and prepare the input:
+Choose conversation IDs and prepare the model inputs:
 
 ```sh
 npm run analysis:preview -- --repo /path/to/git-root --sessions id-1,id-2
 ```
 
-The command prints a run directory. `conversation.xml` contains the cleaned user messages and final assistant replies that the evaluation agent can read. Each message includes its source JSONL line. `input.json` records selected IDs, omitted message counts, excluded record counts, and input hashes. The production parser applies its existing size limits and redaction rules.
+`conversation.xml` is a readable view of messages produced by the production Codex parser, with source JSONL line numbers. The model receives the JSON evidence in `prompts/batch-*.txt`. `system-prompt.txt` contains the exact batch system instruction. `input.json` records selected IDs, parser coverage, repository revision, input hashes, and the commit range. The XML file is a review artifact; the desktop model receives the JSON prompts.
 
-## 2. Inspect or run an analysis
+## Run the desktop analysis implementation
 
-Prepare the exact XML and prompt files before making a model request:
+Prepare the prompts for inspection:
 
 ```sh
 npm run analysis:run -- --repo /path/to/git-root --sessions id-1,id-2
 ```
 
-Review `conversation.xml`, `system-prompt.txt`, and `prompt.txt` in the printed directory. Start a model request by adding `--execute`:
+Add `--execute` when you want to run the configured model:
 
 ```sh
 npm run analysis:run -- --repo /path/to/git-root --sessions id-1,id-2 --execute
 ```
 
-The command reads the existing Branchout model connection from its local application data. Set `--app-data /path/to/Branchout-userData` for another profile. Codex subscription runs use that profile's Codex login; general API runs use its saved API connection. `--thinking medium` selects a requested Pi thinking level. Codex models use Pi's model capabilities. A general API connection uses `--generic-reasoning` when its model supports reasoning; the default uses ordinary responses.
+The script reads the existing Branchout model connection from its local application data. Use `--app-data /path/to/Branchout-userData` for another profile. It calls the production batch runner and report validator. Product retry limits, batch planning, synthesis, and Pi session settings apply. `prompts/system-*.txt` and `prompts/batch-*.txt` retain the instructions actually sent, including synthesis calls. `report.json` contains the validated application report; `result.md` presents its summary, findings, and suggested cards. `trace.html` links to available Pi HTML records for every attempt. `run.json` records the run outcome.
 
-The run directory contains the input XML, both prompt files, `result.md`, `trace.html`, Pi's session JSONL, and `run.json`. The HTML shows tool calls, model replies, and any thinking content returned by the provider. `run.json` records the requested and effective thinking levels. The script offers Pi's `ls`, `find`, `grep`, and `read` tools for repository exploration. It starts one Pi session and makes one attempt, so each result corresponds to one manual evaluation run.
+Pass `--range recent_30|recent_100` to match the commit range selected in the app. Pass `--guidance /path/to/guidance.json` to compare `analysisGoal` and `cardWriting` overrides. Pass `--output-root /path/to/private-runs` to choose another private artifact directory outside the source repositories.
 
-Pass `--guidance /path/to/guidance.json` to compare guidance text. The JSON file accepts `analysisGoal` and `cardWriting`. Pass `--output-root /path/to/private-runs` to choose a local artifact root outside the source repositories. Each invocation creates a separate directory for later comparison.
+The current desktop analysis gives Pi an empty tool set. The next `read` exploration change belongs in the production worker; this script will then exercise it through the same entry point.

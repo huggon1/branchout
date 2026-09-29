@@ -1,11 +1,13 @@
-import { existsSync } from "node:fs";
-import { chmod, copyFile, writeFile } from "node:fs/promises";
+import { chmod, readdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { CodexClient, resolveCodexExecutable, tokenSchema } from "../../src/main/services/codex-client";
 import { ModelStore } from "../../src/main/storage/model-store";
 import type { ModelExecutionConfig } from "../../src/shared/model-contracts";
-import { runPiCodingBatch, type CodexAccessToken } from "../../src/worker/pi-coding-session";
+import type { CodexAccessToken } from "../../src/worker/pi-coding-session";
+import { runProjectAnalysis } from "../../src/worker/jobs/project-analysis";
+import { analysisDraftSchema, reportFromDraft } from "../../src/main/services/project-analysis/pipeline-service";
 import { help, listSessions, parseCli, prepareInput, repositoryRoot, type CliOptions } from "./common";
 
 function defaultAppData(): string {
@@ -45,7 +47,6 @@ async function modelConnection(options: CliOptions): Promise<{
         baseUrl: saved.baseUrl,
         api: saved.api,
         credential: saved.apiKey,
-        reasoning: options.genericReasoning,
       },
       close: () => {},
     };
@@ -76,10 +77,10 @@ async function main(): Promise<void> {
   if ("help" in options) { process.stdout.write(help("run")); return; }
   if (options.list) { await listSessions(await repositoryRoot(options.repository)); return; }
   const prepared = await prepareInput(options);
-  const { directory, repository, taskId, systemPrompt, prompt } = prepared;
+  const { directory, taskId, runInput } = prepared;
   process.stdout.write(`Prepared input: ${directory}\n`);
   if (!options.execute) {
-    process.stdout.write("Review conversation.xml, system-prompt.txt, and prompt.txt. Add --execute to start the model.\n");
+    process.stdout.write("Review conversation.xml and the actual model inputs in prompts/. Add --execute to start the model.\n");
     return;
   }
 
@@ -90,47 +91,67 @@ async function main(): Promise<void> {
   const runFile = join(directory, "run.json");
   const startedAt = new Date().toISOString();
   const model = { method: connection.config.method, id: connection.config.modelId };
-  await writeFile(runFile, `${JSON.stringify({ status: "running", startedAt, model, requestedThinking: options.thinking }, null, 2)}\n`, { mode: 0o600 });
+  await writeFile(runFile, `${JSON.stringify({ status: "running", startedAt, model }, null, 2)}\n`, { mode: 0o600 });
+  const writeTraceIndex = async (): Promise<string | undefined> => {
+    let names: string[];
+    try {
+      names = (await readdir(join(directory, "trace", taskId, "html")))
+        .filter((name) => /^batch-\d+-attempt-\d+\.html$/.test(name))
+        .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    }
+    if (!names.length) return undefined;
+    const links = names.map((name) => `<li><a href="trace/${taskId}/html/${name}">${name}</a></li>`).join("\n");
+    const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Branchout analysis trace</title><h1>Pi session traces</h1><ol>${links}</ol></html>`;
+    const file = join(directory, "trace.html");
+    await writeFile(file, html, { mode: 0o600 });
+    await chmod(file, 0o600);
+    return "trace.html";
+  };
   try {
-    const result = await runPiCodingBatch({
-      config: connection.config,
-      cwd: repository,
-      traceRoot: join(directory, "trace"),
-      taskId,
-      batchIndex: 1,
-      prompt,
-      systemPrompt,
-      signal: controller.signal,
-      maxTokens: connection.config.method === "codex_subscription" ? 12_000 : 3_500,
-      maxAttempts: 1,
-      thinkingLevel: options.thinking,
-      tools: ["ls", "find", "grep", "read"],
-      ...(connection.tokenProvider ? { codexTokenProvider: connection.tokenProvider } : {}),
-      onActivity: (activity) => process.stdout.write(`${activity.summary}\n`),
-    });
-    if (!result.htmlFile) throw new Error("Pi session HTML was not generated; the session JSONL remains in the trace directory.");
+    const draft = await runProjectAnalysis(
+      { ...runInput, config: connection.config, traceRoot: join(directory, "trace") },
+      controller.signal,
+      (event) => {
+        if (event.type === "phase") process.stdout.write(`Phase: ${event.phase}\n`);
+        if (event.type === "progress" && event.message) process.stdout.write(`${event.message}\n`);
+      },
+      {
+        prepared: prepared.prepared,
+        ...(connection.tokenProvider ? { requestCredential: async () => (await connection.tokenProvider!()).accessToken } : {}),
+        onPrompt: async ({ batchIndex, systemPrompt, prompt }) => {
+          await Promise.all([
+            writeFile(join(directory, "prompts", `batch-${batchIndex}.txt`), `${prompt}\n`, { mode: 0o600 }),
+            writeFile(join(directory, "prompts", `system-${batchIndex}.txt`), `${systemPrompt}\n`, { mode: 0o600 }),
+          ]);
+        },
+      },
+    );
+    const report = reportFromDraft(analysisDraftSchema.parse(draft), randomUUID());
+    const trace = await writeTraceIndex();
+    const markdown = [
+      `# ${draft.projectLabel} · 项目分析`, "", draft.summary, "",
+      "## 发现", "", ...draft.findings.map((item) => `- **${item.title}** ${item.summary}（证据：${item.evidenceIds.join(", ")}）`), "",
+      "## 关注卡建议", "", ...draft.suggestions.map((item) => `- **${item.kind}** ${item.content} — ${item.reason}（证据：${item.evidenceIds.join(", ")}）`), "",
+    ].join("\n");
     await Promise.all([
-      writeFile(join(directory, "result.md"), `${result.text}\n`, { mode: 0o600 }),
-      copyFile(result.htmlFile, join(directory, "trace.html")),
+      writeFile(join(directory, "result.md"), markdown, { mode: 0o600 }),
+      writeFile(join(directory, "report.json"), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 }),
     ]);
-    await chmod(join(directory, "trace.html"), 0o600);
     await writeFile(runFile, `${JSON.stringify({
       status: "completed", startedAt, finishedAt: new Date().toISOString(), model,
-      requestedThinking: options.thinking, effectiveThinking: result.thinkingLevel,
-      result: "result.md", trace: "trace.html", session: result.sessionFile,
+      result: "result.md", report: "report.json", ...(trace ? { trace } : {}),
+      findingCount: draft.findings.length, suggestionCount: draft.suggestions.length,
     }, null, 2)}\n`, { mode: 0o600 });
-    process.stdout.write(`Report: ${join(directory, "result.md")}\nTrace: ${join(directory, "trace.html")}\n`);
+    process.stdout.write(`Report: ${join(directory, "result.md")}\n${trace ? `Trace: ${join(directory, trace)}\n` : ""}`);
   } catch (error) {
-    const html = join(directory, "trace", taskId, "html", "batch-1-attempt-1.html");
-    if (existsSync(html)) {
-      await copyFile(html, join(directory, "trace.html"));
-      await chmod(join(directory, "trace.html"), 0o600);
-    }
+    const trace = await writeTraceIndex();
     await writeFile(runFile, `${JSON.stringify({
       status: controller.signal.aborted ? "cancelled" : "failed",
       startedAt, finishedAt: new Date().toISOString(), model,
-      requestedThinking: options.thinking,
-      ...(existsSync(html) ? { trace: "trace.html" } : {}),
+      ...(trace ? { trace } : {}),
       error: error instanceof Error ? error.message : String(error),
     }, null, 2)}\n`, { mode: 0o600 });
     throw error;

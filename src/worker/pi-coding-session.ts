@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -104,8 +103,6 @@ export interface PiCodingSessionOptions {
   systemPrompt: string;
   maxTokens?: number;
   codexTokenProvider?: CodexTokenProvider;
-  tools?: string[];
-  thinkingLevel?: ThinkingLevel;
 }
 
 export interface PiCodingSessionHandle {
@@ -200,7 +197,7 @@ export async function createPiCodingBatchSession(
     modelRuntime.registerProvider("branchout-api", {
       baseUrl: config.baseUrl,
       api: config.api,
-      models: [{ ...model, input: ["text"] }],
+      models: [{ ...model, reasoning: false, input: ["text"] }],
     });
   }
   const model = {
@@ -215,11 +212,11 @@ export async function createPiCodingBatchSession(
     agentDir,
     modelRuntime,
     model,
-    thinkingLevel: options.thinkingLevel ?? "off",
+    thinkingLevel: "off",
     sessionManager,
     settingsManager,
     resourceLoader,
-    tools: options.tools ?? [],
+    tools: [],
     noTools: "all",
   });
   return {
@@ -250,7 +247,6 @@ export interface PiCodingBatchResult {
   text: string;
   sessionFile: string;
   htmlFile?: string;
-  thinkingLevel: ThinkingLevel;
 }
 
 function retryableModelFailure(message: string): boolean {
@@ -335,7 +331,6 @@ export async function runPiCodingBatch(
     let error: unknown;
     let text = "";
     let htmlFile: string | undefined;
-    const effectiveThinking = handle.session.thinkingLevel;
     try {
       await handle.session.prompt(options.prompt, {
         expandPromptTemplates: false,
@@ -385,7 +380,6 @@ export async function runPiCodingBatch(
       return {
         text,
         sessionFile: handle.sessionFile,
-        thinkingLevel: effectiveThinking,
         ...(htmlFile ? { htmlFile } : {}),
       };
     }

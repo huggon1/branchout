@@ -70,7 +70,6 @@ export const executionSchema = z
     modelId,
     baseUrl: baseUrlSchema.optional(),
     api: z.enum(["openai-responses", "openai-completions"]).optional(),
-    reasoning: z.boolean().optional(),
     credential: z.string().min(1).max(32768),
   })
   .strict();

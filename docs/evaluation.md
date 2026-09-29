@@ -4,7 +4,7 @@ This document records candidate acceptance scenarios for Branchout's next test d
 
 ## Current manual evaluation
 
-The [analysis prompt scripts](../scripts/analysis-eval/README.md) accept an operator-selected Git repository and Codex conversations. They save cleaned conversation XML, the prompt, a raw result, and a Pi HTML trace in a private local directory. The operator starts each model run with `--execute` and reviews its semantic result.
+The [analysis scripts](../scripts/analysis-eval/README.md) accept an operator-selected Git repository and Codex conversations. They call the production project-analysis preparation and execution functions, saving the parsed conversation view, actual model prompts, validated report, and Pi HTML trace in a private local directory. The operator starts each model run with `--execute` and reviews its semantic result.
 
 The previous packaged-app evaluation runner, localhost console, and CI test suite were retired during the test reset. The scenarios below remain design candidates. Each future implementation will define its input, independent observation, and saved artifact before code is written.
 
