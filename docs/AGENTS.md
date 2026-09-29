@@ -20,4 +20,4 @@ Document responsibilities:
 - [Data contracts](data-contracts.md): cross-module fields, persistence boundaries, and message conventions.
 - Module READMEs: local responsibilities, dependencies, and key file layout.
 - Decision records: rationale for important choices when needed.
-- [Evaluation scenarios](evaluation.md): target acceptance catalog, scenario identities, and change mapping.
+- [Product acceptance scenarios](acceptance-scenarios.md): E2E scenario identities, failure modes, and change mapping.

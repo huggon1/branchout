@@ -6,15 +6,15 @@ import { fileURLToPath } from "node:url";
 import {
   discoverCodexSessionCandidates,
   type ReadCodexSessionsResult,
-} from "../../src/readers/codex-sessions";
-import { runGit } from "../../src/readers/shared";
-import { analysisPromptSettingsSchema, projectAnalysisPromptRevision, resolveProjectAnalysisPromptGuidance } from "../../src/shared/analysis-prompt-contracts";
-import { prepareProjectAnalysis } from "../../src/worker/jobs/project-analysis";
-import type { ProjectAnalysisWorkerInput } from "../../src/worker/jobs/project-analysis/types";
-import { projectAnalysisSystemPrompt } from "../../src/worker/reasoning/project-analysis";
+} from "../../../src/readers/codex-sessions";
+import { runGit } from "../../../src/readers/shared";
+import { analysisPromptSettingsSchema, projectAnalysisPromptRevision, resolveProjectAnalysisPromptGuidance } from "../../../src/shared/analysis-prompt-contracts";
+import { prepareProjectAnalysis } from "../../../src/worker/jobs/project-analysis";
+import type { ProjectAnalysisWorkerInput } from "../../../src/worker/jobs/project-analysis/types";
+import { projectAnalysisSystemPrompt } from "../../../src/worker/reasoning/project-analysis";
 
 export const defaultOutputRoot = join(homedir(), ".branchout", "evaluation", "prompt-runs");
-const checkoutRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const checkoutRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 function contains(root: string, candidate: string): boolean {
   return candidate === root || candidate.startsWith(`${root}${sep}`);

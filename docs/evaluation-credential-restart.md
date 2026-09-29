@@ -1,6 +1,6 @@
 # EV-14 integration credential restart
 
-This document defines the packaged-app acceptance for the [EV-14 scenario](evaluation.md) before its implementation. The fixture uses an isolated app profile and fictional values. Its driver and run record remain in the machine-local evaluation directory.
+This document defines the packaged-app acceptance for the [EV-14 scenario](acceptance-scenarios.md) before its implementation. The fixture uses an isolated app profile and fictional values. Its driver and run record remain in the machine-local evaluation directory.
 
 ## Failure modes
 

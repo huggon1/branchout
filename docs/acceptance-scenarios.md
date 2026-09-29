@@ -1,10 +1,6 @@
-# Evaluation scenarios
+# Product acceptance scenarios
 
-This document records candidate acceptance scenarios for Branchout's next test design. The [product specification](product-spec.md) owns product behavior. Scenario IDs identify behaviors and failure modes for future review.
-
-## Current manual evaluation
-
-The [analysis scripts](../scripts/analysis-eval/README.md) accept an operator-selected Git repository and Codex conversations. They call the production project-analysis preparation and execution functions, saving the parsed conversation view, actual model prompts, validated report, and Pi HTML trace in a private local directory. The operator starts each model run with `--execute` and reviews its semantic result.
+This document records candidate product acceptance and agent-operated E2E scenarios for Branchout's next test design. The [product specification](product-spec.md) owns product behavior. Scenario IDs identify behaviors and failure modes for future review. The [human evaluation workbench](../evaluation/README.md) supports interactive prompt and result review for selected product functions.
 
 The previous packaged-app evaluation runner, localhost console, and CI test suite were retired during the test reset. The scenarios below remain design candidates. Each future implementation will define its input, independent observation, and saved artifact before code is written.
 

@@ -1,6 +1,6 @@
 # EV-08 focus-suggestion review
 
-This guide expands the [EV-08 scenario](evaluation.md) with a human review rubric. The [product specification](product-spec.md#projects-and-focus-cards) defines the card's product role. The SeedShelf example below provides a fictional calibration case.
+This guide expands the [EV-08 scenario](acceptance-scenarios.md) with a human review rubric. The [product specification](product-spec.md#projects-and-focus-cards) defines the card's product role. The SeedShelf example below provides a fictional calibration case.
 
 ## Review order
 

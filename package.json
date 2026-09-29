@@ -14,8 +14,8 @@
     "dev": "npm run build && electron .",
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
-    "analysis:preview": "tsx scripts/analysis-eval/preview.ts",
-    "analysis:run": "tsx scripts/analysis-eval/run.ts"
+    "analysis:preview": "tsx evaluation/cases/project-analysis/preview.ts",
+    "analysis:run": "tsx evaluation/cases/project-analysis/run.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.87.1",

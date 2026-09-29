@@ -2,12 +2,12 @@ import { chmod, readdir, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { CodexClient, resolveCodexExecutable, tokenSchema } from "../../src/main/services/codex-client";
-import { ModelStore } from "../../src/main/storage/model-store";
-import type { ModelExecutionConfig } from "../../src/shared/model-contracts";
-import type { CodexAccessToken } from "../../src/worker/pi-coding-session";
-import { runProjectAnalysis } from "../../src/worker/jobs/project-analysis";
-import { analysisDraftSchema, reportFromDraft } from "../../src/main/services/project-analysis/pipeline-service";
+import { CodexClient, resolveCodexExecutable, tokenSchema } from "../../../src/main/services/codex-client";
+import { ModelStore } from "../../../src/main/storage/model-store";
+import type { ModelExecutionConfig } from "../../../src/shared/model-contracts";
+import type { CodexAccessToken } from "../../../src/worker/pi-coding-session";
+import { runProjectAnalysis } from "../../../src/worker/jobs/project-analysis";
+import { analysisDraftSchema, reportFromDraft } from "../../../src/main/services/project-analysis/pipeline-service";
 import { help, listSessions, parseCli, prepareInput, repositoryRoot, type CliOptions } from "./common";
 
 function defaultAppData(): string {
