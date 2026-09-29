@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/branchout-app-icon.svg" width="112" alt="Branchout app icon"></p>
+<p align="center"><img src="assets/branchout-icon.svg" width="112" alt="Branchout app icon"></p>
 
 # Branchout
 
@@ -41,7 +41,7 @@ In Settings, connect a general API or a Codex subscription account. The Codex su
 ## Learn more
 
 - [Product specification](docs/product-spec.md) and [UX specification](docs/ux-spec.md)
-- [Design system](docs/design-system.md)
+- [Design contract](design.md)
 - [Architecture overview](docs/architecture-overview.md), [data contracts](docs/data-contracts.md), and [source guide](src/README.md)
 
 ## License

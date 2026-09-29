@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { build } from "esbuild";
 import { mkdir, copyFile, rm } from "node:fs/promises";
 await rm("dist", { recursive: true, force: true });
@@ -9,10 +10,7 @@ await copyFile(
   "src/platforms/adapters/x/x-read.mjs",
   "dist/platforms/x-read.mjs",
 );
-await copyFile(
-  "docs/design/branchout-icon-light-master.png",
-  "dist/assets/branchout.png",
-);
+await sharp("assets/branchout-icon.svg").resize(1024, 1024).png().toFile("dist/assets/branchout.png");
 await copyFile("assets/branchout-mark.svg", "dist/assets/branchout-mark.svg");
 await build({
   entryPoints: [

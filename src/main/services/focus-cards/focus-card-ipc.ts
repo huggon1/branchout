@@ -23,10 +23,13 @@ export function registerFocusCardIpc(
           value = await service.create(args[0]);
         else if (channel === focusCardChannels.edit)
           value = await service.edit(args[0]);
+        else if (channel === focusCardChannels.setDeleted)
+          value = await service.setDeleted(args[0]);
         else value = await service.setActive(args[0]);
         return { ok: true, value };
       } catch (error) {
-        const message = error instanceof Error ? error.message : "关注卡操作未完成";
+        const message =
+          error instanceof Error ? error.message : "关注卡操作未完成";
         return { ok: false, message: message.slice(0, 500) };
       }
     });

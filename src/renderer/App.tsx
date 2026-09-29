@@ -16,7 +16,6 @@ import type {
 } from "./product-ui";
 
 const pages: ProductPage[] = ["内容", "项目", "关注卡", "任务", "设置"];
-let projectPreflightRequestId = 0;
 const pageTitle: Record<ProductPage, string> = {
   内容: "内容",
   关注卡: "关注卡",
@@ -34,14 +33,15 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [openMaterialId, setOpenMaterialId] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
+  const [taskRequestId, setTaskRequestId] = useState(0);
   const [focusTarget, setFocusTarget] = useState<{
     projectId: string;
     focusId?: string;
     versionId?: string;
+    requestId: number;
   }>();
   const [projectTarget, setProjectTarget] = useState<{
     projectId: string;
-    reportId?: string;
     preflightRequestId?: number;
   }>();
   const ui = useMemo(() => productUiBridge(), []);
@@ -122,6 +122,7 @@ export function App() {
   const focusCounts = useMemo(() => {
     const counts: Record<string, { active: number; paused: number }> = {};
     for (const card of projectsState?.focusCards ?? []) {
+      if (card.deletedAt) continue;
       const count = counts[card.projectId] ?? { active: 0, paused: 0 };
       count[card.current.active ? "active" : "paused"] += 1;
       counts[card.projectId] = count;
@@ -133,14 +134,16 @@ export function App() {
     focusId?: string,
     versionId?: string,
   ) => {
-    setFocusTarget({ projectId, focusId, versionId });
+    setFocusTarget((current) => ({
+      projectId,
+      focusId,
+      versionId,
+      requestId: (current?.requestId ?? 0) + 1,
+    }));
     setPage("关注卡");
   };
-  const navigateToProject = (projectId: string, reportId?: string) => {
-    setProjectTarget({ projectId, reportId });
-    setPage("项目");
-  };
   const openTaskResult = (task: UiTask) => {
+    setTaskRequestId((value) => value + 1);
     setSelectedTaskId(task.taskId);
     if (
       (task.resultType === "content" && task.resultId) ||
@@ -153,7 +156,7 @@ export function App() {
       task.projectId &&
       task.resultId
     ) {
-      navigateToProject(task.projectId, task.resultId);
+      setPage("任务");
     } else {
       setPage("任务");
     }
@@ -216,15 +219,10 @@ export function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          <span className="sidebar-presence" aria-hidden="true" />
-          本机内容与项目
-        </div>
       </aside>
       <main className="app-main">
         <header className="app-topbar">
           <div>
-            <p className="eyebrow">Branchout</p>
             <h1>{pageTitle[page]}</h1>
           </div>
           <div className="topbar-task-state" aria-live="polite">
@@ -232,9 +230,7 @@ export function App() {
               <button className="text-button" onClick={() => setPage("任务")}>
                 {activeTaskCount} 个任务运行中 →
               </button>
-            ) : (
-              <span>内容与项目在本机管理</span>
-            )}
+            ) : null}
           </div>
         </header>
         {error && (
@@ -277,6 +273,7 @@ export function App() {
               projects={projects}
               cards={projectsState?.focusCards ?? []}
               initialProjectId={focusTarget?.projectId}
+              initialRequestId={focusTarget?.requestId}
               initialFocusId={focusTarget?.focusId}
               initialVersionId={focusTarget?.versionId}
               busy={busy}
@@ -284,7 +281,12 @@ export function App() {
                 run(
                   () => ui.uiCreateFocus({ projectId, content }),
                   (focusId) => {
-                    if (focusId) setFocusTarget({ projectId, focusId });
+                    if (focusId)
+                      setFocusTarget((current) => ({
+                        projectId,
+                        focusId,
+                        requestId: (current?.requestId ?? 0) + 1,
+                      }));
                   },
                 )
               }
@@ -294,6 +296,15 @@ export function App() {
                     focusId: card.focusId,
                     expectedFocusVersionId: card.current.focusVersionId,
                     content,
+                  }),
+                )
+              }
+              onSetDeleted={(card, deleted) =>
+                run(() =>
+                  ui.uiSetFocusDeleted({
+                    focusId: card.focusId,
+                    expectedFocusVersionId: card.currentVersionId,
+                    deleted,
                   }),
                 )
               }
@@ -315,11 +326,9 @@ export function App() {
           >
             <ProjectsPage
               projects={projects}
-              reports={reports}
               focusCounts={focusCounts}
               tasks={tasks}
               initialProjectId={projectTarget?.projectId}
-              initialReportId={projectTarget?.reportId}
               initialPreflightRequestId={projectTarget?.preflightRequestId}
               busy={busy}
               onBind={() =>
@@ -341,12 +350,14 @@ export function App() {
                 return undefined;
               }}
               onStartAnalysis={(projectId, sessionIds) =>
-                run(() =>
-                  ui.uiStartAnalysis({ projectId, sessionIds }),
+                run(
+                  () => ui.uiStartAnalysis({ projectId, sessionIds }),
+                  (taskId) => {
+                    if (taskId) setSelectedTaskId(taskId);
+                    setPage("任务");
+                  },
                 )
               }
-              onAcceptSuggestion={acceptSuggestion}
-              onOpenFocus={navigateToFocus}
               onManageFocus={(projectId) => navigateToFocus(projectId)}
               onOpenTask={openTaskResult}
             />
@@ -357,17 +368,29 @@ export function App() {
             hidden={page !== "任务"}
           >
             <TasksPage
+              reports={reports}
+              projects={projects}
+              onAcceptSuggestion={acceptSuggestion}
+              onOpenFocus={navigateToFocus}
               tasks={tasks}
+              initialRequestId={taskRequestId}
               initialTaskId={selectedTaskId || undefined}
               busy={busy}
               onCancel={async (taskId) => {
                 await run(() => ui.uiCancelTask(taskId));
               }}
               onRetry={async (taskId) => {
-                await run(() => ui.uiRetryTask(taskId), (newTaskId) => { if (newTaskId) setSelectedTaskId(newTaskId); });
+                await run(
+                  () => ui.uiRetryTask(taskId),
+                  (newTaskId) => {
+                    if (newTaskId) setSelectedTaskId(newTaskId);
+                  },
+                );
               }}
               onOpenResult={openTaskResult}
-              onExportTrace={async (taskId) => { await run(() => ui.uiExportAnalysisTrace(taskId)); }}
+              onExportTrace={async (taskId) => {
+                await run(() => ui.uiExportAnalysisTrace(taskId));
+              }}
             />
           </section>
           <section
@@ -378,11 +401,19 @@ export function App() {
             <SettingsPage
               settings={settings}
               busy={busy}
-              onSaveTelegramToken={(token) => run(() => ui.uiSaveTelegramToken(token))}
-              onClearTelegramBotToken={() => run(() => ui.uiClearTelegramBotToken())}
+              onSaveTelegramToken={(token) =>
+                run(() => ui.uiSaveTelegramToken(token))
+              }
+              onClearTelegramBotToken={() =>
+                run(() => ui.uiClearTelegramBotToken())
+              }
               onVerifyTelegramBot={() => run(() => ui.uiVerifyTelegramBot())}
-              onAuthorizeTelegramChat={(chatId) => run(() => ui.uiAuthorizeTelegramChat(chatId))}
-              onRevokeTelegramChat={(chatId) => run(() => ui.uiRevokeTelegramChat(chatId))}
+              onAuthorizeTelegramChat={(chatId) =>
+                run(() => ui.uiAuthorizeTelegramChat(chatId))
+              }
+              onRevokeTelegramChat={(chatId) =>
+                run(() => ui.uiRevokeTelegramChat(chatId))
+              }
             />
           </section>
         </div>

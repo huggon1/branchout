@@ -1,453 +1,366 @@
-import { useEffect, useRef, useState } from "react";
+import { Disclosure } from "../design/Components";
+import { useEffect, useState } from "react";
+import {
+  PencilSimpleIcon,
+  TrashIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 import type { UiFocusCard, UiProject } from "../product-ui";
-import { EmptyState } from "./Primitives";
+import { Dialog, EmptyState, Markdown } from "./Primitives";
 
 export function FocusCardsPage({
   projects,
   cards,
   initialProjectId,
+  initialRequestId,
   initialFocusId,
   initialVersionId,
   busy,
   onCreate,
   onEdit,
   onSetActive,
+  onSetDeleted,
 }: {
   projects: UiProject[];
   cards: UiFocusCard[];
   initialProjectId?: string;
+  initialRequestId?: number;
   initialFocusId?: string;
   initialVersionId?: string;
   busy: boolean;
   onCreate: (projectId: string, content: string) => Promise<boolean>;
   onEdit: (card: UiFocusCard, content: string) => Promise<boolean>;
   onSetActive: (card: UiFocusCard, active: boolean) => Promise<boolean>;
+  onSetDeleted: (card: UiFocusCard, deleted: boolean) => Promise<boolean>;
 }) {
-  const activeProjects = projects.filter(
-    (project) => project.status === "active",
+  const [projectFilter, setProjectFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [editor, setEditor] = useState<{
+    card?: UiFocusCard;
+    projectId: string;
+    content: string;
+  }>();
+  const [reading, setReading] = useState<{
+    focusId: string;
+    versionId?: string;
+  }>();
+  const [deletedId, setDeletedId] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (initialProjectId) setProjectFilter(initialProjectId);
+  }, [initialProjectId]);
+  useEffect(() => {
+    if (initialFocusId)
+      setReading({ focusId: initialFocusId, versionId: initialVersionId });
+  }, [initialFocusId, initialVersionId, initialRequestId]);
+  const activeProjects = projects.filter((p) => p.status === "active");
+  const readCard = cards.find((c) => c.focusId === reading?.focusId);
+  const version = reading?.versionId
+    ? readCard?.history.find((v) => v.focusVersionId === reading.versionId)
+    : readCard?.current;
+  const deletedCard = cards.find((c) => c.focusId === deletedId && c.deletedAt);
+  const visible = cards.filter(
+    (c) =>
+      !c.deletedAt &&
+      (projectFilter === "all" || c.projectId === projectFilter) &&
+      c.current.content.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   );
-  const historicalProjects = projects.filter(
-    (project) => project.status === "historical",
-  );
-  const [projectId, setProjectId] = useState(
-    initialProjectId ?? activeProjects[0]?.projectId ?? "",
-  );
-  const [focusId, setFocusId] = useState(initialFocusId ?? "");
-  const [editing, setEditing] = useState(false);
-  const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
-  const [content, setContent] = useState("");
-  const [historyVersionId, setHistoryVersionId] = useState(
-    initialVersionId ?? "",
-  );
-  const editorRef = useRef<HTMLTextAreaElement>(null);
-  const projectCards = cards.filter((item) => item.projectId === projectId);
-  const selected = projectCards.find((item) => item.focusId === focusId);
-  const shownVersion = historyVersionId
-    ? selected?.history.find((item) => item.focusVersionId === historyVersionId)
-    : selected?.current;
-  const isCurrent =
-    !selected ||
-    !historyVersionId ||
-    historyVersionId === selected.currentVersionId;
-  const selectedProject = projects.find((item) => item.projectId === projectId);
-  const readOnly = selectedProject?.status === "historical";
-
-  useEffect(() => {
-    if (
-      initialProjectId &&
-      projects.some((item) => item.projectId === initialProjectId)
-    )
-      setProjectId(initialProjectId);
-  }, [initialProjectId, projects]);
-  useEffect(() => {
-    if (
-      initialFocusId &&
-      projectCards.some((item) => item.focusId === initialFocusId)
-    )
-      setFocusId(initialFocusId);
-  }, [initialFocusId, projectCards]);
-  useEffect(() => {
-    if (editing) return;
-    if (projectCards.some((item) => item.focusId === focusId)) return;
-    const target =
-      initialFocusId &&
-      projectCards.some((item) => item.focusId === initialFocusId)
-        ? initialFocusId
-        : (projectCards[0]?.focusId ?? "");
-    setFocusId(target);
-  }, [editing, focusId, initialFocusId, projectCards]);
-  useEffect(() => {
-    if (initialVersionId) setHistoryVersionId(initialVersionId);
-  }, [initialVersionId]);
-  useEffect(() => {
-    if (editing) editorRef.current?.focus();
-  }, [editing]);
-
-  const beginCreate = () => {
-    setFocusId("");
-    setHistoryVersionId("");
-    setContent("");
-    setEditorMode("create");
-    setEditing(true);
-  };
-  const beginEdit = () => {
-    if (!selected) return;
-    setHistoryVersionId("");
-    setContent(selected.current.content);
-    setEditorMode("edit");
-    setEditing(true);
-  };
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const value = content.trim();
-    if (!value || !projectId) return;
-    const saved =
-      editorMode === "edit" && selected
-        ? await onEdit(selected, value)
-        : editorMode === "create"
-          ? await onCreate(projectId, value)
-          : false;
-    if (saved) {
-      setEditing(false);
-      setEditorMode(null);
-    }
-  };
-
   return (
-    <div className="focus-page">
-      <header className="page-intro">
-        <div>
-          <p className="eyebrow">自由文本 · 按项目管理</p>
-          <h2>关注卡</h2>
-          <p>
-            每张卡用自己的话写清项目背景和你感兴趣的角度。转发时，系统会逐张检查所有活跃卡。
-          </p>
-        </div>
+    <div className="focus-page focus-library">
+      <div className="page-toolbar">
+        <input
+          aria-label="搜索关注卡"
+          placeholder="搜索关注角度…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select
+          aria-label="筛选项目"
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+        >
+          <option value="all">全部项目</option>
+          {projects.map((p) => (
+            <option key={p.projectId} value={p.projectId}>
+              {p.projectLabel}
+              {p.status === "historical" ? " · 历史" : ""}
+            </option>
+          ))}
+        </select>
         <button
           className="button button-primary"
-          disabled={!projectId || readOnly || busy || editing}
-          onClick={beginCreate}
-        >
-          + 新建关注卡
-        </button>
-      </header>
-      <div className="focus-project-picker">
-        <label htmlFor="focus-project">选择项目</label>
-        <select
-          id="focus-project"
-          value={projectId}
-          onChange={(event) => {
-            setProjectId(event.target.value);
-            setFocusId("");
-            setEditing(false);
-            setEditorMode(null);
-            setHistoryVersionId("");
+          disabled={busy || !activeProjects.length}
+          onClick={() => {
+            setError("");
+            setEditor({
+              projectId:
+                activeProjects.find((p) => p.projectId === projectFilter)
+                  ?.projectId ?? activeProjects[0].projectId,
+              content: "",
+            });
           }}
         >
-          <option value="">选择项目</option>
-          {activeProjects.length > 0 && (
-            <optgroup label="当前项目">
-              {activeProjects.map((item) => (
-                <option key={item.projectId} value={item.projectId}>
-                  {item.projectLabel}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {historicalProjects.length > 0 && (
-            <optgroup label="历史项目（只读）">
-              {historicalProjects.map((item) => (
-                <option key={item.projectId} value={item.projectId}>
-                  {item.projectLabel}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-        <span>
-          {readOnly
-            ? "历史项目 · 只读"
-            : `${projectCards.filter((item) => item.current.active).length} 张活跃 · ${projectCards.filter((item) => !item.current.active).length} 张暂停`}
-        </span>
+          <PlusIcon size={16} />
+          新建关注卡
+        </button>
       </div>
-      {!projects.length ? (
-        <EmptyState title="先绑定一个本机项目">
-          关注卡属于一个项目。到“项目”页绑定 Git
-          仓库后，就能建立项目专属的关注卡。
-        </EmptyState>
-      ) : !projectId ? (
-        <EmptyState title="选择一个项目">
-          选择项目后查看、创建和编辑它的关注卡。
-        </EmptyState>
-      ) : (
-        <div className="focus-workspace">
-          <aside className="focus-list-panel" aria-label="关注卡列表">
-            {projectCards.length ? (
-              <>
-                <FocusGroup
-                  title="活跃"
-                  cards={projectCards.filter((item) => item.current.active)}
-                  selectedId={focusId}
-                  onSelect={(id) => {
-                    setFocusId(id);
-                    setHistoryVersionId("");
-                    setEditing(false);
-                  }}
-                />
-                <FocusGroup
-                  title="暂停"
-                  cards={projectCards.filter((item) => !item.current.active)}
-                  selectedId={focusId}
-                  onSelect={(id) => {
-                    setFocusId(id);
-                    setHistoryVersionId("");
-                    setEditing(false);
-                  }}
-                />
-              </>
-            ) : (
-              <div className="focus-list-empty">
-                <strong>还没有关注卡</strong>
-                <p>新建一张卡，写下项目背景和希望持续关注的角度。</p>
-                <button className="button" onClick={beginCreate}>
-                  新建关注卡
+      <div className="focus-groups">
+        {!visible.length && (
+          <EmptyState
+            title={cards.length ? "没有匹配的关注卡" : "你想持续关注什么？"}
+          >
+            {projects.length
+              ? "写下项目背景和关心的角度，后续内容会与这些角度关联。"
+              : "先在项目页绑定一个仓库。"}
+          </EmptyState>
+        )}
+        {projects.map((p) => {
+          const group = visible.filter((c) => c.projectId === p.projectId);
+          return group.length ? (
+            <section key={p.projectId} className="focus-project-group">
+              <header>
+                <h2>{p.projectLabel}</h2>
+                <span>
+                  {group.length} 张关注卡
+                  {p.status === "historical" ? " · 历史项目" : ""}
+                </span>
+              </header>
+              {group.map((c) => {
+                const lines = c.current.content.trim().split("\n");
+                const title = lines[0];
+                return (
+                  <article className="focus-row" key={c.focusId}>
+                    <div className="focus-row-copy">
+                      <button
+                        className="focus-title"
+                        onClick={() => setReading({ focusId: c.focusId })}
+                      >
+                        {title}
+                      </button>
+                      <p>{lines.slice(1).join("\n")}</p>
+                      <div className="focus-row-meta">
+                        <span
+                          className={`status-tag ${c.current.active ? "status-active" : "status-paused"}`}
+                        >
+                          {c.current.active ? "活跃" : "暂停"}
+                        </span>
+                        <span>版本 {c.current.revision}</span>
+                        <time>
+                          {new Date(c.current.savedAt).toLocaleDateString()}
+                        </time>
+                      </div>
+                    </div>
+                    {p.status === "active" && (
+                      <div className="row-actions">
+                        <button
+                          className="icon-button"
+                          title="编辑关注卡"
+                          aria-label={`编辑 ${title}`}
+                          disabled={busy}
+                          onClick={() => {
+                            setError("");
+                            setEditor({
+                              card: c,
+                              projectId: c.projectId,
+                              content: c.current.content,
+                            });
+                          }}
+                        >
+                          <PencilSimpleIcon size={18} />
+                        </button>
+                        <button
+                          className="icon-button"
+                          title={c.current.active ? "暂停" : "启用"}
+                          aria-label={`${c.current.active ? "暂停" : "启用"} ${title}`}
+                          disabled={busy}
+                          onClick={() => void onSetActive(c, !c.current.active)}
+                        >
+                          {c.current.active ? (
+                            <PauseIcon size={18} />
+                          ) : (
+                            <PlayIcon size={18} />
+                          )}
+                        </button>
+                        <button
+                          className="icon-button danger-text"
+                          title="删除关注卡"
+                          aria-label={`删除 ${title}`}
+                          disabled={busy}
+                          onClick={async () => {
+                            if (await onSetDeleted(c, true))
+                              setDeletedId(c.focusId);
+                          }}
+                        >
+                          <TrashIcon size={18} />
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
+          ) : null;
+        })}
+      </div>
+      {cards.some((c) => c.deletedAt) && (
+        <Disclosure
+          className="deleted-focus"
+          title="已删除"
+          count={`${cards.filter((c) => c.deletedAt).length} 张`}
+        >
+          {cards
+            .filter((c) => c.deletedAt)
+            .map((c) => (
+              <div className="deleted-focus-row" key={c.focusId}>
+                <button
+                  className="text-button"
+                  onClick={() => setReading({ focusId: c.focusId })}
+                >
+                  {c.current.content.split("\n")[0]}
+                </button>
+                <button
+                  className="button"
+                  disabled={
+                    busy ||
+                    !activeProjects.some((p) => p.projectId === c.projectId)
+                  }
+                  onClick={() => void onSetDeleted(c, false)}
+                >
+                  恢复
                 </button>
               </div>
-            )}
-          </aside>
-          <section className="focus-detail-panel" aria-label="关注卡详情">
-            {editing ? (
-              <form
-                className="focus-editor"
-                onSubmit={(event) => void submit(event)}
-              >
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">
-                      {editorMode === "edit" ? "编辑正文" : "新建卡片"}
-                    </p>
-                    <h3>
-                      {editorMode === "edit"
-                        ? selected?.current.content
-                            .split("\n")
-                            .find((line) => line.trim()) || "编辑关注卡"
-                        : "写下你的关注角度"}
-                    </h3>
-                  </div>
-                  <span>{content.length.toLocaleString()} / 100,000 字符</span>
-                </div>
-                <div className="editor-guidance">
-                  <strong>写给未来分析者</strong>
-                  <p>
-                    把必要的项目背景和你感兴趣的角度写进正文，让只读到这张卡的人也能判断一条内容和项目的关系。可以按你习惯的方式组织文字。
-                  </p>
-                  <blockquote>
-                    例如：这个项目为小团队提供本地优先的知识管理。我关注它如何让离线编辑和多端同步共存，以及冲突时如何保留用户修改。
-                  </blockquote>
-                </div>
-                <label htmlFor="focus-content">关注卡正文</label>
-                <textarea
-                  ref={editorRef}
-                  id="focus-content"
-                  rows={13}
-                  maxLength={100000}
-                  value={content}
-                  onChange={(event) => setContent(event.target.value)}
-                  placeholder="写下项目背景，以及你持续感兴趣的角度…"
-                  disabled={busy}
-                />
-                <div className="editor-actions">
-                  <button
-                    className="button"
-                    type="button"
-                    onClick={() => {
-                      setEditing(false);
-                      setEditorMode(null);
-                    }}
-                    disabled={busy}
-                  >
-                    取消
-                  </button>
-                  <button
-                    className="button button-primary"
-                    type="submit"
-                    disabled={
-                      busy ||
-                      !content.trim() ||
-                      (editorMode === "edit" && !selected)
-                    }
-                  >
-                    {busy ? "正在保存…" : "保存关注卡"}
-                  </button>
-                </div>
-              </form>
-            ) : selected && shownVersion ? (
-              <>
-                <div className="focus-detail-heading">
-                  <div>
-                    <div className="focus-detail-meta">
-                      <span
-                        className={`status-tag ${shownVersion.active ? "status-active" : "status-paused"}`}
-                      >
-                        {shownVersion.active ? "活跃" : "已暂停"}
-                      </span>
-                      <span>版本 {shownVersion.revision}</span>
-                      <time>
-                        {new Date(shownVersion.savedAt).toLocaleString()}
-                      </time>
-                    </div>
-                    <h3>
-                      {shownVersion.content
-                        .split("\n")
-                        .find((line) => line.trim()) || "关注卡"}
-                    </h3>
-                  </div>
-                  {!readOnly && (
-                    <button
-                      className="button button-quiet"
-                      onClick={beginEdit}
-                      disabled={busy || !isCurrent}
-                    >
-                      编辑
-                    </button>
-                  )}
-                </div>
-                {!isCurrent && (
-                  <div className="notice notice-cool">
-                    <strong>这是历史版本</strong>
-                    <p>
-                      报告会保留生成时使用的卡片正文。当前版本可在卡片详情中继续查看。
-                    </p>
-                    <button
-                      className="text-button"
-                      onClick={() => setHistoryVersionId("")}
-                    >
-                      回到当前版本
-                    </button>
-                  </div>
-                )}
-                <p className="focus-card-body">{shownVersion.content}</p>
-                {readOnly && (
-                  <div className="notice notice-cool">
-                    <strong>历史项目卡片</strong>
-                    <p>
-                      此卡片保留供旧报告阅读，项目解绑后不再参与新的转发关联。
-                    </p>
-                  </div>
-                )}
-                {isCurrent && !readOnly && (
-                  <div className="focus-card-actions">
-                    <button
-                      className="button"
-                      onClick={() =>
-                        void onSetActive(selected, !selected.current.active)
-                      }
-                      disabled={busy}
-                    >
-                      {selected.current.active ? "暂停关注卡" : "重新启用"}
-                    </button>
-                    <span>
-                      {selected.current.active
-                        ? "活跃卡会参与之后的转发关联。"
-                        : "暂停卡保留在项目中，重新启用后继续参与关联。"}
-                    </span>
-                  </div>
-                )}
-                {selected.history.length > 1 && (
-                  <details className="focus-history">
-                    <summary>历史版本 · {selected.history.length - 1}</summary>
-                    <ul>
-                      {selected.history
-                        .filter(
-                          (version) =>
-                            version.focusVersionId !==
-                            selected.current.focusVersionId,
-                        )
-                        .map((version) => (
-                          <li key={version.focusVersionId}>
-                            <button
-                              className="history-entry"
-                              onClick={() =>
-                                setHistoryVersionId(version.focusVersionId)
-                              }
-                            >
-                              <span>
-                                版本 {version.revision}
-                                {version.active ? " · 活跃" : " · 暂停"}
-                              </span>
-                              <time>
-                                {new Date(version.savedAt).toLocaleString()}
-                              </time>
-                              <p>{version.content.slice(0, 120)}</p>
-                            </button>
-                          </li>
-                        ))}
-                    </ul>
-                  </details>
-                )}
-              </>
-            ) : selected && historyVersionId ? (
-              <div className="notice notice-warm">
-                <strong>报告引用的卡片版本尚未读取到</strong>
-                <p>当前卡片保留在列表中。请刷新报告或查看卡片的版本历史。</p>
-              </div>
-            ) : (
-              <EmptyState title="选择一张关注卡">
-                从左侧打开卡片，查看正文、版本和状态。你也可以从右上角创建新卡。
-              </EmptyState>
-            )}
-          </section>
+            ))}
+        </Disclosure>
+      )}
+      {deletedCard && (
+        <div className="undo-toast" role="status">
+          <span>关注卡已删除，历史引用保留</span>
+          <button
+            disabled={busy}
+            onClick={async () => {
+              if (await onSetDeleted(deletedCard, false)) setDeletedId("");
+            }}
+          >
+            撤销
+          </button>
+          <button aria-label="关闭提示" onClick={() => setDeletedId("")}>
+            ×
+          </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function FocusGroup({
-  title,
-  cards,
-  selectedId,
-  onSelect,
-}: {
-  title: string;
-  cards: UiFocusCard[];
-  selectedId: string;
-  onSelect: (id: string) => void;
-}) {
-  if (!cards.length) return null;
-  return (
-    <section className="focus-card-group">
-      <h3>
-        {title}
-        <span>{cards.length}</span>
-      </h3>
-      <ul>
-        {cards.map((card) => {
-          const name =
-            card.current.content.split("\n").find((line) => line.trim()) ||
-            "未命名关注卡";
-          return (
-            <li key={card.focusId}>
+      {editor && (
+        <Dialog
+          title={editor.card ? "编辑关注卡" : "新建关注卡"}
+          onClose={() => {
+            if (!busy) setEditor(undefined);
+          }}
+        >
+          <form
+            className="focus-editor"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const ok = editor.card
+                ? await onEdit(editor.card, editor.content.trim())
+                : await onCreate(editor.projectId, editor.content.trim());
+              if (ok) setEditor(undefined);
+              else setError("保存失败，正文已保留。请检查当前版本或稍后重试。");
+            }}
+          >
+            {!editor.card && (
+              <label>
+                所属项目
+                <select
+                  value={editor.projectId}
+                  onChange={(e) =>
+                    setEditor({ ...editor, projectId: e.target.value })
+                  }
+                >
+                  {activeProjects.map((p) => (
+                    <option key={p.projectId} value={p.projectId}>
+                      {p.projectLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label htmlFor="focus-body">项目背景与关注角度</label>
+            <textarea
+              autoFocus
+              id="focus-body"
+              rows={8}
+              maxLength={100000}
+              value={editor.content}
+              onChange={(e) =>
+                setEditor({ ...editor, content: e.target.value })
+              }
+              placeholder="用自己的话写下背景、问题和你持续关心的角度…"
+              disabled={busy}
+            />
+            {error && (
+              <p role="alert" className="form-error">
+                {error}
+              </p>
+            )}
+            <div className="editor-actions">
+              <span>{editor.content.length.toLocaleString()} / 100,000</span>
               <button
-                className={`focus-list-item ${selectedId === card.focusId ? "is-selected" : ""}`}
-                aria-current={selectedId === card.focusId ? "true" : undefined}
-                onClick={() => onSelect(card.focusId)}
+                type="button"
+                className="button"
+                disabled={busy}
+                onClick={() => setEditor(undefined)}
               >
-                <strong>{name}</strong>
-                <span>
-                  {card.current.content
-                    .slice(name.length)
-                    .trim()
-                    .slice(0, 78) || "打开查看卡片正文"}
-                </span>
-                <small>
-                  更新于 {new Date(card.current.savedAt).toLocaleDateString()}
-                </small>
+                取消
               </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+              <button
+                className="button button-primary"
+                disabled={busy || !editor.content.trim()}
+              >
+                {busy ? "保存中…" : "保存关注卡"}
+              </button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+      {reading && (
+        <Dialog title="关注卡版本" onClose={() => setReading(undefined)}>
+          {readCard && version ? (
+            <>
+              <div className="report-byline">
+                版本 {version.revision} ·{" "}
+                {new Date(version.savedAt).toLocaleString()}
+                {readCard.deletedAt ? " · 卡片已删除" : ""}
+              </div>
+              <Markdown>{version.content}</Markdown>
+              <Disclosure
+                className="focus-history"
+                title="全部版本"
+                count={`${readCard.history.length} 个`}
+              >
+                {readCard.history.map((v) => (
+                  <button
+                    className="history-entry"
+                    key={v.focusVersionId}
+                    onClick={() =>
+                      setReading({
+                        focusId: readCard.focusId,
+                        versionId: v.focusVersionId,
+                      })
+                    }
+                  >
+                    版本 {v.revision} · {new Date(v.savedAt).toLocaleString()}
+                  </button>
+                ))}
+              </Disclosure>
+            </>
+          ) : (
+            <EmptyState title="引用版本暂时无法读取">
+              重新打开报告后重试。
+            </EmptyState>
+          )}
+        </Dialog>
+      )}
+    </div>
   );
 }

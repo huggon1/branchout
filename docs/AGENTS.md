@@ -15,7 +15,7 @@ Document responsibilities:
 - docs/AGENTS.md: documentation governance.
 - [Product specification](product-spec.md): feature scope and business rules; authority for target product behavior.
 - [UX specification](ux-spec.md): flows, information hierarchy, and page behavior.
-- [Design system](design-system.md): shared visual and interaction rules.
+- [Design contract](../design.md): shared visual and interaction rules.
 - [Architecture overview](architecture-overview.md): system relationships, runtime boundaries, and data ownership.
 - [Data contracts](data-contracts.md): cross-module fields, persistence boundaries, and message conventions.
 - Module READMEs: local responsibilities, dependencies, and key file layout.

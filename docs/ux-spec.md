@@ -1,24 +1,24 @@
 # Branchout UX specification
 
-The [product specification](product-spec.md) defines product behavior. This document describes target page structure, user flows, and visible states. The [design system](design-system.md) defines shared interaction rules.
+The [product specification](product-spec.md) defines product behavior. This document describes target page structure, user flows, and visible states. The [design contract](../design.md) defines shared interaction rules.
 
 ## Navigation and opening screen
 
 The left navigation shows Content, Projects, Focus Cards, Tasks, and Settings, in that order. Projects precede their cards. The app opens on the Content list. While tasks run, the Tasks entry continually shows the running count and states needing attention. Users can open the task center from any page to inspect current Agent work.
 
-Content supports link submission, report search, and continuous reading. Focus Cards groups cards by project. Projects manages local repository bindings, analysis, and reports. Tasks shows current and recently completed work. Settings manages models, Telegram, and content sources.
+Content supports link submission, report search, and continuous reading. Focus Cards groups cards by project. Projects manages local repository bindings and starts analysis. Tasks owns analysis reports, suggestion review, and execution history. Settings manages models, Telegram, and content sources.
 
 ## Focus card editing
 
-The Focus Cards page shows project selection, then active and paused cards. Lists use the first line or a short excerpt as an identifying label, plus status and update time. Card details show full text and version. Creation and editing use a single free-text area.
+The Focus Cards page presents project-grouped text rows with search and a project filter. Each row uses the first line as an identifying label, followed by a short body excerpt, active or paused status, version, and update time. Editing and creation open a dialog with one free-text area; creation also selects the owning project.
 
-Guidance asks for necessary project context and an angle of interest, with one short example. Saved text appears as written. Status actions sit by the card; after pausing or reactivation, lists and later submissions use the updated state. Card links in reports open the historical version and offer a route to the current one.
+Named icon actions edit, pause or activate, and delete a card. Deletion removes the row from the current list and later task snapshots, shows Undo, and retains the card in a collapsed Deleted section with Restore. Restoring preserves the saved active state. Historical project cards remain readable. Card links in reports open the exact referenced version; the version reader exposes all saved versions, including the current one.
 
 ## Content list and reading
 
 The Content list offers Add Link at the top and filters for search, source, time, and related project. Each item shows a title or identifiable link, retrieval status, completion time, and related projects. Reports with zero connections have an explicit state in the list and reading view.
 
-The reading view focuses on one item. Stable back, previous, and next actions retain filters and list position. The page presents source identity and completeness, source text and images, general understanding, then “Connected to your focus.” Connections group by project and show the card excerpt, specific relationship, supporting source excerpt, and card link. All results remain available; grouping and collapse keep long lists readable.
+The desktop reading view keeps the content index alongside the selected item. Previous and next actions retain filters; compact windows provide a return-to-index action. The reader presents source identity and completeness, general understanding, then “Connected to your focus.” Connections group by project and show the card label, rationale, a collapsed evidence disclosure, and a historical-version link. A source-snapshot dialog presents stored text and images; Open Original Link opens the external source.
 
 When only some stages finish, the reading view shows saved source or understanding, the unfinished stage, and a retry action. Completeness appears by the source; connection failures appear by the connection area.
 
@@ -30,17 +30,19 @@ One Telegram message produces one content task. For multiple links or unsupporte
 
 ## Project analysis and reports
 
-Projects lists local repositories and binding status. A project page shows its card overview, analysis action, and historical reports. Unbound projects move to history while retaining report and referenced-card reading paths.
+Projects uses a vertical repository index and a management reader with directory, card counts, task count, analysis action, and latest-task shortcut. Unbound projects move to history; their task shortcuts preserve access to saved reports. Analysis reports and acceptance controls appear inside Tasks.
 
-Before analysis, the UI shows repository state and discovered Codex sessions. It selects the ten most recently active confirmed sessions with readable user messages by default. The selector caps the chosen set at thirty and shows candidate and selected counts, user-message counts and excerpts in preview coverage, and project attribution. Search, filtering, grouping, and bulk actions help adjust the set. Users explicitly include sessions with uncertain attribution; scan scope and submitted session count are visible before launch. The report shows actual parsed coverage and omissions, then conclusions, findings, evidence, and card suggestions.
+Start Analysis opens a preparation dialog after repository and conversation discovery. The dialog shows repository state and discovered Codex sessions. It selects the ten most recently active confirmed sessions with readable user messages by default. The selector caps the chosen set at thirty and shows candidate and selected counts, user-message counts and excerpts in preview coverage, and project attribution. Search, filtering, grouping, and bulk actions help adjust the set. Users explicitly include sessions with uncertain attribution; scan scope and submitted session count are visible before launch. Submitting opens the new task. Its completed report shows conclusions, findings, and card suggestions; coverage and evidence expand on demand.
 
 Each suggestion compares the original and proposed card, shows rationale and evidence, and offers Accept. Acceptance links to the new card or version. If the target changed, the UI displays current and proposed text for another review.
 
 ## Task center
 
-The task list uses task name, project or source link, status, start time, and result. Running tasks appear first. Details show recent Agent activities in time order, such as reading a source, understanding content, checking card 8 of 16, parsing selected Codex sessions, or preparing suggestions. Activities show actual actions and counts; unknown totals leave only completed counts visible.
+The task list shows task name, project or source, status, and recorded update time. Running and queued tasks appear first. Status filtering retains the selected task while it remains visible.
 
-Navigation retains running status after leaving Tasks. Returning restores recent activity and current stage. Completed tasks open their content or analysis reports. Failed and canceled states show completed scope, reason, and retry action. Activities use readable summaries; reports contain detailed evidence.
+A running task reader emphasizes its current stage. A collapsed Run Process disclosure holds persisted events in ascending sequence. Public assistant messages use formatted paragraphs, lists, and code; tool events name their action. Attempt-start events separate retries. Structured report output contributes a draft-ready event. Opening the process preserves readable history while new events arrive.
+
+A completed project-analysis task renders its report and suggestion acceptance directly in the same reader. Content tasks link to their Content reader, including saved partial results. Failed and canceled tasks show the recorded reason and a retry action. The analysis trace export remains a secondary task action. Navigation preserves state; reopening reads saved tasks and activities.
 
 ## Settings and common states
 

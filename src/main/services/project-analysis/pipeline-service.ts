@@ -1,3 +1,4 @@
+import { displayActivityText } from "../../../shared/display-activity";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type {
@@ -188,6 +189,8 @@ const workerEventSchema = z.discriminatedUnion("type", [
       sessionsRead: z.number().int().nonnegative().optional(),
       messagesRead: z.number().int().nonnegative().optional(),
       message: z.string().max(500).optional(),
+      body: z.string().max(16000).optional(),
+      activityKind: z.enum(["started", "retrying", "completed", "failed", "message", "tool"]).optional(),
     })
     .strict(),
   z
@@ -842,13 +845,14 @@ export class ProjectAnalysisPipelineService {
           ? undefined
           : `会话消息 ${event.messagesRead} 条`,
       ].filter((value): value is string => value !== undefined);
-      const modelActivity = safeModelActivity(event.message);
+      const modelActivity = event.activityKind === "message" || event.activityKind === "tool" ? displayActivityText(event.message ?? "模型活动").slice(0, 500) : safeModelActivity(event.message);
       if (summaries.length || modelActivity)
         await this.ports.tasks.receive(taskId, {
           type: "activity",
           taskId,
           action: "progress",
           summary: modelActivity ?? `已读取 ${summaries.join("、")}`,
+          ...(event.activityKind === "message" && event.body ? { body: displayActivityText(event.body) } : {}),
           ...(hasCount ? { progress: { completed } } : {}),
         });
       this.ports.notify();

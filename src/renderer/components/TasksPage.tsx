@@ -1,6 +1,13 @@
+import { Disclosure } from "../design/Components";
 import { useEffect, useMemo, useState } from "react";
-import type { UiTask } from "../product-ui";
-import { EmptyState } from "./Primitives";
+import type {
+  UiTask,
+  UiAnalysisReport,
+  UiProject,
+  UiSuggestionAcceptance,
+} from "../product-ui";
+import { AnalysisReportView } from "./AnalysisReportView";
+import { EmptyState, Markdown, TaskStateIcon } from "./Primitives";
 
 const stateLabel: Record<UiTask["status"], string> = {
   queued: "排队中",
@@ -12,6 +19,11 @@ const stateLabel: Record<UiTask["status"], string> = {
 
 export function TasksPage({
   tasks,
+  reports,
+  projects,
+  onAcceptSuggestion,
+  onOpenFocus,
+  initialRequestId,
   initialTaskId,
   busy,
   onCancel,
@@ -20,6 +32,15 @@ export function TasksPage({
   onExportTrace,
 }: {
   tasks: UiTask[];
+  reports: UiAnalysisReport[];
+  projects: UiProject[];
+  onAcceptSuggestion: (
+    reportId: string,
+    suggestionId: string,
+    reviewedVersionId?: string,
+  ) => Promise<UiSuggestionAcceptance | undefined>;
+  onOpenFocus: (projectId: string, focusId: string) => void;
+  initialRequestId?: number;
   initialTaskId?: string;
   busy: boolean;
   onCancel: (taskId: string) => Promise<void>;
@@ -34,7 +55,7 @@ export function TasksPage({
       setSelectedId(initialTaskId);
       setFilter("all");
     }
-  }, [initialTaskId]);
+  }, [initialTaskId, initialRequestId]);
   const ordered = useMemo(
     () =>
       [...tasks]
@@ -55,13 +76,6 @@ export function TasksPage({
   return (
     <div className="tasks-page">
       <header className="page-intro">
-        <div>
-          <p className="eyebrow">运行状态与 Agent 活动</p>
-          <h2>任务</h2>
-          <p>
-            查看正在运行的转发和项目分析，切换页面或重新打开窗口后也能回到任务进度。
-          </p>
-        </div>
         <label className="task-filter">
           显示
           <select
@@ -71,6 +85,7 @@ export function TasksPage({
           >
             <option value="all">全部任务</option>
             <option value="running">运行中</option>
+            <option value="queued">排队中</option>
             <option value="completed">已完成</option>
             <option value="failed">失败</option>
             <option value="cancelled">已取消</option>
@@ -99,19 +114,16 @@ export function TasksPage({
                     className={`task-status-icon task-${task.status}`}
                     aria-hidden="true"
                   >
-                    {task.status === "completed"
-                      ? "✓"
-                      : task.status === "failed"
-                        ? "!"
-                        : task.status === "cancelled"
-                          ? "×"
-                          : "◌"}
+                    <TaskStateIcon status={task.status} />
                   </span>
                   <span className="task-list-copy">
                     <strong>{task.label}</strong>
                     <small>{task.targetLabel}</small>
                     <span>
-                      {stateLabel[task.status]} · {task.phase}
+                      {stateLabel[task.status]}
+                      {task.phase !== stateLabel[task.status]
+                        ? ` · ${task.phase}`
+                        : ""}
                     </span>
                   </span>
                   <time>{new Date(task.updatedAt).toLocaleString()}</time>
@@ -121,6 +133,7 @@ export function TasksPage({
           </ul>
           {selected && (
             <article
+              key={selected.taskId}
               className="task-detail"
               aria-labelledby="task-detail-title"
             >
@@ -131,7 +144,9 @@ export function TasksPage({
                     {stateLabel[selected.status]}
                   </p>
                   <h3 id="task-detail-title">{selected.label}</h3>
-                  <p>{selected.targetLabel}</p>
+                  {selected.kind === "forwarding" && (
+                    <p>{selected.targetLabel}</p>
+                  )}
                 </div>
                 {(selected.status === "queued" ||
                   selected.status === "running") && (
@@ -144,25 +159,13 @@ export function TasksPage({
                   </button>
                 )}
               </header>
-              <div className="task-progress">
-                <div>
-                  <strong>{selected.phase}</strong>
-                  <span>
-                    {selected.processed !== undefined
-                      ? selected.total !== undefined
-                        ? `${selected.processed} / ${selected.total}`
-                        : `已处理 ${selected.processed}`
-                      : "正在收集阶段进度"}
-                  </span>
+              {(selected.status === "running" ||
+                selected.status === "queued") && (
+                <div className="run-status" role="status">
+                  <span className="button-spinner" />
+                  {selected.phase}
                 </div>
-                {selected.total !== undefined && (
-                  <progress
-                    max={Math.max(selected.total, 1)}
-                    value={selected.processed ?? 0}
-                    aria-label="任务进度"
-                  />
-                )}
-              </div>
+              )}
               {selected.error && (
                 <div className="notice notice-warm">
                   <strong>
@@ -174,23 +177,44 @@ export function TasksPage({
                   <p>已完成范围保留在活动记录中。</p>
                 </div>
               )}
-              <section className="task-activity">
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">最近活动</p>
-                    <h4>Agent 正在做什么</h4>
-                  </div>
-                  <span>{selected.activities.length} 条记录</span>
-                </div>
+              {reports
+                .filter(
+                  (report) => report.analysisReportId === selected.resultId,
+                )
+                .map((report) => (
+                  <AnalysisReportView
+                    key={report.analysisReportId}
+                    report={report}
+                    busy={busy}
+                    canAccept={projects.some(
+                      (p) =>
+                        p.projectId === report.projectId &&
+                        p.status === "active",
+                    )}
+                    onAccept={(id, version) =>
+                      onAcceptSuggestion(report.analysisReportId, id, version)
+                    }
+                    onOpenFocus={onOpenFocus}
+                  />
+                ))}
+              <Disclosure
+                className="task-activity"
+                key={selected.taskId}
+                title="运行过程"
+                count={`${selected.activities.length} 条记录`}
+              >
                 {selected.activities.length ? (
                   <ol>
                     {[...selected.activities]
-                      .sort((a, b) => b.sequence - a.sequence)
+                      .sort((a, b) => a.sequence - b.sequence)
                       .map((activity) => (
                         <li key={activity.sequence}>
                           <span className="activity-dot" aria-hidden="true" />
                           <div>
                             <p>{activity.summary}</p>
+                            {activity.body && (
+                              <Markdown>{activity.body}</Markdown>
+                            )}
                             <time>
                               {new Date(activity.occurredAt).toLocaleString()}
                             </time>
@@ -210,29 +234,37 @@ export function TasksPage({
                     任务启动后，已完成动作会按时间显示在这里。
                   </p>
                 )}
-              </section>
+              </Disclosure>
               <div className="task-result-actions">
-                {selected.kind === "project_analysis" && selected.status !== "queued" && (
-                  <button className="button" disabled={busy} onClick={() => void onExportTrace(selected.taskId)}>
-                    导出并打开详细记录
-                  </button>
-                )}
-                {selected.status === "completed" && selected.resultId && (
-                  <button
-                    className="button button-primary"
-                    onClick={() => onOpenResult(selected)}
-                  >
-                    打开结果报告 →
-                  </button>
-                )}
-                {selected.partialResultId && (
-                  <button
-                    className="button"
-                    onClick={() => onOpenResult(selected)}
-                  >
-                    查看已保存阶段结果
-                  </button>
-                )}
+                {selected.kind === "project_analysis" &&
+                  selected.status !== "queued" && (
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={() => void onExportTrace(selected.taskId)}
+                    >
+                      导出并打开详细记录
+                    </button>
+                  )}
+                {selected.kind === "forwarding" &&
+                  selected.status === "completed" &&
+                  selected.resultId && (
+                    <button
+                      className="button button-primary"
+                      onClick={() => onOpenResult(selected)}
+                    >
+                      打开结果报告 →
+                    </button>
+                  )}
+                {selected.partialResultId &&
+                  selected.status !== "completed" && (
+                    <button
+                      className="button"
+                      onClick={() => onOpenResult(selected)}
+                    >
+                      查看已保存阶段结果
+                    </button>
+                  )}
                 {(selected.status === "failed" ||
                   selected.status === "cancelled") && (
                   <button

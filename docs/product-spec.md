@@ -15,9 +15,9 @@ Branchout provides two connected capabilities:
 
 A user binds a local Git repository as a project. A project has multiple focus cards; each card belongs to one project. The project binding manages its name and local directory; the user writes the card text.
 
-A focus card is short, independently understandable free text. It includes enough project context and an angle of interest for later connection tasks to evaluate submitted content from the card alone. The editor guides writing with instructions and an example. Saving preserves the user's text; the user chooses any categories, keywords, or sections. Users create and edit cards manually.
+A focus card is short, independently understandable free text. It includes enough project context and an angle of interest for later connection tasks to evaluate submitted content from the card alone. The editor labels the free-text field with project background and angle of interest. Saving preserves the user's text; the user chooses any categories, keywords, or sections. Users create and edit cards manually.
 
-Each card has a stable identity, an active or paused state, and versions. Active cards participate in later connections. Paused cards remain available for editing and reactivation. Content or state changes create new versions; saved reports retain the version used at generation time. The Focus Cards page supports viewing, creating, editing, pausing, and activating cards by project.
+Each card has a stable identity, an active or paused state, and versions. Active cards participate in later connections. Paused cards remain available for editing and reactivation. Content or state changes create new versions; saved reports retain the version used at generation time. The Focus Cards page supports viewing, creating, editing, pausing, activating, deleting, and restoring cards by project. Deletion records a tombstone and a new version, excludes the card from later active snapshots, and preserves referenced versions. Undo and the Deleted section restore cards using a current-version check. Suggestions targeting a deleted card report that the target is unavailable.
 
 Unbinding moves a project into history and removes its cards from the active set. Completed content and analysis reports retain the project name and card versions used at generation time.
 
@@ -41,17 +41,17 @@ Analysis identifies angles worth watching and suggests creating or updating card
 
 The analysis UI lists identified conversations, project attribution, and previews of user messages before launch. It preselects the ten most recently active confirmed conversations with readable user messages. Users can adjust the set up to thirty conversations and explicitly include sessions with uncertain attribution. A deterministic reader extracts user messages and relevant final assistant replies into XML with message locations. The agent reads that file in sections, explores the repository, and draws angles from user goals, recurring concerns, tradeoffs, and unresolved issues.
 
-Each analysis starts a persisted Pi Agent session with read-only file exploration tools. Pi controls its own file reading within that session. A transient model request failure can start another session, with up to three attempts per task. The task records short status updates and saves its validated report. A user-initiated retry starts a new exploration session with the saved project, conversation, card, and prompt inputs and the current model connection. The task shows the failed stage and a specific error category when execution stops. Supported models use their reasoning capability during exploration.
+Each analysis starts a persisted Pi Agent session with read-only file exploration tools. Pi controls its own file reading within that session. A transient model request failure can start another session, with up to three attempts per task. The task records status updates, public assistant messages, and named tool actions, then saves its validated report. A user-initiated retry starts a new exploration session with the saved project, conversation, card, and prompt inputs and the current model connection. The task shows the failed stage and a specific error category when execution stops. Supported models use their reasoning capability during exploration.
 
 The task center offers an export action for its local Pi session history. The exported index links to the HTML record for each model attempt. The export contains project material and selected work conversations and opens from a directory chosen by the user.
 
 ## Content, reports, and tasks
 
-The Content page gathers reports and supports searching by title, source, time, and related project. Reading centers on source text and images, then shows general understanding and connected cards. A connection links to its project and card. Historical reports retain their original rationale and card versions.
+The Content page gathers reports and supports searching by title, source, time, and related project. Reading leads with general understanding and connected cards, with source snapshots and supporting quotes available on demand. A connection links to its project and card. Historical reports retain their original rationale and card versions.
 
-Analysis reports belong to projects and are listed on project pages. They retain conclusions, input coverage, evidence, and suggestion acceptance status. Later project or card changes leave historical judgments intact.
+Analysis reports retain their project identity and appear inside the task that produced them. Project pages manage bindings and start analysis. They retain conclusions, input coverage, evidence, and suggestion acceptance status. Later project or card changes leave historical judgments intact.
 
-The task center combines content and analysis tasks, showing queued, running, completed, failed, and canceled states. Running tasks show the current stage, recent readable activity, processed scope, and next step. Users can return from other pages and open results on completion. Reopening the window restores saved task state.
+The task center combines content and analysis tasks, showing queued, running, completed, failed, and canceled states. Running tasks show the current stage and a collapsed chronological process disclosure. Users can return from other pages and open results on completion. Reopening the window restores saved task state.
 
 ## Settings and runtime boundaries
 

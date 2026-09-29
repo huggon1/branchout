@@ -14,6 +14,7 @@ export const focusCardSchema = z
     currentVersionId: focusVersionIdSchema,
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
+    deletedAt: z.string().datetime().optional(),
   })
   .strict();
 
@@ -24,7 +25,14 @@ export const focusVersionSchema = z
     version: z.number().int().positive(),
     content: focusContentSchema,
     active: z.boolean(),
-    change: z.enum(["created", "edited", "activated", "paused"]),
+    change: z.enum([
+      "created",
+      "edited",
+      "activated",
+      "paused",
+      "deleted",
+      "restored",
+    ]),
     createdAt: z.string().datetime(),
   })
   .strict();
@@ -93,3 +101,12 @@ export type FocusCardView = z.infer<typeof focusCardViewSchema>;
 export type CreateFocusCard = z.infer<typeof createFocusCardSchema>;
 export type EditFocusCard = z.infer<typeof editFocusCardSchema>;
 export type SetFocusCardActive = z.infer<typeof setFocusCardActiveSchema>;
+
+export const setFocusCardDeletedSchema = z
+  .object({
+    focusId: focusIdSchema,
+    expectedVersionId: focusVersionIdSchema,
+    deleted: z.boolean(),
+  })
+  .strict();
+export type SetFocusCardDeleted = z.infer<typeof setFocusCardDeletedSchema>;

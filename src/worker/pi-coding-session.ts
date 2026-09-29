@@ -1,3 +1,4 @@
+import { displayActivityText } from "../shared/display-activity";
 import { existsSync } from "node:fs";
 import { access, mkdir, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -280,7 +281,8 @@ export async function createPiCodingSession(
 }
 
 export type PiCodingSessionActivity = {
-  kind: "started" | "retrying" | "completed" | "failed";
+  kind: "started" | "retrying" | "completed" | "failed" | "message" | "tool";
+  body?: string;
   attempt: number;
   maxAttempts: number;
   summary: string;
@@ -362,9 +364,10 @@ export async function runPiCodingSession(
     kind: PiCodingSessionActivity["kind"],
     attempt: number,
     summary: string,
+    body?: string,
   ) => {
     try {
-      options.onActivity?.({ kind, attempt, maxAttempts, summary });
+      options.onActivity?.({ kind, attempt, maxAttempts, summary, ...(body ? { body: displayActivityText(body.split(options.config.credential).join("[credential redacted]")) } : {}) });
     } catch {
       /* UI activity cannot alter execution. */
     }
@@ -387,6 +390,17 @@ export async function runPiCodingSession(
     let text = "";
     let htmlFile: string | undefined;
     let readPaths: string[] = [];
+    const unsubscribe = handle.session.subscribe((event) => {
+      if (event.type === "message_end" && event.message.role === "assistant") {
+        const text = event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n").trim();
+        if (!text) return;
+        const structured = text.startsWith("{") || text.startsWith("```json");
+        announce("message", attempt, structured ? "报告草稿已生成" : `模型回复 · 第 ${attempt} 次请求`, structured ? undefined : text);
+      } else if (event.type === "tool_execution_start") {
+        const labels: Record<string, string> = { read: "阅读文件", grep: "检索代码", find: "查找文件", ls: "浏览目录" };
+        announce("tool", attempt, labels[event.toolName] ?? "使用分析工具");
+      }
+    });
     try {
       await handle.session.prompt(options.prompt, {
         expandPromptTemplates: false,
@@ -415,6 +429,7 @@ export async function runPiCodingSession(
     } catch (caught) {
       error = caught;
     } finally {
+      unsubscribe();
       options.signal.removeEventListener("abort", onAbort);
       if (handle.sessionFile && existsSync(handle.sessionFile)) {
         try {
