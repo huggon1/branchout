@@ -2,7 +2,7 @@
 
 This directory holds interactive workbenches for people reviewing Branchout behavior and model output. Each case names a production function, accepts operator-selected inputs, calls the production implementation, and saves the inputs, process record, and result for review.
 
-A person starts model execution and judges the usefulness of its result. The workbench prepares inputs, records provenance, and presents artifacts. [Product acceptance and E2E scenarios](../docs/acceptance-scenarios.md) have separate failure modes and oracles.
+A person starts model execution and judges the usefulness of its result. The workbench prepares inputs, records provenance, and presents artifacts. Agent-operated E2E tests use separate runners and independent oracles.
 
 ## Available case
 
