@@ -20,7 +20,7 @@ EV-14 saves a fictional Telegram bot token through the packaged Settings page, v
 
 EV-16 places a relevant user sentence beyond the initial prompt excerpt. The fictional model reads the selected source by evidence ID, probes an unknown ID, and cites the retrieved sentence. The packaged run checks the report, bounded error, persisted JSONL, rendered HTML trace, and local export. Its run record and trace stay under the selected local evaluation output directory.
 
-`npm run verify:package-ui` runs the packaged model UI check followed by EV-04, EV-05, and EV-13. Set `BRANCHOUT_EVAL_OUTPUT_ROOT` to retain the run records in a chosen machine-local directory. CI and release workflows upload those fictional-run records as workflow artifacts.
+`npm run verify:package-ui` runs the packaged model UI check followed by EV-04, EV-05, EV-13, EV-14, and EV-16. Set `BRANCHOUT_EVAL_OUTPUT_ROOT` to retain the run records in a chosen machine-local directory. CI and release workflows upload those fictional-run records as workflow artifacts.
 
 ## Local console
 
