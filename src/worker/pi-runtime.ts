@@ -35,7 +35,7 @@ export function resolveModel(
     provider: "branchout-api",
     api: config.api,
     baseUrl: config.baseUrl,
-    reasoning: false,
+    reasoning: config.reasoning ?? false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 8192,

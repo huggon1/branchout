@@ -1,5 +1,7 @@
 # Evaluation runner
 
+For manual prompt-effect exploration through Pi's read-only repository tools, use the [project analysis prompt evaluation scripts](../analysis-eval/README.md). Those scripts produce cleaned conversation XML, prompt files, a raw report, and HTML trace in a private local run directory.
+
 `run.mjs` provides the command-line entry point and importable `runEvaluation` and `preflightLocalEvaluation` functions for the localhost console. `run-record.mjs` validates version 1 run records and reads or writes them atomically. The [scenario catalog](../../docs/evaluation.md) defines the failure modes and oracles.
 
 Fixture coverage drives a packaged Branchout executable through synthetic project analysis (EV-04), interrupted multi-batch recovery (EV-05), or fresh model storage (EV-13). From the repository root:

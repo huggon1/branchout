@@ -61,7 +61,7 @@ export function evaluationPrompts(input: {
 分析目标：${input.guidance.analysisGoal}
 关注卡写作指导：${input.guidance.cardWriting}
 
-先查看项目根目录与说明文件，再按对话中出现的目标和问题搜索、阅读相关文件。使用 ls、find、grep、read 完成探索。把用户发言作为用户意图依据；助手最终回复提供已完成事项的上下文。一次性执行命令和实现清单只作为工作记录。结合项目现状归纳持续值得关注的角度，并说明资料覆盖范围。
+先查看项目根目录与说明文件，再按对话中出现的目标和问题搜索、阅读相关文件。使用 ls、find、grep、read 完成探索。本轮只分析当前工作树和选中的 XML 对话，不查阅 Git commit 历史。把用户发言作为用户意图依据；助手最终回复提供已完成事项的上下文。一次性执行命令和实现清单只作为工作记录。结合项目现状归纳持续值得关注的角度，并说明资料覆盖范围。
 
 最终用 Markdown 给出项目概况、主要发现、建议关注卡和待确认问题。每条重要结论引用实际读到的仓库路径或对话的 conversation id 与 source-line，并摘录短句。关注卡文字自身说明项目背景和关注角度。`;
   const prompt = `请分析这个项目。\n项目仓库：${input.repository}\n已清理的选中对话：${input.conversationsFile}\n选中对话数：${input.selectedSessionCount}\n\n从当前文件与上述对话开始探索，形成可审阅的分析报告。`;
