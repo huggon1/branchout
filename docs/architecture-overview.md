@@ -24,6 +24,8 @@ Analysis first records a local repository input snapshot: directory, Git HEAD, w
 
 The worker uses repository snapshots, commits, and selected Codex conversations to produce findings, evidence, and card-change suggestions. Suggestions identify a target card and base version or a new card. The main process validates and saves a frozen report. For acceptance, it creates a first card version or compares an existing card with the suggestion's base version before saving a new version and acceptance record.
 
+Pi runs each analysis batch in a separate persisted session with an empty tool set. The main process saves and acknowledges validated batch checkpoints. Retry compares the frozen input and prompt manifest before reusing checkpoints. A synthesis pass combines supported batch candidates into report findings and focus angles. Session history remains available for an HTML export from the task center, with links to attempts reused by a resumed task.
+
 Actual input coverage is saved with the report. Source failures record completed sources and failure locations so the UI can present readable partial results or retry actions.
 
 ## Task center and Agent activity
@@ -34,7 +36,7 @@ Activities provide readable execution history; report evidence supports conclusi
 
 ## Models, Telegram, and local access
 
-The main process manages model connections and freezes task configuration at launch. Workers receive only the connection and input needed for their tasks. General API credentials use operating-system-protected local storage; Codex subscription accounts use the Codex login mechanism. The main process manages Telegram bot credentials and authorized chat identities, exposing redacted status to the renderer.
+The main process manages model connections and freezes task configuration at launch. Workers receive only the connection and input needed for their tasks. Model connection settings, general API keys, and the Telegram bot token use owner-only local JSON files. Queued Xiaohongshu recovery tokens reside in owner-only integration state files. The first load converts legacy Safe Storage values once and retains their encrypted originals or state snapshots. Codex subscription accounts use the Codex login mechanism and its isolated file credential store; accounts previously held in the keyring require one new login. The main process exposes redacted Telegram status to the renderer.
 
 Dedicated readers obtain repository files, Git history, and Codex sessions. Each receives an approved project directory, source range, and cancellation signal from the main process, then emits bounded content and source locations. External content and local conversations are analysis data; application code controls tool permissions and task steps.
 

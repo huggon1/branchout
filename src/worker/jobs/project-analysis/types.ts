@@ -1,5 +1,7 @@
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
 import type { ProjectCommitRangeId } from "../../../readers/git-history";
+import type { ValidatedProjectAnalysisOutput } from "../../reasoning/project-analysis";
+import type { AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
 
 export type AnalysisSourceKind = "repository" | "commit" | "codex_session";
 
@@ -38,6 +40,13 @@ export type ProjectAnalysisWorkerInput = {
   codexSessionIds: string[];
   focusCards: ProjectAnalysisFocusCard[];
   config: ModelExecutionConfig;
+  promptGuidance?: AnalysisPromptSnapshot;
+  traceRoot?: string;
+  resumeCheckpoint?: {
+    manifestHash: string;
+    batchTotal: number;
+    batches: { index: number; result: ValidatedProjectAnalysisOutput }[];
+  };
 };
 
 export type ProjectAnalysisFinding = {
@@ -63,6 +72,7 @@ export type ProjectAnalysisReportDraft = {
   projectLabel: string;
   generatedAt: string;
   summary: string;
+  promptGuidance?: AnalysisPromptSnapshot;
   findings: ProjectAnalysisFinding[];
   suggestions: ProjectAnalysisSuggestion[];
   evidence: AnalysisEvidenceRef[];
@@ -138,6 +148,7 @@ export type ProjectAnalysisReportDraft = {
 };
 
 export type ProjectAnalysisEvent =
+  | { type: "checkpoint"; taskId: string; manifestHash: string; batchTotal: number; index: number; result: ValidatedProjectAnalysisOutput }
   | { type: "phase"; taskId: string; phase: "repository" | "git_history" | "codex_sessions" | "reasoning" }
   | {
       type: "progress";
@@ -148,4 +159,5 @@ export type ProjectAnalysisEvent =
       messagesRead?: number;
       batchCompleted?: number;
       batchTotal?: number;
+      message?: string;
     };

@@ -17,14 +17,11 @@ export function registerAnalysisReportIpc(
   service: ProjectAnalysisReportService,
   expected: string,
 ) {
-  for (const channel of Object.values(analysisChannels)) {
-    if (
-      channel === analysisChannels.preflight ||
-      channel === analysisChannels.start ||
-      channel === analysisChannels.retry ||
-      channel === analysisChannels.cancel
-    )
-      continue;
+  for (const channel of [
+    analysisChannels.reports,
+    analysisChannels.readReport,
+    analysisChannels.acceptSuggestion,
+  ]) {
     ipcMain.handle(channel, async (event, ...args: unknown[]) => {
       const count = channel === analysisChannels.reports ? args.length : 1;
       if (

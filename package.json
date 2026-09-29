@@ -20,11 +20,14 @@
     "test": "tsx --test tests/*.test.ts",
     "test:ui": "npm run build && node scripts/check-focus-ui.mjs",
     "test:model-ui": "npm run build && node scripts/check-model-ui.mjs",
-    "test:project-ui": "npm run build && node scripts/check-focus-ui.mjs"
+    "test:project-ui": "npm run build && node scripts/check-focus-ui.mjs",
+    "eval:fixture": "node scripts/evaluation/run.mjs --mode fixture",
+    "eval:console": "node scripts/evaluation/console.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.87.1",
     "@earendil-works/pi-ai": "^0.87.1",
+    "@earendil-works/pi-coding-agent": "0.87.1",
     "marked": "^18.0.14",
     "parse5": "^8.0.1",
     "react": "^19.2.0",

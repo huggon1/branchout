@@ -35,7 +35,12 @@ import { ProjectAnalysisReportService } from "./services/projects/analysis-repor
 import { registerAnalysisReportIpc } from "./services/projects/analysis-report-ipc";
 import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipeline-service";
 import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
+import { exportProjectAnalysisTrace, recordProjectAnalysisTraceLineage } from "./services/project-analysis/trace-export";
 import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
+import { ProjectAnalysisCheckpointStore } from "./storage/project-analysis-checkpoint-store";
+import { AnalysisPromptStore } from "./storage/analysis-prompt-store";
+import { AnalysisPromptSettingsService } from "./services/project-analysis/prompt-settings-service";
+import { registerAnalysisPromptSettingsIpc } from "./services/project-analysis/prompt-settings-ipc";
 import { TaskService } from "./services/tasks/task-service";
 import { registerTaskIpc } from "./services/tasks/task-ipc";
 import { UnifiedTaskService } from "./services/tasks/unified-task-service";
@@ -43,6 +48,11 @@ import { createWorkerEnvironment } from "./services/worker-environment";
 import { ModelService } from "./services/model-service";
 import { CodexClient, resolveCodexExecutable } from "./services/codex-client";
 import { ModelStore } from "./storage/model-store";
+import {
+  encodeLocalIntegrationSecret,
+  migrateQueuedIntegrationSecrets,
+  readLocalIntegrationSecret,
+} from "./storage/local-integration-secret";
 import { AuthCleanup } from "./storage/auth-cleanup";
 import { checkModel, readPiCatalog } from "./services/model-worker-client";
 import { createWindow } from "./window";
@@ -66,6 +76,7 @@ else {
   let focusCards: FocusCardService | undefined;
   let analysisReports: ProjectAnalysisReportService | undefined;
   let analysisPipeline: ProjectAnalysisPipelineService | undefined;
+  let analysisPromptSettings: AnalysisPromptSettingsService | undefined;
   let tasks: TaskService | undefined;
   let taskView: UnifiedTaskService | undefined;
   let xAuth: XAuth | undefined;
@@ -73,6 +84,7 @@ else {
   let servicesReady = false;
   let shuttingDown = false;
   let mainWindow: BrowserWindow | undefined;
+  let startupStage = "electron_ready";
 
   const changed = () => {
     for (const window of BrowserWindow.getAllWindows())
@@ -119,6 +131,7 @@ else {
   void app
     .whenReady()
     .then(async () => {
+      startupStage = "runtime_layout";
       app.setName("Branchout");
       app.dock?.setIcon(join(__dirname, "../assets/branchout.png"));
       const runtimeLayout = resolveRuntimeLayout({
@@ -127,6 +140,18 @@ else {
         resourcesPath: process.resourcesPath,
         cwd: process.cwd(),
       });
+      const legacyIntegrationAvailable = () => {
+        if (process.env.BRANCHOUT_TEST_DATA && process.env.BRANCHOUT_EVAL_DENY_KEYCHAIN === "1")
+          throw new Error("EV-14: legacy Safe Storage access attempted");
+        return safeStorage.isEncryptionAvailable() &&
+          (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text");
+      };
+      const decryptLegacyIntegration = (value: string) => {
+        if (!legacyIntegrationAvailable()) throw new Error("旧凭据需要一次钥匙串读取");
+        if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value))
+          throw new Error("旧凭据格式无效");
+        return safeStorage.decryptString(Buffer.from(value, "base64"));
+      };
 
       const authRoot = join(app.getPath("userData"), "model-auth");
       const codexExecutable = resolveCodexExecutable();
@@ -153,6 +178,7 @@ else {
         check: checkModel,
         changed,
       });
+      startupStage = "model_connection";
       await models.open();
 
       xAuth = new XAuth(changed);
@@ -165,6 +191,7 @@ else {
       const projectStore = new ProjectStore(
         join(app.getPath("userData"), "projects.json"),
       );
+      startupStage = "projects";
       await projectStore.open();
       projects = new ProjectService(projectStore, changed);
       focusCards = new FocusCardService(projectStore, changed);
@@ -173,6 +200,7 @@ else {
       const taskStore = new TaskStore(
         join(app.getPath("userData"), "tasks.json"),
       );
+      startupStage = "tasks";
       await taskStore.open();
       tasks = new TaskService(taskStore, changed);
       await tasks.recover();
@@ -180,9 +208,24 @@ else {
       const analysisInputStore = new ProjectAnalysisInputStore(
         join(app.getPath("userData"), "project-analysis-inputs.json"),
       );
+      startupStage = "analysis_inputs";
       await analysisInputStore.open();
+      const analysisCheckpointStore = new ProjectAnalysisCheckpointStore(
+        join(app.getPath("userData"), "project-analysis-checkpoints.json"),
+      );
+      startupStage = "analysis_checkpoints";
+      await analysisCheckpointStore.open();
+      const analysisPromptStore = new AnalysisPromptStore(
+        join(app.getPath("userData"), "analysis-prompt.json"),
+      );
+      startupStage = "analysis_prompt";
+      await analysisPromptStore.open();
+      analysisPromptSettings = new AnalysisPromptSettingsService(analysisPromptStore, changed);
       analysisPipeline = new ProjectAnalysisPipelineService({
         workerPath: join(__dirname, "../worker/jobs/project-analysis/worker-entry.mjs"),
+        traceRoot: join(app.getPath("userData"), "analysis-traces"),
+        exportTrace: exportProjectAnalysisTrace,
+        recordTraceLineage: recordProjectAnalysisTraceLineage,
         spawnWorker: (path) => {
           const worker = utilityProcess.fork(path, [], {
             stdio: "pipe",
@@ -197,16 +240,23 @@ else {
             projects!.view().projects.find((project) => project.projectId === projectId),
         },
         focusCards,
+        prompts: analysisPromptSettings,
         models,
         tasks,
         reports: analysisReports,
         runInputs: analysisInputStore,
+        checkpoints: analysisCheckpointStore,
         notify: changed,
       });
+      startupStage = "analysis_recovery";
       await analysisPipeline.recover();
 
       const forwardingStore = new ForwardingStore(
         join(app.getPath("userData"), "forwarding.json"),
+      );
+      startupStage = "forwarding_store";
+      await migrateQueuedIntegrationSecrets(
+        join(app.getPath("userData"), "forwarding.json"), "forwarding", decryptLegacyIntegration,
       );
       await forwardingStore.open();
       forwarding = new ForwardingPipelineService({
@@ -224,42 +274,30 @@ else {
           return worker;
         },
         changed,
-        protectSensitive: async (value) => {
-          if (
-            !safeStorage.isEncryptionAvailable() ||
-            (process.platform === "linux" &&
-              safeStorage.getSelectedStorageBackend() === "basic_text")
-          )
-            throw new Error("系统安全存储当前不可用");
-          return safeStorage.encryptString(value).toString("base64");
-        },
+        protectSensitive: async (value) => encodeLocalIntegrationSecret(value),
         revealSensitive: async (value) => {
-          if (
-            !safeStorage.isEncryptionAvailable() ||
-            (process.platform === "linux" &&
-              safeStorage.getSelectedStorageBackend() === "basic_text")
-          )
-            throw new Error("系统安全存储当前不可用");
-          return safeStorage.decryptString(Buffer.from(value, "base64"));
+          const local = readLocalIntegrationSecret(value);
+          return local ?? decryptLegacyIntegration(value);
         },
         xCredentials: () => xAuth!.credentials(),
         xhsSession: () => xhsAuth!.connect(),
       });
+      startupStage = "forwarding_recovery";
       await forwarding.recover();
       taskView = new UnifiedTaskService(tasks, forwarding);
 
       const telegramStore = new TelegramStore(
         join(app.getPath("userData"), "telegram.json"),
       );
+      startupStage = "telegram_store";
+      await migrateQueuedIntegrationSecrets(
+        join(app.getPath("userData"), "telegram.json"), "telegram", decryptLegacyIntegration,
+      );
       await telegramStore.open();
       telegramCredentials = new TelegramCredentialStore(
         join(app.getPath("userData"), "telegram-bot-token.enc"),
         {
-          isEncryptionAvailable: () =>
-            safeStorage.isEncryptionAvailable() &&
-            (process.platform !== "linux" ||
-              safeStorage.getSelectedStorageBackend() !== "basic_text"),
-          encryptString: (value) => safeStorage.encryptString(value),
+          isEncryptionAvailable: legacyIntegrationAvailable,
           decryptString: (bytes) => safeStorage.decryptString(bytes),
         },
       );
@@ -275,19 +313,31 @@ else {
         fetch,
         changed,
       );
+      startupStage = "telegram_credentials";
       if (await telegramCredentials.getBotToken()) await telegram.start();
 
+      startupStage = "ipc_registration";
       const expected = pathToFileURL(
         join(__dirname, "../renderer/index.html"),
       ).href;
+      startupStage = "project_ipc";
       registerProjectIpc(projects, expected);
+      startupStage = "focus_ipc";
       registerFocusCardIpc(focusCards, expected);
+      startupStage = "report_ipc";
       registerAnalysisReportIpc(analysisReports, expected);
+      startupStage = "analysis_ipc";
       registerProjectAnalysisPipelineIpc(analysisPipeline, expected);
+      startupStage = "prompt_ipc";
+      registerAnalysisPromptSettingsIpc(analysisPromptSettings, expected);
+      startupStage = "task_ipc";
       registerTaskIpc(taskView, expected);
+      startupStage = "forwarding_ipc";
       registerForwardingIpc(forwarding, expected);
+      startupStage = "telegram_ipc";
       registerTelegramIpc(telegram, telegramCredentials, expected, changed);
 
+      startupStage = "external_ipc";
       for (const channel of Object.values(xChannels))
         ipcMain.handle(channel, async (event, ...args: unknown[]) => {
           if (
@@ -378,6 +428,7 @@ else {
           }
         });
 
+      startupStage = "menu";
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
@@ -392,6 +443,7 @@ else {
           { role: "viewMenu" },
         ]),
       );
+      startupStage = "window";
       servicesReady = true;
       open();
       const session = mainWindow!.webContents.session;
@@ -400,10 +452,20 @@ else {
       );
       session.setPermissionCheckHandler(() => false);
     })
-    .catch(() => {
+    .catch((error: unknown) => {
+      const integrationError = error instanceof Error &&
+        ["forwarding_store", "telegram_store", "telegram_credentials"].includes(startupStage) &&
+        /(?:待恢复数据|待恢复令牌|Telegram.*凭据|旧 Telegram 凭据)/.test(error.message)
+          ? error.message
+          : undefined;
+      console.error("Branchout startup failed", {
+        stage: startupStage,
+        errorType: error instanceof Error ? error.name : typeof error,
+        ...(integrationError ? { message: integrationError } : {}),
+      });
       dialog.showErrorBox(
         "Branchout 无法启动",
-        "无法读取本地数据或初始化应用。原数据已保留。",
+        integrationError ?? "无法读取本地数据或初始化应用。原数据已保留。",
       );
       app.exit(1);
     });

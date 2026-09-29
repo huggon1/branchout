@@ -143,7 +143,7 @@ export class ModelService {
         this.state.accountLabel = result.account?.email ?? undefined;
         this.state.message = result.account
           ? "请刷新模型目录后检查连接"
-          : "请登录 ChatGPT";
+          : "请登录 ChatGPT；此前使用钥匙串的账号需重新登录一次";
       } catch {
         this.state.auth = "unavailable";
         this.state.message = "Codex 客户端不可用，请检查安装后重启应用";
@@ -326,6 +326,7 @@ export class ModelService {
   async acquire(): Promise<{
     config: ModelExecutionConfig;
     generation: number;
+    refreshCredential(): Promise<string>;
     release(): Promise<void>;
   }> {
     return this.serial(async () => {
@@ -364,6 +365,15 @@ export class ModelService {
       return {
         config,
         generation: this.generation,
+        refreshCredential: async () => {
+          if (released) throw new Error("模型租约已结束");
+          if (!context) return config.credential;
+          const token = tokenSchema.parse(await context.client.request("getAuthStatus", {
+            includeToken: true,
+            refreshToken: true,
+          }));
+          return token.authToken;
+        },
         release: async () => {
           if (released) return;
           released = true;

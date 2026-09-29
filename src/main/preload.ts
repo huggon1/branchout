@@ -4,6 +4,7 @@ import {
   projectChannels,
   focusCardChannels,
   analysisChannels,
+  analysisPromptChannels,
   taskChannels,
   forwardingChannels,
   telegramChannels,
@@ -30,8 +31,13 @@ const bridge: DesktopBridge = {
     ipcRenderer.invoke(analysisChannels.readReport, analysisReportId),
   projectAnalysisPreflight: (projectId) =>
     ipcRenderer.invoke(analysisChannels.preflight, projectId),
+  analysisPromptView: () => ipcRenderer.invoke(analysisPromptChannels.view),
+  saveAnalysisPrompt: (input) => ipcRenderer.invoke(analysisPromptChannels.save, input),
+  resetAnalysisPrompt: () => ipcRenderer.invoke(analysisPromptChannels.reset),
   startProjectAnalysis: (input) =>
     ipcRenderer.invoke(analysisChannels.start, input),
+  exportProjectAnalysisTrace: (taskId) =>
+    ipcRenderer.invoke(analysisChannels.exportTrace, taskId),
   acceptFocusSuggestion: (input) =>
     ipcRenderer.invoke(analysisChannels.acceptSuggestion, input),
   unifiedTaskSnapshots: () => ipcRenderer.invoke(taskChannels.snapshots),

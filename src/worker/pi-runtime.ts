@@ -1,4 +1,8 @@
-import { ExecutionFailure, classifyModelError } from "../shared/task-failure";
+import {
+  ExecutionFailure,
+  classifyModelError,
+  type ModelFailureDiagnostic,
+} from "../shared/task-failure";
 import {
   Agent,
   type AgentTool,
@@ -52,6 +56,44 @@ export async function runWithPi(
 ) {
   let turns = 0;
   let turnLimit = false;
+  let diagnostic: ModelFailureDiagnostic | undefined;
+  const safeProviderCode = (value: unknown) =>
+    typeof value === "string" && /^[a-zA-Z0-9_.-]{1,64}$/.test(value)
+      ? value
+      : undefined;
+  const observedFetch: typeof fetch = async (input, init) => {
+    let response: Response;
+    try {
+      response = await (fetchOverride ?? fetch)(input, init);
+    } catch (error) {
+      const cause = error instanceof Error
+        ? (error as Error & { cause?: { code?: unknown } }).cause
+        : undefined;
+      diagnostic = { transportCode: safeProviderCode(cause?.code) };
+      throw error;
+    }
+    if (response.ok) {
+      diagnostic = undefined;
+    } else {
+      diagnostic = { httpStatus: response.status };
+      try {
+        const body = await response.clone().json();
+        const code = safeProviderCode(body?.error?.code ?? body?.error?.type);
+        if (code) diagnostic.providerCode = code;
+      } catch {
+        // The HTTP status remains available for non-JSON error responses.
+      }
+    }
+    return response;
+  };
+  const failureCode = (error: unknown) => {
+    if (diagnostic?.httpStatus === 401) return "model_auth" as const;
+    if (diagnostic?.httpStatus === 429) return "model_rate_limit" as const;
+    if (diagnostic?.httpStatus === 408 ||
+      (diagnostic?.httpStatus !== undefined && diagnostic.httpStatus >= 500))
+      return "model_unavailable" as const;
+    return classifyModelError(error);
+  };
   const model = resolveModel(config);
   const streamFn: StreamFn = (_model, context, options) => {
     if (turns >= maxTurns) {
@@ -59,13 +101,14 @@ export async function runWithPi(
       throw new ExecutionFailure("model_turn_limit");
     }
     turns++;
+    diagnostic = undefined;
     const safeOptions = {
       ...options,
       apiKey: config.credential,
       transport: "sse" as const,
       maxTokens,
       maxRetries: 0,
-      ...(fetchOverride ? { fetch: fetchOverride } : {}),
+      fetch: observedFetch,
     };
     if (model.api === "openai-responses")
       return responses(
@@ -110,7 +153,7 @@ export async function runWithPi(
       if (last?.role === "assistant" && last.stopReason === "length")
         throw new ExecutionFailure("model_output_limit");
       if (last?.role === "assistant" && last.stopReason === "error")
-        throw new ExecutionFailure(classifyModelError(last.errorMessage));
+        throw new ExecutionFailure(failureCode(last.errorMessage), {}, diagnostic);
       if (
         signal.aborted ||
         !last ||
@@ -154,8 +197,9 @@ export async function runWithPi(
       0,
     );
     throw new ExecutionFailure(
-      turnLimit ? "model_turn_limit" : classifyModelError(error),
+      turnLimit ? "model_turn_limit" : failureCode(error),
       { modelTurns: turns, toolCalls },
+      error instanceof ExecutionFailure ? error.diagnostic : diagnostic,
     );
   } finally {
     signal.removeEventListener("abort", abort);

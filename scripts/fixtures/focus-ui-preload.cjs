@@ -110,6 +110,17 @@ let state = {
     ],
   },
 };
+const defaultPrompt = {
+  analysisGoal: "提炼用户反复表达的目标、取舍和未解决问题；在缺少可用对话时，依据仓库与提交记录识别值得持续关注的项目方向。",
+  cardWriting: "关注卡用简短、自包含的项目背景和持续关注角度描述用户意图。将同义角度合并，剔除一次性命令、实现步骤和过细的项目内部名称。已有卡片覆盖该角度时优先提出有实质改进的更新。",
+};
+let promptSettings = { ...defaultPrompt };
+let promptRevision = 0;
+const promptView = () => ({
+  ...promptSettings,
+  revision: `fixture-prompt-${promptRevision}`,
+  customized: promptSettings.analysisGoal !== defaultPrompt.analysisGoal || promptSettings.cardWriting !== defaultPrompt.cardWriting,
+});
 let counter = 0;
 let staleOnce = true;
 let savedToken = "";
@@ -412,11 +423,25 @@ const bridge = {
     });
   },
   startProjectAnalysis,
+  analysisPromptView: async () => ok(promptView()),
+  saveAnalysisPrompt: async (input) => {
+    promptSettings = { analysisGoal: input.analysisGoal, cardWriting: input.cardWriting };
+    promptRevision += 1;
+    notify();
+    return ok(promptView());
+  },
+  resetAnalysisPrompt: async () => {
+    promptSettings = { ...defaultPrompt };
+    promptRevision += 1;
+    notify();
+    return ok(promptView());
+  },
+  exportProjectAnalysisTrace: async () => ok(undefined),
   acceptFocusSuggestion,
   addLink,
   retryForwarding,
   cancelForwarding: cancelTask,
-  retryProjectAnalysis: async (taskId) => ok(taskId),
+  retryProjectAnalysis: async (taskId) => { log.push({ type: "retry-project-analysis", taskId }); return ok(taskId); },
   cancelProjectAnalysis: cancelTask,
   openSource: async (materialId) => { log.push({ type: "open-source", materialId }); return ok(undefined); },
   telegramStatus: async () => ok({ configured: state.settings.telegram.connected, status: "polling", authorizedChatIds: state.settings.telegram.chats.filter((chat) => chat.allowed).map((chat) => chat.chatId), pendingChats: state.settings.telegram.chats.map((chat) => ({ chatId: chat.chatId, title: chat.label, lastSeenAt: state.settings.telegram.lastPollAt })), queued: state.settings.telegram.pendingCount, pendingAcknowledgements: 0, lastPollAt: state.settings.telegram.lastPollAt }),

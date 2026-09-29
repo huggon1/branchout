@@ -1942,6 +1942,22 @@ blockquote span {
 .settings-field input {
   max-width: 540px;
 }
+.analysis-prompt-settings .settings-field textarea {
+  width: min(100%, 720px);
+  min-height: 82px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.55;
+  resize: vertical;
+}
+.analysis-prompt-settings .settings-field textarea:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
 .telegram-status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

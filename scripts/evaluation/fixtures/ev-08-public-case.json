@@ -1,0 +1,112 @@
+{
+  "caseId": "seed-shelf-intent-abstraction-v1",
+  "fictional": true,
+  "project": {
+    "name": "SeedShelf",
+    "purpose": "A community seed-exchange inventory app for volunteers"
+  },
+  "selectedSources": [
+    {
+      "id": "session-user-goal",
+      "source": "codex_session",
+      "role": "user",
+      "location": "fictional-session-a:message-1",
+      "text": "这个项目是社区种子交换站的库存登记工具。我希望志愿者断网时仍能记录领用和归还，联网后能看懂冲突并决定保留哪条记录。"
+    },
+    {
+      "id": "session-release-command",
+      "source": "codex_session",
+      "role": "user",
+      "location": "fictional-session-b:message-1",
+      "text": "请在发布前运行 pnpm build，再检查 src/sync/merge.ts 的边界分支。"
+    },
+    {
+      "id": "session-assistant-result",
+      "source": "codex_session",
+      "role": "assistant_final",
+      "location": "fictional-session-b:message-2",
+      "text": "已调整同步合并函数并完成构建。"
+    },
+    {
+      "id": "repository-overview",
+      "source": "repository",
+      "location": "docs/overview.md:1-3",
+      "text": "SeedShelf records seed stock, loans, and returns for neighborhood exchange stations. Volunteers may work without a connection."
+    }
+  ],
+  "existingCards": [
+    {
+      "id": "fictional-card-plant-metadata",
+      "content": "SeedShelf 帮助社区交换站管理种子资料。持续关注品种信息是否足够清晰，方便志愿者识别和分享。"
+    }
+  ],
+  "preregisteredIntentAnchors": [
+    {
+      "id": "offline-inventory-and-conflicts",
+      "origin": "user",
+      "statement": "志愿者能离线登记库存变化，并在重连后理解和处理冲突。",
+      "evidenceSourceIds": ["session-user-goal"]
+    }
+  ],
+  "excludedOneOffTasks": [
+    {
+      "statement": "运行发布构建并检查一个同步函数。",
+      "evidenceSourceIds": ["session-release-command"]
+    }
+  ],
+  "calibrationCards": [
+    {
+      "id": "durable-angle",
+      "content": "SeedShelf 为社区种子交换站记录库存。持续关注离线领用和归还记录、以及重连后的冲突核对，能否让志愿者可靠地维护库存。",
+      "evidenceSourceIds": ["session-user-goal", "repository-overview"],
+      "expected": {
+        "concern": "pass",
+        "standalone": "pass",
+        "evidence": "pass",
+        "distinct": "pass",
+        "criticalFailure": false
+      }
+    },
+    {
+      "id": "one-off-file-task",
+      "content": "发布前运行 pnpm build，并修复 src/sync/merge.ts 的边界分支。",
+      "evidenceSourceIds": ["session-release-command"],
+      "expected": {
+        "concern": "fail",
+        "standalone": "fail",
+        "evidence": "pass",
+        "distinct": "pass",
+        "criticalFailure": false
+      }
+    },
+    {
+      "id": "generic-reliability",
+      "content": "持续提高可靠性。",
+      "evidenceSourceIds": ["session-user-goal"],
+      "expected": {
+        "concern": "unclear",
+        "standalone": "fail",
+        "evidence": "unclear",
+        "distinct": "pass",
+        "criticalFailure": false
+      }
+    },
+    {
+      "id": "invented-implementation-intent",
+      "content": "SeedShelf 用户要求所有同步冲突都使用固定的合并算法。",
+      "evidenceSourceIds": ["session-user-goal", "session-assistant-result"],
+      "expected": {
+        "concern": "fail",
+        "standalone": "pass",
+        "evidence": "fail",
+        "distinct": "pass",
+        "criticalFailure": false
+      }
+    }
+  ],
+  "duplicateComparison": {
+    "currentCard": "SeedShelf 持续关注志愿者离线登记种子库存，以及联网后核对同步冲突的体验。",
+    "newCreateCandidate": "SeedShelf 关注离线库存录入和同步后冲突处理。",
+    "expectedDistinct": "fail"
+  }
+}

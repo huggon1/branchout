@@ -792,6 +792,7 @@ function AnalysisReportView({
       </div>
       <details className="coverage-details" open>
         <summary>输入覆盖范围 · {report.coverage.length} 类来源</summary>
+        {report.promptRevision && <p>提示词版本：<code title={report.promptRevision}>{report.promptRevision.slice(0, 19)}…</code></p>}
         <ul>
           {report.coverage.map((item, index) => (
             <li key={index}>

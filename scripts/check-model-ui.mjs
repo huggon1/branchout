@@ -1,7 +1,7 @@
 import { _electron as electron } from "playwright";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtemp, readFile, rm, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 const directory = await mkdtemp(join(tmpdir(), "branchout-model-ui-"));
@@ -143,11 +143,11 @@ try {
   assert.equal(requests.at(-1).authorization, "Bearer fixture-secret-B");
   const view = await page.evaluate(() => window.branchout.modelView());
   assert.equal(JSON.stringify(view).includes("fixture-secret"), false);
+  const connectionFile = join(directory, "model-connection.json");
+  assert.equal((await stat(connectionFile)).mode & 0o077, 0);
   assert.equal(
-    (await readFile(join(directory, "model-connection.enc"))).includes(
-      "fixture-secret",
-    ),
-    false,
+    JSON.parse(await readFile(connectionFile, "utf8")).apiKey,
+    "fixture-secret-B",
   );
   await mkdir("test-results", { recursive: true });
   await page.screenshot({ path: "test-results/model-settings.png" });

@@ -41,6 +41,10 @@ Analysis identifies angles worth watching and suggests creating or updating card
 
 The analysis UI lists identified conversations, project attribution, available previews of user messages, and coverage before launch. Users adjust selected sessions and explicitly include sessions with uncertain attribution. A deterministic reader removes application-added content, extracts user messages and final assistant replies needed for context, and retains message locations. Analysis processes selected sources in batches, drawing angles from user goals, recurring concerns, tradeoffs, and unresolved issues. The report records sources actually used, batch counts, and read failures.
 
+Each batch runs in a Pi Agent session with an empty tool set. The task records short status updates and saves validated batch results before advancing. A retry reuses saved batches when repository input, model selection, and effective prompts match the original run. The task shows the failed stage and a specific error category when execution stops. After batch analysis, a synthesis pass combines supported candidates into independently understandable focus angles.
+
+The task center offers an export action for its local Pi session history. The exported index links to the HTML record for each model attempt, including batches reused by a resumed task. The export contains project material and selected work conversations and opens from a directory chosen by the user.
+
 ## Content, reports, and tasks
 
 The Content page gathers reports and supports searching by title, source, time, and related project. Reading centers on source text and images, then shows general understanding and connected cards. A connection links to its project and card. Historical reports retain their original rationale and card versions.
@@ -51,6 +55,8 @@ The task center combines content and analysis tasks, showing queued, running, co
 
 ## Settings and runtime boundaries
 
-Settings contain one current model connection, Telegram access, and source reader configuration. A general API connection stores an API key, service URL, API type, and model ID; the API type is OpenAI Responses or OpenAI Chat Completions. A Codex subscription connection uses ChatGPT account login and selects an available model for that account and client. New configuration applies to later tasks; running tasks retain their start-time configuration.
+Settings contain one current model connection, Telegram access, and source reader configuration. A general API connection stores an API key, service URL, API type, and model ID in an owner-only local file; the API type is OpenAI Responses or OpenAI Chat Completions. A Codex subscription connection uses ChatGPT account login and selects an available model for that account and client. New configuration applies to later tasks; running tasks retain their start-time configuration.
 
-Controlled local readers access project files, Git history, and Codex conversations. Model tasks receive only the content selected for that analysis. Telegram accepts messages from bound chats; credentials reside in protected local storage. Reports, task activity, and UI state use redacted content and error summaries. Source content and work conversations are analysis data; application code controls execution instructions.
+Project analysis settings provide editable analysis-goal and focus-card-writing guidance with shipped defaults. Each analysis run records the effective guidance and its revision at launch. Evidence citation, JSON output, and source-as-data rules remain application controlled.
+
+Controlled local readers access project files, Git history, and Codex conversations. Model tasks receive only the content selected for that analysis. Telegram accepts messages from bound chats; its bot credential uses an owner-only local file. Reports, task activity, and UI state use redacted content and error summaries. Source content and work conversations are analysis data; application code controls execution instructions.

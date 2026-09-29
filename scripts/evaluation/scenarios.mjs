@@ -1,0 +1,17 @@
+export const scenarios = Object.freeze([
+  { id: "EV-01", title: "Projects and focus-card history", fixture: "planned", local: "planned" },
+  { id: "EV-02", title: "Model connection and login", fixture: "planned", local: "planned" },
+  { id: "EV-03", title: "Analysis input selection", fixture: "planned", local: "planned" },
+  { id: "EV-04", title: "Packaged project analysis", fixture: "implemented", local: "implemented" },
+  { id: "EV-05", title: "Multi-batch recovery", fixture: "implemented", local: "planned" },
+  { id: "EV-06", title: "Analysis trace", fixture: "planned", local: "planned" },
+  { id: "EV-07", title: "Prompt provenance", fixture: "planned", local: "planned" },
+  { id: "EV-08", title: "Focus-suggestion quality", fixture: "planned", local: "planned" },
+  { id: "EV-09", title: "Suggestion acceptance", fixture: "planned", local: "planned" },
+  { id: "EV-10", title: "Content connections", fixture: "planned", local: "planned" },
+  { id: "EV-11", title: "Telegram queue", fixture: "planned", local: "planned" },
+  { id: "EV-12", title: "Package restart", fixture: "planned", local: "planned" },
+  { id: "EV-13", title: "Model storage and legacy migration", fixture: "implemented", local: "planned" },
+  { id: "EV-14", title: "Telegram and Xiaohongshu credential restart", fixture: "implemented", local: "planned" },
+  { id: "EV-15", title: "Model transport failure and recovery", fixture: "planned", local: "planned" },
+]);

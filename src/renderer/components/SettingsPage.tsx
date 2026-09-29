@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { UiSettings } from "../product-ui";
 import { ModelSettings } from "./ModelSettings";
+import { AnalysisPromptSettings } from "./AnalysisPromptSettings";
 import { XSettings } from "./XSettings";
 
 export function SettingsPage({
@@ -43,6 +44,7 @@ export function SettingsPage({
         </div>
       </header>
       <ModelSettings />
+      <AnalysisPromptSettings />
       <section
         className="settings-section telegram-settings"
         aria-labelledby="telegram-settings-title"
@@ -79,7 +81,7 @@ export function SettingsPage({
             }
             disabled={busy}
           />
-          <small>凭据由本机受保护存储保存；已保存值不会回传到界面。</small>
+          <small>Bot Token 保存在本机仅当前用户可读的文件中；已保存值不会回传到界面。</small>
         </label>
         <div className="telegram-status-grid">
           <div>

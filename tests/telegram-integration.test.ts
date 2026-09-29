@@ -1,12 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TelegramService, type TelegramQueuedRequest } from "../src/main/integrations/telegram/service";
 import { parseSingleTelegramLink } from "../src/main/integrations/telegram/link-parser";
 import { TelegramStore } from "../src/main/integrations/telegram/store";
-import { TelegramCredentialStore } from "../src/main/integrations/telegram/credential-store";
 
 const chatId = -1001234567890;
 const githubUrl = "https://github.com/withastro/astro";
@@ -185,90 +184,6 @@ test("authorization, durable enqueue, confirmation, and update de-duplication su
     assert.equal(reopened.snapshot().inbound.length, 2);
     assert.equal(submitted.length, 1);
     assert.deepEqual(offsets, [0, 41, 42, 42]);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test("Bot token and temporary source token use system safeStorage only", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "branchout-telegram-secrets-"));
-  const file = join(directory, "bot-credential.json");
-  const token = "123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno";
-  const safeStorage = {
-    isEncryptionAvailable: () => true,
-    encryptString: (value: string) => Buffer.from(`OS-CIPHER:${value}`),
-    decryptString: (value: Buffer) =>
-      value.toString("utf8").replace(/^OS-CIPHER:/, ""),
-  };
-  const credentials = new TelegramCredentialStore(file, safeStorage);
-  try {
-    await credentials.setBotToken(token);
-    assert.equal(await credentials.getBotToken(), token);
-    const encryptedTempToken = await credentials.encrypt("xhs-temporary-token");
-    assert.equal(await credentials.decrypt(encryptedTempToken), "xhs-temporary-token");
-    const persisted = await readFile(file, "utf8");
-    assert.equal(persisted.includes(token), false);
-    assert.equal(persisted.includes("OS-CIPHER"), false);
-    await credentials.clearBotToken();
-    assert.equal(await credentials.getBotToken(), undefined);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test("Xiaohongshu share token stays encrypted in the queue and is transient at dispatch", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "branchout-telegram-xhs-"));
-  const file = join(directory, "telegram.json");
-  const store = new TelegramStore(file);
-  await store.open();
-  const shareToken = "fixture-private-xsec-token";
-  const sourceLink = `https://www.xiaohongshu.com/explore/684123456789012345678901?xsec_token=${shareToken}`;
-  const accepted: TelegramQueuedRequest[] = [];
-  let result: unknown[] = [telegramMessage(8, 3, "/start")];
-  const request: typeof fetch = async (input, init) => {
-    const method = String(input).split("/").at(-1);
-    if (method === "getUpdates") {
-      const current = result;
-      result = [];
-      return Response.json({ ok: true, result: current });
-    }
-    return Response.json({ ok: true, result: { message_id: 9 } });
-  };
-  const cipher = {
-    encrypt: async (value: string) =>
-      `sealed:${Buffer.from(value).toString("base64")}`,
-    decrypt: async (value: string) =>
-      Buffer.from(value.slice("sealed:".length), "base64").toString("utf8"),
-  };
-  const service = new TelegramService(
-    store,
-    async () => "123456:secret",
-    cipher,
-    {
-      async submit(value) {
-        if (rejectInitial) {
-          rejectInitial = false;
-          throw new Error("simulated handoff interruption");
-        }
-        accepted.push(value);
-      },
-    },
-    request,
-  );
-  let rejectInitial = true;
-  try {
-    await service.pollOnce();
-    await service.authorizeChat(String(chatId));
-    result = [telegramMessage(9, 4, sourceLink)];
-    await service.pollOnce();
-    assert.equal(store.snapshot().queuedForwarding[0].sourceUrl, sourceLink.split("?")[0]);
-    assert.ok(!JSON.stringify(store.snapshot()).includes(shareToken));
-    assert.ok(JSON.stringify(store.snapshot()).includes("sealed:"));
-    await service.drainQueuedForwarding();
-    assert.equal(accepted[0].xhsAccessToken, shareToken);
-    assert.equal(JSON.stringify(store.snapshot()).includes(shareToken), false);
-    const persisted = await readFile(file, "utf8");
-    assert.equal(persisted.includes(shareToken), false);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

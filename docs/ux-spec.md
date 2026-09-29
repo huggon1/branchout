@@ -46,4 +46,6 @@ Navigation retains running status after leaving Tasks. Returning restores recent
 
 Model settings show one current connection, selected from general API and Codex subscription. Telegram shows connection, chat binding, and message receipt. Content sources show GitHub, X, and Xiaohongshu reader capability and configuration.
 
+Project analysis settings show the current analysis goal and focus-card-writing guidance in separate text fields. Saving applies to later runs. Restore Defaults replaces both fields with the shipped text. The page shows field errors and whether edits remain unsaved.
+
 Empty projects, empty cards, zero connections, empty reports, missing model configuration, source failures, and insufficient analysis input each show a distinct state and next action. Narrow windows preserve the reading axis and primary actions; activities and connections scroll within their sections.

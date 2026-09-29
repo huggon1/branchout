@@ -364,18 +364,10 @@ export function App() {
                 await run(() => ui.uiCancelTask(taskId));
               }}
               onRetry={async (taskId) => {
-                const task = tasks.find((item) => item.taskId === taskId);
-                if (task?.kind === "project_analysis" && task.projectId) {
-                  setProjectTarget({
-                    projectId: task.projectId,
-                    preflightRequestId: ++projectPreflightRequestId,
-                  });
-                  setPage("项目");
-                  return;
-                }
-                await run(() => ui.uiRetryTask(taskId));
+                await run(() => ui.uiRetryTask(taskId), (newTaskId) => { if (newTaskId) setSelectedTaskId(newTaskId); });
               }}
               onOpenResult={openTaskResult}
+              onExportTrace={async (taskId) => { await run(() => ui.uiExportAnalysisTrace(taskId)); }}
             />
           </section>
           <section

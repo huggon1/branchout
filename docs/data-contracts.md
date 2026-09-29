@@ -42,15 +42,19 @@ The relation stage records `evaluatedFocusVersionIds` against the full `FocusSet
 
 `ProjectAnalysisInput` contains `taskId`, `projectId`, normalized repository directory, repository snapshot, Git commit range, user-confirmed Codex session identities, and focus card versions at launch. The repository snapshot records Git HEAD, uncommitted changes, input summary, and files actually read. Commit input records IDs, times, and read message or diff ranges.
 
+`AnalysisPromptSettings` stores the editable analysis goal and focus-card-writing guidance. The main process derives a revision from the effective text and fixed prompt-protocol version. `ProjectAnalysisInput` freezes both fields and the revision at launch; retries reuse that snapshot. Prompt settings contain guidance text; model credentials stay in model storage.
+
 A Codex candidate records session identity, time, working directory, verifiable project attribution clues, available user-message count, execution-record count, redacted excerpt, and selection state. Discovery also records index scan count and scope. The selected-session reader delivers deterministically cleaned user messages and necessary final assistant replies. Each excerpt stores role, session identity, message location, and text. Parsed coverage, model batch counts, and read failures enter report coverage. `AnalysisEvidenceRef` names source type `repository`, `commit`, or `codex_session`, its version ID, file or message location, and readable excerpt.
 
 `ProjectAnalysisReport` stores `analysisReportId`, `taskId`, project identity and name, generation time, input coverage, readable findings, evidence, and suggestions. Coverage distinguishes repository files, commits, and Codex sessions actually read or skipped, plus failure locations. Saved conclusions and source locations stay fixed.
+
+`AnalysisBatchCheckpoint` stores a manifest digest of model selection, source batches, and effective prompts, the planned batch count, and each validated batch result in sequence. The main process acknowledges each saved result before the worker advances. A resumed task links its Pi session records to the saved batches it reuses. Each report stores the effective prompt guidance and revision used by its run.
 
 `FocusSuggestion` has `suggestionId`, `kind` (`create` or `update`), proposed text, rationale, and evidence references. An update also has target `focusId` and `baseFocusVersionId`. A separate acceptance record stores status and resulting `focusVersionId`, retaining the original report text. Acceptance deduplicates by `analysisReportId + suggestionId`; a changed current card version returns a review-required state.
 
 ## Telegram queue
 
-Telegram integration stores authorized chat identities, bot connection state, and confirmed update cursor. Bot credentials reside in protected local storage. Chat and message identities form a stable inbound key. One persistence operation records inbound key, queued task, pending acknowledgment, and cursor progress; acknowledgment delivery is saved separately. Fetching a duplicate message reads the original task state. Unsupported formats save cursor and guidance state, then send submission guidance to that chat.
+Telegram integration stores authorized chat identities, bot connection state, and confirmed update cursor. The bot token resides in an owner-only local JSON file. Queued Xiaohongshu recovery tokens use the `local-v1:` representation inside owner-only Telegram and forwarding state files. The first load converts legacy Safe Storage ciphertext once and retains the original encrypted bot file or a byte-for-byte state snapshot. Malformed local files or failed migration produce a specific startup error and preserve the original bytes. Chat and message identities form a stable inbound key. One persistence operation records inbound key, queued task, pending acknowledgment, and cursor progress; acknowledgment delivery is saved separately. Fetching a duplicate message reads the original task state. Unsupported formats save cursor and guidance state, then send submission guidance to that chat.
 
 At startup, the app fetches updates Telegram still provides from the confirmed cursor and sends pending acknowledgments. Integration status tracks last successful fetch, error summary, and pending count for Settings and Tasks. A link parser validates message content; user-visible notices use redacted chat and message identifiers.
 
@@ -67,4 +71,6 @@ The main process handles worker events in this order:
 3. Validate and save the final report and reference, then mark the task complete and notify the renderer.
 4. On interruption, save the failed stage and completed scope, retaining readable stage results for retry.
 
-Model configuration is frozen at launch. Renderer, snapshots, reports, and activities read redacted state. The main process validates source content, model output, card references, and suggestion changes before persistence.
+Pi session files stay under the application's local data directory. A user initiated export copies the related HTML attempts into a selected local directory and writes an index linking them. Task activity stores short validated status summaries; model prompts and complete responses stay in the session files.
+
+Model configuration is frozen at launch. The current model connection is stored in `model-connection.json` with owner-only file permissions; the first read of a legacy `model-connection.enc` saves its validated contents into the new file. Renderer, snapshots, reports, and activities read redacted state. The main process validates source content, model output, card references, and suggestion changes before persistence.

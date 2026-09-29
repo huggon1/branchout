@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://branchout.local/schemas/focus-review-v1.json",
+  "title": "Branchout EV-08 local focus review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "scenarioId", "runId", "analysisReportId", "codeRevision", "inputFingerprint", "promptRevision", "intentAnchors", "excludedTasks", "cards", "overall"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scenarioId": { "const": "EV-08" },
+    "runId": { "type": "string", "format": "uuid" },
+    "analysisReportId": { "type": "string", "format": "uuid" },
+    "codeRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "inputFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "promptRevision": { "type": "string", "pattern": "^(sha256:)?[a-f0-9]{64}$" },
+    "intentAnchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["anchorId", "origin", "statement", "evidenceLocations", "coverage", "suggestionIds", "note"],
+        "properties": {
+          "anchorId": { "type": "string", "minLength": 1 },
+          "origin": { "enum": ["user", "project"] },
+          "statement": { "type": "string", "minLength": 1 },
+          "evidenceLocations": { "$ref": "#/$defs/locations" },
+          "coverage": { "enum": ["covered", "missed", "deliberately_omitted", "unsupported"] },
+          "suggestionIds": { "type": "array", "items": { "type": "string", "format": "uuid" }, "uniqueItems": true },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "excludedTasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["description", "evidenceLocations"],
+        "properties": {
+          "description": { "type": "string", "minLength": 1 },
+          "evidenceLocations": { "$ref": "#/$defs/locations" }
+        }
+      }
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["suggestionId", "suggestionFingerprint", "matchedAnchorIds", "evidenceLocations", "comparedFocusIds", "judgments", "finalRubric"],
+        "properties": {
+          "suggestionId": { "type": "string", "format": "uuid" },
+          "suggestionFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "matchedAnchorIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "evidenceLocations": { "$ref": "#/$defs/locations" },
+          "comparedFocusIds": { "type": "array", "items": { "type": "string", "format": "uuid" }, "uniqueItems": true },
+          "judgments": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reviewerAlias", "reviewedAt", "rubric", "notes"],
+              "properties": {
+                "reviewerAlias": { "type": "string", "minLength": 1 },
+                "reviewedAt": { "type": "string", "format": "date-time" },
+                "rubric": { "$ref": "#/$defs/rubric" },
+                "notes": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["concern", "standalone", "evidence", "distinct"],
+                  "properties": {
+                    "concern": { "type": "string" },
+                    "standalone": { "type": "string" },
+                    "evidence": { "type": "string" },
+                    "distinct": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "finalRubric": { "$ref": "#/$defs/rubric" }
+        }
+      }
+    },
+    "overall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "decidedAt", "note"],
+      "properties": {
+        "status": { "enum": ["passed", "failed", "pending"] },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "locations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "sourceId", "location"],
+        "properties": {
+          "source": { "enum": ["repository", "commit", "codex_session"] },
+          "sourceId": { "type": "string", "minLength": 1 },
+          "location": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "rubric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concern", "standalone", "evidence", "distinct", "criticalFailure"],
+      "properties": {
+        "concern": { "$ref": "#/$defs/judgment" },
+        "standalone": { "$ref": "#/$defs/judgment" },
+        "evidence": { "$ref": "#/$defs/judgment" },
+        "distinct": { "$ref": "#/$defs/judgment" },
+        "criticalFailure": { "type": "boolean" }
+      }
+    },
+    "judgment": { "enum": ["pass", "fail", "unclear"] }
+  }
+}

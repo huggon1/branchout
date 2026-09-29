@@ -9,6 +9,8 @@ import { readProjectGitHistory } from "../../../readers/git-history";
 import { readProjectRepository } from "../../../readers/repository";
 import { discoverCodexSessionCandidates } from "../../../readers/codex-sessions";
 import type { ModelService } from "../model-service";
+import { analysisBatchResultSchema, type AnalysisCheckpoint } from "../../../shared/project-analysis-checkpoint";
+import { analysisPromptSettingsSchema, type AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
 
 const rangeIdSchema = z.enum(["recent_30", "recent_100"]);
 const startSchema = z
@@ -59,6 +61,7 @@ const analysisDraftSchema = z
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
     summary: z.string().min(1).max(1400),
+    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
     findings: z.array(
       z
         .object({
@@ -185,6 +188,8 @@ const analysisDraftSchema = z
   .strict();
 
 const workerEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("credential_request"), taskId: z.string().uuid(), requestId: z.string().uuid() }).strict(),
+  z.object({ type: z.literal("checkpoint"), taskId: z.string().uuid(), manifestHash: z.string().regex(/^[a-f0-9]{64}$/), batchTotal: z.number().int().positive().max(1000), index: z.number().int().nonnegative(), result: analysisBatchResultSchema }).strict(),
   z
     .object({
       type: z.literal("phase"),
@@ -222,6 +227,13 @@ const workerEventSchema = z.discriminatedUnion("type", [
       type: z.literal("failed"),
       taskId: z.string().uuid(),
       code: z.string().min(1).max(100),
+      diagnostic: z.object({
+        httpStatus: z.number().int().min(100).max(599).optional(),
+        providerCode: z.string().regex(/^[a-zA-Z0-9_.-]{1,64}$/).optional(),
+        transportCode: z.string().regex(/^[a-zA-Z0-9_.-]{1,64}$/).optional(),
+        batchIndex: z.number().int().positive().optional(),
+        batchTotal: z.number().int().positive().optional(),
+      }).strict().optional(),
     })
     .strict(),
 ]);
@@ -293,6 +305,7 @@ export const projectAnalysisReportForSaveSchema = z
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
     summary: z.string().min(1).max(1400),
+    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
     coverage: z
       .object({
         repositoryRead: z.array(z.string().min(1).max(4096)),
@@ -388,6 +401,7 @@ export const projectAnalysisRunInputSchema = z
     directory: z.string().min(1).max(4096),
     rangeId: rangeIdSchema,
     codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
+    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
     focusSetSnapshot: z
       .object({
         capturedAt: z.string().datetime(),
@@ -417,11 +431,15 @@ export interface ProjectAnalysisWorker {
 
 export interface ProjectAnalysisPipelinePorts {
   workerPath: string;
+  traceRoot: string;
+  exportTrace(traceRoot: string, taskId: string): Promise<string | undefined>;
+  recordTraceLineage?(traceRoot: string, taskId: string, previousTaskId?: string): Promise<void>;
   spawnWorker(path: string): ProjectAnalysisWorker;
   projects: { get(projectId: string): ProjectRecord | undefined };
   focusCards: {
     activeSnapshot(): { capturedAt: string; cards: FrozenFocusCard[] };
   };
+  prompts: { snapshot(): AnalysisPromptSnapshot };
   models: Pick<ModelService, "acquire">;
   tasks: {
     create(input: unknown): Promise<{ taskId: string }>;
@@ -444,6 +462,11 @@ export interface ProjectAnalysisPipelinePorts {
   runInputs: {
     save(taskId: string, input: RunInput): Promise<void>;
     read(taskId: string): RunInput | undefined;
+    remove(taskId: string): Promise<void>;
+  };
+  checkpoints: {
+    read(taskId: string): AnalysisCheckpoint | undefined;
+    append(taskId: string, manifestHash: string, batchTotal: number, index: number, result: unknown): Promise<void>;
     remove(taskId: string): Promise<void>;
   };
   notify: () => void;
@@ -471,6 +494,12 @@ const phaseLabels = {
   reasoning: "形成发现与建议",
 } as const;
 const safeFailureCodes = new Set(Object.keys(failureMessages));
+function safeModelActivity(message: string | undefined): string | undefined {
+  if (!message || message.length > 100) return undefined;
+  return /^归纳第 \d{1,3} 层关注角度$/.test(message) ||
+    /^第 \d{1,4} 批：(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(message)
+    ? message : undefined;
+}
 
 function encodeLocation(
   location: z.infer<typeof sourceLocationSchema>,
@@ -514,6 +543,7 @@ function reportFromDraft(
     projectLabel: draft.projectLabel,
     generatedAt: draft.generatedAt,
     summary: draft.summary,
+    ...(draft.promptGuidance ? { promptGuidance: draft.promptGuidance } : {}),
     coverage: {
       repositoryRead: draft.coverage.repository.readPaths,
       repositorySkipped: draft.coverage.repository.skippedPaths,
@@ -621,6 +651,13 @@ export class ProjectAnalysisPipelineService {
     return this.ports.reports.read(z.string().uuid().parse(analysisReportId));
   }
 
+  async exportTrace(taskId: string): Promise<string | undefined> {
+    const id = z.string().uuid().parse(taskId);
+    if (this.ports.tasks.read(id)?.kind !== "project_analysis")
+      throw new Error("找不到项目分析任务");
+    return this.ports.exportTrace(this.ports.traceRoot, id);
+  }
+
   async start(raw: unknown): Promise<string> {
     if (this.closed) throw new Error("应用正在退出");
     if (this.active.size >= 2) throw new Error("后台分析任务数量已达上限");
@@ -641,6 +678,7 @@ export class ProjectAnalysisPipelineService {
       directory: project.directory,
       rangeId: input.rangeId,
       codexSessionIds: [...new Set(input.codexSessionIds)],
+      promptGuidance: this.ports.prompts.snapshot(),
       focusSetSnapshot,
     });
   }
@@ -662,7 +700,7 @@ export class ProjectAnalysisPipelineService {
     const current = this.boundProject(previous.projectId);
     if (current.directory !== previous.directory)
       throw new Error("项目目录已变化，请重新执行分析预检");
-    return this.launch(previous);
+    return this.launch(previous, id);
   }
 
   async cancel(taskId: string): Promise<void> {
@@ -722,7 +760,7 @@ export class ProjectAnalysisPipelineService {
     };
   }
 
-  private async launch(input: RunInput): Promise<string> {
+  private async launch(input: RunInput, resumeFromTaskId?: string): Promise<string> {
     if (this.closed || this.active.size >= 2)
       throw new Error("后台分析任务数量已达上限");
     const lease = await this.ports.models.acquire();
@@ -741,6 +779,7 @@ export class ProjectAnalysisPipelineService {
       });
       taskId = task.taskId;
       await this.ports.runInputs.save(taskId, input);
+      await this.ports.recordTraceLineage?.(this.ports.traceRoot, taskId, resumeFromTaskId);
       const worker = this.ports.spawnWorker(this.ports.workerPath);
       const entry: ActiveRun = {
         worker,
@@ -782,6 +821,9 @@ export class ProjectAnalysisPipelineService {
           active: true,
         })),
         config: lease.config,
+        promptGuidance: input.promptGuidance,
+        traceRoot: this.ports.traceRoot,
+        ...(resumeFromTaskId ? { resumeCheckpoint: this.ports.checkpoints.read(resumeFromTaskId) } : {}),
       };
       worker.postMessage({ type: "run_project_analysis", ...command });
       this.ports.notify();
@@ -809,6 +851,28 @@ export class ProjectAnalysisPipelineService {
       return;
     }
     const event = parsed.data;
+    if (event.type === "credential_request") {
+      try {
+        const credential = await active.lease.refreshCredential();
+        active.worker.postMessage({ type: "credential_response", requestId: event.requestId, credential });
+      } catch {
+        active.worker.postMessage({ type: "credential_response", requestId: event.requestId, error: "model_auth" });
+      }
+      return;
+    }
+    // The limit bounds inactivity, so a multi-batch analysis can finish without
+    // being killed solely because earlier batches took time.
+    active.timer.refresh();
+    if (event.type === "checkpoint") {
+      try {
+        await this.ports.checkpoints.append(taskId, event.manifestHash, event.batchTotal, event.index, event.result);
+        active.worker.postMessage({ type: "checkpoint_ack", index: event.index, ok: true });
+      } catch {
+        active.worker.postMessage({ type: "checkpoint_ack", index: event.index, ok: false });
+        await this.fail(taskId, "task_protocol");
+      }
+      return;
+    }
     if (event.type === "phase") {
       await this.ports.tasks.receive(taskId, {
         type: "phase",
@@ -856,12 +920,13 @@ export class ProjectAnalysisPipelineService {
       const batchSummary = event.batchCompleted !== undefined && event.batchTotal !== undefined
         ? `已完成第 ${event.batchCompleted} / ${event.batchTotal} 批资料分析`
         : undefined;
-      if (batchSummary || summaries.length)
+      const modelActivity = safeModelActivity(event.message);
+      if (batchSummary || summaries.length || modelActivity)
         await this.ports.tasks.receive(taskId, {
           type: "activity",
           taskId,
           action: batchSummary ? "reasoning" : "progress",
-          summary: batchSummary ?? `已读取 ${summaries.join("、")}`,
+          summary: batchSummary ?? modelActivity ?? `已读取 ${summaries.join("、")}`,
           ...(hasCount ? { progress: { completed } } : {}),
         });
       this.ports.notify();
@@ -871,6 +936,7 @@ export class ProjectAnalysisPipelineService {
       await this.fail(
         taskId,
         safeFailureCodes.has(event.code) ? event.code : "execution_failed",
+        event.diagnostic,
       );
       return;
     }
@@ -905,24 +971,31 @@ export class ProjectAnalysisPipelineService {
       result: { kind: "project_analysis_report", id: reportId },
     });
     await this.ports.runInputs.remove(taskId);
+    await this.ports.checkpoints.remove(taskId);
     await this.release(taskId, active);
     this.ports.notify();
   }
 
-  private async fail(taskId: string, code: string): Promise<void> {
+  private async fail(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string; batchIndex?: number; batchTotal?: number }): Promise<void> {
     const active = this.active.get(taskId);
     if (active) active.stopping = true;
     try {
-      await this.taskFailure(taskId, code);
+      await this.taskFailure(taskId, code, diagnostic);
     } finally {
       if (active) await this.release(taskId, active);
     }
     this.ports.notify();
   }
 
-  private async taskFailure(taskId: string, code: string): Promise<void> {
+  private async taskFailure(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string; batchIndex?: number; batchTotal?: number }): Promise<void> {
     const safeCode = safeFailureCodes.has(code) ? code : "execution_failed";
     const message = failureMessages[safeCode as keyof typeof failureMessages];
+    const details = [
+      diagnostic?.batchIndex && diagnostic?.batchTotal ? `第 ${diagnostic.batchIndex}/${diagnostic.batchTotal} 批` : undefined,
+      diagnostic?.httpStatus ? `HTTP ${diagnostic.httpStatus}` : undefined,
+      diagnostic?.providerCode ? `服务代码 ${diagnostic.providerCode}` : undefined,
+      diagnostic?.transportCode ? `网络代码 ${diagnostic.transportCode}` : undefined,
+    ].filter(Boolean);
     await this.ports.tasks.receive(taskId, {
       type: "failed",
       taskId,
@@ -932,7 +1005,7 @@ export class ProjectAnalysisPipelineService {
           ? "分析工作进程已退出，请重试。"
           : safeCode === "task_timeout"
             ? "项目分析超过执行时限，请重试。"
-            : message,
+            : `${message}${details.length ? `（${details.join("，")}）` : ""}`,
     });
   }
 
