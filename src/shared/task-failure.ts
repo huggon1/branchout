@@ -41,8 +41,6 @@ export type ModelFailureDiagnostic = {
   httpStatus?: number;
   providerCode?: string;
   transportCode?: string;
-  batchIndex?: number;
-  batchTotal?: number;
 };
 export class ExecutionFailure extends Error {
   constructor(

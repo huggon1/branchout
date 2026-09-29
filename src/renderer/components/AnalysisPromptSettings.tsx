@@ -31,9 +31,7 @@ export function AnalysisPromptSettings() {
   const dirty = Boolean(saved && (
     analysisGoal !== saved.analysisGoal || cardWriting !== saved.cardWriting
   ));
-  const fieldError = !analysisGoal.trim() || !cardWriting.trim()
-    ? "请填写分析目标和卡片写作指导。"
-    : analysisGoal.trim().length > 4000 || cardWriting.trim().length > 4000
+  const fieldError = analysisGoal.trim().length > 4000 || cardWriting.trim().length > 4000
       ? "每个字段最多填写 4000 个字符。"
       : "";
 
@@ -63,7 +61,7 @@ export function AnalysisPromptSettings() {
       const result = await bridge.resetAnalysisPrompt();
       if (result.ok) {
         applyView(result.value);
-        setNotice("已恢复默认提示词；后续分析使用默认内容。");
+        setNotice("已清除补充信息；后续分析使用固定任务说明。");
       } else setError(result.message);
     } catch {
       setError("默认提示词恢复失败，请重试。");
@@ -77,10 +75,10 @@ export function AnalysisPromptSettings() {
       <div className="settings-section-heading">
         <div>
           <h3 id="analysis-prompt-title">项目分析提示词</h3>
-          <p>调整分析重点和关注卡写法。证据引用、输出格式和资料边界由应用固定。</p>
+          <p>可选的补充信息。留空时，Agent 使用固定任务说明。</p>
         </div>
         <span className={`status-tag ${saved?.customized ? "status-active" : "status-paused"}`}>
-          {saved?.customized ? "自定义" : "默认"}
+          {saved?.customized ? "已补充" : "未补充"}
         </span>
       </div>
       <label className="settings-field" htmlFor="analysis-prompt-goal">
@@ -112,7 +110,7 @@ export function AnalysisPromptSettings() {
           {busy ? "正在保存…" : "保存提示词"}
         </button>
         <button className="button button-quiet" onClick={() => void reset()} disabled={busy || !saved || (!saved.customized && !dirty)}>
-          恢复默认
+          清除补充信息
         </button>
         {dirty && <span>有尚未保存的修改</span>}
       </div>

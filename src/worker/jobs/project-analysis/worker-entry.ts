@@ -2,9 +2,9 @@ import { z } from "zod";
 import { executionSchema } from "../../../shared/model-contracts";
 import { ExecutionFailure } from "../../../shared/task-failure";
 import { runProjectAnalysis } from ".";
-import { analysisCheckpointSchema } from "../../../shared/project-analysis-checkpoint";
 import { analysisPromptSettingsSchema } from "../../../shared/analysis-prompt-contracts";
 import { randomUUID } from "node:crypto";
+import { maximumSelectedConversationCount } from "../../../shared/project-analysis-limits";
 
 const commandSchema = z
   .object({
@@ -13,8 +13,7 @@ const commandSchema = z
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
     directory: z.string().min(1).max(4096),
-    rangeId: z.enum(["recent_30", "recent_100"]),
-    codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
+    codexSessionIds: z.array(z.string().min(1).max(300)).max(maximumSelectedConversationCount),
     focusCards: z
       .array(
         z
@@ -30,7 +29,6 @@ const commandSchema = z
     config: executionSchema,
     traceRoot: z.string().min(1).max(4096),
     promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
-    resumeCheckpoint: analysisCheckpointSchema.optional(),
   })
   .strict();
 
@@ -40,7 +38,6 @@ if (!port)
 
 const controller = new AbortController();
 let used = false;
-const checkpointAcks = new Map<number, { resolve: () => void; reject: (error: Error) => void }>();
 const credentialRequests = new Map<string, { resolve: (token: string) => void; reject: (error: Error) => void }>();
 port.on("message", ({ data }) => {
   if (data?.type === "credential_response") {
@@ -52,19 +49,8 @@ port.on("message", ({ data }) => {
     }
     return;
   }
-  if (data?.type === "checkpoint_ack") {
-    const pending = checkpointAcks.get(data.index);
-    if (pending) {
-      checkpointAcks.delete(data.index);
-      if (data.ok === true) pending.resolve();
-      else pending.reject(new Error("checkpoint_failed"));
-    }
-    return;
-  }
   if (data?.type === "cancel") {
     controller.abort();
-    for (const pending of checkpointAcks.values()) pending.reject(new Error("cancelled"));
-    checkpointAcks.clear();
     for (const pending of credentialRequests.values()) pending.reject(new Error("cancelled"));
     credentialRequests.clear();
     return;
@@ -87,10 +73,6 @@ port.on("message", ({ data }) => {
   const { type: _type, config, ...input } = parsed.data;
   void runProjectAnalysis({ ...input, config }, controller.signal, (event) =>
     port.postMessage(event), {
-      persistCheckpoint: (checkpoint) => new Promise<void>((resolve, reject) => {
-        checkpointAcks.set(checkpoint.index, { resolve, reject });
-        port.postMessage(checkpoint);
-      }),
       requestCredential: () => new Promise<string>((resolve, reject) => {
         const requestId = randomUUID();
         credentialRequests.set(requestId, { resolve, reject });

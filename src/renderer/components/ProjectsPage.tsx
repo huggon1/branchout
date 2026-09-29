@@ -9,6 +9,7 @@ import type {
   UiTask,
 } from "../product-ui";
 import { EmptyState } from "./Primitives";
+import { defaultSelectedConversationCount, maximumSelectedConversationCount } from "../../shared/project-analysis-limits";
 
 type SessionSignal = NonNullable<UiSessionCandidate["preview"]>["signal"];
 const sessionSignalLabels: Record<SessionSignal, string> = {
@@ -56,7 +57,6 @@ export function ProjectsPage({
   onStartAnalysis: (
     projectId: string,
     sessionIds: string[],
-    commitRangeId: string,
   ) => Promise<boolean>;
   onAcceptSuggestion: (
     reportId: string,
@@ -77,7 +77,6 @@ export function ProjectsPage({
   const [reportId, setReportId] = useState(initialReportId ?? "");
   const [preflight, setPreflight] = useState<UiAnalysisPreflight>();
   const [inspecting, setInspecting] = useState(false);
-  const [commitRangeId, setCommitRangeId] = useState("");
   const [sessionQuery, setSessionQuery] = useState("");
   const [sessionSignalFilter, setSessionSignalFilter] = useState<"all" | SessionSignal>("all");
   const [sessionOwnershipFilter, setSessionOwnershipFilter] = useState<"all" | "confirmed" | "uncertain">("all");
@@ -135,6 +134,10 @@ export function ProjectsPage({
       .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }, [preflight?.sessions, sessionQuery, sessionSignalFilter, sessionOwnershipFilter]);
   const selectedSessionCount = preflight?.sessions.filter((session) => session.selected).length ?? 0;
+  const selectedPreviewMessages = preflight?.sessions
+    .filter((session) => session.selected)
+    .reduce((count, session) => count + (session.preview?.usableUserMessageCount ?? 0), 0) ?? 0;
+  const partialPreviews = preflight?.sessions.filter((session) => session.selected && session.preview?.bounded).length ?? 0;
   const sessionGroups = useMemo(() => {
     const groups = new Map<string, UiSessionCandidate[]>();
     for (const session of filteredSessions) {
@@ -151,7 +154,18 @@ export function ProjectsPage({
     const visibleIds = new Set(filteredSessions.map((session) => session.sessionId));
     setPreflight((current) => current && {
       ...current,
-      sessions: current.sessions.map((session) => visibleIds.has(session.sessionId) ? { ...session, selected } : session),
+      sessions: (() => {
+        const selectedIds = new Set(current.sessions.filter((session) => session.selected).map((session) => session.sessionId));
+        if (selected) {
+          for (const session of filteredSessions) {
+            if (selectedIds.size >= maximumSelectedConversationCount) break;
+            selectedIds.add(session.sessionId);
+          }
+        } else {
+          for (const id of visibleIds) selectedIds.delete(id);
+        }
+        return current.sessions.map((session) => ({ ...session, selected: selectedIds.has(session.sessionId) }));
+      })(),
     });
   };
 
@@ -185,14 +199,8 @@ export function ProjectsPage({
     try {
       const next = await onPreflight(project.projectId);
       if (token !== inspectionToken.current) return;
-      if (next) {
-        setPreflight(next);
-        setCommitRangeId(
-          next.commits.ranges.find((range) => range.selected)?.rangeId ??
-            next.commits.ranges[0]?.rangeId ??
-            "",
-        );
-      } else setPreflightError("项目材料解析失败。检查项目目录状态后重试。");
+      if (next) setPreflight(next);
+      else setPreflightError("项目材料解析失败。检查项目目录状态后重试。");
     } catch {
       if (token === inspectionToken.current)
         setPreflightError("项目材料解析失败。检查项目目录状态后重试。");
@@ -217,7 +225,9 @@ export function ProjectsPage({
         current && {
           ...current,
           sessions: current.sessions.map((item) =>
-            item.sessionId === sessionId ? { ...item, selected } : item,
+            item.sessionId === sessionId &&
+              (!selected || current.sessions.filter((session) => session.selected).length < maximumSelectedConversationCount)
+              ? { ...item, selected } : item,
           ),
         },
     );
@@ -226,7 +236,7 @@ export function ProjectsPage({
     const sessionIds = preflight.sessions
       .filter((item) => item.selected)
       .map((item) => item.sessionId);
-    if (await onStartAnalysis(project.projectId, sessionIds, commitRangeId))
+    if (await onStartAnalysis(project.projectId, sessionIds))
       setPreflight(undefined);
   };
 
@@ -412,7 +422,7 @@ export function ProjectsPage({
               )}
               {inspecting && (
                 <p className="project-inspecting-status" role="status">
-                  正在解析仓库、Git 历史和 Codex 对话的候选范围…
+                  正在检查仓库并查找相关 Codex 对话…
                 </p>
               )}
               {preflight && (
@@ -445,31 +455,6 @@ export function ProjectsPage({
                       </p>
                     </article>
                     <article>
-                      <span>Git commit</span>
-                      <strong>{preflight.commits.count} 条记录</strong>
-                      <p>
-                        {preflight.commits.from || "起点待定"} →{" "}
-                        {preflight.commits.to || "当前 HEAD"}
-                      </p>
-                      <label className="commit-range-control">
-                        本次读取范围
-                        <select
-                          aria-label="选择 commit 读取范围"
-                          value={commitRangeId}
-                          onChange={(event) =>
-                            setCommitRangeId(event.target.value)
-                          }
-                        >
-                          {preflight.commits.ranges.map((range) => (
-                            <option value={range.rangeId} key={range.rangeId}>
-                              {range.label} · {range.count} 条
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <p>报告会记录未读取的 commit 数量和范围。</p>
-                    </article>
-                    <article>
                       <span>Codex 工作对话</span>
                       <strong>{preflight.sessions.length} 个候选</strong>
                       <p>归属状态与内容提示分别筛选；内容提示便于浏览，展开摘录后自行判断相关性。</p>
@@ -483,11 +468,13 @@ export function ProjectsPage({
                   {preflight.sessions.length > 0 && (
                     <fieldset className="session-picker">
                       <legend>选择要纳入的对话</legend>
+                      <p>默认选最近 {defaultSelectedConversationCount} 条有可读发言的已确认对话；可手动调整，最多 {maximumSelectedConversationCount} 条。</p>
                       <div className="session-picker-summary" aria-live="polite">
                         <div><small>候选</small><strong>{preflight.sessions.length}</strong></div>
                         <div><small>已选</small><strong>{selectedSessionCount}</strong></div>
-                        <div><small>提交读取</small><strong>{selectedSessionCount}</strong></div>
+                        <div><small>预览中可读发言</small><strong>至少 {selectedPreviewMessages} 条</strong></div>
                       </div>
+                      <p>实际纳入的消息、截取与跳过数量会写入分析报告。{partialPreviews > 0 ? `其中 ${partialPreviews} 条对话的预览只覆盖部分内容。` : ""}</p>
                       <div className="session-picker-controls">
                         <label className="session-search">
                           <span className="visually-hidden">搜索 Codex 对话</span>
@@ -527,7 +514,7 @@ export function ProjectsPage({
                       <div className="session-picker-bulk-actions">
                         <span>显示 {filteredSessions.length} / {preflight.sessions.length} 个</span>
                         <div>
-                          <button type="button" className="text-button" onClick={() => selectVisibleSessions(true)} disabled={!filteredSessions.length}>全选当前结果</button>
+                          <button type="button" className="text-button" onClick={() => selectVisibleSessions(true)} disabled={!filteredSessions.length || selectedSessionCount >= maximumSelectedConversationCount}>选中当前结果（至多 {maximumSelectedConversationCount} 条）</button>
                           <button type="button" className="text-button" onClick={() => selectVisibleSessions(false)} disabled={!filteredSessions.length}>清空当前结果</button>
                         </div>
                       </div>
@@ -547,6 +534,7 @@ export function ProjectsPage({
                                     type="checkbox"
                                     aria-label={`纳入分析：${session.label}`}
                                     checked={session.selected}
+                                    disabled={!session.selected && selectedSessionCount >= maximumSelectedConversationCount}
                                     onChange={(event) => toggleSession(session.sessionId, event.target.checked)}
                                   />
                                   <div className="session-option-main">
@@ -608,14 +596,14 @@ export function ProjectsPage({
                     </fieldset>
                   )}
                   {!preflight.sessions.length && (
-                    <p className="session-list-empty">目前没有找到 Codex 对话候选；本次项目分析仍会使用仓库和 Git 历史。</p>
+                    <p className="session-list-empty">目前没有找到 Codex 对话候选；本次项目分析会探索仓库。</p>
                   )}
                   <div className="preflight-actions">
                     <span>所选会话都会提交读取；无法读取或正文超出预算的部分会在报告中说明。</span>
                     <button
                       className="button button-primary"
                       onClick={() => void startAnalysis()}
-                      disabled={busy || !commitRangeId}
+                      disabled={busy}
                     >
                       {busy ? "正在启动…" : "提交分析"}
                     </button>
@@ -660,8 +648,7 @@ export function ProjectsPage({
                   />
                 ) : (
                   <EmptyState title="还没有分析报告">
-                    解析项目材料并确认范围后，提交分析以阅读仓库、commit
-                    和你选中的 Codex 对话所形成的发现与建议。
+                    选择对话后提交分析，Agent 会阅读对话并探索仓库，形成发现与建议。
                   </EmptyState>
                 )}
               </section>

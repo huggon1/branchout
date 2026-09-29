@@ -241,7 +241,7 @@ export function TasksPage({
                     onClick={() => void onRetry(selected.taskId)}
                   >
                     {selected.kind === "project_analysis"
-                      ? "从已保存进度重试"
+                      ? "重新分析"
                       : "重试任务"}
                   </button>
                 )}

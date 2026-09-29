@@ -6,8 +6,6 @@ import {
   focusVersionIdSchema,
 } from "./focus-contracts";
 
-export const analysisRangeIdSchema = z.enum(["recent_30", "recent_100"]);
-
 export const analysisEvidenceRefSchema = z
   .object({
     source: z.enum(["repository", "commit", "codex_session"]),
@@ -24,7 +22,6 @@ export const projectAnalysisInputSchema = z
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
     directory: z.string().min(1).max(4096),
-    rangeId: analysisRangeIdSchema,
     codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
     focusCards: z.array(focusCardSnapshotSchema),
   })
@@ -39,12 +36,6 @@ export const projectAnalysisPreflightSchema = z
         gitHead: z.string().min(1).max(200),
         hasUncommittedChanges: z.boolean(),
         candidateFileCount: z.number().int().nonnegative(),
-      })
-      .strict(),
-    commits: z
-      .object({
-        availableCount: z.number().int().nonnegative(),
-        commitIds: z.array(z.string().min(1).max(200)).max(10000),
       })
       .strict(),
     codexDiscovery: z.object({
@@ -79,7 +70,6 @@ export const projectAnalysisPreflightSchema = z
 export const startProjectAnalysisSchema = z
   .object({
     projectId: z.string().uuid(),
-    rangeId: analysisRangeIdSchema.default("recent_30"),
     codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
   })
   .strict();
@@ -116,8 +106,8 @@ export const projectAnalysisReportSchema = z
     generatedAt: z.string().datetime(),
     summary: z.string().min(1).max(1400).optional(),
     promptGuidance: z.object({
-      analysisGoal: z.string().min(1).max(4000),
-      cardWriting: z.string().min(1).max(4000),
+      analysisGoal: z.string().max(4000),
+      cardWriting: z.string().max(4000),
       revision: z.string().regex(/^sha256:[a-f0-9]{64}$/),
     }).strict().optional(),
     coverage: z
@@ -129,10 +119,11 @@ export const projectAnalysisReportSchema = z
             .object({ path: z.string().min(1).max(4096), reason: z.string().max(1000) })
             .strict(),
         ),
-        commitsRead: z.array(z.string().min(1).max(200)),
-        commitsSkipped: z.array(z.string().min(1).max(200)),
+        // Historical reports retain the commit coverage saved by earlier versions.
+        commitsRead: z.array(z.string().min(1).max(200)).optional(),
+        commitsSkipped: z.array(z.string().min(1).max(200)).optional(),
         commitRange: z.object({
-          rangeId: analysisRangeIdSchema,
+          rangeId: z.enum(["recent_30", "recent_100"]),
           availableCount: z.number().int().nonnegative(),
           skippedByRange: z.number().int().nonnegative(),
         }).strict().optional(),
@@ -211,7 +202,6 @@ export const acceptSuggestionResultSchema = z.discriminatedUnion("status", [
 ]);
 
 export type AnalysisEvidenceRef = z.infer<typeof analysisEvidenceRefSchema>;
-export type AnalysisRangeId = z.infer<typeof analysisRangeIdSchema>;
 export type ProjectAnalysisInput = z.infer<typeof projectAnalysisInputSchema>;
 export type ProjectAnalysisPreflight = z.infer<
   typeof projectAnalysisPreflightSchema

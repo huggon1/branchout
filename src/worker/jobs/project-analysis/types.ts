@@ -1,13 +1,10 @@
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
-import type { ProjectCommitRangeId } from "../../../readers/git-history";
-import type { ValidatedProjectAnalysisOutput } from "../../reasoning/project-analysis";
 import type { AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
 
-export type AnalysisSourceKind = "repository" | "commit" | "codex_session";
+export type AnalysisSourceKind = "repository" | "codex_session";
 
 export type AnalysisSourceLocation =
   | { path: string; startLine: number; endLine?: number }
-  | { commitId: string }
   | {
       sessionId: string;
       messageId: string;
@@ -36,17 +33,11 @@ export type ProjectAnalysisWorkerInput = {
   projectId: string;
   projectLabel: string;
   directory: string;
-  rangeId: ProjectCommitRangeId;
   codexSessionIds: string[];
   focusCards: ProjectAnalysisFocusCard[];
   config: ModelExecutionConfig;
   promptGuidance?: AnalysisPromptSnapshot;
   traceRoot?: string;
-  resumeCheckpoint?: {
-    manifestHash: string;
-    batchTotal: number;
-    batches: { index: number; result: ValidatedProjectAnalysisOutput }[];
-  };
 };
 
 export type ProjectAnalysisFinding = {
@@ -91,19 +82,6 @@ export type ProjectAnalysisReportDraft = {
       modelFilesOmitted: number;
       workingTreeClean: boolean;
     };
-    commits: {
-      rangeId: ProjectCommitRangeId;
-      newestCommit: string | null;
-      oldestCommit: string | null;
-      readCommitIds: string[];
-      read: number;
-      available: number;
-      skippedByRange: number;
-      modelIncluded: number;
-      modelOmitted: number;
-      modelSkippedCommitIds: string[];
-      bounded: boolean;
-    };
     codexSessions: {
       sourceState: "not_selected" | "selected_with_user_messages" | "selected_without_valid_user_messages" | "read_failed";
       selected: number;
@@ -142,22 +120,17 @@ export type ProjectAnalysisReportDraft = {
       maximumCharacters: number;
       evidenceIncluded: number;
       evidenceOmittedByBudget: number;
-      batches?: number;
     };
   };
 };
 
 export type ProjectAnalysisEvent =
-  | { type: "checkpoint"; taskId: string; manifestHash: string; batchTotal: number; index: number; result: ValidatedProjectAnalysisOutput }
-  | { type: "phase"; taskId: string; phase: "repository" | "git_history" | "codex_sessions" | "reasoning" }
+  | { type: "phase"; taskId: string; phase: "repository" | "codex_sessions" | "reasoning" }
   | {
       type: "progress";
       taskId: string;
       repositoryFilesRead?: number;
-      commitsRead?: number;
       sessionsRead?: number;
       messagesRead?: number;
-      batchCompleted?: number;
-      batchTotal?: number;
       message?: string;
     };

@@ -32,13 +32,13 @@ One Telegram message produces one content task. For multiple links or unsupporte
 
 Projects lists local repositories and binding status. A project page shows its card overview, analysis action, and historical reports. Unbound projects move to history while retaining report and referenced-card reading paths.
 
-Before analysis, the UI lists the planned repository range, Git history range, and discovered Codex sessions. The session selector shows candidate and selected counts, user-message counts and excerpts in preview coverage, and project attribution. Search, filtering, grouping, and bulk actions help adjust the set. Users explicitly include sessions with uncertain attribution; scan scope and submitted session count are visible before launch. The report shows conclusions and coverage, then findings and evidence, then card suggestions.
+Before analysis, the UI shows repository state and discovered Codex sessions. It selects the ten most recently active confirmed sessions with readable user messages by default. The selector caps the chosen set at thirty and shows candidate and selected counts, user-message counts and excerpts in preview coverage, and project attribution. Search, filtering, grouping, and bulk actions help adjust the set. Users explicitly include sessions with uncertain attribution; scan scope and submitted session count are visible before launch. The report shows actual parsed coverage and omissions, then conclusions, findings, evidence, and card suggestions.
 
 Each suggestion compares the original and proposed card, shows rationale and evidence, and offers Accept. Acceptance links to the new card or version. If the target changed, the UI displays current and proposed text for another review.
 
 ## Task center
 
-The task list uses task name, project or source link, status, start time, and result. Running tasks appear first. Details show recent Agent activities in time order, such as reading a source, understanding content, checking card 8 of 16, reading 12 commits, analyzing selected Codex sessions, or preparing suggestions. Activities show actual actions and counts; unknown totals leave only completed counts visible.
+The task list uses task name, project or source link, status, start time, and result. Running tasks appear first. Details show recent Agent activities in time order, such as reading a source, understanding content, checking card 8 of 16, parsing selected Codex sessions, or preparing suggestions. Activities show actual actions and counts; unknown totals leave only completed counts visible.
 
 Navigation retains running status after leaving Tasks. Returning restores recent activity and current stage. Completed tasks open their content or analysis reports. Failed and canceled states show completed scope, reason, and retry action. Activities use readable summaries; reports contain detailed evidence.
 
@@ -46,6 +46,6 @@ Navigation retains running status after leaving Tasks. Returning restores recent
 
 Model settings show one current connection, selected from general API and Codex subscription. Telegram shows connection, chat binding, and message receipt. Content sources show GitHub, X, and Xiaohongshu reader capability and configuration.
 
-Project analysis settings show the current analysis goal and focus-card-writing guidance in separate text fields. Saving applies to later runs. Restore Defaults replaces both fields with the shipped text. The page shows field errors and whether edits remain unsaved.
+Project analysis settings show optional analysis-goal and focus-card-writing guidance in separate text fields. Saving applies filled fields to later runs. Clear Supplemental Information empties both fields. The page shows field errors and whether edits remain unsaved.
 
 Empty projects, empty cards, zero connections, empty reports, missing model configuration, source failures, and insufficient analysis input each show a distinct state and next action. Narrow windows preserve the reading axis and primary actions; activities and connections scroll within their sections.

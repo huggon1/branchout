@@ -1,19 +1,19 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-// Advance this version whenever fixed batch or synthesis instructions change.
-export const projectAnalysisPromptProtocolVersion = 1;
+// Advance this version whenever the fixed agent instructions change.
+export const projectAnalysisPromptProtocolVersion = 2;
 
 export const analysisPromptSettingsSchema = z.object({
-  analysisGoal: z.string().trim().min(1).max(4000),
-  cardWriting: z.string().trim().min(1).max(4000),
+  analysisGoal: z.string().trim().max(4000),
+  cardWriting: z.string().trim().max(4000),
 }).strict();
 
 export type AnalysisPromptSettings = z.infer<typeof analysisPromptSettingsSchema>;
 
 export const defaultAnalysisPromptSettings: AnalysisPromptSettings = {
-  analysisGoal: "提炼用户反复表达的目标、取舍和未解决问题；在缺少可用对话时，依据仓库与提交记录识别值得持续关注的项目方向。",
-  cardWriting: "关注卡用简短、自包含的项目背景和持续关注角度描述用户意图。将同义角度合并，剔除一次性命令、实现步骤和过细的项目内部名称。已有卡片覆盖该角度时优先提出有实质改进的更新。",
+  analysisGoal: "",
+  cardWriting: "",
 };
 
 export type AnalysisPromptSnapshot = AnalysisPromptSettings & { revision: string };

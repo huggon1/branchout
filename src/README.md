@@ -7,7 +7,7 @@ This guide describes the current source layout. The [product specification](../d
 | [shared](shared/README.md) | Cross-process contracts for projects, cards, reports, tasks, and integration messages |
 | [main](main/README.md) | Electron lifecycle, data ownership, scheduling, Telegram, and IPC |
 | [worker](worker/README.md) | Content connections, project analysis, and Pi sessions |
-| [readers](readers/README.md) | Local repository, Git history, and Codex session input shared by main-process previews and worker analysis |
+| [readers](readers/README.md) | Repository identity and Codex session input shared by main-process previews and worker analysis |
 | [platforms](platforms/README.md) | GitHub, X, and Xiaohongshu source retrieval and normalization |
 | [renderer](renderer/README.md) | Content, cards, analysis, task center, and settings UI |
 

@@ -20,13 +20,13 @@ Source, general understanding, and connections are separately saved stages. The 
 
 ## Project analysis pipeline
 
-Analysis first records a local repository input snapshot: directory, Git HEAD, worktree status, files actually read, and commit range. A Codex session reader discovers candidates from local indexes and metadata and attributes them using working directory and Git repository identity. Users confirm selected sessions before submission. A deterministic parser removes application-added content and returns user messages and necessary final assistant replies with message locations. The same rules produce previews and full input. It filters model thinking, tool calls and output, system configuration, and credentials. The model reads bounded batches; reports record used and skipped scope.
+Analysis records the repository directory, Git HEAD, and worktree status. A Codex session reader discovers candidates from local indexes and metadata and attributes them using working directory and Git repository identity. Users confirm selected sessions before submission. A deterministic parser extracts user messages and relevant final assistant replies into an owner-only XML file with message locations. The same parsing rules produce previews and full input. Reports record the files the agent opened and selected conversation scope.
 
-The worker uses repository snapshots, commits, and selected Codex conversations to produce findings, evidence, and card-change suggestions. Suggestions identify a target card and base version or a new card. The main process validates and saves a frozen report. For acceptance, it creates a first card version or compares an existing card with the suggestion's base version before saving a new version and acceptance record.
+The worker gives Pi the repository root, conversation XML path, and current focus cards. Pi explores files with read-only tools and produces findings, evidence, and card-change suggestions. Suggestions identify a target card and base version or a new card. The main process validates and saves a frozen report. For acceptance, it creates a first card version or compares an existing card with the suggestion's base version before saving a new version and acceptance record.
 
-Pi runs each analysis batch in a separate persisted session with an empty tool set. The main process saves and acknowledges validated batch checkpoints. Retry compares the frozen input and prompt manifest before reusing checkpoints. A synthesis pass combines supported batch candidates into report findings and focus angles. Session history remains available for an HTML export from the task center, with links to attempts reused by a resumed task.
+Pi runs one persisted session per model attempt. Its active tools are read, grep, find, and ls. The agent can read long conversation XML files in sections and explore files under the repository root. The main process validates and saves the completed report. A failed model request can start another session; user retry starts a fresh task with saved project inputs and the current model connection. Session history remains available for HTML export from the task center.
 
-Actual input coverage is saved with the report. Source failures record completed sources and failure locations so the UI can present readable partial results or retry actions.
+The report saves successfully opened repository files and selected conversation coverage, including conversation read failures. The Pi trace retains file tool failures. The task records a failed stage and error category when analysis stops.
 
 ## Task center and Agent activity
 
@@ -38,7 +38,7 @@ Activities provide readable execution history; report evidence supports conclusi
 
 The main process manages model connections and freezes task configuration at launch. Workers receive only the connection and input needed for their tasks. Model connection settings, general API keys, and the Telegram bot token use owner-only local JSON files. Queued Xiaohongshu recovery tokens reside in owner-only integration state files. The first load converts legacy Safe Storage values once and retains their encrypted originals or state snapshots. Codex subscription accounts use the Codex login mechanism and its isolated file credential store; accounts previously held in the keyring require one new login. The main process exposes redacted Telegram status to the renderer.
 
-Dedicated readers obtain repository files, Git history, and Codex sessions. Each receives an approved project directory, source range, and cancellation signal from the main process, then emits bounded content and source locations. External content and local conversations are analysis data; application code controls tool permissions and task steps.
+Dedicated readers inspect repository identity and parse selected Codex sessions. Pi's file tools explore the repository during analysis and retain the read locations in its session history. External content and local conversations are analysis data; application code controls tool permissions and task steps.
 
 ## Target code structure
 
@@ -46,7 +46,7 @@ Stable domain boundaries organize the source:
 
 - `src/shared/`: cross-process contracts for projects, cards, content and analysis reports, tasks, models, and integration messages.
 - `src/main/`: project and card services, unified scheduling, content queue, analysis reports and suggestion acceptance, Telegram, atomic persistence, and controlled IPC.
-- `src/readers/`: repository snapshots, Git history, and Codex session readers shared by previews and analysis.
+- `src/readers/`: repository identity and Codex session readers shared by previews and analysis.
 - `src/worker/`: content and analysis tasks, understanding, per-card evaluation, and suggestion generation.
 - `src/platforms/`: GitHub, X, and Xiaohongshu source adapters.
 - `src/renderer/`: content reading, cards, analysis, task center, settings, and shared state components.

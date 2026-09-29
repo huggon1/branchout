@@ -37,7 +37,6 @@ import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipe
 import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
 import { exportProjectAnalysisTrace, recordProjectAnalysisTraceLineage } from "./services/project-analysis/trace-export";
 import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
-import { ProjectAnalysisCheckpointStore } from "./storage/project-analysis-checkpoint-store";
 import { AnalysisPromptStore } from "./storage/analysis-prompt-store";
 import { AnalysisPromptSettingsService } from "./services/project-analysis/prompt-settings-service";
 import { registerAnalysisPromptSettingsIpc } from "./services/project-analysis/prompt-settings-ipc";
@@ -210,11 +209,6 @@ else {
       );
       startupStage = "analysis_inputs";
       await analysisInputStore.open();
-      const analysisCheckpointStore = new ProjectAnalysisCheckpointStore(
-        join(app.getPath("userData"), "project-analysis-checkpoints.json"),
-      );
-      startupStage = "analysis_checkpoints";
-      await analysisCheckpointStore.open();
       const analysisPromptStore = new AnalysisPromptStore(
         join(app.getPath("userData"), "analysis-prompt.json"),
       );
@@ -245,7 +239,6 @@ else {
         tasks,
         reports: analysisReports,
         runInputs: analysisInputStore,
-        checkpoints: analysisCheckpointStore,
         notify: changed,
       });
       startupStage = "analysis_recovery";
@@ -420,7 +413,9 @@ else {
                 break;
             }
             return { ok: true, value };
-          } catch {
+          } catch (error) {
+            if (channel === modelChannels.login && error instanceof Error)
+              return { ok: false, message: error.message };
             return {
               ok: false,
               message: "操作未完成，请检查配置、登录状态或服务地址后重试",
