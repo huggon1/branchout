@@ -13,4 +13,5 @@ export const scenarios = Object.freeze([
   { id: "EV-12", title: "Package restart", fixture: "planned", local: "planned" },
   { id: "EV-13", title: "Model storage and legacy migration", fixture: "implemented", local: "planned" },
   { id: "EV-14", title: "Telegram and Xiaohongshu credential restart", fixture: "implemented", local: "planned" },
+  { id: "EV-15", title: "Model transport failure and recovery", fixture: "planned", local: "planned" },
 ]);
