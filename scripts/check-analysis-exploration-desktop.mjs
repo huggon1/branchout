@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { _electron as electron } from "playwright";
 
 const root = await mkdtemp(join(tmpdir(), "branchout-exploration-desktop-"));
@@ -67,7 +68,7 @@ const server = createServer(async (request, response) => {
   const toolCall = (id, name, args) => ({ id, index: 0, type: "function", function: { name, arguments: JSON.stringify(args) } });
   const firstPrompt = requests.length === 1;
   const validToolResult = JSON.stringify(requests.at(-1)).includes(lateEvidence);
-  const responseText = firstPrompt ? "" : requests.length < 4 ? "" : requests.length === 4 ? batchText : synthesisText;
+  const responseText = requests.length === 3 ? batchText : requests.length > 3 ? synthesisText : "";
   const toolCalls = firstPrompt
     ? [toolCall("read-valid", "read_evidence", { evidenceId, offset: 1100 })]
     : requests.length === 2
@@ -185,12 +186,13 @@ try {
   const cards = await value(page.evaluate(() => window.branchout.focusCardView()));
   assert.equal(cards.focusCards.length, 1);
   assert.equal(cards.focusVersions[0].content.includes("离线同步失败"), true);
-  assert.equal(requests.length, 5);
+  assert.equal(requests.length, 4);
   const modelRequest = JSON.stringify(requests[0]);
+  assert.deepEqual(requests[0].tools.map((tool) => tool.function.name), ["read_evidence"]);
   assert.equal(modelRequest.includes(userConcern.slice(0, 100)), true);
   assert.equal(modelRequest.includes(lateEvidence), false);
-  assert.equal(JSON.stringify(requests[4]).includes("suggestion-1-1"), true);
-  assert.equal(JSON.stringify(requests[4]).includes("finding-1-1"), true);
+  assert.equal(JSON.stringify(requests[3]).includes("suggestion-1-1"), true);
+  assert.equal(JSON.stringify(requests[3]).includes("finding-1-1"), true);
   for (const blocked of ["REASONING_SENTINEL", "TOOL_CALL_SENTINEL", "TOOL_OUTPUT_SENTINEL"])
     assert.equal(modelRequest.includes(blocked), false);
   await page.getByRole("button", { name: "项目", exact: true }).click();
@@ -240,7 +242,11 @@ try {
     assert.match(pageHtml, /<html/i);
     await copyFile(join(exported, name), join(traceArtifactDirectory, name));
   }
-  assert.match(await readFile(join(exported, "batch-1-attempt-1.html"), "utf8"), /read_evidence/);
+  await page.goto(pathToFileURL(join(exported, "batch-1-attempt-1.html")).href);
+  await page.waitForTimeout(500);
+  const renderedTrace = await page.locator("body").innerText();
+  assert.match(renderedTrace, /Read selected evidence|read_evidence/);
+  assert.match(renderedTrace, /我希望用户可以看清冲突来源/);
   stage("trace_export_verified");
   if (process.env.BRANCHOUT_EVAL_RESULT_PATH) {
     await writeFile(process.env.BRANCHOUT_EVAL_RESULT_PATH, `${JSON.stringify({
@@ -257,7 +263,7 @@ try {
         { id: "INPUT_SELECTION", observed: preflight.codexSessions.length, expected: 1 },
         { id: "REPORT_SAVED", observed: reports.length, expected: 1 },
         { id: "SUGGESTION_ACCEPTED", observed: cards.focusCards.length, expected: 1 },
-        { id: "MODEL_CALLS", observed: requests.length, expected: 5 },
+        { id: "MODEL_CALLS", observed: requests.length, expected: 4 },
         { id: "EVIDENCE_READ_TRACE", observed: Number(batchSession.includes("read_evidence") && batchSession.includes(lateEvidence)), expected: 1 },
         { id: "PERSISTED_JSONL", observed: sessionFiles.length, expected: 2 },
         { id: "PERSISTED_HTML", observed: htmlFiles.length, expected: 2 },
