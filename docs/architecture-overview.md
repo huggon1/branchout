@@ -14,7 +14,7 @@ One project-binding service provides project identity, directory, and name. Card
 
 In-app submissions and Telegram messages enter one content queue. Telegram integration fetches bot updates in the main process, validates chat identity, parses one link, and deduplicates by update identity. It persists the inbound message, task, pending acknowledgment, and cursor together. After sending acknowledgment, it saves delivery status and resumes pending sends after restart. Startup resumes from the persisted update cursor for messages Telegram still provides.
 
-At task start, the main process freezes current versions of every active focus card and records their count and version IDs. The worker retrieves the source snapshot through a platform adapter, generates general understanding, then evaluates each frozen card. Cards may be processed in batches; validated batch results are merged, and missing cards enter retry batches. Completion requires an evaluation for every card. Connections cite the source and frozen card.
+At task start, the main process freezes current versions of every active, available focus card and records their count and version IDs. The worker retrieves the source snapshot through a platform adapter, generates general understanding, then evaluates each frozen card. Cards may be processed in batches; validated batch results are merged, and missing cards enter retry batches. Completion requires an evaluation for every card. Connections cite the source and frozen card.
 
 Source, general understanding, and connections are separately saved stages. The main process deduplicates by stable task and stage identity, validates source locations and card references, then forms the final report. Saved stages remain readable after a failure; retries reuse valid stage results. The complete report is saved after every stage succeeds.
 
@@ -32,7 +32,7 @@ The report saves successfully opened repository files and selected conversation 
 
 The main process saves content stage results and analysis task states separately, then builds a unified task-center view. The worker emits structured stage and short activity events with action, target type, processed count, and displayable summary. The main process validates and persists recent events before broadcasting. Page changes and window reopening restore stage and activity from saved records.
 
-Activities provide readable execution history; report evidence supports conclusions. Worker activity text is checked for length, origin, and sensitive fields. Model credentials, raw work conversations, and complete tool output stay inside controlled execution boundaries. On completion, failure, or cancellation, the main process writes final state and result reference before notifying the renderer.
+Activities provide readable execution history; report evidence supports conclusions. Pi public assistant message-end events and named tool-start actions flow through the worker progress event, main-process validation, TaskService, and persisted TaskActivity. The renderer reads optional display bodies through product-ui and sanitized Markdown. Worker activity text is checked for length, origin, and sensitive fields. Model credentials, raw work conversations, and complete tool output stay inside controlled execution boundaries. On completion, failure, or cancellation, the main process writes final state and result reference before notifying the renderer.
 
 ## Models, Telegram, and local access
 
@@ -52,3 +52,7 @@ Stable domain boundaries organize the source:
 - `src/renderer/`: content reading, cards, analysis, task center, settings, and shared state components.
 
 The [data contracts](data-contracts.md) define cross-module fields.
+
+## Renderer composition
+
+The shell owns navigation and one module heading. Projects owns binding and preflight; Tasks composes the shared AnalysisReportView and owns suggestion review. Content uses a persistent index and reader with source-snapshot dialogs. Focus Cards uses project-grouped rows and version-aware editing, deletion, and restore commands. Primitives and semantic stylesheet tokens provide shared presentation. The [design contract](../design.md) defines geometry, hierarchy, responsive states, and acceptance requirements.

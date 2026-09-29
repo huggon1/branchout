@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { focusSetSnapshotSchema } from "./focus-contracts";
 
-export const taskKindSchema = z.enum([
-  "forwarding",
-  "project_analysis",
-]);
+export const taskKindSchema = z.enum(["forwarding", "project_analysis"]);
 
 export const taskTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }).strict(),
@@ -22,10 +19,7 @@ export const taskTargetSchema = z.discriminatedUnion("kind", [
 
 export const taskResultRefSchema = z
   .object({
-    kind: z.enum([
-      "forwarding_report",
-      "project_analysis_report",
-    ]),
+    kind: z.enum(["forwarding_report", "project_analysis_report"]),
     id: z.string().uuid(),
   })
   .strict();
@@ -98,6 +92,7 @@ export const taskActivitySchema = z
     happenedAt: z.string().datetime(),
     action: z.string().min(1).max(80),
     summary: z.string().min(1).max(600),
+    body: z.string().max(16000).optional(),
     target: z
       .object({
         kind: z.string().min(1).max(80),
@@ -175,6 +170,7 @@ export const taskEventSchema = z.discriminatedUnion("type", [
       taskId: z.string().uuid(),
       action: z.string().min(1).max(80),
       summary: z.string().min(1).max(600),
+      body: z.string().max(16000).optional(),
       target: taskActivitySchema.shape.target,
       progress: taskActivitySchema.shape.progress,
     })

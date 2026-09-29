@@ -19,6 +19,8 @@
     "@earendil-works/pi-agent-core": "^0.87.1",
     "@earendil-works/pi-ai": "^0.87.1",
     "@earendil-works/pi-coding-agent": "0.87.1",
+    "@phosphor-icons/react": "^2.1.10",
+    "dompurify": "^3.4.16",
     "marked": "^18.0.14",
     "parse5": "^8.0.1",
     "react": "^19.2.0",

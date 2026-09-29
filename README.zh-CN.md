@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/branchout-app-icon.svg" width="112" alt="Branchout 应用图标"></p>
+<p align="center"><img src="assets/branchout-icon.svg" width="112" alt="Branchout 应用图标"></p>
 
 # Branchout
 
@@ -41,7 +41,7 @@ npm run dev
 ## 进一步了解
 
 - [产品规格](docs/product-spec.md)与[页面流程](docs/ux-spec.md)
-- [设计系统](docs/design-system.md)
+- [设计规范](design.md)
 - [架构总览](docs/architecture-overview.md)、[数据契约](docs/data-contracts.md)与[源码导览](src/README.md)
 
 ## 许可证

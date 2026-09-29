@@ -1,0 +1,16 @@
+{
+  "passed": [
+    "delete excludes snapshot",
+    "history immutable",
+    "deleted edit rejected",
+    "stale restore rejected",
+    "deletion survives reopen",
+    "deleted suggestion rejected",
+    "restore participates again",
+    "stale suggestion requires review",
+    "reviewed suggestion accepted once",
+    "accepted report remains immutable",
+    "terminal task ignores late events",
+    "activity text redacted and bounded"
+  ]
+}

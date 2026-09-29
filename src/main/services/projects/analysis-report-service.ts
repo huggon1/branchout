@@ -102,7 +102,7 @@ export class ProjectAnalysisReportService {
             item.focusId === suggestion.focusId &&
             item.projectId === report.projectId,
         )!;
-        if (!card) throw new Error("建议目标关注卡不存在");
+        if (!card || card.deletedAt) throw new Error("建议目标关注卡已删除或不存在");
         const current = state.focusVersions.find(
           (item) => item.focusVersionId === card.currentVersionId,
         );

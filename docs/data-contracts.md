@@ -22,9 +22,11 @@ All timestamps include timezone information; the UI displays them in the user's 
 
 `ProjectBinding` stores `projectId`, readable name, normalized local directory, binding time, and binding status. The main process verifies directories; one normalized directory corresponds to one project identity. Unbinding moves the record to history and removes its cards from the active set.
 
-`FocusCard` stores `focusId`, `projectId`, current `focusVersionId`, and creation time. `FocusVersion` is immutable and stores version ID, card ID, user-written `content`, `active` state, version number, and save time. The UI derives a label from the first line or excerpt; connection tasks use the full text. Text remains free-form while the app maintains system metadata.
+`FocusCard` stores `focusId`, `projectId`, `currentVersionId`, creation and update times, and optional `deletedAt`. `FocusVersion` is immutable and stores version ID, card ID, user-written `content`, `active` state, version number, and save time. The UI derives a label from the first line or excerpt; connection tasks use the full text. Text remains free-form while the app maintains system metadata.
 
-At content task start, `FocusSetSnapshot` records the time, each active card's `projectId + projectLabel + focusId + focusVersionId`, and the text version used by the task. Connections reference this snapshot. Later edits, pauses, or unbinding leave historical card text and project names available.
+At content task start, `FocusSetSnapshot` records the time, each active card's `projectId + projectLabel + focusId + focusVersionId`, and the text version used by the task. Connections reference this snapshot. Later edits, pauses, deletion, or unbinding leave historical card text and project names available. Active snapshots select cards in bound projects with an active current version and an absent `deletedAt`.
+
+`setFocusCardDeleted` takes `focusId`, `expectedVersionId`, and `deleted`. The main process compares the version within the store transaction, appends a `deleted` or `restored` version preserving text and active state, and sets or clears the tombstone. Editing, activation, and suggestion acceptance require an available card. Existing state files remain readable because `deletedAt` is optional.
 
 ## Submitted sources and reports
 
@@ -62,7 +64,7 @@ At startup, the app fetches updates Telegram still provides from the confirmed c
 
 `TaskSnapshot` is the task center's unified view. It contains `taskId`, kind `forwarding` or `project_analysis`, target identity, status `queued`, `running`, `completed`, `failed`, or `cancelled`, current stage, processed count, update time, readable error, and successful result reference. Saved stage records build the content view. Content stages are receipt, source retrieval, understanding, card evaluation, and report save; analysis stages are repository, Codex sessions, exploration, and report save.
 
-`TaskActivity` contains `taskId`, increasing sequence number, time, action kind, readable summary, optional target identity, and processed count. After main-process validation, recent activities and current stage are persisted for the UI; longer evidence comes from reports. Task messages contain only display summaries and counts.
+`TaskActivity` contains `taskId`, increasing sequence number, time, action kind, readable summary, optional target identity, and processed count. After main-process validation, recent activities and current stage are persisted for the UI; longer evidence comes from reports. An optional `body` contains at most 16,000 characters of public assistant text. Pi `message_end` events contribute assistant text parts; thinking parts, tool arguments, and tool results remain within execution records. Tool-start events contribute an allowlisted action label. Structured report JSON contributes a draft-ready summary. The worker masks its configured credential and common credential patterns; the main process validates and redacts display text again before saving. Truncated text points to the detailed export. The renderer sanitizes Markdown through the shared prose component.
 
 The main process handles worker events in this order:
 
@@ -71,6 +73,6 @@ The main process handles worker events in this order:
 3. Validate and save the final report and reference, then mark the task complete and notify the renderer.
 4. On interruption, save the failed stage and completed scope, retaining readable stage results for retry.
 
-Pi session files stay under the application's local data directory. A user initiated export copies the related HTML attempts into a selected local directory and writes an index linking them. Task activity stores short validated status summaries; model prompts and complete responses stay in the session files.
+Pi session files stay under the application's local data directory. A user initiated export copies the related HTML attempts into a selected local directory and writes an index linking them. Task activity stores validated summaries and bounded public-message bodies; model prompts and complete responses stay in the session files.
 
 Model configuration is frozen at launch. The current model connection is stored in `model-connection.json` with owner-only file permissions; the first read of a legacy `model-connection.enc` saves its validated contents into the new file. Renderer, snapshots, reports, and activities read redacted state. The main process validates source content, model output, card references, and suggestion changes before persistence.

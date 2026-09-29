@@ -4,6 +4,7 @@ import type {
   CreateFocusCard,
   EditFocusCard,
   SetFocusCardActive,
+  SetFocusCardDeleted,
   FocusCard,
   FocusVersion,
 } from "./focus-contracts";
@@ -21,7 +22,10 @@ import type {
   ForwardingTaskSummary,
 } from "./forwarding-view-contracts";
 import type { TelegramStatus } from "./telegram-contracts";
-import type { AnalysisPromptSettings, AnalysisPromptView } from "./analysis-prompt-contracts";
+import type {
+  AnalysisPromptSettings,
+  AnalysisPromptView,
+} from "./analysis-prompt-contracts";
 
 export const projectChannels = {
   view: "project:view",
@@ -34,6 +38,7 @@ export const focusCardChannels = {
   create: "focus-cards:create",
   edit: "focus-cards:edit",
   setActive: "focus-cards:set-active",
+  setDeleted: "focus-cards:set-deleted",
 } as const;
 
 export const taskChannels = {
@@ -112,6 +117,9 @@ export interface DesktopBridge {
   setFocusCardActive(
     input: SetFocusCardActive,
   ): Promise<ModelReply<FocusVersion>>;
+  setFocusCardDeleted(
+    input: SetFocusCardDeleted,
+  ): Promise<ModelReply<FocusVersion>>;
   unifiedTaskSnapshots(): Promise<ModelReply<TaskSnapshot[]>>;
   taskActivities(taskId: string): Promise<ModelReply<TaskActivity[]>>;
   projectAnalysisReports(
@@ -124,12 +132,16 @@ export interface DesktopBridge {
     projectId: string,
   ): Promise<ModelReply<ProjectAnalysisPreflight>>;
   analysisPromptView(): Promise<ModelReply<AnalysisPromptView>>;
-  saveAnalysisPrompt(input: AnalysisPromptSettings): Promise<ModelReply<AnalysisPromptView>>;
+  saveAnalysisPrompt(
+    input: AnalysisPromptSettings,
+  ): Promise<ModelReply<AnalysisPromptView>>;
   resetAnalysisPrompt(): Promise<ModelReply<AnalysisPromptView>>;
   startProjectAnalysis(
     input: StartProjectAnalysis,
   ): Promise<ModelReply<string>>;
-  exportProjectAnalysisTrace(taskId: string): Promise<ModelReply<string | undefined>>;
+  exportProjectAnalysisTrace(
+    taskId: string,
+  ): Promise<ModelReply<string | undefined>>;
   acceptFocusSuggestion(
     input: AcceptFocusSuggestion,
   ): Promise<ModelReply<AcceptSuggestionResult>>;

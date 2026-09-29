@@ -70,7 +70,7 @@ export async function runProjectAnalysis(
           return { accessToken, expiresAt: tokenExpiry(accessToken) };
         } } : {}),
     onActivity: (activity) => emit({ type: "progress", taskId: input.taskId,
-      message: activity.summary }),
+      message: activity.summary, body: activity.body, activityKind: activity.kind }),
   });
   for (const path of result.readPaths) {
     try {

@@ -4,6 +4,7 @@ import {
   editFocusCardSchema,
   focusSetSnapshotSchema,
   setFocusCardActiveSchema,
+  setFocusCardDeletedSchema,
   type FocusCard,
   type FocusVersion,
   type FocusSetSnapshot,
@@ -60,8 +61,10 @@ export class FocusCardService {
     let result!: FocusVersion;
     let updated = false;
     await this.store.update((state) => {
-      const card = state.focusCards.find((item) => item.focusId === input.focusId);
-      if (!card) throw new Error("关注卡不存在");
+      const card = state.focusCards.find(
+        (item) => item.focusId === input.focusId,
+      );
+      if (!card || card.deletedAt) throw new Error("关注卡已删除或不存在");
       const project = state.projects.find(
         (item) => item.projectId === card.projectId,
       );
@@ -101,8 +104,10 @@ export class FocusCardService {
     let result!: FocusVersion;
     let updated = false;
     await this.store.update((state) => {
-      const card = state.focusCards.find((item) => item.focusId === input.focusId);
-      if (!card) throw new Error("关注卡不存在");
+      const card = state.focusCards.find(
+        (item) => item.focusId === input.focusId,
+      );
+      if (!card || card.deletedAt) throw new Error("关注卡已删除或不存在");
       const project = state.projects.find(
         (item) => item.projectId === card.projectId,
       );
@@ -136,6 +141,48 @@ export class FocusCardService {
     return result;
   }
 
+  async setDeleted(raw: unknown): Promise<FocusVersion> {
+    const input = setFocusCardDeletedSchema.parse(raw);
+    let result!: FocusVersion;
+    await this.store.update((state) => {
+      const card = state.focusCards.find(
+        (item) => item.focusId === input.focusId,
+      );
+      if (!card) throw new Error("关注卡不存在");
+      if (
+        !state.projects.some(
+          (p) => p.projectId === card.projectId && p.status === "bound",
+        )
+      )
+        throw new Error("请先绑定该项目");
+      if (card.currentVersionId !== input.expectedVersionId)
+        throw new Error("关注卡已更新，请重新打开后操作");
+      const current = state.focusVersions.find(
+        (v) => v.focusVersionId === card.currentVersionId,
+      );
+      if (!current) throw new Error("关注卡当前版本无法读取");
+      if (Boolean(card.deletedAt) === input.deleted) {
+        result = current;
+        return;
+      }
+      const timestamp = now();
+      result = {
+        ...current,
+        focusVersionId: randomUUID(),
+        version: current.version + 1,
+        change: input.deleted ? "deleted" : "restored",
+        createdAt: timestamp,
+      };
+      state.focusVersions.push(result);
+      card.currentVersionId = result.focusVersionId;
+      card.updatedAt = timestamp;
+      if (input.deleted) card.deletedAt = timestamp;
+      else delete card.deletedAt;
+    });
+    this.changed();
+    return result;
+  }
+
   activeSnapshot(): FocusSetSnapshot {
     const state = this.store.snapshot();
     const boundProjects = new Map(
@@ -148,7 +195,7 @@ export class FocusCardService {
       const version = state.focusVersions.find(
         (item) => item.focusVersionId === card.currentVersionId,
       );
-      return project && version?.active
+      return project && !card.deletedAt && version?.active
         ? [
             {
               projectId: project.projectId,

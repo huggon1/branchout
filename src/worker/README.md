@@ -18,4 +18,4 @@ Workers receive approved directories, source scope, card versions, and cancellat
 - `reasoning/`: model input and output validation for understanding, connections, and suggestions.
 - `pi-runtime.ts` and `model-worker.ts`: Pi sessions, model checks, and execution boundaries.
 
-Each reader reports actual scope and failure locations. Task stages send readable summaries to the main-process task center.
+Each reader reports actual scope and failure locations. Task stages send readable summaries to the main-process task center. Project analysis also emits bounded public assistant message bodies and named tool actions through `pi-coding-session.ts`; the [activity contract](../../docs/data-contracts.md#task-snapshots-and-activity-messages) defines filtering and persistence.

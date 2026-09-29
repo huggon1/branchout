@@ -103,6 +103,7 @@ export class TaskService {
           happenedAt: timestamp,
           action: event.action,
           summary: event.summary,
+          ...(event.body ? { body: event.body } : {}),
           ...(event.target ? { target: event.target } : {}),
           ...(event.progress ? { progress: event.progress } : {}),
         });

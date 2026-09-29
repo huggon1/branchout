@@ -36,13 +36,7 @@ export function SettingsPage({
   };
   return (
     <div className="settings-page">
-      <header className="page-intro">
-        <div>
-          <p className="eyebrow">连接和读取范围</p>
-          <h2>设置</h2>
-          <p>新配置会用于后续任务；运行中的任务继续使用启动时的配置。</p>
-        </div>
-      </header>
+      <header className="page-intro"></header>
       <ModelSettings />
       <AnalysisPromptSettings />
       <section
@@ -81,7 +75,9 @@ export function SettingsPage({
             }
             disabled={busy}
           />
-          <small>Bot Token 保存在本机仅当前用户可读的文件中；已保存值不会回传到界面。</small>
+          <small>
+            Bot Token 保存在本机仅当前用户可读的文件中；已保存值不会回传到界面。
+          </small>
         </label>
         <div className="telegram-status-grid">
           <div>
@@ -175,9 +171,7 @@ export function SettingsPage({
                 finishAction(success, "设置已保存", true),
               )
             }
-            disabled={
-              busy || !botToken.trim()
-            }
+            disabled={busy || !botToken.trim()}
           >
             {busy ? "正在保存…" : "保存 Bot Token"}
           </button>
@@ -216,25 +210,26 @@ export function SettingsPage({
           <div>
             <p className="eyebrow">链接读取</p>
             <h3 id="sources-title">内容来源</h3>
-            <p>按来源展示当前读取能力和账号状态。</p>
           </div>
         </div>
         <div className="source-capability-list">
-          {settings?.sources.map((source) => (
-            <article className="source-capability" key={source.id}>
-              <div>
-                <strong>{source.label}</strong>
-                <p>{source.detail}</p>
-              </div>
-              <span className={`status-tag status-${source.status}`}>
-                {source.status === "ready"
-                  ? "可读取"
-                  : source.status === "needs_login"
-                    ? "需要登录"
-                    : "暂不可用"}
-              </span>
-            </article>
-          )) ?? <p className="muted-copy">正在读取来源配置…</p>}
+          {settings?.sources
+            .filter((source) => source.id === "github")
+            .map((source) => (
+              <article className="source-capability" key={source.id}>
+                <div>
+                  <strong>{source.label}</strong>
+                  <p>{source.detail}</p>
+                </div>
+                <span className={`status-tag status-${source.status}`}>
+                  {source.status === "ready"
+                    ? "可读取"
+                    : source.status === "needs_login"
+                      ? "需要登录"
+                      : "暂不可用"}
+                </span>
+              </article>
+            )) ?? <p className="muted-copy">正在读取来源配置…</p>}
         </div>
         <XSettings />
       </section>

@@ -6,7 +6,7 @@ export function createWindow() {
     height: 760,
     minWidth: 640,
     minHeight: 480,
-    backgroundColor: "#f5f7f8",
+    backgroundColor: "#ffffff",
     title: "Branchout",
     icon: join(__dirname, "../assets/branchout.png"),
     webPreferences: {

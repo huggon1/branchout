@@ -10,7 +10,7 @@ const temporary = await mkdtemp(join(tmpdir(), "branchout-icon-"));
 const iconset = join(temporary, "branchout.iconset");
 await mkdir(iconset);
 try {
-  const source = resolve("docs/design/branchout-icon-light-master.png");
+  const source = resolve("assets/branchout-icon.svg");
   for (const size of [16, 32, 128, 256, 512]) {
     for (const scale of [1, 2]) {
       await sharp(source)

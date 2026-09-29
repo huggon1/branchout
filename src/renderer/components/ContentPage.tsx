@@ -1,6 +1,7 @@
+import { Disclosure } from "../design/Components";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiForwardingReport, UiProject } from "../product-ui";
-import { EmptyState } from "./Primitives";
+import { EmptyState, Dialog, Markdown } from "./Primitives";
 
 const sourceName: Record<UiForwardingReport["platform"], string> = {
   github: "GitHub",
@@ -45,6 +46,7 @@ export function ContentPage({
   const [range, setRange] = useState("all");
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string>();
   const listScroll = useRef(0);
   const contentList = useRef<HTMLDivElement>(null);
@@ -71,10 +73,11 @@ export function ContentPage({
         );
       });
   }, [reports, partialReports, query, source, project, range]);
-  const selectedIndex = selectedId
-    ? visible.findIndex((item) => item.materialId === selectedId)
-    : -1;
-  const selected = selectedIndex >= 0 ? visible[selectedIndex] : undefined;
+  const selectedIndex = Math.max(
+    0,
+    visible.findIndex((item) => item.materialId === selectedId),
+  );
+  const selected = selectedIndex >= 0 ? visible[selectedIndex] : visible[0];
 
   useEffect(() => {
     if (
@@ -106,238 +109,12 @@ export function ContentPage({
   };
 
   return (
-    <div className="content-page">
-      {selected ? (
-        <>
-          <div className="reader-toolbar">
-            <button
-              className="button button-quiet"
-              onClick={() => setSelectedId(undefined)}
-            >
-              返回内容列表
-            </button>
-            <span aria-live="polite">
-              {selectedIndex + 1} / {visible.length}
-            </span>
-            <div className="reader-stepper">
-              <button
-                className="button button-quiet"
-                disabled={selectedIndex <= 0}
-                onClick={() =>
-                  setSelectedId(visible[selectedIndex - 1]?.materialId)
-                }
-              >
-                上一条
-              </button>
-              <button
-                className="button button-quiet"
-                disabled={selectedIndex >= visible.length - 1}
-                onClick={() =>
-                  setSelectedId(visible[selectedIndex + 1]?.materialId)
-                }
-              >
-                下一条
-              </button>
-            </div>
-          </div>
-          <article className="report-reading" key={selected.materialId}>
-            <header className="report-heading">
-              <div>
-                <p className="eyebrow">
-                  {sourceName[selected.platform]} · 内容报告
-                </p>
-                <h2>{selected.title || selected.sourceIdentity}</h2>
-                <p className="report-byline">
-                  {selected.sourceIdentity} · 完成于{" "}
-                  {timeLabel(selected.completedAt)}
-                </p>
-              </div>
-              <button
-                className="button button-quiet"
-                onClick={() => void onOpenSource(selected.materialId)}
-              >
-                打开原链接 ↗
-              </button>
-            </header>
-            {selected.completeness !== "complete" && (
-              <aside className="notice notice-warm" role="status">
-                <strong>
-                  {selected.completeness === "partial"
-                    ? "来源内容部分获取"
-                    : "来源完整性未知"}
-                </strong>
-                <p>
-                  {selected.completenessNote ||
-                    "以下理解和关联依据当前读取到的内容。"}
-                </p>
-              </aside>
-            )}
-            <section
-              className="report-section source-section"
-              aria-labelledby="source-content-title"
-            >
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">来源快照</p>
-                  <h3 id="source-content-title">原文内容</h3>
-                </div>
-                <span className={`status-tag status-${selected.completeness}`}>
-                  {selected.completeness === "complete"
-                    ? "内容完整"
-                    : selected.completeness === "partial"
-                      ? "部分内容"
-                      : "完整性未知"}
-                </span>
-              </div>
-              <div className="source-reading-body">
-                {selected.blocks.map((block, index) => {
-                  if (block.type === "image" && block.image)
-                    return (
-                      <figure key={index}>
-                        <img
-                          src={block.image.url}
-                          alt={block.image.alt}
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                        <figcaption>{block.image.alt}</figcaption>
-                      </figure>
-                    );
-                  if (block.type === "heading")
-                    return (
-                      <SourceHeading
-                        key={index}
-                        level={block.level ?? 3}
-                        text={block.text ?? ""}
-                      />
-                    );
-                  if (block.type === "code")
-                    return (
-                      <pre key={index}>
-                        <code>{block.text}</code>
-                      </pre>
-                    );
-                  return <p key={index}>{block.text}</p>;
-                })}
-              </div>
-            </section>
-            <section
-              className="report-section"
-              aria-labelledby="understanding-title"
-            >
-              <p className="eyebrow">基于来源快照生成</p>
-              <h3 id="understanding-title">内容理解</h3>
-              {selected.understanding ? (
-                <div className="report-prose">
-                  {selected.understanding
-                    .split(/\n{2,}/)
-                    .map((paragraph, index) => (
-                      <p key={index}>{paragraph}</p>
-                    ))}
-                </div>
-              ) : (
-                <div className="notice notice-warm">
-                  <strong>内容理解尚未保存</strong>
-                  <p>来源快照仍可阅读；理解阶段完成后会显示总结。</p>
-                </div>
-              )}
-            </section>
-            <section
-              className="report-section relation-section"
-              aria-labelledby="relations-title"
-            >
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">按生成时的关注卡版本判断</p>
-                  <h3 id="relations-title">与你的关注有关</h3>
-                </div>
-                <span className="count-tag">
-                  {selected.reportState === "complete" || !selected.reportState
-                    ? `${selected.relations.length} 条关联`
-                    : "等待关联结果"}
-                </span>
-              </div>
-              {selected.reportState && selected.reportState !== "complete" ? (
-                <div className="notice notice-warm">
-                  <strong>{selected.stageLabel || "关注卡关联"}尚未完成</strong>
-                  <p>
-                    {selected.taskMessage ||
-                      "当前内容的关系结果尚未保存，不能视为零关联。已保存的阶段结果仍可阅读。"}
-                  </p>
-                  {selected.retryAvailable && (
-                    <button
-                      className="button"
-                      onClick={() => void onRetryTask(selected.taskId)}
-                    >
-                      重试关联判断
-                    </button>
-                  )}
-                </div>
-              ) : selected.relations.length === 0 ? (
-                <div className="notice notice-cool">
-                  <strong>这条内容与当前活跃关注卡没有明确关联</strong>
-                  <p>
-                    本次关联检查已完成。你可以继续阅读原文，或更新关注卡后用于下一次转发。
-                  </p>
-                </div>
-              ) : (
-                <div className="relation-groups">
-                  {groupRelations(selected.relations).map(
-                    ([projectId, items]) => (
-                      <section className="relation-group" key={projectId}>
-                        <h4>
-                          {items[0].projectLabel}
-                          <span>{items.length} 条</span>
-                        </h4>
-                        {items.map((relation) => (
-                          <article
-                            className="relation-card"
-                            key={`${relation.focusId}:${relation.focusVersionId}`}
-                          >
-                            <div className="relation-card-heading">
-                              <h5>
-                                {relation.focusContent
-                                  .split("\n")
-                                  .find((line) => line.trim()) || "关注卡"}
-                              </h5>
-                              <button
-                                className="text-button"
-                                onClick={() =>
-                                  onOpenFocus(
-                                    relation.projectId,
-                                    relation.focusId,
-                                    relation.focusVersionId,
-                                  )
-                                }
-                              >
-                                查看此版本 ↗
-                              </button>
-                            </div>
-                            <p>{relation.explanation}</p>
-                            {relation.evidence.map((item, index) => (
-                              <blockquote key={index}>
-                                <span>来源依据</span>
-                                {item.text}
-                              </blockquote>
-                            ))}
-                          </article>
-                        ))}
-                      </section>
-                    ),
-                  )}
-                </div>
-              )}
-            </section>
-          </article>
-        </>
-      ) : (
+    <div
+      className={`content-page ${selectedId && selected ? "mobile-detail" : ""}`}
+    >
+      <aside className="content-index">
         <>
           <header className="page-intro">
-            <div>
-              <p className="eyebrow">收集、理解、关联</p>
-              <h2>内容</h2>
-              <p>添加一条链接，稍后在这里阅读完整报告和关注卡关联。</p>
-            </div>
             <button
               className="button button-primary"
               onClick={() => setAdding((value) => !value)}
@@ -423,7 +200,12 @@ export function ContentPage({
                 {visible.map((item) => (
                   <li key={item.materialId}>
                     <button
-                      className="content-list-item"
+                      className={`content-list-item ${selected?.materialId === item.materialId ? "is-selected" : ""}`}
+                      aria-current={
+                        selected?.materialId === item.materialId
+                          ? "true"
+                          : undefined
+                      }
                       onClick={() => setSelectedId(item.materialId)}
                     >
                       <div className="content-item-meta">
@@ -446,7 +228,9 @@ export function ContentPage({
                         </span>
                       </div>
                       <strong>{item.title || item.sourceIdentity}</strong>
-                      <p>{excerpt(item.understanding)}</p>
+                      <p>
+                        {excerpt(item.understanding.replace(/[*_`#]/g, ""))}
+                      </p>
                       <div className="content-item-footer">
                         <span>
                           {item.reportState && item.reportState !== "complete"
@@ -484,6 +268,261 @@ export function ContentPage({
             )}
           </div>
         </>
+      </aside>
+      {!selected && (
+        <div className="content-reader content-welcome">
+          <EmptyState
+            title={
+              reports.length + partialReports.length
+                ? "换一个关键词，再找找"
+                : "从一条值得读的链接开始"
+            }
+          >
+            {reports.length + partialReports.length
+              ? "搜索标题、来源，或调整左侧筛选。"
+              : "添加 GitHub、X 或小红书链接，阅读内容理解，发现与你的项目有关的角度。"}
+          </EmptyState>
+        </div>
+      )}
+      {selected && (
+        <div className="content-reader" key={selected.materialId}>
+          <>
+            <div className="reader-toolbar">
+              <button
+                className="button button-quiet"
+                onClick={() => setSelectedId(undefined)}
+              >
+                返回内容列表
+              </button>
+              <span aria-live="polite">
+                {selectedIndex + 1} / {visible.length}
+              </span>
+              <div className="reader-stepper">
+                <button
+                  className="button button-quiet"
+                  disabled={selectedIndex <= 0}
+                  onClick={() =>
+                    setSelectedId(visible[selectedIndex - 1]?.materialId)
+                  }
+                >
+                  上一条
+                </button>
+                <button
+                  className="button button-quiet"
+                  disabled={selectedIndex >= visible.length - 1}
+                  onClick={() =>
+                    setSelectedId(visible[selectedIndex + 1]?.materialId)
+                  }
+                >
+                  下一条
+                </button>
+              </div>
+            </div>
+            <article className="report-reading" key={selected.materialId}>
+              <header className="report-heading">
+                <div>
+                  <p className="eyebrow">
+                    {sourceName[selected.platform]} · 内容报告
+                  </p>
+                  <h2>{selected.title || selected.sourceIdentity}</h2>
+                  <p className="report-byline">
+                    {selected.sourceIdentity} ·{" "}
+                    {selected.completedAt ? "完成于" : "来源读取于"}{" "}
+                    {timeLabel(selected.completedAt ?? selected.fetchedAt)}
+                  </p>
+                </div>
+                <button
+                  className="button button-quiet"
+                  onClick={() => void onOpenSource(selected.materialId)}
+                >
+                  打开原链接 ↗
+                </button>
+              </header>
+              {selected.completeness !== "complete" && (
+                <aside className="notice notice-warm" role="status">
+                  <strong>
+                    {selected.completeness === "partial"
+                      ? "来源内容部分获取"
+                      : "来源完整性未知"}
+                  </strong>
+                  <p>
+                    {selected.completenessNote ||
+                      "以下理解和关联依据当前读取到的内容。"}
+                  </p>
+                </aside>
+              )}
+              <section
+                className="report-section"
+                aria-labelledby="understanding-title"
+              >
+                <p className="eyebrow">基于来源快照生成</p>
+                <h3 id="understanding-title">内容理解</h3>
+                {selected.understanding ? (
+                  <Markdown>{selected.understanding}</Markdown>
+                ) : (
+                  <div className="notice notice-warm">
+                    <strong>内容理解尚未保存</strong>
+                    <p>来源快照仍可阅读；理解阶段完成后会显示总结。</p>
+                  </div>
+                )}
+              </section>
+              <section
+                className="report-section relation-section"
+                aria-labelledby="relations-title"
+              >
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">按生成时的关注卡版本判断</p>
+                    <h3 id="relations-title">与你的关注有关</h3>
+                  </div>
+                  <span className="count-tag">
+                    {selected.reportState === "complete" ||
+                    !selected.reportState
+                      ? `${selected.relations.length} 条关联`
+                      : "等待关联结果"}
+                  </span>
+                </div>
+                {selected.reportState && selected.reportState !== "complete" ? (
+                  <div className="notice notice-warm">
+                    <strong>
+                      {selected.stageLabel || "关注卡关联尚未完成"}
+                    </strong>
+                    <p>
+                      {selected.taskMessage ||
+                        "当前内容的关系结果尚未保存，不能视为零关联。已保存的阶段结果仍可阅读。"}
+                    </p>
+                    {selected.retryAvailable && (
+                      <button
+                        className="button"
+                        onClick={() => void onRetryTask(selected.taskId)}
+                      >
+                        重试关联判断
+                      </button>
+                    )}
+                  </div>
+                ) : selected.relations.length === 0 ? (
+                  <div className="notice notice-cool">
+                    <strong>这条内容与当前活跃关注卡没有明确关联</strong>
+                    <p>
+                      本次关联检查已完成。你可以继续阅读原文，或更新关注卡后用于下一次转发。
+                    </p>
+                  </div>
+                ) : (
+                  <div className="relation-groups">
+                    {groupRelations(selected.relations).map(
+                      ([projectId, items]) => (
+                        <section className="relation-group" key={projectId}>
+                          <h4>
+                            {items[0].projectLabel}
+                            <span>{items.length} 条</span>
+                          </h4>
+                          {items.map((relation) => (
+                            <article
+                              className="relation-card"
+                              key={`${relation.focusId}:${relation.focusVersionId}`}
+                            >
+                              <div className="relation-card-heading">
+                                <h5>
+                                  {relation.focusContent
+                                    .split("\n")
+                                    .find((line) => line.trim()) || "关注卡"}
+                                </h5>
+                                <button
+                                  className="text-button"
+                                  onClick={() =>
+                                    onOpenFocus(
+                                      relation.projectId,
+                                      relation.focusId,
+                                      relation.focusVersionId,
+                                    )
+                                  }
+                                >
+                                  查看此版本 ↗
+                                </button>
+                              </div>
+                              <p>{relation.explanation}</p>
+                              <Disclosure
+                                className="evidence"
+                                title="来源依据"
+                                count={`${relation.evidence.length} 条`}
+                              >
+                                {relation.evidence.map((item, index) => (
+                                  <blockquote key={index}>
+                                    <span>来源依据</span>
+                                    {item.text}
+                                  </blockquote>
+                                ))}
+                              </Disclosure>
+                            </article>
+                          ))}
+                        </section>
+                      ),
+                    )}
+                  </div>
+                )}
+              </section>{" "}
+              <button className="button" onClick={() => setSourceOpen(true)}>
+                阅读来源快照
+              </button>
+              {sourceOpen && (
+                <Dialog title="来源快照" onClose={() => setSourceOpen(false)}>
+                  {" "}
+                  <section
+                    className="report-section source-section"
+                    aria-labelledby="source-content-title"
+                  >
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">来源快照</p>
+                        <h3 id="source-content-title">原文内容</h3>
+                      </div>
+                      <span
+                        className={`status-tag status-${selected.completeness}`}
+                      >
+                        {selected.completeness === "complete"
+                          ? "内容完整"
+                          : selected.completeness === "partial"
+                            ? "部分内容"
+                            : "完整性未知"}
+                      </span>
+                    </div>
+                    <div className="source-reading-body">
+                      {selected.blocks.map((block, index) => {
+                        if (block.type === "image" && block.image)
+                          return (
+                            <figure key={index}>
+                              <img
+                                src={block.image.url}
+                                alt={block.image.alt}
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                              />
+                              <figcaption>{block.image.alt}</figcaption>
+                            </figure>
+                          );
+                        if (block.type === "heading")
+                          return (
+                            <SourceHeading
+                              key={index}
+                              level={block.level ?? 3}
+                              text={block.text ?? ""}
+                            />
+                          );
+                        if (block.type === "code")
+                          return (
+                            <pre key={index}>
+                              <code>{block.text}</code>
+                            </pre>
+                          );
+                        return <p key={index}>{block.text}</p>;
+                      })}
+                    </div>
+                  </section>
+                </Dialog>
+              )}
+            </article>
+          </>
+        </div>
       )}
     </div>
   );

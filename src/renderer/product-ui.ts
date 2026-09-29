@@ -19,6 +19,7 @@ export interface UiFocusVersion {
 }
 
 export interface UiFocusCard {
+  deletedAt?: string;
   focusId: string;
   projectId: string;
   currentVersionId: string;
@@ -144,6 +145,7 @@ export interface UiAnalysisPreflight {
 }
 
 export interface UiTaskActivity {
+  body?: string;
   sequence: number;
   occurredAt: string;
   summary: string;
@@ -235,6 +237,7 @@ export interface ProductUiBridge {
     expectedFocusVersionId: string;
     content: string;
   }): Promise<ModelReply<UiFocusCard>>;
+  uiSetFocusDeleted(input: { focusId: string; expectedFocusVersionId: string; deleted: boolean }): Promise<ModelReply<UiFocusCard>>;
   uiSetFocusActive(input: {
     focusId: string;
     expectedFocusVersionId: string;
@@ -280,6 +283,7 @@ type CanonicalFocusVersion = {
 };
 type CanonicalFocusView = {
   focusCards: Array<{
+    deletedAt?: string;
     focusId: string;
     projectId: string;
     currentVersionId: string;
@@ -370,6 +374,7 @@ type CanonicalTaskSnapshot = {
   updatedAt: string;
 };
 type CanonicalTaskActivity = {
+  body?: string;
   taskId: string;
   sequence: number;
   happenedAt: string;
@@ -482,6 +487,7 @@ interface CanonicalBridge {
   focusCardView(): Promise<ModelReply<CanonicalFocusView>>;
   createFocusCard(input: { projectId: string; content: string }): Promise<ModelReply<{ focusId: string }>>;
   editFocusCard(input: { focusId: string; expectedVersionId: string; content: string }): Promise<ModelReply<CanonicalFocusVersion>>;
+  setFocusCardDeleted(input: { focusId: string; expectedVersionId: string; deleted: boolean }): Promise<ModelReply<CanonicalFocusVersion>>;
   setFocusCardActive(input: { focusId: string; expectedVersionId: string; active: boolean }): Promise<ModelReply<CanonicalFocusVersion>>;
   projectAnalysisPreflight?(projectId: string): Promise<ModelReply<CanonicalPreflight>>;
   startProjectAnalysis?(input: { projectId: string; codexSessionIds: string[] }): Promise<ModelReply<string>>;
@@ -753,6 +759,7 @@ export function productUiBridge(): ProductUiBridge {
             sequence: activity.sequence,
             occurredAt: activity.happenedAt,
             summary: activity.summary,
+            body: activity.body,
             completed: activity.progress?.completed,
             total: activity.progress?.total,
           }));
@@ -934,6 +941,14 @@ export function productUiBridge(): ProductUiBridge {
     },
     uiSetFocusActive: async ({ focusId, expectedFocusVersionId, active }) => {
       const reply = await bridge.setFocusCardActive({ focusId, expectedVersionId: expectedFocusVersionId, active });
+      if (!reply.ok) return reply;
+      const view = await bridge.focusCardView();
+      if (!view.ok) return failed(view.message);
+      const card = focusView(view.value).find((item) => item.focusId === focusId);
+      return card ? { ok: true, value: card } : failed("关注卡状态已更新，但卡片视图尚未刷新。");
+    },
+    uiSetFocusDeleted: async ({ focusId, expectedFocusVersionId, deleted }) => {
+      const reply = await bridge.setFocusCardDeleted({ focusId, expectedVersionId: expectedFocusVersionId, deleted });
       if (!reply.ok) return reply;
       const view = await bridge.focusCardView();
       if (!view.ok) return failed(view.message);

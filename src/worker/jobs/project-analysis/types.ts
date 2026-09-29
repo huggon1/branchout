@@ -133,4 +133,6 @@ export type ProjectAnalysisEvent =
       sessionsRead?: number;
       messagesRead?: number;
       message?: string;
+      body?: string;
+      activityKind?: "started" | "retrying" | "completed" | "failed" | "message" | "tool";
     };

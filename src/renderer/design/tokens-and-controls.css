@@ -1,0 +1,129 @@
+:root,
+.design-scope {
+  --ds-paper: #fff;
+  --ds-canvas: #f7f7f5;
+  --ds-ink: #242421;
+  --ds-muted: #686863;
+  --ds-line: #e7e7e2;
+  --ds-hover: #f1f1ed;
+  --ds-yellow: #f2d76b;
+  --ds-yellow-soft: #faf3d7;
+  --ds-blue: #355ec7;
+  --ds-red: #ad443d;
+  color: var(--ds-ink);
+  background: var(--ds-paper);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.design-scope * {
+  box-sizing: border-box;
+}
+.design-scope button,
+.design-scope input,
+.design-scope textarea {
+  font: inherit;
+}
+.design-scope button {
+  cursor: pointer;
+}
+.design-scope button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.design-scope :focus-visible {
+  outline: 2px solid var(--ds-blue);
+  outline-offset: 3px;
+}
+.ds-button,
+.button {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-weight: 500;
+  transition:
+    background 150ms,
+    transform 150ms;
+  background: var(--ds-paper);
+  color: var(--ds-ink);
+}
+.ds-button:hover:enabled,
+.button:hover:enabled {
+  background: var(--ds-hover);
+}
+.ds-button:active:enabled {
+  transform: translateY(1px);
+}
+.ds-primary,
+.button-primary {
+  background: var(--ds-ink);
+  border-color: var(--ds-ink);
+  color: white;
+  border-radius: 999px;
+  padding: 0 18px;
+}
+.ds-primary:hover:enabled,
+.button-primary:hover:enabled {
+  background: #41413a;
+}
+.ds-quiet,
+.button-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+.ds-compact {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.ds-disclosure {
+  border-top: 1px solid var(--ds-line);
+}
+.ds-disclosure-trigger {
+  width: 100%;
+  min-height: 48px;
+  background: transparent;
+  border: 0;
+  padding: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  text-align: left;
+  color: var(--ds-ink);
+  border-radius: 6px;
+}
+.ds-disclosure-trigger:hover {
+  background: var(--ds-canvas);
+}
+.ds-disclosure-trigger small {
+  margin-left: 12px;
+  color: var(--ds-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.ds-disclosure-action {
+  font-size: 12px;
+  color: var(--ds-muted);
+  flex-shrink: 0;
+}
+.ds-disclosure-body {
+  padding: 0 0 20px;
+  color: var(--ds-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+@media (prefers-reduced-motion: reduce) {
+  .design-scope * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
