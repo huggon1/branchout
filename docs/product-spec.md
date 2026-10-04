@@ -53,6 +53,12 @@ Analysis reports retain their project identity and appear inside the task that p
 
 The task center combines content and analysis tasks, showing queued, running, completed, failed, and canceled states. Running tasks show the current stage and a collapsed chronological process disclosure. Users can return from other pages and open results on completion. Reopening the window restores saved task state.
 
+## Languages
+
+Users select Simplified Chinese or English in Settings. The selection controls application labels, menus, guidance, and application-generated errors. User-entered cards, source text, quotations, URLs, and technical identifiers retain their original content.
+
+New model tasks use the selected language for reader-facing understanding, findings, reasons, and suggested card text. Each task freezes its output language at launch. Changing the interface language updates the interface immediately; saved reports retain their generated language. A user retry retains the saved task language. Platform search language belongs to the search request when that capability is introduced.
+
 ## Settings and runtime boundaries
 
 Settings contain one current model connection, Telegram access, and source reader configuration. A general API connection stores an API key, service URL, API type, and model ID in an owner-only local file; the API type is OpenAI Responses or OpenAI Chat Completions. A Codex subscription connection uses ChatGPT account login and selects an available model for that account and client. New configuration applies to later tasks; running tasks retain their start-time configuration.

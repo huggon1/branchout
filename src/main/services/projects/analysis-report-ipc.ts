@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { handle } from "../../ipc";
 import { z } from "zod";
 import { analysisChannels } from "../../../shared/ipc-contracts";
 import {
@@ -22,7 +22,7 @@ export function registerAnalysisReportIpc(
     analysisChannels.readReport,
     analysisChannels.acceptSuggestion,
   ]) {
-    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    handle(channel, async (event, ...args: unknown[]) => {
       const count = channel === analysisChannels.reports ? args.length : 1;
       if (
         !event.senderFrame ||
@@ -59,7 +59,7 @@ export function registerProjectAnalysisExecutionIpc(
   expected: string,
 ) {
   for (const channel of [analysisChannels.preflight, analysisChannels.start])
-    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    handle(channel, async (event, ...args: unknown[]) => {
       if (
         !event.senderFrame ||
         event.senderFrame !== event.sender.mainFrame ||

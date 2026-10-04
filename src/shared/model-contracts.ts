@@ -1,3 +1,4 @@
+import type { IpcErrorCode } from "./ipc-errors";
 import { z } from "zod";
 import type { FailureCode } from "./task-failure";
 const modelId = z
@@ -75,4 +76,4 @@ export const executionSchema = z
   .strict();
 export type ModelExecutionConfig = z.infer<typeof executionSchema>;
 export type ModelReply<T> =
-  { ok: true; value: T } | { ok: false; message: string };
+  { ok: true; value: T } | { ok: false; message: string; code?: IpcErrorCode };

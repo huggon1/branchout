@@ -23,4 +23,4 @@ The renderer reads saved snapshots through the controlled preload interface and 
 
 Page components compose business states; shared components handle reusable presentation and interaction.
 
-`design/Components.tsx` and `design/tokens-and-controls.css` provide the shared disclosure, button, and color system used by the application and component preview.
+`design/Components.tsx` and `design/tokens-and-controls.css` provide the shared disclosure, button, and color system used by application pages.

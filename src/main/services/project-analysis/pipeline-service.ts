@@ -1,3 +1,5 @@
+import { promptExecutionSchema } from "../../../shared/execution-contracts";
+import { languageSchema, type Language } from "../../../shared/language";
 import { displayActivityText } from "../../../shared/display-activity";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -9,13 +11,19 @@ import { failureMessages } from "../../../shared/task-failure";
 import { readProjectRepository } from "../../../readers/repository";
 import { discoverCodexSessionCandidates } from "../../../readers/codex-sessions";
 import type { ModelService } from "../model-service";
-import { analysisPromptSettingsSchema, defaultAnalysisPromptSettings, type AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
+import {
+  analysisPromptSettingsSchema,
+  defaultAnalysisPromptSettings,
+  type AnalysisPromptSnapshot,
+} from "../../../shared/analysis-prompt-contracts";
 import { maximumSelectedConversationCount } from "../../../shared/project-analysis-limits";
 
 const startSchema = z
   .object({
     projectId: z.string().uuid(),
-    codexSessionIds: z.array(z.string().min(1).max(300)).max(maximumSelectedConversationCount),
+    codexSessionIds: z
+      .array(z.string().min(1).max(300))
+      .max(maximumSelectedConversationCount),
   })
   .strict();
 
@@ -57,8 +65,12 @@ const analysisDraftSchema = z
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
+    execution: promptExecutionSchema.optional(),
     summary: z.string().min(1).max(1400),
-    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
+    outputLanguage: languageSchema.optional(),
+    promptGuidance: analysisPromptSettingsSchema
+      .extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
+      .optional(),
     findings: z.array(
       z
         .object({
@@ -169,16 +181,25 @@ const analysisDraftSchema = z
   .strict();
 
 const workerEventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("credential_request"), taskId: z.string().uuid(), requestId: z.string().uuid() }).strict(),
+  z
+    .object({
+      type: z.literal("execution"),
+      taskId: z.string().uuid(),
+      execution: promptExecutionSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("credential_request"),
+      taskId: z.string().uuid(),
+      requestId: z.string().uuid(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal("phase"),
       taskId: z.string().uuid(),
-      phase: z.enum([
-        "repository",
-        "codex_sessions",
-        "reasoning",
-      ]),
+      phase: z.enum(["repository", "codex_sessions", "reasoning"]),
     })
     .strict(),
   z
@@ -190,7 +211,9 @@ const workerEventSchema = z.discriminatedUnion("type", [
       messagesRead: z.number().int().nonnegative().optional(),
       message: z.string().max(500).optional(),
       body: z.string().max(16000).optional(),
-      activityKind: z.enum(["started", "retrying", "completed", "failed", "message", "tool"]).optional(),
+      activityKind: z
+        .enum(["started", "retrying", "completed", "failed", "message", "tool"])
+        .optional(),
     })
     .strict(),
   z
@@ -205,11 +228,20 @@ const workerEventSchema = z.discriminatedUnion("type", [
       type: z.literal("failed"),
       taskId: z.string().uuid(),
       code: z.string().min(1).max(100),
-      diagnostic: z.object({
-        httpStatus: z.number().int().min(100).max(599).optional(),
-        providerCode: z.string().regex(/^[a-zA-Z0-9_.-]{1,64}$/).optional(),
-        transportCode: z.string().regex(/^[a-zA-Z0-9_.-]{1,64}$/).optional(),
-      }).strict().optional(),
+      diagnostic: z
+        .object({
+          httpStatus: z.number().int().min(100).max(599).optional(),
+          providerCode: z
+            .string()
+            .regex(/^[a-zA-Z0-9_.-]{1,64}$/)
+            .optional(),
+          transportCode: z
+            .string()
+            .regex(/^[a-zA-Z0-9_.-]{1,64}$/)
+            .optional(),
+        })
+        .strict()
+        .optional(),
     })
     .strict(),
 ]);
@@ -225,10 +257,13 @@ const preflightSchema = z
         candidateFileCount: z.number().int().nonnegative(),
       })
       .strict(),
-    codexDiscovery: z.object({
-      filesScanned: z.number().int().nonnegative(),
-      bounded: z.boolean(),
-    }).strict().optional(),
+    codexDiscovery: z
+      .object({
+        filesScanned: z.number().int().nonnegative(),
+        bounded: z.boolean(),
+      })
+      .strict()
+      .optional(),
     codexSessions: z.array(
       z
         .object({
@@ -237,17 +272,30 @@ const preflightSchema = z
           date: z.string().datetime(),
           attribution: z.enum(["confirmed", "review"]),
           reason: z.string().min(1).max(2000),
-          attributionReason: z.enum(["same_repository_path", "same_git_repository", "same_remote_repository"]).optional(),
+          attributionReason: z
+            .enum([
+              "same_repository_path",
+              "same_git_repository",
+              "same_remote_repository",
+            ])
+            .optional(),
           workingDirectoryLabel: z.string().max(120).optional(),
           startedAt: z.string().datetime().optional(),
           lastModifiedAt: z.string().datetime().optional(),
-          preview: z.object({
-            signal: z.enum(["project_intent", "execution_focused", "no_usable_messages"]),
-            usableUserMessageCount: z.number().int().nonnegative(),
-            executionRecordCount: z.number().int().nonnegative(),
-            excerpts: z.array(z.string().min(1).max(300)).max(3),
-            bounded: z.boolean(),
-          }).strict().optional(),
+          preview: z
+            .object({
+              signal: z.enum([
+                "project_intent",
+                "execution_focused",
+                "no_usable_messages",
+              ]),
+              usableUserMessageCount: z.number().int().nonnegative(),
+              executionRecordCount: z.number().int().nonnegative(),
+              excerpts: z.array(z.string().min(1).max(300)).max(3),
+              bounded: z.boolean(),
+            })
+            .strict()
+            .optional(),
         })
         .strict(),
     ),
@@ -274,8 +322,12 @@ export const projectAnalysisReportForSaveSchema = z
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
+    execution: promptExecutionSchema.optional(),
     summary: z.string().min(1).max(1400),
-    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
+    outputLanguage: languageSchema.optional(),
+    promptGuidance: analysisPromptSettingsSchema
+      .extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
+      .optional(),
     coverage: z
       .object({
         repositoryRead: z.array(z.string().min(1).max(4096)),
@@ -363,7 +415,11 @@ export const projectAnalysisRunInputSchema = z
     // Accepted only while loading saved tasks created by earlier versions.
     rangeId: z.enum(["recent_30", "recent_100"]).optional(),
     codexSessionIds: z.array(z.string().min(1).max(300)).max(1000),
-    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
+    executionAttempts: z.array(promptExecutionSchema).optional(),
+    outputLanguage: languageSchema.optional(),
+    promptGuidance: analysisPromptSettingsSchema
+      .extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
+      .optional(),
     focusSetSnapshot: z
       .object({
         capturedAt: z.string().datetime(),
@@ -392,10 +448,15 @@ export interface ProjectAnalysisWorker {
 }
 
 export interface ProjectAnalysisPipelinePorts {
+  language?: () => Language;
   workerPath: string;
   traceRoot: string;
   exportTrace(traceRoot: string, taskId: string): Promise<string | undefined>;
-  recordTraceLineage?(traceRoot: string, taskId: string, previousTaskId?: string): Promise<void>;
+  recordTraceLineage?(
+    traceRoot: string,
+    taskId: string,
+    previousTaskId?: string,
+  ): Promise<void>;
   spawnWorker(path: string): ProjectAnalysisWorker;
   projects: { get(projectId: string): ProjectRecord | undefined };
   focusCards: {
@@ -452,8 +513,11 @@ const safeFailureCodes = new Set(Object.keys(failureMessages));
 function safeModelActivity(message: string | undefined): string | undefined {
   if (!message || message.length > 100) return undefined;
   return /^归纳第 \d{1,3} 层关注角度$/.test(message) ||
-    /^(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(message)
-    ? message : undefined;
+    /^(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(
+      message,
+    )
+    ? message
+    : undefined;
 }
 
 function encodeLocation(
@@ -496,7 +560,9 @@ function reportFromDraft(
     projectId: draft.projectId,
     projectLabel: draft.projectLabel,
     generatedAt: draft.generatedAt,
+    execution: draft.execution,
     summary: draft.summary,
+    outputLanguage: draft.outputLanguage,
     ...(draft.promptGuidance ? { promptGuidance: draft.promptGuidance } : {}),
     coverage: {
       repositoryRead: draft.coverage.repository.readPaths,
@@ -554,7 +620,9 @@ export class ProjectAnalysisPipelineService {
     const project = this.boundProject(projectId);
     const controller = new AbortController();
     return Promise.all([
-      this.readRepository(project.directory, controller.signal, { maxFiles: 0 }),
+      this.readRepository(project.directory, controller.signal, {
+        maxFiles: 0,
+      }),
       this.discoverSessions(project.directory),
     ]).then(([repository, sessions]) => {
       return preflightSchema.parse({
@@ -573,7 +641,9 @@ export class ProjectAnalysisPipelineService {
           attribution: candidate.attribution,
           reason: candidate.reason,
           attributionReason: candidate.attributionReason,
-          ...(candidate.workingDirectoryLabel ? { workingDirectoryLabel: candidate.workingDirectoryLabel } : {}),
+          ...(candidate.workingDirectoryLabel
+            ? { workingDirectoryLabel: candidate.workingDirectoryLabel }
+            : {}),
           ...(candidate.startedAt ? { startedAt: candidate.startedAt } : {}),
           lastModifiedAt: candidate.lastModifiedAt,
           preview: candidate.preview,
@@ -618,11 +688,14 @@ export class ProjectAnalysisPipelineService {
       codexSessionIds: [...new Set(input.codexSessionIds)],
       promptGuidance: (() => {
         const guidance = this.ports.prompts.snapshot();
-        return guidance.analysisGoal === defaultAnalysisPromptSettings.analysisGoal &&
+        return guidance.analysisGoal ===
+          defaultAnalysisPromptSettings.analysisGoal &&
           guidance.cardWriting === defaultAnalysisPromptSettings.cardWriting
-          ? undefined : guidance;
+          ? undefined
+          : guidance;
       })(),
       focusSetSnapshot,
+      outputLanguage: this.ports.language?.() ?? "zh-CN",
     });
   }
 
@@ -641,7 +714,9 @@ export class ProjectAnalysisPipelineService {
       : undefined;
     if (!previous) throw new Error("任务的冻结输入无法读取");
     if (previous.codexSessionIds.length > maximumSelectedConversationCount)
-      throw new Error(`原任务选了 ${previous.codexSessionIds.length} 条对话，请重新选择至多 ${maximumSelectedConversationCount} 条后分析`);
+      throw new Error(
+        `原任务选了 ${previous.codexSessionIds.length} 条对话，请重新选择至多 ${maximumSelectedConversationCount} 条后分析`,
+      );
     const current = this.boundProject(previous.projectId);
     if (current.directory !== previous.directory)
       throw new Error("项目目录已变化，请重新执行分析预检");
@@ -705,7 +780,10 @@ export class ProjectAnalysisPipelineService {
     };
   }
 
-  private async launch(input: RunInput, resumeFromTaskId?: string): Promise<string> {
+  private async launch(
+    input: RunInput,
+    resumeFromTaskId?: string,
+  ): Promise<string> {
     if (this.closed || this.active.size >= 2)
       throw new Error("后台分析任务数量已达上限");
     const lease = await this.ports.models.acquire();
@@ -724,7 +802,11 @@ export class ProjectAnalysisPipelineService {
       });
       taskId = task.taskId;
       await this.ports.runInputs.save(taskId, input);
-      await this.ports.recordTraceLineage?.(this.ports.traceRoot, taskId, resumeFromTaskId);
+      await this.ports.recordTraceLineage?.(
+        this.ports.traceRoot,
+        taskId,
+        resumeFromTaskId,
+      );
       const worker = this.ports.spawnWorker(this.ports.workerPath);
       const entry: ActiveRun = {
         worker,
@@ -764,6 +846,7 @@ export class ProjectAnalysisPipelineService {
           content: card.content,
           active: true,
         })),
+        outputLanguage: input.outputLanguage ?? "zh-CN",
         config: lease.config,
         promptGuidance: input.promptGuidance,
         traceRoot: this.ports.traceRoot,
@@ -794,12 +877,39 @@ export class ProjectAnalysisPipelineService {
       return;
     }
     const event = parsed.data;
+    if (event.type === "execution") {
+      if (event.execution.taskId !== taskId) {
+        await this.fail(taskId, "task_protocol");
+        return;
+      }
+      const saved = this.ports.runInputs.read(taskId);
+      if (!saved) {
+        await this.fail(taskId, "task_protocol");
+        return;
+      }
+      await this.ports.runInputs.save(taskId, {
+        ...saved,
+        executionAttempts: [
+          ...(saved.executionAttempts ?? []),
+          event.execution,
+        ],
+      });
+      return;
+    }
     if (event.type === "credential_request") {
       try {
         const credential = await active.lease.refreshCredential();
-        active.worker.postMessage({ type: "credential_response", requestId: event.requestId, credential });
+        active.worker.postMessage({
+          type: "credential_response",
+          requestId: event.requestId,
+          credential,
+        });
       } catch {
-        active.worker.postMessage({ type: "credential_response", requestId: event.requestId, error: "model_auth" });
+        active.worker.postMessage({
+          type: "credential_response",
+          requestId: event.requestId,
+          error: "model_auth",
+        });
       }
       return;
     }
@@ -821,8 +931,11 @@ export class ProjectAnalysisPipelineService {
       return;
     }
     if (event.type === "progress") {
-      const hasCount = [event.messagesRead, event.sessionsRead, event.repositoryFilesRead]
-        .some((value) => value !== undefined);
+      const hasCount = [
+        event.messagesRead,
+        event.sessionsRead,
+        event.repositoryFilesRead,
+      ].some((value) => value !== undefined);
       const completed =
         event.messagesRead ??
         event.sessionsRead ??
@@ -845,14 +958,19 @@ export class ProjectAnalysisPipelineService {
           ? undefined
           : `会话消息 ${event.messagesRead} 条`,
       ].filter((value): value is string => value !== undefined);
-      const modelActivity = event.activityKind === "message" || event.activityKind === "tool" ? displayActivityText(event.message ?? "模型活动").slice(0, 500) : safeModelActivity(event.message);
+      const modelActivity =
+        event.activityKind === "message" || event.activityKind === "tool"
+          ? displayActivityText(event.message ?? "模型活动").slice(0, 500)
+          : safeModelActivity(event.message);
       if (summaries.length || modelActivity)
         await this.ports.tasks.receive(taskId, {
           type: "activity",
           taskId,
           action: "progress",
           summary: modelActivity ?? `已读取 ${summaries.join("、")}`,
-          ...(event.activityKind === "message" && event.body ? { body: displayActivityText(event.body) } : {}),
+          ...(event.activityKind === "message" && event.body
+            ? { body: displayActivityText(event.body) }
+            : {}),
           ...(hasCount ? { progress: { completed } } : {}),
         });
       this.ports.notify();
@@ -901,7 +1019,15 @@ export class ProjectAnalysisPipelineService {
     this.ports.notify();
   }
 
-  private async fail(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string }): Promise<void> {
+  private async fail(
+    taskId: string,
+    code: string,
+    diagnostic?: {
+      httpStatus?: number;
+      providerCode?: string;
+      transportCode?: string;
+    },
+  ): Promise<void> {
     const active = this.active.get(taskId);
     if (active) active.stopping = true;
     try {
@@ -912,13 +1038,25 @@ export class ProjectAnalysisPipelineService {
     this.ports.notify();
   }
 
-  private async taskFailure(taskId: string, code: string, diagnostic?: { httpStatus?: number; providerCode?: string; transportCode?: string }): Promise<void> {
+  private async taskFailure(
+    taskId: string,
+    code: string,
+    diagnostic?: {
+      httpStatus?: number;
+      providerCode?: string;
+      transportCode?: string;
+    },
+  ): Promise<void> {
     const safeCode = safeFailureCodes.has(code) ? code : "execution_failed";
     const message = failureMessages[safeCode as keyof typeof failureMessages];
     const details = [
       diagnostic?.httpStatus ? `HTTP ${diagnostic.httpStatus}` : undefined,
-      diagnostic?.providerCode ? `服务代码 ${diagnostic.providerCode}` : undefined,
-      diagnostic?.transportCode ? `网络代码 ${diagnostic.transportCode}` : undefined,
+      diagnostic?.providerCode
+        ? `服务代码 ${diagnostic.providerCode}`
+        : undefined,
+      diagnostic?.transportCode
+        ? `网络代码 ${diagnostic.transportCode}`
+        : undefined,
     ].filter(Boolean);
     await this.ports.tasks.receive(taskId, {
       type: "failed",

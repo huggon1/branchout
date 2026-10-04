@@ -1,3 +1,6 @@
+import { dateTime } from "./i18n";
+import { bridge as desktopBridge } from "./bridge";
+import { t, tf } from "./i18n";
 import type { ModelReply } from "../shared/model-contracts";
 import { defaultSelectedConversationCount } from "../shared/project-analysis-limits";
 
@@ -45,6 +48,7 @@ export interface UiFocusRelation {
 }
 
 export interface UiForwardingReport {
+  outputLanguage?: "zh-CN" | "en";
   materialId: string;
   taskId: string;
   title: string;
@@ -93,6 +97,7 @@ export interface UiSuggestionAcceptance {
 }
 
 export interface UiAnalysisReport {
+  outputLanguage?: "zh-CN" | "en";
   analysisReportId: string;
   projectId: string;
   projectLabel: string;
@@ -237,7 +242,11 @@ export interface ProductUiBridge {
     expectedFocusVersionId: string;
     content: string;
   }): Promise<ModelReply<UiFocusCard>>;
-  uiSetFocusDeleted(input: { focusId: string; expectedFocusVersionId: string; deleted: boolean }): Promise<ModelReply<UiFocusCard>>;
+  uiSetFocusDeleted(input: {
+    focusId: string;
+    expectedFocusVersionId: string;
+    deleted: boolean;
+  }): Promise<ModelReply<UiFocusCard>>;
   uiSetFocusActive(input: {
     focusId: string;
     expectedFocusVersionId: string;
@@ -297,20 +306,30 @@ type CanonicalAnalysisEvidence = {
   quote: string;
 };
 type CanonicalAnalysisReport = {
+  execution?: { promptRevision: string };
+  outputLanguage?: "zh-CN" | "en";
   analysisReportId: string;
   taskId: string;
   projectId: string;
   projectLabel: string;
   generatedAt: string;
   summary?: string;
-  promptGuidance?: { analysisGoal: string; cardWriting: string; revision: string };
+  promptGuidance?: {
+    analysisGoal: string;
+    cardWriting: string;
+    revision: string;
+  };
   coverage: {
     repositoryRead: string[];
     repositorySkipped: string[];
     repositoryFailed: Array<{ path: string; reason: string }>;
     commitsRead?: string[];
     commitsSkipped?: string[];
-    commitRange?: { rangeId: "recent_30" | "recent_100"; availableCount: number; skippedByRange: number };
+    commitRange?: {
+      rangeId: "recent_30" | "recent_100";
+      availableCount: number;
+      skippedByRange: number;
+    };
     codexSessionsRead: string[];
     codexSessionsSkipped: string[];
     codexSessionsFailed: Array<{ sessionId: string; reason: string }>;
@@ -364,10 +383,19 @@ type CanonicalTaskSnapshot = {
     | { kind: "none" }
     | { kind: "project"; projectId: string; projectLabel: string }
     | { kind: "source"; url: string };
-  state: "queued" | "running" | "awaiting_user" | "completed" | "failed" | "cancelled";
+  state:
+    | "queued"
+    | "running"
+    | "awaiting_user"
+    | "completed"
+    | "failed"
+    | "cancelled";
   phase: string;
   progress: { completed: number; total?: number };
-  result?: { kind: "forwarding_report" | "project_analysis_report"; id: string };
+  result?: {
+    kind: "forwarding_report" | "project_analysis_report";
+    id: string;
+  };
   failure?: { message: string };
   createdAt: string;
   finishedAt?: string;
@@ -429,9 +457,18 @@ type CanonicalFocusRelation = {
   evidence: Array<{ blockIndex: number; quote: string }>;
 };
 type CanonicalForwardingReport = {
+  outputLanguage?: "zh-CN" | "en";
   source: CanonicalSource;
   generalUnderstanding: string;
-  focusSet: { cards: Array<{ projectId: string; projectLabel: string; focusId: string; focusVersionId: string; content: string }> };
+  focusSet: {
+    cards: Array<{
+      projectId: string;
+      projectLabel: string;
+      focusId: string;
+      focusVersionId: string;
+      content: string;
+    }>;
+  };
   evaluatedFocusVersionIds: string[];
   relations: CanonicalFocusRelation[];
 };
@@ -447,7 +484,10 @@ type CanonicalForwardingDetail = {
     focusSet: { cards: CanonicalForwardingReport["focusSet"]["cards"] };
     source?: CanonicalSource;
     generalUnderstanding?: string;
-    evaluations: Array<{ focusVersionId: string; relation?: CanonicalFocusRelation }>;
+    evaluations: Array<{
+      focusVersionId: string;
+      relation?: CanonicalFocusRelation;
+    }>;
     report?: CanonicalForwardingReport;
     failureStage?: "source" | "understanding" | "relations";
     activities: CanonicalForwardingSummary["activities"];
@@ -485,22 +525,58 @@ interface CanonicalBridge {
   bindProject(): Promise<ModelReply<string | undefined>>;
   unbindProject(projectId: string): Promise<ModelReply<void>>;
   focusCardView(): Promise<ModelReply<CanonicalFocusView>>;
-  createFocusCard(input: { projectId: string; content: string }): Promise<ModelReply<{ focusId: string }>>;
-  editFocusCard(input: { focusId: string; expectedVersionId: string; content: string }): Promise<ModelReply<CanonicalFocusVersion>>;
-  setFocusCardDeleted(input: { focusId: string; expectedVersionId: string; deleted: boolean }): Promise<ModelReply<CanonicalFocusVersion>>;
-  setFocusCardActive(input: { focusId: string; expectedVersionId: string; active: boolean }): Promise<ModelReply<CanonicalFocusVersion>>;
-  projectAnalysisPreflight?(projectId: string): Promise<ModelReply<CanonicalPreflight>>;
-  startProjectAnalysis?(input: { projectId: string; codexSessionIds: string[] }): Promise<ModelReply<string>>;
-  acceptFocusSuggestion(input: { analysisReportId: string; suggestionId: string; currentVersionId?: string }): Promise<ModelReply<{ status: "accepted"; acceptance: { focusId: string; focusVersionId: string } } | { status: "stale"; currentVersionId: string; currentContent: string }>>;
+  createFocusCard(input: {
+    projectId: string;
+    content: string;
+  }): Promise<ModelReply<{ focusId: string }>>;
+  editFocusCard(input: {
+    focusId: string;
+    expectedVersionId: string;
+    content: string;
+  }): Promise<ModelReply<CanonicalFocusVersion>>;
+  setFocusCardDeleted(input: {
+    focusId: string;
+    expectedVersionId: string;
+    deleted: boolean;
+  }): Promise<ModelReply<CanonicalFocusVersion>>;
+  setFocusCardActive(input: {
+    focusId: string;
+    expectedVersionId: string;
+    active: boolean;
+  }): Promise<ModelReply<CanonicalFocusVersion>>;
+  projectAnalysisPreflight?(
+    projectId: string,
+  ): Promise<ModelReply<CanonicalPreflight>>;
+  startProjectAnalysis?(input: {
+    projectId: string;
+    codexSessionIds: string[];
+  }): Promise<ModelReply<string>>;
+  acceptFocusSuggestion(input: {
+    analysisReportId: string;
+    suggestionId: string;
+    currentVersionId?: string;
+  }): Promise<
+    ModelReply<
+      | {
+          status: "accepted";
+          acceptance: { focusId: string; focusVersionId: string };
+        }
+      | { status: "stale"; currentVersionId: string; currentContent: string }
+    >
+  >;
   unifiedTaskSnapshots(): Promise<ModelReply<CanonicalTaskSnapshot[]>>;
   taskActivities(taskId: string): Promise<ModelReply<CanonicalTaskActivity[]>>;
   forwardingTasks(): Promise<ModelReply<CanonicalForwardingSummary[]>>;
-  forwardingTask(taskId: string): Promise<ModelReply<CanonicalForwardingDetail>>;
+  forwardingTask(
+    taskId: string,
+  ): Promise<ModelReply<CanonicalForwardingDetail>>;
   addLink(url: string): Promise<ModelReply<string>>;
   retryForwarding(taskId: string): Promise<ModelReply<void>>;
   cancelForwarding(taskId: string): Promise<ModelReply<void>>;
   retryProjectAnalysis?(taskId: string): Promise<ModelReply<string>>;
-  exportProjectAnalysisTrace?(taskId: string): Promise<ModelReply<string | undefined>>;
+  exportProjectAnalysisTrace?(
+    taskId: string,
+  ): Promise<ModelReply<string | undefined>>;
   cancelProjectAnalysis?(taskId: string): Promise<ModelReply<void>>;
   openSource(materialId: string): Promise<ModelReply<void>>;
   telegramStatus?(): Promise<ModelReply<CanonicalTelegramStatus>>;
@@ -514,7 +590,7 @@ interface CanonicalBridge {
   onChanged(listener: () => void): () => void;
 }
 
-const failed = <T,>(message: string): ModelReply<T> => ({ ok: false, message });
+const failed = <T>(message: string): ModelReply<T> => ({ ok: false, message });
 const staleSuggestionCache = new Map<
   string,
   { currentFocusVersionId: string; currentContent: string }
@@ -532,13 +608,17 @@ const focusView = (view: CanonicalFocusView): UiFocusCard[] =>
       .filter((version) => version.focusId === card.focusId)
       .sort((left, right) => left.version - right.version)
       .map(versionView);
-    const current = history.find((version) => version.focusVersionId === card.currentVersionId);
+    const current = history.find(
+      (version) => version.focusVersionId === card.currentVersionId,
+    );
     return current ? [{ ...card, current, history }] : [];
   });
-const analysisEvidence = (evidence: CanonicalAnalysisEvidence[]): UiAnalysisEvidence[] =>
+const analysisEvidence = (
+  evidence: CanonicalAnalysisEvidence[],
+): UiAnalysisEvidence[] =>
   evidence.map((item) => ({ ...item, label: item.sourceId }));
 const readCoverage = (items: string[], noun: string) =>
-  items.length ? `${items.length} ${noun}` : "无";
+  items.length ? `${items.length} ${noun}` : t("无");
 const mapAnalysisReport = (
   report: CanonicalAnalysisReport,
   acceptances: CanonicalProjectState["suggestionAcceptances"],
@@ -549,26 +629,47 @@ const mapAnalysisReport = (
       .filter((item) => item.analysisReportId === report.analysisReportId)
       .map((item) => [item.suggestionId, item]),
   );
-  const versionById = new Map(versions.map((item) => [item.focusVersionId, item]));
+  const versionById = new Map(
+    versions.map((item) => [item.focusVersionId, item]),
+  );
   const coverage = report.coverage;
   const sources = [
     {
-      source: "仓库",
-      read: readCoverage(coverage.repositoryRead, "个文件"),
-      ...(coverage.repositorySkipped.length ? { skipped: readCoverage(coverage.repositorySkipped, "个文件") } : {}),
-      ...(coverage.repositoryFailed.length ? { failed: `${coverage.repositoryFailed.length} 个文件读取失败` } : {}),
+      source: t("仓库"),
+      read: readCoverage(coverage.repositoryRead, t("个文件")),
+      ...(coverage.repositorySkipped.length
+        ? { skipped: readCoverage(coverage.repositorySkipped, t("个文件")) }
+        : {}),
+      ...(coverage.repositoryFailed.length
+        ? { failed: tf("{0} 个文件读取失败", coverage.repositoryFailed.length) }
+        : {}),
     },
     {
-      source: "Codex 对话",
-      read: readCoverage(coverage.codexSessionsRead, "个会话"),
-      ...(coverage.codexSessionsSkipped.length ? { skipped: readCoverage(coverage.codexSessionsSkipped, "个会话") } : {}),
-      ...(coverage.codexSessionsFailed.length ? { failed: `${coverage.codexSessionsFailed.length} 个会话读取失败` } : {}),
+      source: t("Codex 对话"),
+      read: readCoverage(coverage.codexSessionsRead, t("个会话")),
+      ...(coverage.codexSessionsSkipped.length
+        ? { skipped: readCoverage(coverage.codexSessionsSkipped, t("个会话")) }
+        : {}),
+      ...(coverage.codexSessionsFailed.length
+        ? {
+            failed: tf(
+              "{0} 个会话读取失败",
+              coverage.codexSessionsFailed.length,
+            ),
+          }
+        : {}),
     },
-    ...(coverage.commitsRead ? [{
-      source: "历史 Git commit",
-      read: readCoverage(coverage.commitsRead, "条"),
-      ...(coverage.commitsSkipped?.length ? { skipped: readCoverage(coverage.commitsSkipped, "条") } : {}),
-    }] : []),
+    ...(coverage.commitsRead
+      ? [
+          {
+            source: t("历史 Git commit"),
+            read: readCoverage(coverage.commitsRead, t("条")),
+            ...(coverage.commitsSkipped?.length
+              ? { skipped: readCoverage(coverage.commitsSkipped, t("条")) }
+              : {}),
+          },
+        ]
+      : []),
   ];
   const findings = report.findings.map((finding) => ({
     title: finding.title,
@@ -580,8 +681,13 @@ const mapAnalysisReport = (
     projectId: report.projectId,
     projectLabel: report.projectLabel,
     createdAt: report.generatedAt,
-    summary: report.summary || findings.map((finding) => finding.content).join("\n\n") || "本次分析没有形成可展示的发现。",
-    promptRevision: report.promptGuidance?.revision,
+    summary:
+      report.summary ||
+      findings.map((finding) => finding.content).join("\n\n") ||
+      t("本次分析没有形成可展示的发现。"),
+    outputLanguage: report.outputLanguage,
+    promptRevision:
+      report.execution?.promptRevision ?? report.promptGuidance?.revision,
     coverage: sources,
     findings,
     suggestions: report.suggestions.map((suggestion) => {
@@ -596,7 +702,10 @@ const mapAnalysisReport = (
         evidence: analysisEvidence(suggestion.evidence),
         acceptance: acceptance ? "accepted" : "pending",
         ...(acceptance
-          ? { focusId: acceptance.focusId, acceptedFocusVersionId: acceptance.focusVersionId }
+          ? {
+              focusId: acceptance.focusId,
+              acceptedFocusVersionId: acceptance.focusVersionId,
+            }
           : {}),
       };
     }),
@@ -605,9 +714,16 @@ const mapAnalysisReport = (
 const mapPreflight = (preflight: CanonicalPreflight): UiAnalysisPreflight => {
   const defaults = new Set(
     preflight.codexSessions
-      .filter((session) => session.attribution === "confirmed" &&
-        (session.preview?.usableUserMessageCount ?? 0) > 0)
-      .sort((a, b) => Date.parse(b.lastModifiedAt ?? b.date) - Date.parse(a.lastModifiedAt ?? a.date))
+      .filter(
+        (session) =>
+          session.attribution === "confirmed" &&
+          (session.preview?.usableUserMessageCount ?? 0) > 0,
+      )
+      .sort(
+        (a, b) =>
+          Date.parse(b.lastModifiedAt ?? b.date) -
+          Date.parse(a.lastModifiedAt ?? a.date),
+      )
       .slice(0, defaultSelectedConversationCount)
       .map((session) => session.sessionId),
   );
@@ -616,17 +732,17 @@ const mapPreflight = (preflight: CanonicalPreflight): UiAnalysisPreflight => {
       head: preflight.repository.gitHead,
       dirty: preflight.repository.hasUncommittedChanges,
       files: preflight.repository.candidateFileCount,
-      note: "Agent 将使用只读工具探索仓库。",
+      note: t("Agent 将使用只读工具探索仓库。"),
     },
     sessions: preflight.codexSessions.map((session) => ({
       sessionId: session.sessionId,
       label:
-        session.title?.trim() ||
-        `会话 ${new Date(session.date).toLocaleDateString()}`,
+        session.title?.trim() || tf("会话 {0}", dateTime(session.date, true)),
       startedAt: session.startedAt,
       updatedAt: session.lastModifiedAt ?? session.date,
       workingDirectoryLabel: session.workingDirectoryLabel,
-      ownership: session.attribution === "confirmed" ? "confirmed" : "uncertain",
+      ownership:
+        session.attribution === "confirmed" ? "confirmed" : "uncertain",
       selected: defaults.has(session.sessionId),
       reason: session.reason,
       attributionReason: session.attributionReason,
@@ -641,7 +757,11 @@ const mapSourceBlocks = (source: CanonicalSource): UiContentBlock[] => {
   for (const block of source.contentBlocks) {
     if (block.type === "image") {
       const image = images.get(block.imageId);
-      if (image) result.push({ type: "image", image: { url: image.url, alt: image.alt } });
+      if (image)
+        result.push({
+          type: "image",
+          image: { url: image.url, alt: image.alt },
+        });
     } else {
       result.push({ ...block });
     }
@@ -681,36 +801,46 @@ const mapForwardingReport = (
   failureStage?: CanonicalForwardingDetail["task"]["failureStage"],
 ): UiForwardingReport | undefined => {
   const source = report?.source ?? partial.source;
-  const understanding = report?.generalUnderstanding ?? partial.generalUnderstanding;
+  const understanding =
+    report?.generalUnderstanding ?? partial.generalUnderstanding;
   if (!source && !understanding) return undefined;
   return {
+    outputLanguage: report?.outputLanguage,
     materialId,
     taskId,
-    title: source?.title || source?.sourceIdentity || "转发内容",
+    title: source?.title || source?.sourceIdentity || t("转发内容"),
     platform: source?.platform ?? "github",
     sourceUrl: source?.sourceUrl ?? "",
-    sourceIdentity: source?.sourceIdentity ?? "来源读取尚未完成",
+    sourceIdentity: source?.sourceIdentity ?? t("来源读取尚未完成"),
     fetchedAt: source?.fetchedAt ?? new Date().toISOString(),
-      completeness: source?.completeness ?? "unknown",
+    completeness: source?.completeness ?? "unknown",
     completenessNote: source?.completenessNote,
     blocks: source ? mapSourceBlocks(source) : [],
     understanding: understanding ?? "",
-    relations: mapRelations(report?.relations ?? partial.relations, report?.focusSet.cards ?? focusCards),
-    reportState: taskState === "completed" && report ? "complete" : taskState === "queued" || taskState === "running" ? "processing" : "partial",
+    relations: mapRelations(
+      report?.relations ?? partial.relations,
+      report?.focusSet.cards ?? focusCards,
+    ),
+    reportState:
+      taskState === "completed" && report
+        ? "complete"
+        : taskState === "queued" || taskState === "running"
+          ? "processing"
+          : "partial",
     stageLabel:
       taskState === "failed" && failureStage === "relations"
-        ? "关注卡关联失败"
+        ? t("关注卡关联失败")
         : phase,
     taskMessage:
       taskState === "failed" && failureStage === "relations"
-        ? `已保存的来源和理解仍可阅读。${message ? ` ${message}` : ""}`
+        ? tf("已保存的来源和理解仍可阅读。{0}", message ? ` ${message}` : "")
         : message,
     retryAvailable: taskState === "failed" || taskState === "cancelled",
   };
 };
 
 export function productUiBridge(): ProductUiBridge {
-  const bridge = window.branchout as unknown as CanonicalBridge;
+  const bridge = desktopBridge as unknown as CanonicalBridge;
   const cardWorkspace = async () => {
     const [projectReply, focusReply] = await Promise.all([
       bridge.projects(),
@@ -728,13 +858,22 @@ export function productUiBridge(): ProductUiBridge {
     if (!taskReply.ok) return { error: taskReply.message } as const;
     if (!forwardingReply.ok) return { error: forwardingReply.message } as const;
     const summaries = forwardingReply.value;
-    const summaryById = new Map(summaries.map((summary) => [summary.taskId, summary]));
+    const summaryById = new Map(
+      summaries.map((summary) => [summary.taskId, summary]),
+    );
     const activityReplies = await Promise.all(
       taskReply.value
         .filter((task) => task.kind === "project_analysis")
-        .map(async (task) => [task.taskId, await bridge.taskActivities(task.taskId)] as const),
+        .map(
+          async (task) =>
+            [task.taskId, await bridge.taskActivities(task.taskId)] as const,
+        ),
     );
-    const activitiesById = new Map(activityReplies.flatMap(([taskId, reply]) => reply.ok ? [[taskId, reply.value] as const] : []));
+    const activitiesById = new Map(
+      activityReplies.flatMap(([taskId, reply]) =>
+        reply.ok ? [[taskId, reply.value] as const] : [],
+      ),
+    );
     const tasks = taskReply.value.map((task): UiTask => {
       const summary = summaryById.get(task.taskId);
       const isForwarding = task.kind === "forwarding";
@@ -744,7 +883,7 @@ export function productUiBridge(): ProductUiBridge {
           ? task.target.projectLabel
           : task.target.kind === "source"
             ? task.target.url
-            : "Branchout 任务";
+            : t("Branchout 任务");
       const forwardingActivities = summary?.activities ?? [];
       const taskActivities = activitiesById.get(task.taskId) ?? [];
       const activities: UiTaskActivity[] = isForwarding
@@ -764,44 +903,72 @@ export function productUiBridge(): ProductUiBridge {
             total: activity.progress?.total,
           }));
       const status = task.state === "awaiting_user" ? "running" : task.state;
-      const analysisPhase = task.state === "completed"
-        ? "已完成"
-        : task.state === "failed"
-          ? "分析失败"
-          : task.state === "cancelled"
-            ? "已取消"
-            : task.phase;
+      const analysisPhase =
+        task.state === "completed"
+          ? t("已完成")
+          : task.state === "failed"
+            ? t("分析失败")
+            : task.state === "cancelled"
+              ? t("已取消")
+              : task.phase;
       return {
         taskId: task.taskId,
         kind: task.kind,
-        ...(task.target.kind === "project" ? { projectId: task.target.projectId } : {}),
-        label: isForwarding ? `解析 ${targetLabel.split(" · ").at(-1)}` : `分析 ${targetLabel}`,
+        ...(task.target.kind === "project"
+          ? { projectId: task.target.projectId }
+          : {}),
+        label: isForwarding
+          ? tf("解析 {0}", targetLabel.split(" · ").at(-1))
+          : tf("分析 {0}", targetLabel),
         targetLabel,
         status,
         phase: summary?.phase ?? analysisPhase,
-        ...((isForwarding || task.progress.completed > 0 || task.progress.total !== undefined)
-          ? { processed: summary?.progress.evaluated ?? task.progress.completed }
+        ...(isForwarding ||
+        task.progress.completed > 0 ||
+        task.progress.total !== undefined
+          ? {
+              processed: summary?.progress.evaluated ?? task.progress.completed,
+            }
           : {}),
-        ...(summary?.progress.total !== undefined || task.progress.total !== undefined
+        ...(summary?.progress.total !== undefined ||
+        task.progress.total !== undefined
           ? { total: summary?.progress.total ?? task.progress.total }
           : {}),
         updatedAt: summary?.updatedAt ?? task.updatedAt,
         activities,
         ...(isForwarding && summary
           ? {
-              ...(summary.state === "completed" ? { resultId: summary.materialId, resultType: "content" as const } : {}),
-              ...((summary.hasSource || summary.hasUnderstanding) ? { partialResultId: summary.materialId } : {}),
+              ...(summary.state === "completed"
+                ? {
+                    resultId: summary.materialId,
+                    resultType: "content" as const,
+                  }
+                : {}),
+              ...(summary.hasSource || summary.hasUnderstanding
+                ? { partialResultId: summary.materialId }
+                : {}),
             }
           : task.result
-            ? { resultId: task.result.id, resultType: task.result.kind === "forwarding_report" ? "content" as const : "analysis" as const }
+            ? {
+                resultId: task.result.id,
+                resultType:
+                  task.result.kind === "forwarding_report"
+                    ? ("content" as const)
+                    : ("analysis" as const),
+              }
             : {}),
-        ...(summary?.message || task.failure?.message ? { error: summary?.message ?? task.failure?.message } : {}),
+        ...(summary?.message || task.failure?.message
+          ? { error: summary?.message ?? task.failure?.message }
+          : {}),
       };
     });
     const contentDetails = await Promise.all(
       summaries
         .filter((summary) => summary.hasSource || summary.hasUnderstanding)
-        .map(async (summary) => [summary, await bridge.forwardingTask(summary.taskId)] as const),
+        .map(
+          async (summary) =>
+            [summary, await bridge.forwardingTask(summary.taskId)] as const,
+        ),
     );
     const reports: UiForwardingReport[] = [];
     const partialReports: UiForwardingReport[] = [];
@@ -816,7 +983,8 @@ export function productUiBridge(): ProductUiBridge {
         summary.message,
         reply.value.task.report,
         reply.value.partial,
-        reply.value.task.report?.focusSet.cards ?? reply.value.task.focusSet.cards,
+        reply.value.task.report?.focusSet.cards ??
+          reply.value.task.focusSet.cards,
         reply.value.task.failureStage,
       );
       if (!report) continue;
@@ -833,7 +1001,7 @@ export function productUiBridge(): ProductUiBridge {
       if (!report) return task;
       return {
         ...task,
-        label: `解析 ${report.title}`,
+        label: tf("解析 {0}", report.title),
         targetLabel: `${report.platform.toUpperCase()} · ${report.sourceIdentity}`,
       };
     });
@@ -841,7 +1009,8 @@ export function productUiBridge(): ProductUiBridge {
   };
   const mapWorkspace = async (): Promise<ModelReply<UiProjectWorkspace>> => {
     const workspace = await cardWorkspace();
-    if ("error" in workspace) return failed(workspace.error ?? "项目状态读取失败。");
+    if ("error" in workspace)
+      return failed(workspace.error ?? t("项目状态读取失败。"));
     const reports = workspace.projects.analysisReports ?? [];
     const versions = workspace.focus.focusVersions;
     return {
@@ -873,58 +1042,106 @@ export function productUiBridge(): ProductUiBridge {
       },
     };
   };
-  const replyOperation = async <T,>(operation: (() => Promise<ModelReply<T>>) | undefined, name: string) =>
-    operation ? operation() : failed<T>(`${name} 服务尚未连接。`);
+  const replyOperation = async <T>(
+    operation: (() => Promise<ModelReply<T>>) | undefined,
+    name: string,
+  ) => (operation ? operation() : failed<T>(tf("{0} 服务尚未连接。", name)));
 
   return {
     uiProjects: mapWorkspace,
     uiContent: async () => {
       const content = await getTasks();
-      if ("error" in content) return failed<UiContentWorkspace>(content.error ?? "内容状态读取失败。");
-      return { ok: true, value: { reports: content.reports, partialReports: content.partialReports, tasks: content.tasks } };
+      if ("error" in content)
+        return failed<UiContentWorkspace>(
+          content.error ?? t("内容状态读取失败。"),
+        );
+      return {
+        ok: true,
+        value: {
+          reports: content.reports,
+          partialReports: content.partialReports,
+          tasks: content.tasks,
+        },
+      };
     },
     uiPreflightAnalysis: async (projectId) => {
       const reply = await replyOperation(
-        bridge.projectAnalysisPreflight ? () => bridge.projectAnalysisPreflight!(projectId) : undefined,
-        "项目分析范围",
+        bridge.projectAnalysisPreflight
+          ? () => bridge.projectAnalysisPreflight!(projectId)
+          : undefined,
+        t("项目分析范围"),
       );
       return reply.ok ? { ok: true, value: mapPreflight(reply.value) } : reply;
     },
     uiStartAnalysis: ({ projectId, sessionIds }) =>
       replyOperation(
         bridge.startProjectAnalysis
-          ? () => bridge.startProjectAnalysis!({ projectId, codexSessionIds: sessionIds })
+          ? () =>
+              bridge.startProjectAnalysis!({
+                projectId,
+                codexSessionIds: sessionIds,
+              })
           : undefined,
-        "项目分析",
+        t("项目分析"),
       ),
-    uiAcceptSuggestion: async ({ analysisReportId, suggestionId, reviewedCurrentFocusVersionId }) => {
+    uiAcceptSuggestion: async ({
+      analysisReportId,
+      suggestionId,
+      reviewedCurrentFocusVersionId,
+    }) => {
       const reply = await bridge.acceptFocusSuggestion({
         analysisReportId,
         suggestionId,
-        ...(reviewedCurrentFocusVersionId ? { currentVersionId: reviewedCurrentFocusVersionId } : {}),
+        ...(reviewedCurrentFocusVersionId
+          ? { currentVersionId: reviewedCurrentFocusVersionId }
+          : {}),
       });
       if (!reply.ok) return reply;
       if (reply.value.status === "accepted") {
         staleSuggestionCache.delete(suggestionId);
-        return { ok: true, value: { state: "accepted", focusVersionId: reply.value.acceptance.focusVersionId } };
+        return {
+          ok: true,
+          value: {
+            state: "accepted",
+            focusVersionId: reply.value.acceptance.focusVersionId,
+          },
+        };
       }
       staleSuggestionCache.set(suggestionId, {
         currentFocusVersionId: reply.value.currentVersionId,
         currentContent: reply.value.currentContent,
       });
-      return { ok: true, value: { state: "stale", currentFocusVersionId: reply.value.currentVersionId, currentContent: reply.value.currentContent } };
+      return {
+        ok: true,
+        value: {
+          state: "stale",
+          currentFocusVersionId: reply.value.currentVersionId,
+          currentContent: reply.value.currentContent,
+        },
+      };
     },
     uiBindProject: async () => {
       const reply = await bridge.bindProject();
       if (!reply.ok) return reply;
-      if (!reply.value) return failed("没有选择项目目录。");
+      if (!reply.value) return failed(t("没有选择项目目录。"));
       const projectId = reply.value;
       const workspace = await cardWorkspace();
-      if ("error" in workspace) return failed(workspace.error ?? "项目状态读取失败。");
-      const project = workspace.projects.projects.find((item) => item.projectId === projectId);
+      if ("error" in workspace)
+        return failed(workspace.error ?? t("项目状态读取失败。"));
+      const project = workspace.projects.projects.find(
+        (item) => item.projectId === projectId,
+      );
       return project
-        ? { ok: true, value: { projectId: project.projectId, projectLabel: project.name, directory: project.directory, status: project.status === "bound" ? "active" : "historical" } }
-        : failed("项目绑定已保存，但项目视图尚未刷新。");
+        ? {
+            ok: true,
+            value: {
+              projectId: project.projectId,
+              projectLabel: project.name,
+              directory: project.directory,
+              status: project.status === "bound" ? "active" : "historical",
+            },
+          }
+        : failed(t("项目绑定已保存，但项目视图尚未刷新。"));
     },
     uiUnbindProject: (projectId) => bridge.unbindProject(projectId),
     uiCreateFocus: async (input) => {
@@ -932,59 +1149,96 @@ export function productUiBridge(): ProductUiBridge {
       return reply.ok ? { ok: true, value: reply.value.focusId } : reply;
     },
     uiEditFocus: async ({ focusId, expectedFocusVersionId, content }) => {
-      const reply = await bridge.editFocusCard({ focusId, expectedVersionId: expectedFocusVersionId, content });
+      const reply = await bridge.editFocusCard({
+        focusId,
+        expectedVersionId: expectedFocusVersionId,
+        content,
+      });
       if (!reply.ok) return reply;
       const view = await bridge.focusCardView();
       if (!view.ok) return failed(view.message);
-      const card = focusView(view.value).find((item) => item.focusId === focusId);
-      return card ? { ok: true, value: card } : failed("关注卡已更新，但卡片视图尚未刷新。");
+      const card = focusView(view.value).find(
+        (item) => item.focusId === focusId,
+      );
+      return card
+        ? { ok: true, value: card }
+        : failed(t("关注卡已更新，但卡片视图尚未刷新。"));
     },
     uiSetFocusActive: async ({ focusId, expectedFocusVersionId, active }) => {
-      const reply = await bridge.setFocusCardActive({ focusId, expectedVersionId: expectedFocusVersionId, active });
+      const reply = await bridge.setFocusCardActive({
+        focusId,
+        expectedVersionId: expectedFocusVersionId,
+        active,
+      });
       if (!reply.ok) return reply;
       const view = await bridge.focusCardView();
       if (!view.ok) return failed(view.message);
-      const card = focusView(view.value).find((item) => item.focusId === focusId);
-      return card ? { ok: true, value: card } : failed("关注卡状态已更新，但卡片视图尚未刷新。");
+      const card = focusView(view.value).find(
+        (item) => item.focusId === focusId,
+      );
+      return card
+        ? { ok: true, value: card }
+        : failed(t("关注卡状态已更新，但卡片视图尚未刷新。"));
     },
     uiSetFocusDeleted: async ({ focusId, expectedFocusVersionId, deleted }) => {
-      const reply = await bridge.setFocusCardDeleted({ focusId, expectedVersionId: expectedFocusVersionId, deleted });
+      const reply = await bridge.setFocusCardDeleted({
+        focusId,
+        expectedVersionId: expectedFocusVersionId,
+        deleted,
+      });
       if (!reply.ok) return reply;
       const view = await bridge.focusCardView();
       if (!view.ok) return failed(view.message);
-      const card = focusView(view.value).find((item) => item.focusId === focusId);
-      return card ? { ok: true, value: card } : failed("关注卡状态已更新，但卡片视图尚未刷新。");
+      const card = focusView(view.value).find(
+        (item) => item.focusId === focusId,
+      );
+      return card
+        ? { ok: true, value: card }
+        : failed(t("关注卡状态已更新，但卡片视图尚未刷新。"));
     },
     uiAddLink: (url) => bridge.addLink(url),
     uiCancelTask: async (taskId) => {
       const tasks = await bridge.unifiedTaskSnapshots();
       if (!tasks.ok) return tasks;
       const task = tasks.value.find((item) => item.taskId === taskId);
-      if (!task) return failed("找不到要取消的任务。");
+      if (!task) return failed(t("找不到要取消的任务。"));
       if (task.kind === "forwarding") return bridge.cancelForwarding(taskId);
-      return replyOperation(bridge.cancelProjectAnalysis ? () => bridge.cancelProjectAnalysis!(taskId) : undefined, "项目分析取消");
+      return replyOperation(
+        bridge.cancelProjectAnalysis
+          ? () => bridge.cancelProjectAnalysis!(taskId)
+          : undefined,
+        t("项目分析取消"),
+      );
     },
     uiRetryTask: async (taskId) => {
       const tasks = await bridge.unifiedTaskSnapshots();
       if (!tasks.ok) return tasks;
       const task = tasks.value.find((item) => item.taskId === taskId);
-      if (!task) return failed("找不到要重试的任务。");
+      if (!task) return failed(t("找不到要重试的任务。"));
       if (task.kind === "forwarding") {
         const reply = await bridge.retryForwarding(taskId);
         return reply.ok ? { ok: true, value: taskId } : reply;
       }
-      const reply = await replyOperation(bridge.retryProjectAnalysis ? () => bridge.retryProjectAnalysis!(taskId) : undefined, "项目分析重试");
+      const reply = await replyOperation(
+        bridge.retryProjectAnalysis
+          ? () => bridge.retryProjectAnalysis!(taskId)
+          : undefined,
+        t("项目分析重试"),
+      );
       return reply;
     },
     uiExportAnalysisTrace: async (taskId) => {
       const reply = await replyOperation(
-        bridge.exportProjectAnalysisTrace ? () => bridge.exportProjectAnalysisTrace!(taskId) : undefined,
-        "分析记录导出",
+        bridge.exportProjectAnalysisTrace
+          ? () => bridge.exportProjectAnalysisTrace!(taskId)
+          : undefined,
+        t("分析记录导出"),
       );
       return reply.ok ? { ok: true, value: undefined } : reply;
     },
     uiSettings: async () => {
-      if (!bridge.telegramStatus) return failed("Telegram 设置服务尚未连接。");
+      if (!bridge.telegramStatus)
+        return failed(t("Telegram 设置服务尚未连接。"));
       const [telegramReply, xReply, xhsReply] = await Promise.all([
         bridge.telegramStatus(),
         bridge.xStatus(),
@@ -994,36 +1248,114 @@ export function productUiBridge(): ProductUiBridge {
       if (!xReply.ok) return xReply;
       if (!xhsReply.ok) return xhsReply;
       const telegram = telegramReply.value;
-      const chatTitle = new Map(telegram.pendingChats.map((chat) => [chat.chatId, chat.title]));
+      const chatTitle = new Map(
+        telegram.pendingChats.map((chat) => [chat.chatId, chat.title]),
+      );
       return {
         ok: true,
         value: {
           telegram: {
             configured: telegram.configured,
             connected: telegram.status === "polling",
-            status: telegram.status === "polling" ? "正在接收消息" : telegram.status === "failed" ? "连接失败" : telegram.configured ? "等待接收消息" : "未连接",
-            chats: telegram.authorizedChatIds.map((chatId) => ({ chatId, label: chatTitle.get(chatId) ?? chatId, allowed: true })),
-            pendingChats: telegram.pendingChats.filter((chat) => !telegram.authorizedChatIds.includes(chat.chatId)).map((chat) => ({ chatId: chat.chatId, label: chat.title || chat.username || chat.chatId, lastSeenAt: chat.lastSeenAt })),
+            status:
+              telegram.status === "polling"
+                ? t("正在接收消息")
+                : telegram.status === "failed"
+                  ? t("连接失败")
+                  : telegram.configured
+                    ? t("等待接收消息")
+                    : t("未连接"),
+            chats: telegram.authorizedChatIds.map((chatId) => ({
+              chatId,
+              label: chatTitle.get(chatId) ?? chatId,
+              allowed: true,
+            })),
+            pendingChats: telegram.pendingChats
+              .filter(
+                (chat) => !telegram.authorizedChatIds.includes(chat.chatId),
+              )
+              .map((chat) => ({
+                chatId: chat.chatId,
+                label: chat.title || chat.username || chat.chatId,
+                lastSeenAt: chat.lastSeenAt,
+              })),
             pendingCount: telegram.queued + telegram.pendingAcknowledgements,
             lastPollAt: telegram.lastPollAt,
             error: telegram.lastError,
           },
           sources: [
-            { id: "github", label: "GitHub", status: "ready", enabled: true, detail: "公开仓库和受支持内容可直接读取。" },
-            { id: "x", label: "X", status: xReply.value.signedIn ? "ready" : "needs_login", enabled: true, detail: xReply.value.signedIn ? "帖子读取使用当前已连接账号。" : "登录 X 后读取当前账号可访问的帖子。" },
-            { id: "xiaohongshu", label: "小红书", status: !xhsReply.value.installed ? "unavailable" : xhsReply.value.signedIn ? "ready" : "needs_login", enabled: true, detail: !xhsReply.value.installed ? "本地读取组件尚未安装。" : xhsReply.value.signedIn ? "图文笔记读取账号已连接。" : "登录后读取受支持的图文笔记。" },
+            {
+              id: "github",
+              label: "GitHub",
+              status: "ready",
+              enabled: true,
+              detail: t("公开仓库和受支持内容可直接读取。"),
+            },
+            {
+              id: "x",
+              label: "X",
+              status: xReply.value.signedIn ? "ready" : "needs_login",
+              enabled: true,
+              detail: xReply.value.signedIn
+                ? t("帖子读取使用当前已连接账号。")
+                : t("登录 X 后读取当前账号可访问的帖子。"),
+            },
+            {
+              id: "xiaohongshu",
+              label: t("小红书"),
+              status: !xhsReply.value.installed
+                ? "unavailable"
+                : xhsReply.value.signedIn
+                  ? "ready"
+                  : "needs_login",
+              enabled: true,
+              detail: !xhsReply.value.installed
+                ? t("本地读取组件尚未安装。")
+                : xhsReply.value.signedIn
+                  ? t("图文笔记读取账号已连接。")
+                  : t("登录后读取受支持的图文笔记。"),
+            },
           ],
         },
       };
     },
-    uiSaveTelegramToken: (token) => replyOperation(bridge.saveTelegramBotToken ? () => bridge.saveTelegramBotToken!(token) : undefined, "保存 Telegram 凭据"),
-    uiClearTelegramBotToken: () => replyOperation(bridge.clearTelegramBotToken ? () => bridge.clearTelegramBotToken!() : undefined, "清除 Telegram 凭据"),
+    uiSaveTelegramToken: (token) =>
+      replyOperation(
+        bridge.saveTelegramBotToken
+          ? () => bridge.saveTelegramBotToken!(token)
+          : undefined,
+        t("保存 Telegram 凭据"),
+      ),
+    uiClearTelegramBotToken: () =>
+      replyOperation(
+        bridge.clearTelegramBotToken
+          ? () => bridge.clearTelegramBotToken!()
+          : undefined,
+        t("清除 Telegram 凭据"),
+      ),
     uiVerifyTelegramBot: async () => {
-      const reply = await replyOperation(bridge.verifyTelegramBot ? () => bridge.verifyTelegramBot!() : undefined, "验证 Telegram Bot");
+      const reply = await replyOperation(
+        bridge.verifyTelegramBot
+          ? () => bridge.verifyTelegramBot!()
+          : undefined,
+        t("验证 Telegram Bot"),
+      );
       return reply.ok ? { ok: true, value: undefined } : reply;
     },
-    uiAuthorizeTelegramChat: (chatId) => replyOperation(bridge.authorizeTelegramChat ? () => bridge.authorizeTelegramChat!(chatId) : undefined, "授权 Telegram 聊天"),
-    uiRevokeTelegramChat: (chatId) => replyOperation(bridge.revokeTelegramChat ? () => bridge.revokeTelegramChat!(chatId) : undefined, "撤销 Telegram 聊天"),
+    uiAuthorizeTelegramChat: (chatId) =>
+      replyOperation(
+        bridge.authorizeTelegramChat
+          ? () => bridge.authorizeTelegramChat!(chatId)
+          : undefined,
+        t("授权 Telegram 聊天"),
+      ),
+    uiRevokeTelegramChat: (chatId) =>
+      replyOperation(
+        bridge.revokeTelegramChat
+          ? () => bridge.revokeTelegramChat!(chatId)
+          : undefined,
+        t("撤销 Telegram 聊天"),
+      ),
     uiOpenSource: (materialId) => bridge.openSource(materialId),
     uiChanged: (listener) => bridge.onChanged(listener),
   };

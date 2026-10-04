@@ -40,6 +40,7 @@ In Settings, connect a general API or a Codex subscription account. The Codex su
 
 ## Learn more
 
+- [Development guide](docs/development.md)
 - [Product specification](docs/product-spec.md) and [UX specification](docs/ux-spec.md)
 - [Design contract](design.md)
 - [Architecture overview](docs/architecture-overview.md), [data contracts](docs/data-contracts.md), and [source guide](src/README.md)

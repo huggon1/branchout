@@ -44,7 +44,7 @@ The relation stage records `evaluatedFocusVersionIds` against the full `FocusSet
 
 `ProjectAnalysisInput` contains `taskId`, `projectId`, normalized repository directory, user-confirmed Codex session identities, and focus card versions at launch. The repository snapshot records Git HEAD and worktree state. The agent session records files opened through its read tool.
 
-`AnalysisPromptSettings` stores optional analysis-goal and focus-card-writing guidance. The main process derives a revision from supplied text and the fixed prompt-protocol version. `ProjectAnalysisInput` freezes filled fields and the revision at launch; retries reuse that snapshot. Prompt settings contain guidance text; model credentials stay in model storage.
+`AnalysisPromptSettings` stores optional analysis-goal and focus-card-writing guidance. `ProjectAnalysisInput` freezes filled fields and their revision at launch; retries reuse that snapshot. Instruction revision and output language follow the [execution metadata contract](#development-profiles-and-execution-identity). Prompt settings contain guidance text; model credentials stay in model storage.
 
 A Codex candidate records session identity, time, working directory, verifiable project attribution clues, available user-message count, execution-record count, redacted excerpt, and selection state. Discovery also records index scan count and scope. The selected-session reader writes cleaned user messages and relevant final assistant replies to an owner-only XML file. Each message stores role, session identity, message location, and text. Parsed coverage and conversation read failures enter report coverage. `AnalysisEvidenceRef` names source type `repository` or `codex_session`, its file or message location, and readable excerpt.
 
@@ -53,6 +53,18 @@ A Codex candidate records session identity, time, working directory, verifiable 
 The task stores project, conversation, card, and prompt inputs at launch. The worker returns one report draft after agent exploration; the main process validates and saves it. A user retry starts a fresh exploration session with those saved inputs and the current model connection. Each report stores the supplemental guidance and revision used by its run.
 
 `FocusSuggestion` has `suggestionId`, `kind` (`create` or `update`), proposed text, rationale, and evidence references. An update also has target `focusId` and `baseFocusVersionId`. A separate acceptance record stores status and resulting `focusVersionId`, retaining the original report text. Acceptance deduplicates by `analysisReportId + suggestionId`; a changed current card version returns a review-required state.
+
+## Development profiles and execution identity
+
+`RuntimeProfile` records run mode (`installed`, `review`, or `test`), resolved data directory, and integration policy. Application storage, logs, authentication, and browser sessions resolve under the selected profile. Separate instances use independent profiles.
+
+Profile preparation accepts empty data, an existing development profile, or an explicitly selected copy source. Copy preparation requires an inactive source writer, validates the copied business records before making the destination usable, and preserves the source and previous usable destination on failure. Copied active tasks retain completed stages and become retryable interrupted records. Background integrations start paused in review mode.
+
+Copies include business records by default. Credentials and authentication require explicit selection of supported data groups. Private profiles reside in owner-only local storage; automated test artifacts use fictional data and redacted diagnostics.
+
+`BuildIdentity` records source revision, dirty state, application version, platform, and build time. Packaged builds additionally record an artifact checksum. Installed data directories remain independent of checkout paths.
+
+`PromptExecution` records task and attempt identity, prompt revision, supplemental-guidance revision, output language (`zh-CN` or `en`), model identity, and build identity. Prompt revision derives from fixed instructions, builder version, and output protocol. Main-process task input freezes output language and supplied guidance; attempts record the builder and model actually used. Historical reports retain their execution metadata and generated text. Saved input reuse follows the owning retry flow; each attempt exposes its actual prompt revision.
 
 ## Telegram queue
 

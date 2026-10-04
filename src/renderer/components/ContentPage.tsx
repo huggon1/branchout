@@ -1,3 +1,5 @@
+import { dateTime } from "../i18n";
+import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiForwardingReport, UiProject } from "../product-ui";
@@ -6,12 +8,11 @@ import { EmptyState, Dialog, Markdown } from "./Primitives";
 const sourceName: Record<UiForwardingReport["platform"], string> = {
   github: "GitHub",
   x: "X",
-  xiaohongshu: "小红书",
+  xiaohongshu: t("小红书"),
 };
 const excerpt = (value: string, length = 150) =>
   value.length > length ? `${value.slice(0, length).trimEnd()}…` : value;
-const timeLabel = (value?: string) =>
-  value ? new Date(value).toLocaleString() : "处理中";
+const timeLabel = (value?: string) => (value ? dateTime(value) : t("处理中"));
 
 export function ContentPage({
   reports,
@@ -119,7 +120,7 @@ export function ContentPage({
               className="button button-primary"
               onClick={() => setAdding((value) => !value)}
             >
-              {adding ? "收起" : "+ 添加链接"}
+              {adding ? t("收起") : t("+ 添加链接")}
             </button>
           </header>
           {adding && (
@@ -128,7 +129,7 @@ export function ContentPage({
               onSubmit={(event) => void submit(event)}
             >
               <label htmlFor="forward-url">
-                GitHub 仓库、X 帖子或小红书笔记链接
+                {t("GitHub 仓库、X 帖子或小红书笔记链接")}
               </label>
               <div className="add-link-row">
                 <input
@@ -145,42 +146,42 @@ export function ContentPage({
                   type="submit"
                   disabled={busy || !url.trim()}
                 >
-                  {busy ? "正在收取…" : "开始解析"}
+                  {busy ? t("正在收取…") : t("开始解析")}
                 </button>
               </div>
             </form>
           )}
-          <div className="list-toolbar" aria-label="内容筛选">
+          <div className="list-toolbar" aria-label={t("内容筛选")}>
             <input
-              aria-label="搜索内容"
-              placeholder="搜索标题或来源"
+              aria-label={t("搜索内容")}
+              placeholder={t("搜索标题或来源")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
             <select
-              aria-label="筛选来源"
+              aria-label={t("筛选来源")}
               value={source}
               onChange={(event) => setSource(event.target.value)}
             >
-              <option value="all">全部来源</option>
+              <option value="all">{t("全部来源")}</option>
               <option value="github">GitHub</option>
               <option value="x">X</option>
-              <option value="xiaohongshu">小红书</option>
+              <option value="xiaohongshu">{t("小红书")}</option>
             </select>
             <select
-              aria-label="筛选时间"
+              aria-label={t("筛选时间")}
               value={range}
               onChange={(event) => setRange(event.target.value)}
             >
-              <option value="all">全部时间</option>
-              <option value="week">最近七天</option>
+              <option value="all">{t("全部时间")}</option>
+              <option value="week">{t("最近七天")}</option>
             </select>
             <select
-              aria-label="筛选关联项目"
+              aria-label={t("筛选关联项目")}
               value={project}
               onChange={(event) => setProject(event.target.value)}
             >
-              <option value="all">全部关联项目</option>
+              <option value="all">{t("全部关联项目")}</option>
               {projects.map((item) => (
                 <option value={item.projectId} key={item.projectId}>
                   {item.projectLabel}
@@ -210,7 +211,7 @@ export function ContentPage({
                     >
                       <div className="content-item-meta">
                         <span className="source-label">
-                          {sourceName[item.platform]}
+                          {t(sourceName[item.platform])}
                         </span>
                         <time>
                           {timeLabel(item.completedAt ?? item.fetchedAt)}
@@ -219,12 +220,12 @@ export function ContentPage({
                           className={`status-tag ${item.reportState && item.reportState !== "complete" ? "status-paused" : `status-${item.completeness}`}`}
                         >
                           {item.reportState && item.reportState !== "complete"
-                            ? item.stageLabel || "阶段结果"
+                            ? item.stageLabel || t("阶段结果")
                             : item.completeness === "complete"
-                              ? "来源完整"
+                              ? t("来源完整")
                               : item.completeness === "partial"
-                                ? "部分获取"
-                                : "完整性未知"}
+                                ? t("部分获取")
+                                : t("完整性未知")}
                         </span>
                       </div>
                       <strong>{item.title || item.sourceIdentity}</strong>
@@ -234,7 +235,7 @@ export function ContentPage({
                       <div className="content-item-footer">
                         <span>
                           {item.reportState && item.reportState !== "complete"
-                            ? "报告阶段未完成"
+                            ? t("报告阶段未完成")
                             : item.relations.length
                               ? item.relations
                                   .map((relation) => relation.projectLabel)
@@ -243,12 +244,12 @@ export function ContentPage({
                                       values.indexOf(label) === index,
                                   )
                                   .join(" · ")
-                              : "无关注卡关联"}
+                              : t("无关注卡关联")}
                         </span>
                         <span>
                           {item.reportState && item.reportState !== "complete"
-                            ? "查看已保存阶段结果"
-                            : `${item.relations.length} 条关联`}{" "}
+                            ? t("查看已保存阶段结果")
+                            : tf("{0} 条关联", item.relations.length)}{" "}
                           →
                         </span>
                       </div>
@@ -257,13 +258,14 @@ export function ContentPage({
                 ))}
               </ul>
             ) : reports.length + partialReports.length ? (
-              <EmptyState title="没有匹配的内容">
-                调整筛选条件，或清除搜索文字。
+              <EmptyState title={t("没有匹配的内容")}>
+                {t("调整筛选条件，或清除搜索文字。")}
               </EmptyState>
             ) : (
-              <EmptyState title="还没有内容报告">
-                添加一条 GitHub、X
-                或小红书链接。解析完成后，原文、内容理解和关注卡关联会在这里汇总。
+              <EmptyState title={t("还没有内容报告")}>
+                {t(
+                  "添加一条 GitHub、X 或小红书链接。解析完成后，原文、内容理解和关注卡关联会在这里汇总。",
+                )}
               </EmptyState>
             )}
           </div>
@@ -274,13 +276,15 @@ export function ContentPage({
           <EmptyState
             title={
               reports.length + partialReports.length
-                ? "换一个关键词，再找找"
-                : "从一条值得读的链接开始"
+                ? t("换一个关键词，再找找")
+                : t("从一条值得读的链接开始")
             }
           >
             {reports.length + partialReports.length
-              ? "搜索标题、来源，或调整左侧筛选。"
-              : "添加 GitHub、X 或小红书链接，阅读内容理解，发现与你的项目有关的角度。"}
+              ? t("搜索标题、来源，或调整左侧筛选。")
+              : t(
+                  "添加 GitHub、X 或小红书链接，阅读内容理解，发现与你的项目有关的角度。",
+                )}
           </EmptyState>
         </div>
       )}
@@ -292,7 +296,7 @@ export function ContentPage({
                 className="button button-quiet"
                 onClick={() => setSelectedId(undefined)}
               >
-                返回内容列表
+                {t("返回内容列表")}
               </button>
               <span aria-live="polite">
                 {selectedIndex + 1} / {visible.length}
@@ -305,7 +309,7 @@ export function ContentPage({
                     setSelectedId(visible[selectedIndex - 1]?.materialId)
                   }
                 >
-                  上一条
+                  {t("上一条")}
                 </button>
                 <button
                   className="button button-quiet"
@@ -314,7 +318,7 @@ export function ContentPage({
                     setSelectedId(visible[selectedIndex + 1]?.materialId)
                   }
                 >
-                  下一条
+                  {t("下一条")}
                 </button>
               </div>
             </div>
@@ -322,32 +326,35 @@ export function ContentPage({
               <header className="report-heading">
                 <div>
                   <p className="eyebrow">
-                    {sourceName[selected.platform]} · 内容报告
+                    {t(sourceName[selected.platform])}
+                    {t("· 内容报告")}
                   </p>
                   <h2>{selected.title || selected.sourceIdentity}</h2>
                   <p className="report-byline">
                     {selected.sourceIdentity} ·{" "}
-                    {selected.completedAt ? "完成于" : "来源读取于"}{" "}
+                    {selected.completedAt ? t("完成于") : t("来源读取于")}{" "}
                     {timeLabel(selected.completedAt ?? selected.fetchedAt)}
+                    {selected.outputLanguage &&
+                      ` · ${t("生成语言")}: ${selected.outputLanguage === "en" ? "English" : "简体中文"}`}
                   </p>
                 </div>
                 <button
                   className="button button-quiet"
                   onClick={() => void onOpenSource(selected.materialId)}
                 >
-                  打开原链接 ↗
+                  {t("打开原链接 ↗")}
                 </button>
               </header>
               {selected.completeness !== "complete" && (
                 <aside className="notice notice-warm" role="status">
                   <strong>
                     {selected.completeness === "partial"
-                      ? "来源内容部分获取"
-                      : "来源完整性未知"}
+                      ? t("来源内容部分获取")
+                      : t("来源完整性未知")}
                   </strong>
                   <p>
                     {selected.completenessNote ||
-                      "以下理解和关联依据当前读取到的内容。"}
+                      t("以下理解和关联依据当前读取到的内容。")}
                   </p>
                 </aside>
               )}
@@ -355,14 +362,14 @@ export function ContentPage({
                 className="report-section"
                 aria-labelledby="understanding-title"
               >
-                <p className="eyebrow">基于来源快照生成</p>
-                <h3 id="understanding-title">内容理解</h3>
+                <p className="eyebrow">{t("基于来源快照生成")}</p>
+                <h3 id="understanding-title">{t("内容理解")}</h3>
                 {selected.understanding ? (
                   <Markdown>{selected.understanding}</Markdown>
                 ) : (
                   <div className="notice notice-warm">
-                    <strong>内容理解尚未保存</strong>
-                    <p>来源快照仍可阅读；理解阶段完成后会显示总结。</p>
+                    <strong>{t("内容理解尚未保存")}</strong>
+                    <p>{t("来源快照仍可阅读；理解阶段完成后会显示总结。")}</p>
                   </div>
                 )}
               </section>
@@ -372,39 +379,43 @@ export function ContentPage({
               >
                 <div className="section-heading">
                   <div>
-                    <p className="eyebrow">按生成时的关注卡版本判断</p>
-                    <h3 id="relations-title">与你的关注有关</h3>
+                    <p className="eyebrow">{t("按生成时的关注卡版本判断")}</p>
+                    <h3 id="relations-title">{t("与你的关注有关")}</h3>
                   </div>
                   <span className="count-tag">
                     {selected.reportState === "complete" ||
                     !selected.reportState
-                      ? `${selected.relations.length} 条关联`
-                      : "等待关联结果"}
+                      ? tf("{0} 条关联", selected.relations.length)
+                      : t("等待关联结果")}
                   </span>
                 </div>
                 {selected.reportState && selected.reportState !== "complete" ? (
                   <div className="notice notice-warm">
                     <strong>
-                      {selected.stageLabel || "关注卡关联尚未完成"}
+                      {selected.stageLabel || t("关注卡关联尚未完成")}
                     </strong>
                     <p>
                       {selected.taskMessage ||
-                        "当前内容的关系结果尚未保存，不能视为零关联。已保存的阶段结果仍可阅读。"}
+                        t(
+                          "当前内容的关系结果尚未保存，不能视为零关联。已保存的阶段结果仍可阅读。",
+                        )}
                     </p>
                     {selected.retryAvailable && (
                       <button
                         className="button"
                         onClick={() => void onRetryTask(selected.taskId)}
                       >
-                        重试关联判断
+                        {t("重试关联判断")}
                       </button>
                     )}
                   </div>
                 ) : selected.relations.length === 0 ? (
                   <div className="notice notice-cool">
-                    <strong>这条内容与当前活跃关注卡没有明确关联</strong>
+                    <strong>{t("这条内容与当前活跃关注卡没有明确关联")}</strong>
                     <p>
-                      本次关联检查已完成。你可以继续阅读原文，或更新关注卡后用于下一次转发。
+                      {t(
+                        "本次关联检查已完成。你可以继续阅读原文，或更新关注卡后用于下一次转发。",
+                      )}
                     </p>
                   </div>
                 ) : (
@@ -414,7 +425,10 @@ export function ContentPage({
                         <section className="relation-group" key={projectId}>
                           <h4>
                             {items[0].projectLabel}
-                            <span>{items.length} 条</span>
+                            <span>
+                              {items.length}
+                              {t("条")}
+                            </span>
                           </h4>
                           {items.map((relation) => (
                             <article
@@ -425,7 +439,7 @@ export function ContentPage({
                                 <h5>
                                   {relation.focusContent
                                     .split("\n")
-                                    .find((line) => line.trim()) || "关注卡"}
+                                    .find((line) => line.trim()) || t("关注卡")}
                                 </h5>
                                 <button
                                   className="text-button"
@@ -437,18 +451,18 @@ export function ContentPage({
                                     )
                                   }
                                 >
-                                  查看此版本 ↗
+                                  {t("查看此版本 ↗")}
                                 </button>
                               </div>
                               <p>{relation.explanation}</p>
                               <Disclosure
                                 className="evidence"
-                                title="来源依据"
-                                count={`${relation.evidence.length} 条`}
+                                title={t("来源依据")}
+                                count={tf("{0} 条", relation.evidence.length)}
                               >
                                 {relation.evidence.map((item, index) => (
                                   <blockquote key={index}>
-                                    <span>来源依据</span>
+                                    <span>{t("来源依据")}</span>
                                     {item.text}
                                   </blockquote>
                                 ))}
@@ -462,10 +476,13 @@ export function ContentPage({
                 )}
               </section>{" "}
               <button className="button" onClick={() => setSourceOpen(true)}>
-                阅读来源快照
+                {t("阅读来源快照")}
               </button>
               {sourceOpen && (
-                <Dialog title="来源快照" onClose={() => setSourceOpen(false)}>
+                <Dialog
+                  title={t("来源快照")}
+                  onClose={() => setSourceOpen(false)}
+                >
                   {" "}
                   <section
                     className="report-section source-section"
@@ -473,17 +490,17 @@ export function ContentPage({
                   >
                     <div className="section-heading">
                       <div>
-                        <p className="eyebrow">来源快照</p>
-                        <h3 id="source-content-title">原文内容</h3>
+                        <p className="eyebrow">{t("来源快照")}</p>
+                        <h3 id="source-content-title">{t("原文内容")}</h3>
                       </div>
                       <span
                         className={`status-tag status-${selected.completeness}`}
                       >
                         {selected.completeness === "complete"
-                          ? "内容完整"
+                          ? t("内容完整")
                           : selected.completeness === "partial"
-                            ? "部分内容"
-                            : "完整性未知"}
+                            ? t("部分内容")
+                            : t("完整性未知")}
                       </span>
                     </div>
                     <div className="source-reading-body">

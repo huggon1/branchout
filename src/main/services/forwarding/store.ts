@@ -1,3 +1,5 @@
+import { promptExecutionSchema } from "../../../shared/execution-contracts";
+import { languageSchema, type Language } from "../../../shared/language";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
@@ -66,6 +68,8 @@ const forwardingTaskSchema = z
       "已取消",
       "上次解析中断",
     ]),
+    executionAttempts: z.array(promptExecutionSchema).optional(),
+    outputLanguage: languageSchema.optional(),
     focusSet: focusSetSnapshotSchema,
     source: sourceSchema.optional(),
     generalUnderstanding: z.string().min(1).max(16_000).optional(),
@@ -92,7 +96,9 @@ export const forwardingStateSchema = z
   .object({ version: z.literal(1), tasks: z.array(forwardingTaskSchema) })
   .strict()
   .refine(
-    (state) => new Set(state.tasks.map((task) => task.taskId)).size === state.tasks.length,
+    (state) =>
+      new Set(state.tasks.map((task) => task.taskId)).size ===
+      state.tasks.length,
   );
 
 export type ForwardingTaskRecord = z.infer<typeof forwardingTaskSchema>;

@@ -1,3 +1,5 @@
+import { dateTime } from "../i18n";
+import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -15,17 +17,17 @@ import {
 
 type SessionSignal = NonNullable<UiSessionCandidate["preview"]>["signal"];
 const sessionSignalLabels: Record<SessionSignal, string> = {
-  project_intent: "有可读用户发言",
-  execution_focused: "执行记录较多",
-  no_usable_messages: "无可用用户发言",
+  project_intent: t("有可读用户发言"),
+  execution_focused: t("执行记录较多"),
+  no_usable_messages: t("无可用用户发言"),
 };
 const attributionReasonLabels: Record<string, string> = {
-  same_repository_path: "工作目录位于项目仓库内",
-  same_git_repository: "与项目共享同一 Git 仓库",
-  same_remote_repository: "远程仓库相同，等待确认",
+  same_repository_path: t("工作目录位于项目仓库内"),
+  same_git_repository: t("与项目共享同一 Git 仓库"),
+  same_remote_repository: t("远程仓库相同，等待确认"),
 };
 const formatSessionTime = (value?: string) =>
-  value ? new Date(value).toLocaleString() : "时间未知";
+  value ? dateTime(value) : t("时间未知");
 
 export function ProjectsPage({
   projects,
@@ -120,7 +122,7 @@ export function ProjectsPage({
           session.reason,
           session.preview
             ? sessionSignalLabels[session.preview.signal]
-            : "内容信号待索引",
+            : t("内容信号待索引"),
           ...(session.preview?.excerpts ?? []),
         ].some((value) => value?.toLocaleLowerCase().includes(query));
       })
@@ -150,11 +152,11 @@ export function ProjectsPage({
     for (const session of filteredSessions) {
       const date = new Date(session.updatedAt);
       const month = Number.isNaN(date.valueOf())
-        ? "时间未知"
-        : `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
+        ? t("时间未知")
+        : tf("{0} 年 {1} 月", date.getFullYear(), date.getMonth() + 1);
       const key =
         sessionGroupMode === "working-directory"
-          ? session.workingDirectoryLabel?.trim() || "工作目录未知"
+          ? session.workingDirectoryLabel?.trim() || t("工作目录未知")
           : month;
       groups.set(key, [...(groups.get(key) ?? []), session]);
     }
@@ -211,10 +213,10 @@ export function ProjectsPage({
       const next = await onPreflight(project.projectId);
       if (token !== inspectionToken.current) return;
       if (next) setPreflight(next);
-      else setPreflightError("项目材料解析失败。检查项目目录状态后重试。");
+      else setPreflightError(t("项目材料解析失败。检查项目目录状态后重试。"));
     } catch {
       if (token === inspectionToken.current)
-        setPreflightError("项目材料解析失败。检查项目目录状态后重试。");
+        setPreflightError(t("项目材料解析失败。检查项目目录状态后重试。"));
     } finally {
       if (token === inspectionToken.current) setInspecting(false);
     }
@@ -254,7 +256,7 @@ export function ProjectsPage({
     if (await onStartAnalysis(project.projectId, sessionIds)) {
       setPreflight(undefined);
     } else {
-      setPreflightError("任务未能启动。当前选择已保留，请重试。");
+      setPreflightError(t("任务未能启动。当前选择已保留，请重试。"));
     }
   };
 
@@ -266,12 +268,12 @@ export function ProjectsPage({
           onClick={() => void onBind()}
           disabled={busy}
         >
-          + 绑定项目
+          {t("+ 绑定项目")}
         </button>
       </header>
       {!projects.length ? (
-        <EmptyState title="还没有绑定项目">
-          绑定工作空间后，为它建立关注卡并启动项目分析。
+        <EmptyState title={t("还没有绑定项目")}>
+          {t("绑定工作空间后，为它建立关注卡并启动项目分析。")}
         </EmptyState>
       ) : (
         <>
@@ -296,7 +298,8 @@ export function ProjectsPage({
                     <strong>{item.projectLabel}</strong>
                     <small title={item.directory}>{item.directory}</small>
                     <span>
-                      {focusCounts[item.projectId]?.active ?? 0} 张活跃关注卡
+                      {focusCounts[item.projectId]?.active ?? 0}
+                      {t("张活跃关注卡")}
                     </span>
                   </span>
                   <span aria-hidden="true">→</span>
@@ -308,7 +311,7 @@ export function ProjectsPage({
             <section className="project-detail" key={project.projectId}>
               <header className="project-detail-heading">
                 <div>
-                  <p className="eyebrow">当前项目</p>
+                  <p className="eyebrow">{t("当前项目")}</p>
                   <h3>{project.projectLabel}</h3>
                   <p className="project-path" title={project.directory}>
                     {project.directory}
@@ -325,39 +328,39 @@ export function ProjectsPage({
                       <span className="button-spinner" aria-hidden="true" />
                     )}
                     {inspecting
-                      ? "正在解析项目材料…"
+                      ? t("正在解析项目材料…")
                       : preflight
-                        ? "重新开始分析"
-                        : "开始分析"}
+                        ? t("重新开始分析")
+                        : t("开始分析")}
                   </button>
                   <button
                     className="text-button danger-text"
                     onClick={() => setUnbindingId(project.projectId)}
                   >
-                    解绑项目
+                    {t("解绑项目")}
                   </button>
                 </div>
               </header>
               <div className="project-overview">
                 <div>
                   <strong>{focusCounts[project.projectId]?.active ?? 0}</strong>
-                  <span>活跃关注卡</span>
+                  <span>{t("活跃关注卡")}</span>
                 </div>
                 <div>
                   <strong>{focusCounts[project.projectId]?.paused ?? 0}</strong>
-                  <span>暂停关注卡</span>
+                  <span>{t("暂停关注卡")}</span>
                 </div>
                 <div>
                   <strong>
                     {tasks.filter((t) => t.projectId === projectId).length}
                   </strong>
-                  <span>任务记录</span>
+                  <span>{t("任务记录")}</span>
                 </div>
                 <button
                   className="text-button"
                   onClick={() => onManageFocus(project.projectId)}
                 >
-                  管理关注卡 →
+                  {t("管理关注卡 →")}
                 </button>
               </div>
               {projectAnalysisTask && (
@@ -375,17 +378,23 @@ export function ProjectsPage({
                     <strong>
                       {projectAnalysisTask.status === "running" ||
                       projectAnalysisTask.status === "queued"
-                        ? "项目分析正在运行"
+                        ? t("项目分析正在运行")
                         : projectAnalysisTask.status === "completed"
-                          ? "最近一次分析已完成"
+                          ? t("最近一次分析已完成")
                           : projectAnalysisTask.status === "failed"
-                            ? "最近一次分析未完成"
-                            : "最近一次分析已取消"}
+                            ? t("最近一次分析未完成")
+                            : t("最近一次分析已取消")}
                     </strong>
                     <p>
-                      {projectAnalysisTask.phase}
+                      {t(projectAnalysisTask.phase)}
                       {projectAnalysisTask.processed !== undefined
-                        ? ` · 已处理 ${projectAnalysisTask.processed}${projectAnalysisTask.total !== undefined ? ` / ${projectAnalysisTask.total}` : ""}`
+                        ? tf(
+                            " · 已处理 {0}{1}",
+                            projectAnalysisTask.processed,
+                            projectAnalysisTask.total !== undefined
+                              ? ` / ${projectAnalysisTask.total}`
+                              : "",
+                          )
                         : ""}
                     </p>
                   </div>
@@ -394,16 +403,21 @@ export function ProjectsPage({
                     onClick={() => onOpenTask(projectAnalysisTask)}
                   >
                     {projectAnalysisTask.resultId
-                      ? "查看结果 →"
-                      : "查看任务活动 →"}
+                      ? t("查看结果 →")
+                      : t("查看任务活动 →")}
                   </button>
                 </div>
               )}
               {unbindingId === project.projectId && (
                 <div className="notice notice-warm unbind-confirm">
-                  <strong>解绑 {project.projectLabel}？</strong>
+                  <strong>
+                    {t("解绑")}
+                    {project.projectLabel}？
+                  </strong>
                   <p>
-                    项目会移入历史区，报告和卡片版本继续保留。重新绑定同一仓库时会恢复为当前项目。
+                    {t(
+                      "项目会移入历史区，报告和卡片版本继续保留。重新绑定同一仓库时会恢复为当前项目。",
+                    )}
                   </p>
                   <button
                     className="button button-danger"
@@ -412,14 +426,14 @@ export function ProjectsPage({
                     }}
                     disabled={busy}
                   >
-                    确认解绑
+                    {t("确认解绑")}
                   </button>
                   <button
                     className="button button-quiet"
                     onClick={() => setUnbindingId("")}
                     disabled={busy}
                   >
-                    取消
+                    {t("取消")}
                   </button>
                 </div>
               )}
@@ -430,12 +444,12 @@ export function ProjectsPage({
               )}
               {inspecting && (
                 <p className="project-inspecting-status" role="status">
-                  正在检查仓库并查找相关 Codex 对话…
+                  {t("正在检查仓库并查找相关 Codex 对话…")}
                 </p>
               )}
               {preflight && (
                 <Dialog
-                  title="开始项目分析"
+                  title={t("开始项目分析")}
                   onClose={() => {
                     if (!busy) setPreflight(undefined);
                   }}
@@ -446,15 +460,17 @@ export function ProjectsPage({
                   >
                     <div className="section-heading">
                       <div>
-                        <p className="eyebrow">提交前确认</p>
-                        <h4 id="analysis-preflight-title">本次分析范围</h4>
+                        <p className="eyebrow">{t("提交前确认")}</p>
+                        <h4 id="analysis-preflight-title">
+                          {t("本次分析范围")}
+                        </h4>
                       </div>
                       <button
                         className="text-button"
                         disabled={busy}
                         onClick={() => setPreflight(undefined)}
                       >
-                        收起
+                        {t("收起")}
                       </button>
                     </div>
                     {preflightError && (
@@ -464,70 +480,89 @@ export function ProjectsPage({
                     )}
                     <div className="preflight-sources">
                       <article>
-                        <span>仓库现状</span>
+                        <span>{t("仓库现状")}</span>
                         <strong>
-                          {preflight.repository.branch || "当前分支"}
-                          {preflight.repository.dirty ? " · 有未提交修改" : ""}
+                          {preflight.repository.branch || t("当前分支")}
+                          {preflight.repository.dirty
+                            ? t(" · 有未提交修改")
+                            : ""}
                         </strong>
                         <p>
-                          {preflight.repository.files} 个可读取文件 ·{" "}
-                          {preflight.repository.note}
+                          {preflight.repository.files}
+                          {t("个可读取文件 ·")} {preflight.repository.note}
                         </p>
                       </article>
                       <article>
-                        <span>Codex 工作对话</span>
-                        <strong>{preflight.sessions.length} 个候选</strong>
+                        <span>{t("Codex 工作对话")}</span>
+                        <strong>
+                          {preflight.sessions.length}
+                          {t("个候选")}
+                        </strong>
                         <p>
-                          归属状态与内容提示分别筛选；内容提示便于浏览，展开摘录后自行判断相关性。
+                          {t(
+                            "归属状态与内容提示分别筛选；内容提示便于浏览，展开摘录后自行判断相关性。",
+                          )}
                         </p>
                       </article>
                     </div>
                     {preflight.codexDiscovery?.bounded && (
                       <p className="session-discovery-notice" role="status">
-                        本次索引扫描了 {preflight.codexDiscovery.filesScanned}{" "}
-                        个会话文件，扫描范围已达上限，部分历史对话可能尚未列出。
+                        {t("本次索引扫描了")}
+                        {preflight.codexDiscovery.filesScanned}{" "}
+                        {t(
+                          "个会话文件，扫描范围已达上限，部分历史对话可能尚未列出。",
+                        )}
                       </p>
                     )}
                     {preflight.sessions.length > 0 && (
                       <fieldset className="session-picker">
-                        <legend>选择要纳入的对话</legend>
+                        <legend>{t("选择要纳入的对话")}</legend>
                         <p>
-                          默认选最近 {defaultSelectedConversationCount}{" "}
-                          条有可读发言的已确认对话；可手动调整，最多{" "}
-                          {maximumSelectedConversationCount} 条。
+                          {t("默认选最近")}
+                          {defaultSelectedConversationCount}{" "}
+                          {t("条有可读发言的已确认对话；可手动调整，最多")}{" "}
+                          {maximumSelectedConversationCount}
+                          {t("条。")}
                         </p>
                         <div
                           className="session-picker-summary"
                           aria-live="polite"
                         >
                           <div>
-                            <small>候选</small>
+                            <small>{t("候选")}</small>
                             <strong>{preflight.sessions.length}</strong>
                           </div>
                           <div>
-                            <small>已选</small>
+                            <small>{t("已选")}</small>
                             <strong>{selectedSessionCount}</strong>
                           </div>
                           <div>
-                            <small>预览中可读发言</small>
-                            <strong>至少 {selectedPreviewMessages} 条</strong>
+                            <small>{t("预览中可读发言")}</small>
+                            <strong>
+                              {t("至少")}
+                              {selectedPreviewMessages}
+                              {t("条")}
+                            </strong>
                           </div>
                         </div>
                         <p>
-                          实际纳入的消息、截取与跳过数量会写入分析报告。
+                          {t("实际纳入的消息、截取与跳过数量会写入分析报告。")}
                           {partialPreviews > 0
-                            ? `其中 ${partialPreviews} 条对话的预览只覆盖部分内容。`
+                            ? tf(
+                                "其中 {0} 条对话的预览只覆盖部分内容。",
+                                partialPreviews,
+                              )
                             : ""}
                         </p>
                         <div className="session-picker-controls">
                           <label className="session-search">
                             <span className="visually-hidden">
-                              搜索 Codex 对话
+                              {t("搜索 Codex 对话")}
                             </span>
                             <input
                               type="search"
-                              aria-label="搜索 Codex 对话"
-                              placeholder="搜索标题、工作目录或发言"
+                              aria-label={t("搜索 Codex 对话")}
+                              placeholder={t("搜索标题、工作目录或发言")}
                               value={sessionQuery}
                               onChange={(event) =>
                                 setSessionQuery(event.target.value)
@@ -535,9 +570,9 @@ export function ProjectsPage({
                             />
                           </label>
                           <label className="session-filter-control">
-                            内容信号
+                            {t("内容信号")}
                             <select
-                              aria-label="按内容信号筛选"
+                              aria-label={t("按内容信号筛选")}
                               value={sessionSignalFilter}
                               onChange={(event) =>
                                 setSessionSignalFilter(
@@ -545,22 +580,22 @@ export function ProjectsPage({
                                 )
                               }
                             >
-                              <option value="all">全部</option>
+                              <option value="all">{t("全部")}</option>
                               <option value="project_intent">
-                                有可读用户发言
+                                {t("有可读用户发言")}
                               </option>
                               <option value="execution_focused">
-                                执行记录较多
+                                {t("执行记录较多")}
                               </option>
                               <option value="no_usable_messages">
-                                无可用用户发言
+                                {t("无可用用户发言")}
                               </option>
                             </select>
                           </label>
                           <label className="session-filter-control">
-                            Git 归属
+                            {t("Git 归属")}
                             <select
-                              aria-label="按 Git 归属筛选"
+                              aria-label={t("按 Git 归属筛选")}
                               value={sessionOwnershipFilter}
                               onChange={(event) =>
                                 setSessionOwnershipFilter(
@@ -569,15 +604,15 @@ export function ProjectsPage({
                                 )
                               }
                             >
-                              <option value="all">全部</option>
-                              <option value="confirmed">已确认</option>
-                              <option value="uncertain">待确认</option>
+                              <option value="all">{t("全部")}</option>
+                              <option value="confirmed">{t("已确认")}</option>
+                              <option value="uncertain">{t("待确认")}</option>
                             </select>
                           </label>
                           <label className="session-filter-control">
-                            分组
+                            {t("分组")}
                             <select
-                              aria-label="对话分组方式"
+                              aria-label={t("对话分组方式")}
                               value={sessionGroupMode}
                               onChange={(event) =>
                                 setSessionGroupMode(
@@ -587,16 +622,20 @@ export function ProjectsPage({
                               }
                             >
                               <option value="working-directory">
-                                按工作目录
+                                {t("按工作目录")}
                               </option>
-                              <option value="month">按最近活动月份</option>
+                              <option value="month">
+                                {t("按最近活动月份")}
+                              </option>
                             </select>
                           </label>
                         </div>
                         <div className="session-picker-bulk-actions">
                           <span>
-                            显示 {filteredSessions.length} /{" "}
-                            {preflight.sessions.length} 个
+                            {t("显示")}
+                            {filteredSessions.length} /{" "}
+                            {preflight.sessions.length}
+                            {t("个")}
                           </span>
                           <div>
                             <button
@@ -609,8 +648,9 @@ export function ProjectsPage({
                                   maximumSelectedConversationCount
                               }
                             >
-                              选中当前结果（至多{" "}
-                              {maximumSelectedConversationCount} 条）
+                              {t("选中当前结果（至多")}{" "}
+                              {maximumSelectedConversationCount}
+                              {t("条）")}
                             </button>
                             <button
                               type="button"
@@ -618,20 +658,20 @@ export function ProjectsPage({
                               onClick={() => selectVisibleSessions(false)}
                               disabled={!filteredSessions.length}
                             >
-                              清空当前结果
+                              {t("清空当前结果")}
                             </button>
                           </div>
                         </div>
                         <div
                           className="session-list"
                           role="region"
-                          aria-label="Codex 对话候选"
+                          aria-label={t("Codex 对话候选")}
                         >
                           {sessionGroups.map(([groupLabel, sessions]) => (
                             <section className="session-group" key={groupLabel}>
                               <h5>
                                 {sessionGroupMode === "working-directory"
-                                  ? `工作目录 · ${groupLabel}`
+                                  ? tf("工作目录 · {0}", groupLabel)
                                   : groupLabel}
                                 <span>{sessions.length}</span>
                               </h5>
@@ -652,7 +692,10 @@ export function ProjectsPage({
                                   >
                                     <input
                                       type="checkbox"
-                                      aria-label={`纳入分析：${session.label}`}
+                                      aria-label={tf(
+                                        "纳入分析：{0}",
+                                        session.label,
+                                      )}
                                       checked={session.selected}
                                       disabled={
                                         !session.selected &&
@@ -676,14 +719,19 @@ export function ProjectsPage({
                                         >
                                           {signal
                                             ? sessionSignalLabels[signal]
-                                            : "内容信号待索引"}
+                                            : t("内容信号待索引")}
                                         </span>
                                       </div>
                                       <small className="session-option-time">
                                         {session.startedAt
-                                          ? `开始 ${formatSessionTime(session.startedAt)} · `
+                                          ? tf(
+                                              "开始 {0} · ",
+                                              formatSessionTime(
+                                                session.startedAt,
+                                              ),
+                                            )
                                           : ""}
-                                        最近活动{" "}
+                                        {t("最近活动")}{" "}
                                         {formatSessionTime(session.updatedAt)}
                                       </small>
                                       <div className="session-option-attribution">
@@ -691,13 +739,13 @@ export function ProjectsPage({
                                           className={`ownership-tag ownership-${session.ownership}`}
                                         >
                                           {session.ownership === "confirmed"
-                                            ? "Git 归属已确认"
-                                            : "Git 归属待确认"}
+                                            ? t("Git 归属已确认")
+                                            : t("Git 归属待确认")}
                                         </span>
                                         <span>{attribution}</span>
                                         {session.workingDirectoryLabel && (
                                           <span>
-                                            工作目录：
+                                            {t("工作目录：")}
                                             {session.workingDirectoryLabel}
                                           </span>
                                         )}
@@ -719,14 +767,15 @@ export function ProjectsPage({
                                         }
                                       >
                                         {expanded
-                                          ? "收起发言预览"
-                                          : `查看发言预览${
+                                          ? t("收起发言预览")
+                                          : tf(
+                                              "查看发言预览{0}",
                                               session.preview
                                                 ? session.preview.bounded
                                                   ? ` · 部分预览，至少 ${session.preview.usableUserMessageCount} 条有效用户发言`
                                                   : ` · ${session.preview.usableUserMessageCount} 条有效用户发言`
-                                                : ""
-                                            }`}
+                                                : "",
+                                            )}
                                       </button>
                                       {expanded && (
                                         <div
@@ -737,8 +786,20 @@ export function ProjectsPage({
                                             <>
                                               <small>
                                                 {session.preview.bounded
-                                                  ? `预览只覆盖会话的一部分；${session.preview.usableUserMessageCount} 条有效用户发言和 ${session.preview.executionRecordCount} 条执行记录是已读取部分的下界。`
-                                                  : `内容判断为启发式信号 · ${session.preview.usableUserMessageCount} 条有效用户发言 · 执行记录 ${session.preview.executionRecordCount} 条`}
+                                                  ? tf(
+                                                      "预览只覆盖会话的一部分；{0} 条有效用户发言和 {1} 条执行记录是已读取部分的下界。",
+                                                      session.preview
+                                                        .usableUserMessageCount,
+                                                      session.preview
+                                                        .executionRecordCount,
+                                                    )
+                                                  : tf(
+                                                      "内容判断为启发式信号 · {0} 条有效用户发言 · 执行记录 {1} 条",
+                                                      session.preview
+                                                        .usableUserMessageCount,
+                                                      session.preview
+                                                        .executionRecordCount,
+                                                    )}
                                               </small>
                                               {session.preview.excerpts
                                                 .length ? (
@@ -755,12 +816,18 @@ export function ProjectsPage({
                                                 </ul>
                                               ) : (
                                                 <p>
-                                                  没有可展示的用户发言摘录。
+                                                  {t(
+                                                    "没有可展示的用户发言摘录。",
+                                                  )}
                                                 </p>
                                               )}
                                             </>
                                           ) : (
-                                            <p>此会话暂时没有内容预览信息。</p>
+                                            <p>
+                                              {t(
+                                                "此会话暂时没有内容预览信息。",
+                                              )}
+                                            </p>
                                           )}
                                         </div>
                                       )}
@@ -772,7 +839,7 @@ export function ProjectsPage({
                           ))}
                           {!filteredSessions.length && (
                             <p className="session-list-empty">
-                              没有符合当前搜索和筛选条件的对话。
+                              {t("没有符合当前搜索和筛选条件的对话。")}
                             </p>
                           )}
                         </div>
@@ -780,19 +847,23 @@ export function ProjectsPage({
                     )}
                     {!preflight.sessions.length && (
                       <p className="session-list-empty">
-                        目前没有找到 Codex 对话候选；本次项目分析会探索仓库。
+                        {t(
+                          "目前没有找到 Codex 对话候选；本次项目分析会探索仓库。",
+                        )}
                       </p>
                     )}
                     <div className="preflight-actions">
                       <span>
-                        所选会话都会提交读取；无法读取或正文超出预算的部分会在报告中说明。
+                        {t(
+                          "所选会话都会提交读取；无法读取或正文超出预算的部分会在报告中说明。",
+                        )}
                       </span>
                       <button
                         className="button button-primary"
                         onClick={() => void startAnalysis()}
                         disabled={busy}
                       >
-                        {busy ? "正在启动…" : "提交分析"}
+                        {busy ? t("正在启动…") : t("提交分析")}
                       </button>
                     </div>
                   </section>
@@ -803,8 +874,8 @@ export function ProjectsPage({
           {historical.length > 0 && (
             <Disclosure
               className="historical-projects"
-              title="历史项目"
-              count={`${historical.length} 个`}
+              title={t("历史项目")}
+              count={tf("{0} 个", historical.length)}
             >
               <ul>
                 {historical.map((item) => (
@@ -822,7 +893,7 @@ export function ProjectsPage({
                         if (task) onOpenTask(task);
                       }}
                     >
-                      查看历史任务
+                      {t("查看历史任务")}
                     </button>
                   </li>
                 ))}

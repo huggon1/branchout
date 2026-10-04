@@ -10,10 +10,16 @@
     "setup:xhs": "node scripts/app-build/with-env-proxy.mjs scripts/app-build/prepare-xhs-runtime.mjs",
     "prepare:runtime": "npm run setup:x && npm run setup:xhs",
     "build:icon": "node scripts/app-build/icon.mjs",
-    "package:app": "npm run build && npm run build:icon && electron-builder --mac --arm64 --publish never",
+    "package:app": "npm run build && npm run build:icon && electron-builder --mac --arm64 --publish never && node scripts/app-build/checksums.mjs",
     "dev": "npm run build && electron .",
     "start": "npm run build && electron .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "review": "tsx scripts/development/review.ts",
+    "test:rules": "node --import tsx --test tests/rules/*.test.ts tests/rules/*.test.mjs",
+    "docs:check": "node scripts/checks/docs.mjs",
+    "check": "npm run typecheck && npm run docs:check && npm run test:rules",
+    "test:e2e": "npm run build && node tests/build-workers.mjs && playwright test",
+    "check:full": "npm run check && npm run test:e2e"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.87.1",
@@ -29,6 +35,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

@@ -1,3 +1,5 @@
+import { promptExecutionSchema } from "../../../shared/execution-contracts";
+import { languageSchema, type Language } from "../../../shared/language";
 import { z } from "zod";
 import { sourceSchema } from "../../../shared/source-contracts";
 
@@ -65,6 +67,7 @@ export const forwardingJobCommandSchema = z
     taskId: z.string().uuid(),
     resultId: z.string().uuid(),
     sourceUrl: z.string().url().max(2048),
+    outputLanguage: languageSchema.optional(),
     focusSet: focusSetSnapshotSchema,
     resume: forwardingResumeSchema.optional(),
   })
@@ -90,8 +93,10 @@ export const relationBatchSchema = z
 
 export const forwardingReportDraftSchema = z
   .object({
+    execution: promptExecutionSchema.optional(),
     source: sourceSchema,
     generalUnderstanding: z.string().min(1).max(16_000),
+    outputLanguage: languageSchema.optional(),
     focusSet: focusSetSnapshotSchema,
     evaluatedFocusVersionIds: z.array(z.string().uuid()),
     relations: z.array(focusRelationSchema),
@@ -109,6 +114,13 @@ export const forwardingReportDraftSchema = z
   );
 
 export const forwardingJobEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("execution"),
+      taskId: z.string().uuid(),
+      execution: promptExecutionSchema,
+    })
+    .strict(),
   z
     .object({
       type: z.literal("phase"),
@@ -173,12 +185,8 @@ export type SourceEvidenceRef = z.infer<typeof sourceEvidenceRefSchema>;
 export type FocusRelation = z.infer<typeof focusRelationSchema>;
 export type SavedFocusEvaluation = z.infer<typeof savedFocusEvaluationSchema>;
 export type ForwardingResume = z.infer<typeof forwardingResumeSchema>;
-export type ForwardingJobCommand = z.infer<
-  typeof forwardingJobCommandSchema
->;
-export type ForwardingReportDraft = z.infer<
-  typeof forwardingReportDraftSchema
->;
+export type ForwardingJobCommand = z.infer<typeof forwardingJobCommandSchema>;
+export type ForwardingReportDraft = z.infer<typeof forwardingReportDraftSchema>;
 export type ForwardingJobEventContract = z.infer<
   typeof forwardingJobEventSchema
 >;

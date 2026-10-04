@@ -1,3 +1,5 @@
+import { useLanguage, selectLanguage } from "./i18n";
+import { t, tf } from "./i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Brand, NavigationIcon } from "./components/Primitives";
 import { ContentPage } from "./components/ContentPage";
@@ -25,6 +27,12 @@ const pageTitle: Record<ProductPage, string> = {
 };
 
 export function App() {
+  const language = useLanguage();
+  useEffect(() => {
+    void window.branchout
+      .preferences()
+      .then((value) => selectLanguage(value.language));
+  }, []);
   const [page, setPage] = useState<ProductPage>("内容");
   const [projectsState, setProjectsState] = useState<UiProjectWorkspace>();
   const [contentState, setContentState] = useState<UiContentWorkspace>();
@@ -63,7 +71,7 @@ export function App() {
       if (result.ok) setProjectsState(result.value);
       else setError(result.message);
     } catch {
-      setError("项目与关注卡状态读取失败。界面正在等待项目服务连接。");
+      setError(t("项目与关注卡状态读取失败。界面正在等待项目服务连接。"));
     }
   }, [ui]);
   const loadContent = useCallback(async () => {
@@ -72,7 +80,7 @@ export function App() {
       if (result.ok) setContentState(result.value);
       else setError(result.message);
     } catch {
-      setError("内容报告读取失败。界面正在等待转发服务连接。");
+      setError(t("内容报告读取失败。界面正在等待转发服务连接。"));
     }
   }, [ui]);
   const loadSettings = useCallback(async () => {
@@ -81,7 +89,7 @@ export function App() {
       if (result.ok) setSettings(result.value);
       else setError(result.message);
     } catch {
-      setError("接入设置读取失败。界面正在等待设置服务连接。");
+      setError(t("接入设置读取失败。界面正在等待设置服务连接。"));
     }
   }, [ui]);
   const refresh = useCallback(async () => {
@@ -94,7 +102,7 @@ export function App() {
         : () => {};
     void refresh();
     return changed;
-  }, [ui, refresh]);
+  }, [ui, refresh, language]);
 
   const run = async <T,>(
     operation: () => Promise<{ ok: boolean; value?: T; message?: string }>,
@@ -105,7 +113,7 @@ export function App() {
     try {
       const result = await operation();
       if (!result.ok) {
-        setError(result.message ?? "操作未完成，请重试。");
+        setError(result.message ?? t("操作未完成，请重试。"));
         return false;
       } else {
         await after?.(result.value);
@@ -113,7 +121,7 @@ export function App() {
         return true;
       }
     } catch {
-      setError("操作未完成，请重试。");
+      setError(t("操作未完成，请重试。"));
       return false;
     } finally {
       setBusy(false);
@@ -183,7 +191,7 @@ export function App() {
       await refresh();
       return result.value;
     } catch {
-      setError("建议接受失败，请重新读取报告和关注卡版本后再试。");
+      setError(t("建议接受失败，请重新读取报告和关注卡版本后再试。"));
       return undefined;
     } finally {
       setBusy(false);
@@ -194,12 +202,12 @@ export function App() {
     <div className="app-shell">
       <aside className="app-sidebar">
         <Brand />
-        <nav aria-label="主导航">
+        <nav aria-label={t("主导航")}>
           {pages.map((name) => (
             <button
               key={name}
               className="nav-item"
-              title={name}
+              title={t(name)}
               aria-current={page === name ? "page" : undefined}
               onClick={() => {
                 setPage(name);
@@ -207,11 +215,11 @@ export function App() {
               }}
             >
               <NavigationIcon name={name} />
-              <span>{name}</span>
+              <span>{t(name)}</span>
               {name === "任务" && activeTaskCount > 0 && (
                 <span
                   className="nav-count"
-                  aria-label={`${activeTaskCount} 个运行中任务`}
+                  aria-label={tf("{0} 个运行中任务", activeTaskCount)}
                 >
                   {activeTaskCount}
                 </span>
@@ -223,20 +231,21 @@ export function App() {
       <main className="app-main">
         <header className="app-topbar">
           <div>
-            <h1>{pageTitle[page]}</h1>
+            <h1>{t(pageTitle[page])}</h1>
           </div>
           <div className="topbar-task-state" aria-live="polite">
             {activeTaskCount ? (
               <button className="text-button" onClick={() => setPage("任务")}>
-                {activeTaskCount} 个任务运行中 →
+                {activeTaskCount}
+                {t("个任务运行中 →")}
               </button>
             ) : null}
           </div>
         </header>
         {error && (
           <div className="global-alert" role="alert">
-            <span>{error}</span>
-            <button aria-label="关闭提示" onClick={() => setError("")}>
+            <span>{t(error)}</span>
+            <button aria-label={t("关闭提示")} onClick={() => setError("")}>
               ×
             </button>
           </div>
@@ -244,7 +253,7 @@ export function App() {
         <div className="page-host">
           <section
             className="page-panel"
-            aria-label="内容"
+            aria-label={t("内容")}
             hidden={page !== "内容"}
           >
             <ContentPage
@@ -266,7 +275,7 @@ export function App() {
           </section>
           <section
             className="page-panel"
-            aria-label="关注卡"
+            aria-label={t("关注卡")}
             hidden={page !== "关注卡"}
           >
             <FocusCardsPage
@@ -321,7 +330,7 @@ export function App() {
           </section>
           <section
             className="page-panel"
-            aria-label="项目"
+            aria-label={t("项目")}
             hidden={page !== "项目"}
           >
             <ProjectsPage
@@ -364,7 +373,7 @@ export function App() {
           </section>
           <section
             className="page-panel"
-            aria-label="任务"
+            aria-label={t("任务")}
             hidden={page !== "任务"}
           >
             <TasksPage
@@ -395,7 +404,7 @@ export function App() {
           </section>
           <section
             className="page-panel"
-            aria-label="设置"
+            aria-label={t("设置")}
             hidden={page !== "设置"}
           >
             <SettingsPage

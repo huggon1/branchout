@@ -46,6 +46,10 @@ A completed project-analysis task renders its report and suggestion acceptance d
 
 ## Settings and common states
 
+Settings exposes a language selector for Simplified Chinese and English. Saving changes interface text and native menu labels while preserving page selection and drafts. Report content remains in its recorded generation language. Historical task details show that language.
+
+Review and automated-test instances show their run mode, source revision, and data directory. Review startup keeps Telegram receiving paused and shows its current receiving state in Settings. Saving a Bot Token starts receiving for that instance.
+
 Model settings show one current connection, selected from general API and Codex subscription. Telegram shows connection, chat binding, and message receipt. Content sources show GitHub, X, and Xiaohongshu reader capability and configuration.
 
 Project analysis settings show optional analysis-goal and focus-card-writing guidance in separate text fields. Saving applies filled fields to later runs. Clear Supplemental Information empties both fields. The page shows field errors and whether edits remain unsaved.

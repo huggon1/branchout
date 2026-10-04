@@ -40,6 +40,16 @@ The main process manages model connections and freezes task configuration at lau
 
 Dedicated readers inspect repository identity and parse selected Codex sessions. Pi's file tools explore the repository during analysis and retain the read locations in its session history. External content and local conversations are analysis data; application code controls tool permissions and task steps.
 
+## Development runtime and prompt boundaries
+
+The startup layer resolves one runtime profile before creating services. It supplies that profile to persistence, authentication, browser sessions, logging, workers, and instance locking. Separate profiles can run concurrently; a second writer to the same profile reports its existing owner. Review-mode integration policy controls background ingestion and scheduling. The [development guide](development.md) describes current development commands.
+
+Application bootstrap owns lifecycle and startup ordering. Service assembly owns dependency wiring. Jobs own task sequencing and output validation. Model and platform adapters own external access. Automated verification replaces those external boundaries while retaining downstream application behavior.
+
+Each job owns its fixed English instructions, prompt builder, and output protocol. Shared prompt helpers own language selection and common data-boundary rules. Builders accept typed task inputs, supplemental guidance, and frozen language settings; they return model request content and revision metadata. Task sequencing and persistence remain with the job and main-process services.
+
+Renderer language resources own interface translations. Logical error categories cross process boundaries and resolve to interface text in the current language. Task language controls generated reader-facing output. The [language rules](product-spec.md#languages) define historical behavior, and [execution metadata](data-contracts.md#development-profiles-and-execution-identity) defines traceability.
+
 ## Target code structure
 
 Stable domain boundaries organize the source:

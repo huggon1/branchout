@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { handle } from "../../ipc";
 import { focusCardChannels } from "../../../shared/ipc-contracts";
 import type { FocusCardService } from "./focus-card-service";
 
@@ -7,7 +7,7 @@ export function registerFocusCardIpc(
   expected: string,
 ) {
   for (const channel of Object.values(focusCardChannels))
-    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    handle(channel, async (event, ...args: unknown[]) => {
       const count = channel === focusCardChannels.view ? 0 : 1;
       if (
         !event.senderFrame ||

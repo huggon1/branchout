@@ -15,6 +15,8 @@ import {
 } from "../shared/ipc-contracts";
 
 const bridge: DesktopBridge = {
+  preferences: () => ipcRenderer.invoke("preferences:view"),
+  saveLanguage: (language) => ipcRenderer.invoke("preferences:save", language),
   projects: () => ipcRenderer.invoke(projectChannels.view),
   bindProject: () => ipcRenderer.invoke(projectChannels.bind),
   unbindProject: (projectId) =>
@@ -25,7 +27,8 @@ const bridge: DesktopBridge = {
   editFocusCard: (input) => ipcRenderer.invoke(focusCardChannels.edit, input),
   setFocusCardActive: (input) =>
     ipcRenderer.invoke(focusCardChannels.setActive, input),
-  setFocusCardDeleted: (input) => ipcRenderer.invoke(focusCardChannels.setDeleted, input),
+  setFocusCardDeleted: (input) =>
+    ipcRenderer.invoke(focusCardChannels.setDeleted, input),
   projectAnalysisReports: (projectId) =>
     ipcRenderer.invoke(analysisChannels.reports, projectId),
   readProjectAnalysisReport: (analysisReportId) =>
@@ -33,7 +36,8 @@ const bridge: DesktopBridge = {
   projectAnalysisPreflight: (projectId) =>
     ipcRenderer.invoke(analysisChannels.preflight, projectId),
   analysisPromptView: () => ipcRenderer.invoke(analysisPromptChannels.view),
-  saveAnalysisPrompt: (input) => ipcRenderer.invoke(analysisPromptChannels.save, input),
+  saveAnalysisPrompt: (input) =>
+    ipcRenderer.invoke(analysisPromptChannels.save, input),
   resetAnalysisPrompt: () => ipcRenderer.invoke(analysisPromptChannels.reset),
   startProjectAnalysis: (input) =>
     ipcRenderer.invoke(analysisChannels.start, input),

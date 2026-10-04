@@ -12,6 +12,9 @@ export function createWorkerEnvironment(
     "USERPROFILE",
     "SystemRoot",
     "TMPDIR",
+    ...(inherited.BRANCHOUT_RUN_MODE === "test"
+      ? ["BRANCHOUT_TEST_ENDPOINT"]
+      : []),
     "HTTP_PROXY",
     "HTTPS_PROXY",
     "ALL_PROXY",

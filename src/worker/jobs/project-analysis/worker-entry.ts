@@ -1,3 +1,4 @@
+import { languageSchema } from "../../../shared/language";
 import { z } from "zod";
 import { executionSchema } from "../../../shared/model-contracts";
 import { ExecutionFailure } from "../../../shared/task-failure";
@@ -13,7 +14,9 @@ const commandSchema = z
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
     directory: z.string().min(1).max(4096),
-    codexSessionIds: z.array(z.string().min(1).max(300)).max(maximumSelectedConversationCount),
+    codexSessionIds: z
+      .array(z.string().min(1).max(300))
+      .max(maximumSelectedConversationCount),
     focusCards: z
       .array(
         z
@@ -26,9 +29,12 @@ const commandSchema = z
           .strict(),
       )
       .max(1000),
+    outputLanguage: languageSchema.optional(),
     config: executionSchema,
     traceRoot: z.string().min(1).max(4096),
-    promptGuidance: analysisPromptSettingsSchema.extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
+    promptGuidance: analysisPromptSettingsSchema
+      .extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
+      .optional(),
   })
   .strict();
 
@@ -38,20 +44,25 @@ if (!port)
 
 const controller = new AbortController();
 let used = false;
-const credentialRequests = new Map<string, { resolve: (token: string) => void; reject: (error: Error) => void }>();
+const credentialRequests = new Map<
+  string,
+  { resolve: (token: string) => void; reject: (error: Error) => void }
+>();
 port.on("message", ({ data }) => {
   if (data?.type === "credential_response") {
     const pending = credentialRequests.get(data.requestId);
     if (pending) {
       credentialRequests.delete(data.requestId);
-      if (typeof data.credential === "string" && data.credential.length) pending.resolve(data.credential);
+      if (typeof data.credential === "string" && data.credential.length)
+        pending.resolve(data.credential);
       else pending.reject(new ExecutionFailure("model_auth"));
     }
     return;
   }
   if (data?.type === "cancel") {
     controller.abort();
-    for (const pending of credentialRequests.values()) pending.reject(new Error("cancelled"));
+    for (const pending of credentialRequests.values())
+      pending.reject(new Error("cancelled"));
     credentialRequests.clear();
     return;
   }
@@ -71,13 +82,21 @@ port.on("message", ({ data }) => {
   }
   used = true;
   const { type: _type, config, ...input } = parsed.data;
-  void runProjectAnalysis({ ...input, config }, controller.signal, (event) =>
-    port.postMessage(event), {
-      requestCredential: () => new Promise<string>((resolve, reject) => {
-        const requestId = randomUUID();
-        credentialRequests.set(requestId, { resolve, reject });
-        port.postMessage({ type: "credential_request", taskId: input.taskId, requestId });
-      }),
+  void runProjectAnalysis(
+    { ...input, config },
+    controller.signal,
+    (event) => port.postMessage(event),
+    {
+      requestCredential: () =>
+        new Promise<string>((resolve, reject) => {
+          const requestId = randomUUID();
+          credentialRequests.set(requestId, { resolve, reject });
+          port.postMessage({
+            type: "credential_request",
+            taskId: input.taskId,
+            requestId,
+          });
+        }),
     },
   )
     .then((draft) => {
@@ -88,8 +107,13 @@ port.on("message", ({ data }) => {
       if (controller.signal.aborted) return;
       const code =
         error instanceof ExecutionFailure ? error.code : "execution_failed";
-      port.postMessage({ type: "failed", taskId: input.taskId, code,
-        ...(error instanceof ExecutionFailure && error.diagnostic ? { diagnostic: error.diagnostic } : {}),
+      port.postMessage({
+        type: "failed",
+        taskId: input.taskId,
+        code,
+        ...(error instanceof ExecutionFailure && error.diagnostic
+          ? { diagnostic: error.diagnostic }
+          : {}),
       });
     })
     .finally(() => {
