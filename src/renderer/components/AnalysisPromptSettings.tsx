@@ -115,7 +115,7 @@ export function AnalysisPromptSettings() {
           aria-describedby="analysis-prompt-goal-help"
         />
         <small id="analysis-prompt-goal-help">
-          {t("描述希望从项目资料中识别的长期目标、取舍和问题。")}
+          {t("调整报告的侧重点、详略和表达。报告围绕 README 实现、测试和文档展开。")}
         </small>
       </label>
       <label className="settings-field" htmlFor="analysis-prompt-card">
@@ -133,7 +133,7 @@ export function AnalysisPromptSettings() {
           aria-describedby="analysis-prompt-card-help"
         />
         <small id="analysis-prompt-card-help">
-          {t("说明卡片应如何概括可持续关注的角度。")}
+          {t("说明希望关注的场景、痛点和期待，或提供你认可的卡片示例。")}
         </small>
       </label>
       <div className="settings-actions">

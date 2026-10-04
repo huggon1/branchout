@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 // Advance this version whenever the fixed agent instructions change.
-export const projectAnalysisPromptProtocolVersion = 3;
+export const projectAnalysisPromptProtocolVersion = 4;
 
 export const analysisPromptSettingsSchema = z
   .object({

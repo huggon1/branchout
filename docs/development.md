@@ -74,3 +74,19 @@ npm run review -- --profile /absolute/path/to/new-review-data --from /absolute/p
 ```
 
 Copy preparation preserves business records. Add `--include-auth` to select supported local credentials. Review startup keeps Telegram receiving paused, including when credentials are copied; saving a Bot Token in Settings starts receiving. The launcher shows build and profile identity. Personal installation and update routines remain local.
+
+## Refine project-analysis output
+
+Use a persistent review profile for model settings, projects, guidance, and saved reports. In Settings, edit Analysis Goal to adjust report emphasis and wording, or Card Writing Guidance to supply concerns and examples. Save, then start a new project analysis with the same conversation selection. Each report retains the actual fixed-prompt revision and supplemental guidance snapshot.
+
+Fixed editorial instructions and the simple Markdown example live in [the project-analysis prompt module](../src/worker/jobs/project-analysis/prompts.ts). For fixed-prompt wording changes, run `npm run build:analysis` while analysis tasks are idle, then start a new analysis in the already-open review application. Each new task forks the rebuilt worker. Protocol, main-process, and interface changes use the full build and relaunch. Changes to saved Settings guidance take effect on the next analysis.
+
+Export actual saved reports for local comparison:
+
+```sh
+npm run review:export -- --profile /absolute/path/to/review-data --output /absolute/path/to/local-results
+```
+
+The export writes one Markdown and JSON file per report, including card suggestions, evidence, language, execution identity, and guidance. Add `--report` with a report identity to select one run. Exports contain project material and belong in private local storage. Model credentials and raw conversation files remain in the profile.
+
+For feedback, identify the report and the paragraph, numbered supporting note, or card, describe the desired change, then compare the next run with the saved output. Wording changes use shared checks and real-model review; changes to protocol, persistence, or interaction also use application E2E.

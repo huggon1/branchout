@@ -24,7 +24,7 @@ const evidenceSchema = z
   .strict();
 const outputSchema = z
   .object({
-    summary: z.string().trim().min(1).max(1400),
+    summary: z.string().trim().min(1).max(24000),
     findings: z
       .array(
         z
@@ -35,20 +35,20 @@ const outputSchema = z
           })
           .strict(),
       )
-      .max(8),
+      .max(24),
     suggestions: z
       .array(
         z
           .object({
             kind: z.enum(["create", "update"]),
             focusId: z.string().optional(),
-            content: z.string().trim().min(1).max(500),
+            content: z.string().trim().min(1).max(2000),
             reason: z.string().trim().min(1).max(1200),
             evidence: z.array(evidenceSchema).min(1).max(12),
           })
           .strict(),
       )
-      .max(8),
+      .max(12),
   })
   .strict();
 
@@ -98,6 +98,13 @@ export function validateProjectAnalysisAgentOutput(
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
   const output = outputSchema.parse(JSON.parse(json));
+  for (const reference of output.summary.matchAll(/\[(\d+)\](?!\()/g)) {
+    const index = Number(reference[1]);
+    if (index < 1 || index > output.findings.length)
+      throw new Error(
+        `Invalid report reference ${index}; findings count ${output.findings.length}`,
+      );
+  }
   const messages = new Map<
     string,
     {
@@ -180,7 +187,10 @@ export function validateProjectAnalysisAgentOutput(
   const findings: ProjectAnalysisFinding[] = output.findings.flatMap(
     (item, index) => {
       const refs = resolveEvidence(item.evidence);
-      if (!refs.length) return [];
+      if (refs.length !== item.evidence.length || !refs.length)
+        throw new Error(`Invalid report evidence at finding ${index + 1}`);
+      if (refs.some((ref) => ref.source !== "repository"))
+        throw new Error("Report facts require repository evidence");
       refs.forEach((ref) => evidence.set(ref.evidenceId, ref));
       return [
         {
@@ -195,7 +205,12 @@ export function validateProjectAnalysisAgentOutput(
   const suggestions: ProjectAnalysisSuggestion[] = output.suggestions.flatMap(
     (item, index) => {
       const refs = resolveEvidence(item.evidence);
-      if (!refs.length || isExecutionCommandOnly(item.content)) return [];
+      if (
+        refs.length !== item.evidence.length ||
+        !refs.length ||
+        isExecutionCommandOnly(item.content)
+      )
+        throw new Error(`Invalid suggestion evidence at card ${index + 1}`);
       if (
         refs.some((ref) => ref.source === "codex_session") &&
         !refs.some((ref) => {
@@ -207,12 +222,13 @@ export function validateProjectAnalysisAgentOutput(
           return message?.role === "user" && !message.commandOnly;
         })
       )
-        return [];
+        throw new Error("Suggestion requires user intent evidence");
       const card =
         item.kind === "update" && item.focusId
           ? cards.get(item.focusId)
           : undefined;
-      if (item.kind === "update" && !card) return [];
+      if (item.kind === "update" && !card)
+        throw new Error("Unknown suggestion target");
       refs.forEach((ref) => evidence.set(ref.evidenceId, ref));
       return [
         {

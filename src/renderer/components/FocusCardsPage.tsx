@@ -116,7 +116,7 @@ export function FocusCardsPage({
             }
           >
             {projects.length
-              ? t("写下项目背景和关心的角度，后续内容会与这些角度关联。")
+              ? t("写下关心的场景、遇到的困难和期待，后续内容会与这些关注关联。")
               : t("先在项目页绑定一个仓库。")}
           </EmptyState>
         )}
@@ -291,7 +291,7 @@ export function FocusCardsPage({
                 </select>
               </label>
             )}
-            <label htmlFor="focus-body">{t("项目背景与关注角度")}</label>
+            <label htmlFor="focus-body">{t("关注内容")}</label>
             <textarea
               autoFocus
               id="focus-body"
@@ -301,7 +301,7 @@ export function FocusCardsPage({
               onChange={(e) =>
                 setEditor({ ...editor, content: e.target.value })
               }
-              placeholder={t("用自己的话写下背景、问题和你持续关心的角度…")}
+              placeholder={t("例如：用英语沟通时，翻译容易改变语气。希望表达自然准确，同时保留自己的意思和说话习惯。")}
               disabled={busy}
             />
             {error && (

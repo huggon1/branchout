@@ -104,6 +104,8 @@ export interface UiAnalysisReport {
   createdAt: string;
   summary: string;
   promptRevision?: string;
+  guidance?: { analysisGoal: string; cardWriting: string; revision: string };
+  modelId?: string;
   coverage: Array<{
     source: string;
     read: string;
@@ -306,7 +308,7 @@ type CanonicalAnalysisEvidence = {
   quote: string;
 };
 type CanonicalAnalysisReport = {
-  execution?: { promptRevision: string };
+  execution?: { promptRevision: string; modelId?: string };
   outputLanguage?: "zh-CN" | "en";
   analysisReportId: string;
   taskId: string;
@@ -688,6 +690,8 @@ const mapAnalysisReport = (
     outputLanguage: report.outputLanguage,
     promptRevision:
       report.execution?.promptRevision ?? report.promptGuidance?.revision,
+    guidance: report.promptGuidance,
+    modelId: report.execution?.modelId,
     coverage: sources,
     findings,
     suggestions: report.suggestions.map((suggestion) => {
@@ -861,19 +865,6 @@ export function productUiBridge(): ProductUiBridge {
     const summaryById = new Map(
       summaries.map((summary) => [summary.taskId, summary]),
     );
-    const activityReplies = await Promise.all(
-      taskReply.value
-        .filter((task) => task.kind === "project_analysis")
-        .map(
-          async (task) =>
-            [task.taskId, await bridge.taskActivities(task.taskId)] as const,
-        ),
-    );
-    const activitiesById = new Map(
-      activityReplies.flatMap(([taskId, reply]) =>
-        reply.ok ? [[taskId, reply.value] as const] : [],
-      ),
-    );
     const tasks = taskReply.value.map((task): UiTask => {
       const summary = summaryById.get(task.taskId);
       const isForwarding = task.kind === "forwarding";
@@ -885,7 +876,6 @@ export function productUiBridge(): ProductUiBridge {
             ? task.target.url
             : t("Branchout 任务");
       const forwardingActivities = summary?.activities ?? [];
-      const taskActivities = activitiesById.get(task.taskId) ?? [];
       const activities: UiTaskActivity[] = isForwarding
         ? forwardingActivities.map((activity) => ({
             sequence: activity.sequence,
@@ -894,14 +884,7 @@ export function productUiBridge(): ProductUiBridge {
             completed: activity.processed,
             total: activity.total,
           }))
-        : taskActivities.map((activity) => ({
-            sequence: activity.sequence,
-            occurredAt: activity.happenedAt,
-            summary: activity.summary,
-            body: activity.body,
-            completed: activity.progress?.completed,
-            total: activity.progress?.total,
-          }));
+        : [];
       const status = task.state === "awaiting_user" ? "running" : task.state;
       const analysisPhase =
         task.state === "completed"

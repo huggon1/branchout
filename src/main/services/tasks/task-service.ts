@@ -157,12 +157,13 @@ export class TaskService {
           code: "interrupted",
           message: "应用关闭时任务尚未完成",
         };
-        this.appendActivity(state.activities, {
-          taskId: task.taskId,
-          happenedAt: timestamp,
-          action: "interrupted",
-          summary: "应用关闭时任务尚未完成",
-        });
+        if (task.kind === "forwarding")
+          this.appendActivity(state.activities, {
+            taskId: task.taskId,
+            happenedAt: timestamp,
+            action: "interrupted",
+            summary: "应用关闭时任务尚未完成",
+          });
         recovered = true;
       }
     });

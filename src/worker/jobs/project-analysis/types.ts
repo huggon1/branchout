@@ -144,14 +144,4 @@ export type ProjectAnalysisEvent =
       taskId: string;
       phase: "repository" | "codex_sessions" | "reasoning";
     }
-  | {
-      type: "progress";
-      taskId: string;
-      repositoryFilesRead?: number;
-      sessionsRead?: number;
-      messagesRead?: number;
-      message?: string;
-      body?: string;
-      activityKind?:
-        "started" | "retrying" | "completed" | "failed" | "message" | "tool";
-    };
+  | { type: "heartbeat"; taskId: string };

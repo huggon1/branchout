@@ -91,7 +91,7 @@ Inputs use a neutral border and explicit labels. Dialogs reuse the existing nati
 
 ### Reading and suggestions
 
-Reports begin with the conclusion and compact task context. Findings pair a short title with prose, then supporting evidence. A suggestion uses a bounded white panel, explicit project context, proposed text, and grouped actions. Acceptance changes the action to a check and saved-state label. Execution history remains a separate, initially collapsed section.
+Project reports begin with compact task context and one Markdown reading body. Numbered supporting notes and quotations live in a collapsed Report Evidence disclosure. A suggestion uses a bounded white panel, explicit project context, proposed text, and grouped actions. Acceptance changes the action to a check and saved-state label. Execution history remains a separate, initially collapsed section.
 
 ## Motion
 

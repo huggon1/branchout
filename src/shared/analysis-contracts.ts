@@ -127,7 +127,7 @@ export const projectAnalysisReportSchema = z
     outputLanguage: languageSchema.optional(),
     generatedAt: z.string().datetime(),
     execution: promptExecutionSchema.optional(),
-    summary: z.string().min(1).max(1400).optional(),
+    summary: z.string().min(1).max(24000).optional(),
     promptGuidance: z
       .object({
         analysisGoal: z.string().max(4000),
