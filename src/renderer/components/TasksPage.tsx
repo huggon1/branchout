@@ -180,7 +180,9 @@ export function TasksPage({
                       : t("任务已停止")}
                   </strong>
                   <p>{t(selected.error ?? "")}</p>
-                  <p>{t("已完成范围保留在活动记录中。")}</p>
+                  {selected.kind === "forwarding" && (
+                    <p>{t("已完成范围保留在活动记录中。")}</p>
+                  )}
                 </div>
               )}
               {reports
@@ -203,42 +205,44 @@ export function TasksPage({
                     onOpenFocus={onOpenFocus}
                   />
                 ))}
-              <Disclosure
-                className="task-activity"
-                key={selected.taskId}
-                title={t("运行过程")}
-                count={tf("{0} 条记录", selected.activities.length)}
-              >
-                {selected.activities.length ? (
-                  <ol>
-                    {[...selected.activities]
-                      .sort((a, b) => a.sequence - b.sequence)
-                      .map((activity) => (
-                        <li key={activity.sequence}>
-                          <span className="activity-dot" aria-hidden="true" />
-                          <div>
-                            <p>{t(activity.summary)}</p>
-                            {activity.body && (
-                              <Markdown>{activity.body}</Markdown>
-                            )}
-                            <time>{dateTime(activity.occurredAt)}</time>
-                            {activity.completed !== undefined && (
-                              <span className="activity-count">
-                                {activity.total !== undefined
-                                  ? `${activity.completed} / ${activity.total}`
-                                  : tf("已处理 {0}", activity.completed)}
-                              </span>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                  </ol>
-                ) : (
-                  <p className="muted-copy">
-                    {t("任务启动后，已完成动作会按时间显示在这里。")}
-                  </p>
-                )}
-              </Disclosure>
+              {selected.kind === "forwarding" && (
+                <Disclosure
+                  className="task-activity"
+                  key={selected.taskId}
+                  title={t("运行过程")}
+                  count={tf("{0} 条记录", selected.activities.length)}
+                >
+                  {selected.activities.length ? (
+                    <ol>
+                      {[...selected.activities]
+                        .sort((a, b) => a.sequence - b.sequence)
+                        .map((activity) => (
+                          <li key={activity.sequence}>
+                            <span className="activity-dot" aria-hidden="true" />
+                            <div>
+                              <p>{t(activity.summary)}</p>
+                              {activity.body && (
+                                <Markdown>{activity.body}</Markdown>
+                              )}
+                              <time>{dateTime(activity.occurredAt)}</time>
+                              {activity.completed !== undefined && (
+                                <span className="activity-count">
+                                  {activity.total !== undefined
+                                    ? `${activity.completed} / ${activity.total}`
+                                    : tf("已处理 {0}", activity.completed)}
+                                </span>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                    </ol>
+                  ) : (
+                    <p className="muted-copy">
+                      {t("任务启动后，已完成动作会按时间显示在这里。")}
+                    </p>
+                  )}
+                </Disclosure>
+              )}
               <div className="task-result-actions">
                 {selected.kind === "project_analysis" &&
                   selected.status !== "queued" && (

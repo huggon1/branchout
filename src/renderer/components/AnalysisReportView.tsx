@@ -62,7 +62,7 @@ export function AnalysisReportView({
         {t("生成于")}
         {dateTime(report.createdAt)}
       </p>
-      <h3>{t("分析结论")}</h3>
+      <h3>{t("项目报告")}</h3>
       <Markdown>{report.summary}</Markdown>
       <Disclosure
         className="coverage-details"
@@ -82,6 +82,33 @@ export function AnalysisReportView({
               {report.promptRevision.slice(0, 19)}…
             </code>
           </p>
+        )}
+        {report.modelId && (
+          <p>
+            {t("模型")}: {report.modelId}
+          </p>
+        )}
+        {report.guidance && (
+          <div>
+            <p>
+              {t("补充指导版本")}：
+              <code title={report.guidance.revision}>
+                {report.guidance.revision.slice(0, 19)}…
+              </code>
+            </p>
+            {report.guidance.analysisGoal && (
+              <>
+                <strong>{t("分析目标")}</strong>
+                <p>{report.guidance.analysisGoal}</p>
+              </>
+            )}
+            {report.guidance.cardWriting && (
+              <>
+                <strong>{t("关注卡写作指导")}</strong>
+                <p>{report.guidance.cardWriting}</p>
+              </>
+            )}
+          </div>
         )}
         <ul>
           {report.coverage.map((item, index) => (
@@ -108,11 +135,16 @@ export function AnalysisReportView({
         </ul>
       </Disclosure>
       {report.findings.length > 0 && (
-        <section className="report-findings">
-          <h4>{t("发现与依据")}</h4>
+        <Disclosure
+          className="report-findings"
+          title={t("报告依据")}
+          count={tf("{0} 条", report.findings.length)}
+        >
           {report.findings.map((finding, index) => (
             <article key={index}>
-              <h5>{finding.title}</h5>
+              <h5>
+                [{index + 1}] {finding.title}
+              </h5>
               <Markdown>{finding.content}</Markdown>
               <Disclosure
                 className="evidence"
@@ -130,7 +162,7 @@ export function AnalysisReportView({
               </Disclosure>
             </article>
           ))}
-        </section>
+        </Disclosure>
       )}
       <section className="suggestion-list">
         <div className="section-heading">

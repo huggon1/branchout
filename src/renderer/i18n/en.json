@@ -512,5 +512,14 @@
   "{0} 张关注卡": "{0} focus cards",
   "{0} 张关注卡.one": "{0} focus card",
   "{0} 张.one": "{0} card",
-  "{0} 个.one": "{0} item"
+  "{0} 个.one": "{0} item",
+  "项目报告": "Project report",
+  "报告依据": "Report evidence",
+  "关注内容": "Focus text",
+  "写下关心的场景、遇到的困难和期待，后续内容会与这些关注关联。": "Describe the situation, difficulty, and desired outcome. Later content connects to these concerns.",
+  "例如：用英语沟通时，翻译容易改变语气。希望表达自然准确，同时保留自己的意思和说话习惯。": "For example: Translation can change my tone when communicating in English. I want natural, accurate wording that preserves my meaning and voice.",
+  "调整报告的侧重点、详略和表达。报告围绕 README 实现、测试和文档展开。": "Adjust report emphasis, detail, and wording. Reports cover README implementation, tests, and documentation.",
+  "说明希望关注的场景、痛点和期待，或提供你认可的卡片示例。": "Describe the situations, difficulties, and outcomes to watch, or provide focus-card examples you like.",
+  "补充指导版本": "Supplemental guidance revision",
+  "正在核对报告引用": "Checking report references"
 }

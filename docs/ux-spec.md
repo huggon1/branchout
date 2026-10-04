@@ -32,7 +32,7 @@ One Telegram message produces one content task. For multiple links or unsupporte
 
 Projects uses a vertical repository index and a management reader with directory, card counts, task count, analysis action, and latest-task shortcut. Unbound projects move to history; their task shortcuts preserve access to saved reports. Analysis reports and acceptance controls appear inside Tasks.
 
-Start Analysis opens a preparation dialog after repository and conversation discovery. The dialog shows repository state and discovered Codex sessions. It selects the ten most recently active confirmed sessions with readable user messages by default. The selector caps the chosen set at thirty and shows candidate and selected counts, user-message counts and excerpts in preview coverage, and project attribution. Search, filtering, grouping, and bulk actions help adjust the set. Users explicitly include sessions with uncertain attribution; scan scope and submitted session count are visible before launch. Submitting opens the new task. Its completed report shows conclusions, findings, and card suggestions; coverage and evidence expand on demand.
+Start Analysis opens a preparation dialog after repository and conversation discovery. The dialog shows repository state and discovered Codex sessions. It selects the ten most recently active confirmed sessions with readable user messages by default. The selector caps the chosen set at thirty and shows candidate and selected counts, user-message counts and excerpts in preview coverage, and project attribution. Search, filtering, grouping, and bulk actions help adjust the set. Users explicitly include sessions with uncertain attribution; scan scope and submitted session count are visible before launch. Submitting opens the new task. Its completed report presents one Markdown body with README implementation, tests, and documentation sections, followed by card suggestions. Numbered report references match supporting notes inside a collapsed Report Evidence disclosure. Coverage and evidence expand on demand.
 
 Each suggestion compares the original and proposed card, shows rationale and evidence, and offers Accept. Acceptance links to the new card or version. If the target changed, the UI displays current and proposed text for another review.
 
@@ -40,9 +40,9 @@ Each suggestion compares the original and proposed card, shows rationale and evi
 
 The task list shows task name, project or source, status, and recorded update time. Running and queued tasks appear first. Status filtering retains the selected task while it remains visible.
 
-A running task reader emphasizes its current stage. A collapsed Run Process disclosure holds persisted events in ascending sequence. Public assistant messages use formatted paragraphs, lists, and code; tool events name their action. Attempt-start events separate retries. Structured report output contributes a draft-ready event. Opening the process preserves readable history while new events arrive.
+A running task reader emphasizes its current stage. Content tasks show persisted events in a collapsed Run Process disclosure. Project-analysis tasks present stage, result, or failure information; their detailed execution record opens through export.
 
-A completed project-analysis task renders its report and suggestion acceptance directly in the same reader. Content tasks link to their Content reader, including saved partial results. Failed and canceled tasks show the recorded reason and a retry action. The analysis trace export remains a secondary task action. Navigation preserves state; reopening reads saved tasks and activities.
+A completed project-analysis task renders its report and suggestion acceptance directly in the same reader. Content tasks link to their Content reader, including saved partial results. Failed and canceled tasks show the recorded reason and a retry action. The analysis trace export remains a secondary task action and opens the latest session HTML directly after directory selection. Navigation preserves state; reopening reads saved tasks and activities.
 
 ## Settings and common states
 
@@ -52,6 +52,6 @@ Review and automated-test instances show their run mode, source revision, and da
 
 Model settings show one current connection, selected from general API and Codex subscription. Telegram shows connection, chat binding, and message receipt. Content sources show GitHub, X, and Xiaohongshu reader capability and configuration.
 
-Project analysis settings show optional analysis-goal and focus-card-writing guidance in separate text fields. Saving applies filled fields to later runs. Clear Supplemental Information empties both fields. The page shows field errors and whether edits remain unsaved.
+Project analysis settings show optional report-emphasis and focus-card-writing guidance in separate text fields. Report guidance adjusts emphasis, detail, and wording; card guidance accepts concerns and examples. Saving applies filled fields to later runs. Clear Supplemental Information empties both fields. The page shows field errors and whether edits remain unsaved.
 
 Empty projects, empty cards, zero connections, empty reports, missing model configuration, source failures, and insufficient analysis input each show a distinct state and next action. Narrow windows preserve the reading axis and primary actions; activities and connections scroll within their sections.

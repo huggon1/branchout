@@ -6,7 +6,14 @@ import {
   _electron as electron,
   type ElectronApplication,
 } from "@playwright/test";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  rm,
+  readdir,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -87,7 +94,8 @@ test.beforeEach(async () => {
     if (req.url === "/analysis") {
       const card = JSON.parse(input.prompt).focusCards[0];
       output = {
-        summary: "Fixture analysis",
+        summary:
+          "## README promises and implementation\nDraft storage is implemented [1].\n\n## Tests\nRestart behavior has a test.\n\n## Documentation and agent guidance\nThe README describes draft recovery.",
         findings: [
           {
             title: "Fixture finding",
@@ -188,14 +196,14 @@ async function card(page: any) {
     .click();
   await page.getByRole("button", { name: "新建关注卡" }).click();
   await page
-    .getByPlaceholder("用自己的话写下背景、问题和你持续关心的角度…")
+    .getByLabel("关注内容", { exact: true })
     .fill("Keep drafts after restart");
   await page.getByRole("button", { name: "保存关注卡" }).click();
   await expect(
     page.getByText("Keep drafts after restart").first(),
   ).toBeVisible();
   await page
-    .getByRole("dialog")
+    .getByRole("dialog", { name: "关注卡版本", exact: true })
     .getByRole("button", { name: "关闭", exact: true })
     .click();
 }
@@ -349,20 +357,98 @@ test("analysis acceptance protects changed focus-card versions", async ({}, info
   const page = await launch();
   await bind(page);
   await card(page);
+  const guidance = await page.evaluate(() =>
+    window.branchout.saveAnalysisPrompt({
+      analysisGoal: "Focus on README implementation gaps.",
+      cardWriting: "Describe situations, difficulties and desired outcomes.",
+    }),
+  );
+  expect(guidance.ok).toBe(true);
   await page
     .getByRole("navigation")
     .getByRole("button", { name: "项目", exact: true })
     .click();
   await page.getByRole("button", { name: "开始分析", exact: true }).click();
   await page.getByRole("button", { name: "提交分析" }).click();
-  await expect(page.getByText("Fixture finding", { exact: true })).toBeVisible({
+  await expect(
+    page.getByRole("heading", { name: "README promises and implementation" }),
+  ).toBeVisible({
     timeout: 30000,
   });
   const state = JSON.parse(
     await readFile(join(profile, "projects.json"), "utf8"),
   );
-  const report = state.analysisReports[0],
-    focus = state.focusCards[0],
+  const report = state.analysisReports[0];
+  expect(report.summary).toContain("## Tests");
+  expect(report.summary).toContain("## Documentation and agent guidance");
+  expect(report.promptGuidance.analysisGoal).toBe(
+    "Focus on README implementation gaps.",
+  );
+  expect(report.execution.supplementalGuidanceRevision).toBe(
+    report.promptGuidance.revision,
+  );
+  await page.evaluate(() =>
+    window.branchout.saveAnalysisPrompt({
+      analysisGoal: "Changed for future analyses.",
+      cardWriting: "Keep the scene specific.",
+    }),
+  );
+  await expect(page.getByText("运行过程", { exact: true })).toHaveCount(0);
+  const activities = await page.evaluate(
+    (id) => window.branchout.taskActivities(id),
+    report.taskId,
+  );
+  expect(activities.ok && activities.value).toEqual([]);
+  const traceDirectory = join(
+    profile,
+    "analysis-traces",
+    report.taskId,
+    "html",
+  );
+  await mkdir(traceDirectory, { recursive: true });
+  await writeFile(
+    join(traceDirectory, "attempt-2.html"),
+    "<html>Earlier request</html>",
+  );
+  await writeFile(
+    join(traceDirectory, "attempt-10.html"),
+    "<html>Latest complete session</html>",
+  );
+  await writeFile(
+    join(traceDirectory, "batch-1-attempt-99.html"),
+    "<html>Legacy batch</html>",
+  );
+  const exportRoot = info.outputPath("export");
+  await mkdir(exportRoot);
+  await application.evaluate(({ dialog, shell }, destination) => {
+    (dialog as any).showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [destination],
+    });
+    shell.openPath = async (file) => {
+      (globalThis as any).__openedTrace = file;
+      return "";
+    };
+  }, exportRoot);
+  await page.getByRole("button", { name: "导出并打开详细记录" }).click();
+  await expect
+    .poll(() => application.evaluate(() => (globalThis as any).__openedTrace))
+    .toContain("analysis.html");
+  const opened = await application.evaluate(
+    () => (globalThis as any).__openedTrace as string,
+  );
+  expect(await readFile(opened, "utf8")).toBe(
+    "<html>Latest complete session</html>",
+  );
+  expect(await readdir(join(opened, ".."))).toEqual(["analysis.html"]);
+  await info.attach("direct-session-export", {
+    path: opened,
+    contentType: "text/html",
+  });
+  await page.screenshot({ path: info.outputPath("markdown-report.png") });
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.screenshot({ path: info.outputPath("compact-report.png") });
+  const focus = state.focusCards[0],
     version = state.focusVersions.find(
       (x: any) => x.focusVersionId === focus.currentVersionId,
     );
@@ -511,7 +597,7 @@ test("review with copied Telegram credentials shows receiving paused", async ({}
   });
 });
 
-test("unverifiable model claims produce no findings or card suggestions", async ({}, info) => {
+test("unverifiable model claims fail without saving partial reports", async ({}, info) => {
   const page = await launch();
   await bind(page);
   await card(page);
@@ -531,20 +617,18 @@ test("unverifiable model claims produce no findings or card suggestions", async 
   await page
     .getByRole("button", { name: "Submit analysis", exact: true })
     .click();
-  await expect(
-    page.getByText("This exploration produced no verifiable findings.", {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect
+    .poll(async () => {
+      const tasks = JSON.parse(
+        await readFile(join(profile, "tasks.json"), "utf8"),
+      );
+      return tasks.tasks.find((x: any) => x.kind === "project_analysis")?.state;
+    })
+    .toBe("failed");
   const state = JSON.parse(
     await readFile(join(profile, "projects.json"), "utf8"),
   );
-  const report = state.analysisReports[0];
-  expect(report.findings).toEqual([]);
-  expect(report.suggestions).toEqual([]);
-  expect(report.outputLanguage).toBe("en");
-  expect(report.execution.taskId).toBe(report.taskId);
-  expect(report.execution.build.revision).not.toBe("source");
+  expect(state.analysisReports).toEqual([]);
   await info.attach("unverifiable-state", {
     body: JSON.stringify(state),
     contentType: "application/json",

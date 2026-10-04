@@ -12,7 +12,7 @@ You may recognize that an article is useful before you know which project it hel
 
 ## 🧭 How to use it
 
-1. Bind a local Git repository and write a focus card describing the project and a question you want to keep watching. A short card is enough: “This project lets people save content offline. I care about the feedback and retry flow when a save fails.”
+1. Bind a local Git repository and write a focus card describing a situation, difficulty, and desired outcome. A short card is enough: “Saving content offline can fail without a clear explanation. I want understandable feedback and a way to retry while keeping what I entered.”
 2. Add a link on the Content page or forward one from Telegram. The report shows the retrieved source, an understanding of its content, and evidence for any connections to active focus cards. When no card is relevant, the report shows zero connections.
 
 ## ✨ What you can do
@@ -20,7 +20,7 @@ You may recognize that an article is useful before you know which project it hel
 - **Manage projects and focus cards:** Bind local Git repositories; write, edit, pause, and reactivate focus cards while retaining their versions.
 - **Read content reports:** Add links to public GitHub repositories, X posts, and Xiaohongshu notes. Review source text and images, retrieval coverage, content understanding, and evidence-backed connections.
 - **Collect links from Telegram:** Send one link in an authorized chat and receive a queue confirmation. Read the full report in the desktop app. When the app opens again, it continues processing pending messages still available from Telegram.
-- **Analyze a project:** Select related Codex work conversations. The agent explores the local repository with read-only tools. Review the files opened, project findings, and focus card suggestions; accept suggestions one by one.
+- **Analyze a project:** Select related Codex work conversations. The agent explores the local repository with read-only tools. Review README promises against implementation, tests, documentation, and focus card suggestions; accept suggestions one by one.
 - **Follow task progress:** See the current stage, recent actions, results, and failure reasons in the task center.
 
 Projects, cards, reports, and tasks are stored locally. Model tasks receive the source content or selected project material needed for that run and use the model connection you configure.

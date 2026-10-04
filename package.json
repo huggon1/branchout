@@ -19,7 +19,9 @@
     "docs:check": "node scripts/checks/docs.mjs",
     "check": "npm run typecheck && npm run docs:check && npm run test:rules",
     "test:e2e": "npm run build && node tests/build-workers.mjs && playwright test",
-    "check:full": "npm run check && npm run test:e2e"
+    "check:full": "npm run check && npm run test:e2e",
+    "review:export": "tsx scripts/development/export-analysis.ts",
+    "build:analysis": "node scripts/app-build/app.mjs --analysis-worker"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.87.1",

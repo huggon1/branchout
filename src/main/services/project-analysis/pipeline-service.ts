@@ -1,6 +1,5 @@
 import { promptExecutionSchema } from "../../../shared/execution-contracts";
 import { languageSchema, type Language } from "../../../shared/language";
-import { displayActivityText } from "../../../shared/display-activity";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type {
@@ -66,7 +65,7 @@ const analysisDraftSchema = z
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
     execution: promptExecutionSchema.optional(),
-    summary: z.string().min(1).max(1400),
+    summary: z.string().min(1).max(24000),
     outputLanguage: languageSchema.optional(),
     promptGuidance: analysisPromptSettingsSchema
       .extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
@@ -88,7 +87,7 @@ const analysisDraftSchema = z
           kind: z.enum(["create", "update"]),
           focusId: z.string().optional(),
           baseFocusVersionId: z.string().optional(),
-          content: z.string().min(1).max(500),
+          content: z.string().min(1).max(2000),
           reason: z.string().min(1).max(1200),
           evidenceIds: z.array(z.string().min(1).max(120)),
         })
@@ -203,18 +202,7 @@ const workerEventSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z
-    .object({
-      type: z.literal("progress"),
-      taskId: z.string().uuid(),
-      repositoryFilesRead: z.number().int().nonnegative().optional(),
-      sessionsRead: z.number().int().nonnegative().optional(),
-      messagesRead: z.number().int().nonnegative().optional(),
-      message: z.string().max(500).optional(),
-      body: z.string().max(16000).optional(),
-      activityKind: z
-        .enum(["started", "retrying", "completed", "failed", "message", "tool"])
-        .optional(),
-    })
+    .object({ type: z.literal("heartbeat"), taskId: z.string().uuid() })
     .strict(),
   z
     .object({
@@ -323,7 +311,7 @@ export const projectAnalysisReportForSaveSchema = z
     projectLabel: z.string().min(1).max(300),
     generatedAt: z.string().datetime(),
     execution: promptExecutionSchema.optional(),
-    summary: z.string().min(1).max(1400),
+    summary: z.string().min(1).max(24000),
     outputLanguage: languageSchema.optional(),
     promptGuidance: analysisPromptSettingsSchema
       .extend({ revision: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
@@ -452,11 +440,6 @@ export interface ProjectAnalysisPipelinePorts {
   workerPath: string;
   traceRoot: string;
   exportTrace(traceRoot: string, taskId: string): Promise<string | undefined>;
-  recordTraceLineage?(
-    traceRoot: string,
-    taskId: string,
-    previousTaskId?: string,
-  ): Promise<void>;
   spawnWorker(path: string): ProjectAnalysisWorker;
   projects: { get(projectId: string): ProjectRecord | undefined };
   focusCards: {
@@ -510,16 +493,6 @@ const phaseLabels = {
   reasoning: "探索仓库并形成建议",
 } as const;
 const safeFailureCodes = new Set(Object.keys(failureMessages));
-function safeModelActivity(message: string | undefined): string | undefined {
-  if (!message || message.length > 100) return undefined;
-  return /^归纳第 \d{1,3} 层关注角度$/.test(message) ||
-    /^(开始第 [1-3] 次模型请求|请求暂时失败，[12] 秒后重试|模型请求完成|模型请求失败)$/.test(
-      message,
-    )
-    ? message
-    : undefined;
-}
-
 function encodeLocation(
   location: z.infer<typeof sourceLocationSchema>,
 ): string {
@@ -802,11 +775,6 @@ export class ProjectAnalysisPipelineService {
       });
       taskId = task.taskId;
       await this.ports.runInputs.save(taskId, input);
-      await this.ports.recordTraceLineage?.(
-        this.ports.traceRoot,
-        taskId,
-        resumeFromTaskId,
-      );
       const worker = this.ports.spawnWorker(this.ports.workerPath);
       const entry: ActiveRun = {
         worker,
@@ -921,61 +889,10 @@ export class ProjectAnalysisPipelineService {
         taskId,
         phase: phaseLabels[event.phase],
       });
-      await this.ports.tasks.receive(taskId, {
-        type: "activity",
-        taskId,
-        action: event.phase,
-        summary: phaseLabels[event.phase],
-      });
       this.ports.notify();
       return;
     }
-    if (event.type === "progress") {
-      const hasCount = [
-        event.messagesRead,
-        event.sessionsRead,
-        event.repositoryFilesRead,
-      ].some((value) => value !== undefined);
-      const completed =
-        event.messagesRead ??
-        event.sessionsRead ??
-        event.repositoryFilesRead ??
-        0;
-      if (hasCount)
-        await this.ports.tasks.receive(taskId, {
-          type: "progress",
-          taskId,
-          completed,
-        });
-      const summaries = [
-        event.repositoryFilesRead === undefined
-          ? undefined
-          : `仓库文件 ${event.repositoryFilesRead} 项`,
-        event.sessionsRead === undefined
-          ? undefined
-          : `Codex 会话 ${event.sessionsRead} 个`,
-        event.messagesRead === undefined
-          ? undefined
-          : `会话消息 ${event.messagesRead} 条`,
-      ].filter((value): value is string => value !== undefined);
-      const modelActivity =
-        event.activityKind === "message" || event.activityKind === "tool"
-          ? displayActivityText(event.message ?? "模型活动").slice(0, 500)
-          : safeModelActivity(event.message);
-      if (summaries.length || modelActivity)
-        await this.ports.tasks.receive(taskId, {
-          type: "activity",
-          taskId,
-          action: "progress",
-          summary: modelActivity ?? `已读取 ${summaries.join("、")}`,
-          ...(event.activityKind === "message" && event.body
-            ? { body: displayActivityText(event.body) }
-            : {}),
-          ...(hasCount ? { progress: { completed } } : {}),
-        });
-      this.ports.notify();
-      return;
-    }
+    if (event.type === "heartbeat") return;
     if (event.type === "failed") {
       await this.fail(
         taskId,

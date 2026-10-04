@@ -81,12 +81,6 @@ export async function runProjectAnalysis(
     dependencies.codexReaderOptions,
   );
   const allMessages = sessions.sessions.flatMap((session) => session.messages);
-  emit({
-    type: "progress",
-    taskId: input.taskId,
-    sessionsRead: sessions.sessions.length,
-    messagesRead: allMessages.length,
-  });
   const conversationFile = join(
     resolve(input.traceRoot),
     input.taskId,
@@ -120,7 +114,17 @@ export async function runProjectAnalysis(
     systemPrompt,
     conversationFile,
     signal,
-    maxTokens: 3500,
+    maxTokens: 10000,
+    validateOutput: (text, files) => {
+      validateProjectAnalysisAgentOutput(
+        text,
+        repositoryRoot,
+        files,
+        sessions,
+        input.focusCards,
+        input.outputLanguage,
+      );
+    },
     ...(input.config.method === "codex_subscription" &&
     dependencies.requestCredential
       ? {
@@ -130,14 +134,7 @@ export async function runProjectAnalysis(
           },
         }
       : {}),
-    onActivity: (activity) =>
-      emit({
-        type: "progress",
-        taskId: input.taskId,
-        message: activity.summary,
-        body: activity.body,
-        activityKind: activity.kind,
-      }),
+    onHeartbeat: () => emit({ type: "heartbeat", taskId: input.taskId }),
   });
   for (const path of result.readPaths) {
     try {
@@ -148,7 +145,10 @@ export async function runProjectAnalysis(
         (inside === ".." || inside.startsWith(`..${sep}`))
       )
         continue;
-      readFiles.set(absolute, await readFile(absolute));
+      readFiles.set(
+        absolute,
+        result.readFiles?.get(absolute) ?? (await readFile(absolute)),
+      );
     } catch {
       /* Trace keeps the failed read. */
     }

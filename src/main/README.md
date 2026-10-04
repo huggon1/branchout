@@ -14,7 +14,7 @@ One service owns project identity. Card editing, status changes, and suggestion 
 - `services/projects` and `services/focus-cards`: project binding, card versions, and active-set snapshots.
 - `services/forwarding`: shared in-app and Telegram queue, stage persistence, and report publication.
 - `services/project-analysis`: preview, task input, report persistence, suggestion acceptance, and version conflicts. Previews use [local readers](../readers/README.md).
-- `services/tasks`: analysis state and activity, plus a unified content and analysis view.
+- `services/tasks`: analysis state, content activity, and a unified content and analysis view.
 - `integrations/telegram`: bot connection, authorized chats, update cursor, and receipt acknowledgment.
 - `services/model-service.ts`, `services/codex-client.ts`, `storage/model-store.ts`: model connection, Codex login, execution configuration, and credential lifecycle.
 - `services/runtime-layout.ts`: app resource paths in development and packaged builds for workers.
