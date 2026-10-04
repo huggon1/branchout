@@ -1,8 +1,6 @@
-import { ipcMain } from "electron";
+import { handle } from "../../ipc";
 import { z } from "zod";
-import {
-  analysisChannels,
-} from "../../../shared/ipc-contracts";
+import { analysisChannels } from "../../../shared/ipc-contracts";
 import type { ProjectAnalysisPreflight } from "../../../shared/analysis-contracts";
 
 export interface ProjectAnalysisIpcService {
@@ -24,7 +22,7 @@ export function registerProjectAnalysisPipelineIpc(
     analysisChannels.cancel,
     analysisChannels.exportTrace,
   ])
-    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    handle(channel, async (event, ...args: unknown[]) => {
       if (
         !event.senderFrame ||
         event.senderFrame !== event.sender.mainFrame ||

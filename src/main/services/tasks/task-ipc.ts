@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { handle } from "../../ipc";
 import { z } from "zod";
 import { taskChannels } from "../../../shared/ipc-contracts";
 import type {
@@ -13,7 +13,7 @@ interface TaskViewService {
 
 export function registerTaskIpc(service: TaskViewService, expected: string) {
   for (const channel of Object.values(taskChannels))
-    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    handle(channel, async (event, ...args: unknown[]) => {
       const count = channel === taskChannels.snapshots ? 0 : 1;
       if (
         !event.senderFrame ||

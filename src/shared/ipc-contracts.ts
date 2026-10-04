@@ -1,3 +1,4 @@
+import type { Language } from "./language";
 import type { ProjectState } from "./project-contracts";
 import type {
   FocusCardView,
@@ -108,6 +109,8 @@ export const channels = {
 } as const;
 
 export interface DesktopBridge {
+  preferences(): Promise<{ language: Language }>;
+  saveLanguage(language: Language): Promise<{ language: Language }>;
   projects(): Promise<ModelReply<ProjectState>>;
   bindProject(): Promise<ModelReply<string | undefined>>;
   unbindProject(projectId: string): Promise<ModelReply<void>>;

@@ -1,3 +1,4 @@
+import type { Language } from "../../../shared/language";
 import { randomUUID } from "node:crypto";
 import {
   forwardingInputSchema,
@@ -7,10 +8,19 @@ import {
   xhsShortUrlSchema,
   type SourceContent,
 } from "../../../shared/source-contracts";
-import type { XCredentials, XhsSession } from "../../../shared/platform-contracts";
+import type {
+  XCredentials,
+  XhsSession,
+} from "../../../shared/platform-contracts";
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
-import type { ForwardingTaskSummary, ForwardingTaskDetail } from "../../../shared/forwarding-view-contracts";
-export type { ForwardingTaskSummary, ForwardingTaskDetail } from "../../../shared/forwarding-view-contracts";
+import type {
+  ForwardingTaskSummary,
+  ForwardingTaskDetail,
+} from "../../../shared/forwarding-view-contracts";
+export type {
+  ForwardingTaskSummary,
+  ForwardingTaskDetail,
+} from "../../../shared/forwarding-view-contracts";
 import {
   focusSetSnapshotSchema,
   forwardingJobEventSchema,
@@ -44,6 +54,7 @@ export interface ActiveFocusSnapshotProvider {
 }
 
 export interface ForwardingServiceDependencies {
+  language?: () => Language;
   store: ForwardingStore;
   focusCards: ActiveFocusSnapshotProvider;
   acquire(): Promise<Lease>;
@@ -100,18 +111,26 @@ function relationMatchesSnapshot(
   const card = focusSet.cards.find(
     (item) => item.focusVersionId === relation.focusVersionId,
   );
-  return !!card &&
+  return (
+    !!card &&
     relation.projectId === card.projectId &&
     relation.projectLabel === card.projectLabel &&
     relation.focusId === card.focusId &&
     relation.evidence.every((ref) => {
       const block = source.contentBlocks[ref.blockIndex];
-      return !!block && block.type !== "image" && block.text.includes(ref.quote);
-    });
+      return (
+        !!block && block.type !== "image" && block.text.includes(ref.quote)
+      );
+    })
+  );
 }
 
 async function resolveXhsShort(raw: string) {
-  for (let redirects = 0; xhsShortUrlSchema.safeParse(raw).success && redirects < 5; redirects++) {
+  for (
+    let redirects = 0;
+    xhsShortUrlSchema.safeParse(raw).success && redirects < 5;
+    redirects++
+  ) {
     const response = await fetch(raw, {
       redirect: "manual",
       signal: AbortSignal.timeout(15_000),
@@ -136,7 +155,7 @@ async function normalizeInput(rawUrl: string) {
   if (xhsShortUrlSchema.safeParse(inputUrl).success)
     inputUrl = await resolveXhsShort(inputUrl);
   const xhsAccessToken = xhsNoteUrlSchema.safeParse(inputUrl).success
-    ? new URL(inputUrl).searchParams.get("xsec_token") ?? undefined
+    ? (new URL(inputUrl).searchParams.get("xsec_token") ?? undefined)
     : undefined;
   return {
     sourceUrl: sourceUrlSchema.parse(inputUrl),
@@ -279,6 +298,7 @@ export class ForwardingPipelineService {
         state: "queued",
         phase: "等待处理",
         focusSet,
+        outputLanguage: this.dependencies.language?.() ?? "zh-CN",
         evaluations: [],
         activities: [],
         ...(xhsAccessTokenCiphertext ? { xhsAccessTokenCiphertext } : {}),
@@ -359,7 +379,8 @@ export class ForwardingPipelineService {
   list(): ForwardingTaskSummary[] {
     return this.dependencies.store
       .snapshot()
-      .tasks.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .tasks.slice()
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((task) => ({
         taskId: task.taskId,
         materialId: task.materialId,
@@ -472,7 +493,9 @@ export class ForwardingPipelineService {
       worker.on("message", (raw) => {
         entry.chain = entry.chain
           .then(() => this.receive(taskId, raw))
-          .catch(() => this.failTask(taskId, "relations", "转发结果校验未通过"));
+          .catch(() =>
+            this.failTask(taskId, "relations", "转发结果校验未通过"),
+          );
       });
       worker.on("exit", () => {
         entry.chain = entry.chain
@@ -505,6 +528,7 @@ export class ForwardingPipelineService {
         resultId: task.resultId,
         sourceUrl: task.target.sourceUrl,
         focusSet: task.focusSet,
+        outputLanguage: task.outputLanguage ?? "zh-CN",
         resume: {
           ...(task.source ? { source: task.source } : {}),
           ...(task.generalUnderstanding
@@ -520,7 +544,9 @@ export class ForwardingPipelineService {
           ? await this.dependencies.xhsSession?.()
           : undefined,
         xhsAccessToken: task.xhsAccessTokenCiphertext
-          ? await this.dependencies.revealSensitive(task.xhsAccessTokenCiphertext)
+          ? await this.dependencies.revealSensitive(
+              task.xhsAccessTokenCiphertext,
+            )
           : undefined,
       };
       if (this.closed || this.active.get(taskId) !== entry) {
@@ -560,11 +586,27 @@ export class ForwardingPipelineService {
       .snapshot()
       .tasks.find((item) => item.taskId === taskId);
     if (!snapshotTask || snapshotTask.state !== "running") return;
-    if (
-      "resultId" in event &&
-      event.resultId !== snapshotTask.resultId
-    ) {
-      await this.failTask(taskId, "relations", "工作进程返回了不匹配的结果身份");
+    if ("resultId" in event && event.resultId !== snapshotTask.resultId) {
+      await this.failTask(
+        taskId,
+        "relations",
+        "工作进程返回了不匹配的结果身份",
+      );
+      return;
+    }
+    if (event.type === "execution") {
+      if (event.execution.taskId !== taskId) {
+        await this.failTask(taskId, "source", "工作进程返回了不匹配的执行身份");
+        return;
+      }
+      await this.dependencies.store.update((state) => {
+        const task = state.tasks.find((item) => item.taskId === taskId);
+        if (task)
+          task.executionAttempts = [
+            ...(task.executionAttempts ?? []),
+            event.execution,
+          ];
+      });
       return;
     }
     if (event.type === "failed") {
@@ -605,8 +647,7 @@ export class ForwardingPipelineService {
             kind: "source_saved",
             summary: "来源快照已保存",
           });
-        }
-        else if (!sameJson(task.source, event.source))
+        } else if (!sameJson(task.source, event.source))
           throw new Error("来源阶段结果重复但内容不一致");
         task.xhsAccessTokenCiphertext = undefined;
         task.phase = "理解内容";
@@ -616,7 +657,11 @@ export class ForwardingPipelineService {
     }
     if (event.type === "understanding") {
       if (!snapshotTask.source) {
-        await this.failTask(taskId, "understanding", "通用理解早于来源快照到达");
+        await this.failTask(
+          taskId,
+          "understanding",
+          "通用理解早于来源快照到达",
+        );
         return;
       }
       await this.dependencies.store.update((state) => {
@@ -628,8 +673,7 @@ export class ForwardingPipelineService {
             kind: "understanding_saved",
             summary: "通用理解已保存",
           });
-        }
-        else if (task.generalUnderstanding !== event.generalUnderstanding)
+        } else if (task.generalUnderstanding !== event.generalUnderstanding)
           throw new Error("通用理解阶段结果重复但内容不一致");
         task.phase = "检查关注卡";
       });
@@ -639,7 +683,11 @@ export class ForwardingPipelineService {
     if (event.type === "relations") {
       const source = snapshotTask.source;
       if (!source || !snapshotTask.generalUnderstanding) {
-        await this.failTask(taskId, "relations", "关联判断早于来源或理解结果到达");
+        await this.failTask(
+          taskId,
+          "relations",
+          "关联判断早于来源或理解结果到达",
+        );
         return;
       }
       const allowed = expectedRelationInputs(snapshotTask);
@@ -651,7 +699,11 @@ export class ForwardingPipelineService {
             !relationMatchesSnapshot(relation, snapshotTask.focusSet, source),
         )
       ) {
-        await this.failTask(taskId, "relations", "关联结果引用了未冻结的卡片或来源证据");
+        await this.failTask(
+          taskId,
+          "relations",
+          "关联结果引用了未冻结的卡片或来源证据",
+        );
         return;
       }
       let duplicate = false;
@@ -661,14 +713,19 @@ export class ForwardingPipelineService {
         const previous = new Set(
           task.evaluations.map((item) => item.focusVersionId),
         );
-        const overlap = event.evaluatedFocusVersionIds.filter((id) => previous.has(id));
+        const overlap = event.evaluatedFocusVersionIds.filter((id) =>
+          previous.has(id),
+        );
         if (overlap.length === event.evaluatedFocusVersionIds.length) {
           duplicate = true;
           return;
         }
         if (overlap.length) throw new Error("关联批次覆盖了已完成卡片");
         const relationMap = new Map(
-          event.relations.map((relation) => [relation.focusVersionId, relation]),
+          event.relations.map((relation) => [
+            relation.focusVersionId,
+            relation,
+          ]),
         );
         for (const focusVersionId of event.evaluatedFocusVersionIds)
           task.evaluations.push({
@@ -699,12 +756,14 @@ export class ForwardingPipelineService {
         task.state = "completed";
         task.phase = "已保存";
         task.finishedAt = now();
-        task.evaluations = event.draft.evaluatedFocusVersionIds.map((focusVersionId) => {
-          const relation = event.draft.relations.find(
-            (item) => item.focusVersionId === focusVersionId,
-          );
-          return { focusVersionId, ...(relation ? { relation } : {}) };
-        });
+        task.evaluations = event.draft.evaluatedFocusVersionIds.map(
+          (focusVersionId) => {
+            const relation = event.draft.relations.find(
+              (item) => item.focusVersionId === focusVersionId,
+            );
+            return { focusVersionId, ...(relation ? { relation } : {}) };
+          },
+        );
         addForwardingActivity(task, {
           kind: "completed",
           summary: `转发报告已保存，关联 ${event.draft.relations.length} 张关注卡`,
@@ -720,7 +779,10 @@ export class ForwardingPipelineService {
     }
   }
 
-  private validateFinal(task: ForwardingTaskRecord, event: ForwardingJobEventContract) {
+  private validateFinal(
+    task: ForwardingTaskRecord,
+    event: ForwardingJobEventContract,
+  ) {
     if (event.type !== "result") return false;
     const draft: ForwardingReportDraft = event.draft;
     if (
@@ -736,9 +798,7 @@ export class ForwardingPipelineService {
       .map((card) => card.focusVersionId)
       .sort();
     const deliveredIds = [...draft.evaluatedFocusVersionIds].sort();
-    const savedIds = task.evaluations
-      .map((item) => item.focusVersionId)
-      .sort();
+    const savedIds = task.evaluations.map((item) => item.focusVersionId).sort();
     if (
       !sameJson(expectedIds, deliveredIds) ||
       !sameJson(expectedIds, savedIds)
@@ -753,10 +813,12 @@ export class ForwardingPipelineService {
     const expectedRelations = [...savedRelations].sort((a, b) =>
       a.focusVersionId.localeCompare(b.focusVersionId),
     );
-    return sameJson(reportRelations, expectedRelations) &&
+    return (
+      sameJson(reportRelations, expectedRelations) &&
       draft.relations.every((relation) =>
         relationMatchesSnapshot(relation, task.focusSet, draft.source),
-      );
+      )
+    );
   }
 
   private async failTask(

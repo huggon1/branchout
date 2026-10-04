@@ -1,3 +1,5 @@
+import { dateTime } from "../i18n";
+import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
 import { useEffect, useState } from "react";
 import {
@@ -71,21 +73,21 @@ export function FocusCardsPage({
     <div className="focus-page focus-library">
       <div className="page-toolbar">
         <input
-          aria-label="搜索关注卡"
-          placeholder="搜索关注角度…"
+          aria-label={t("搜索关注卡")}
+          placeholder={t("搜索关注角度…")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <select
-          aria-label="筛选项目"
+          aria-label={t("筛选项目")}
           value={projectFilter}
           onChange={(e) => setProjectFilter(e.target.value)}
         >
-          <option value="all">全部项目</option>
+          <option value="all">{t("全部项目")}</option>
           {projects.map((p) => (
             <option key={p.projectId} value={p.projectId}>
               {p.projectLabel}
-              {p.status === "historical" ? " · 历史" : ""}
+              {p.status === "historical" ? t(" · 历史") : ""}
             </option>
           ))}
         </select>
@@ -103,17 +105,19 @@ export function FocusCardsPage({
           }}
         >
           <PlusIcon size={16} />
-          新建关注卡
+          {t("新建关注卡")}
         </button>
       </div>
       <div className="focus-groups">
         {!visible.length && (
           <EmptyState
-            title={cards.length ? "没有匹配的关注卡" : "你想持续关注什么？"}
+            title={
+              cards.length ? t("没有匹配的关注卡") : t("你想持续关注什么？")
+            }
           >
             {projects.length
-              ? "写下项目背景和关心的角度，后续内容会与这些角度关联。"
-              : "先在项目页绑定一个仓库。"}
+              ? t("写下项目背景和关心的角度，后续内容会与这些角度关联。")
+              : t("先在项目页绑定一个仓库。")}
           </EmptyState>
         )}
         {projects.map((p) => {
@@ -123,8 +127,8 @@ export function FocusCardsPage({
               <header>
                 <h2>{p.projectLabel}</h2>
                 <span>
-                  {group.length} 张关注卡
-                  {p.status === "historical" ? " · 历史项目" : ""}
+                  {tf("{0} 张关注卡", group.length)}
+                  {p.status === "historical" ? t(" · 历史项目") : ""}
                 </span>
               </header>
               {group.map((c) => {
@@ -144,20 +148,21 @@ export function FocusCardsPage({
                         <span
                           className={`status-tag ${c.current.active ? "status-active" : "status-paused"}`}
                         >
-                          {c.current.active ? "活跃" : "暂停"}
+                          {c.current.active ? t("活跃") : t("暂停")}
                         </span>
-                        <span>版本 {c.current.revision}</span>
-                        <time>
-                          {new Date(c.current.savedAt).toLocaleDateString()}
-                        </time>
+                        <span>
+                          {t("版本")}
+                          {c.current.revision}
+                        </span>
+                        <time>{dateTime(c.current.savedAt, true)}</time>
                       </div>
                     </div>
                     {p.status === "active" && (
                       <div className="row-actions">
                         <button
                           className="icon-button"
-                          title="编辑关注卡"
-                          aria-label={`编辑 ${title}`}
+                          title={t("编辑关注卡")}
+                          aria-label={tf("编辑 {0}", title)}
                           disabled={busy}
                           onClick={() => {
                             setError("");
@@ -172,8 +177,8 @@ export function FocusCardsPage({
                         </button>
                         <button
                           className="icon-button"
-                          title={c.current.active ? "暂停" : "启用"}
-                          aria-label={`${c.current.active ? "暂停" : "启用"} ${title}`}
+                          title={c.current.active ? t("暂停") : t("启用")}
+                          aria-label={`${c.current.active ? t("暂停") : t("启用")} ${title}`}
                           disabled={busy}
                           onClick={() => void onSetActive(c, !c.current.active)}
                         >
@@ -185,8 +190,8 @@ export function FocusCardsPage({
                         </button>
                         <button
                           className="icon-button danger-text"
-                          title="删除关注卡"
-                          aria-label={`删除 ${title}`}
+                          title={t("删除关注卡")}
+                          aria-label={tf("删除 {0}", title)}
                           disabled={busy}
                           onClick={async () => {
                             if (await onSetDeleted(c, true))
@@ -207,8 +212,8 @@ export function FocusCardsPage({
       {cards.some((c) => c.deletedAt) && (
         <Disclosure
           className="deleted-focus"
-          title="已删除"
-          count={`${cards.filter((c) => c.deletedAt).length} 张`}
+          title={t("已删除")}
+          count={tf("{0} 张", cards.filter((c) => c.deletedAt).length)}
         >
           {cards
             .filter((c) => c.deletedAt)
@@ -228,7 +233,7 @@ export function FocusCardsPage({
                   }
                   onClick={() => void onSetDeleted(c, false)}
                 >
-                  恢复
+                  {t("恢复")}
                 </button>
               </div>
             ))}
@@ -236,23 +241,23 @@ export function FocusCardsPage({
       )}
       {deletedCard && (
         <div className="undo-toast" role="status">
-          <span>关注卡已删除，历史引用保留</span>
+          <span>{t("关注卡已删除，历史引用保留")}</span>
           <button
             disabled={busy}
             onClick={async () => {
               if (await onSetDeleted(deletedCard, false)) setDeletedId("");
             }}
           >
-            撤销
+            {t("撤销")}
           </button>
-          <button aria-label="关闭提示" onClick={() => setDeletedId("")}>
+          <button aria-label={t("关闭提示")} onClick={() => setDeletedId("")}>
             ×
           </button>
         </div>
       )}
       {editor && (
         <Dialog
-          title={editor.card ? "编辑关注卡" : "新建关注卡"}
+          title={editor.card ? t("编辑关注卡") : t("新建关注卡")}
           onClose={() => {
             if (!busy) setEditor(undefined);
           }}
@@ -265,12 +270,13 @@ export function FocusCardsPage({
                 ? await onEdit(editor.card, editor.content.trim())
                 : await onCreate(editor.projectId, editor.content.trim());
               if (ok) setEditor(undefined);
-              else setError("保存失败，正文已保留。请检查当前版本或稍后重试。");
+              else
+                setError(t("保存失败，正文已保留。请检查当前版本或稍后重试。"));
             }}
           >
             {!editor.card && (
               <label>
-                所属项目
+                {t("所属项目")}
                 <select
                   value={editor.projectId}
                   onChange={(e) =>
@@ -285,7 +291,7 @@ export function FocusCardsPage({
                 </select>
               </label>
             )}
-            <label htmlFor="focus-body">项目背景与关注角度</label>
+            <label htmlFor="focus-body">{t("项目背景与关注角度")}</label>
             <textarea
               autoFocus
               id="focus-body"
@@ -295,12 +301,12 @@ export function FocusCardsPage({
               onChange={(e) =>
                 setEditor({ ...editor, content: e.target.value })
               }
-              placeholder="用自己的话写下背景、问题和你持续关心的角度…"
+              placeholder={t("用自己的话写下背景、问题和你持续关心的角度…")}
               disabled={busy}
             />
             {error && (
               <p role="alert" className="form-error">
-                {error}
+                {t(error)}
               </p>
             )}
             <div className="editor-actions">
@@ -311,32 +317,32 @@ export function FocusCardsPage({
                 disabled={busy}
                 onClick={() => setEditor(undefined)}
               >
-                取消
+                {t("取消")}
               </button>
               <button
                 className="button button-primary"
                 disabled={busy || !editor.content.trim()}
               >
-                {busy ? "保存中…" : "保存关注卡"}
+                {busy ? t("保存中…") : t("保存关注卡")}
               </button>
             </div>
           </form>
         </Dialog>
       )}
       {reading && (
-        <Dialog title="关注卡版本" onClose={() => setReading(undefined)}>
+        <Dialog title={t("关注卡版本")} onClose={() => setReading(undefined)}>
           {readCard && version ? (
             <>
               <div className="report-byline">
-                版本 {version.revision} ·{" "}
-                {new Date(version.savedAt).toLocaleString()}
-                {readCard.deletedAt ? " · 卡片已删除" : ""}
+                {t("版本")}
+                {version.revision} · {dateTime(version.savedAt)}
+                {readCard.deletedAt ? t(" · 卡片已删除") : ""}
               </div>
               <Markdown>{version.content}</Markdown>
               <Disclosure
                 className="focus-history"
-                title="全部版本"
-                count={`${readCard.history.length} 个`}
+                title={t("全部版本")}
+                count={tf("{0} 个", readCard.history.length)}
               >
                 {readCard.history.map((v) => (
                   <button
@@ -349,14 +355,15 @@ export function FocusCardsPage({
                       })
                     }
                   >
-                    版本 {v.revision} · {new Date(v.savedAt).toLocaleString()}
+                    {t("版本")}
+                    {v.revision} · {dateTime(v.savedAt)}
                   </button>
                 ))}
               </Disclosure>
             </>
           ) : (
-            <EmptyState title="引用版本暂时无法读取">
-              重新打开报告后重试。
+            <EmptyState title={t("引用版本暂时无法读取")}>
+              {t("重新打开报告后重试。")}
             </EmptyState>
           )}
         </Dialog>

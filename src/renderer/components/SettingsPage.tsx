@@ -1,3 +1,6 @@
+import { dateTime } from "../i18n";
+import { useLanguage, selectLanguage } from "../i18n";
+import { t, tf } from "../i18n";
 import { useState } from "react";
 import type { UiSettings } from "../product-ui";
 import { ModelSettings } from "./ModelSettings";
@@ -21,6 +24,7 @@ export function SettingsPage({
   onAuthorizeTelegramChat: (chatId: string) => Promise<boolean>;
   onRevokeTelegramChat: (chatId: string) => Promise<boolean>;
 }) {
+  const language = useLanguage();
   const [botToken, setBotToken] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const finishAction = (
@@ -37,6 +41,27 @@ export function SettingsPage({
   return (
     <div className="settings-page">
       <header className="page-intro"></header>
+      <section className="settings-section">
+        <label className="settings-field">
+          <span>{t("语言")}</span>
+          <select
+            aria-label="Language"
+            value={language}
+            onChange={async (event) => {
+              const value = event.target.value as "en" | "zh-CN";
+              try {
+                await window.branchout.saveLanguage(value);
+                selectLanguage(value);
+              } catch {
+                setStatusMessage(t("设置保存失败"));
+              }
+            }}
+          >
+            <option value="zh-CN">简体中文</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+      </section>
       <ModelSettings />
       <AnalysisPromptSettings />
       <section
@@ -45,20 +70,22 @@ export function SettingsPage({
       >
         <div className="settings-section-heading">
           <div>
-            <p className="eyebrow">消息接入</p>
+            <p className="eyebrow">{t("消息接入")}</p>
             <h3 id="telegram-settings-title">Telegram</h3>
             <p>
-              在获准的聊天里转发链接。Bot 收到后确认收取，完整报告保存在应用内。
+              {t(
+                "在获准的聊天里转发链接。Bot 收到后确认收取，完整报告保存在应用内。",
+              )}
             </p>
           </div>
           <span
             className={`status-tag ${settings?.telegram.connected ? "status-active" : "status-paused"}`}
           >
             {settings?.telegram.connected
-              ? "正在接收"
+              ? t("正在接收")
               : settings?.telegram.configured
-                ? "已配置"
-                : "未连接"}
+                ? t("已配置")
+                : t("未连接")}
           </span>
         </div>
         <label className="settings-field">
@@ -70,40 +97,42 @@ export function SettingsPage({
             onChange={(event) => setBotToken(event.target.value)}
             placeholder={
               settings?.telegram.configured
-                ? "已配置，留空保留当前凭据"
-                : "从 Telegram BotFather 获取"
+                ? t("已配置，留空保留当前凭据")
+                : t("从 Telegram BotFather 获取")
             }
             disabled={busy}
           />
           <small>
-            Bot Token 保存在本机仅当前用户可读的文件中；已保存值不会回传到界面。
+            {t(
+              "Bot Token 保存在本机仅当前用户可读的文件中；已保存值不会回传到界面。",
+            )}
           </small>
         </label>
         <div className="telegram-status-grid">
           <div>
-            <span>接收状态</span>
-            <strong>{settings?.telegram.status ?? "正在读取…"}</strong>
+            <span>{t("接收状态")}</span>
+            <strong>{settings?.telegram.status ?? t("正在读取…")}</strong>
           </div>
           <div>
-            <span>待处理消息</span>
+            <span>{t("待处理消息")}</span>
             <strong>{settings?.telegram.pendingCount ?? 0}</strong>
           </div>
           <div>
-            <span>最近拉取</span>
+            <span>{t("最近拉取")}</span>
             <strong>
               {settings?.telegram.lastPollAt
-                ? new Date(settings.telegram.lastPollAt).toLocaleString()
-                : "尚未拉取"}
+                ? dateTime(settings.telegram.lastPollAt)
+                : t("尚未拉取")}
             </strong>
           </div>
         </div>
         {settings?.telegram.error && (
           <p className="notice notice-warm" role="status">
-            {settings.telegram.error}
+            {t(settings.telegram.error ?? "")}
           </p>
         )}
         <fieldset className="telegram-chat-list">
-          <legend>已授权聊天</legend>
+          <legend>{t("已授权聊天")}</legend>
           {settings?.telegram.chats.length ? (
             settings.telegram.chats.map((chat) => (
               <div className="chat-option" key={chat.chatId}>
@@ -115,52 +144,54 @@ export function SettingsPage({
                   className="text-button danger-text"
                   onClick={() =>
                     void onRevokeTelegramChat(chat.chatId).then((success) =>
-                      finishAction(success, "聊天授权已撤销"),
+                      finishAction(success, t("聊天授权已撤销")),
                     )
                   }
                   disabled={busy}
                   data-chat-id={chat.chatId}
-                  aria-label={`撤销 ${chat.label} 授权`}
+                  aria-label={tf("撤销 {0} 授权", chat.label)}
                 >
-                  撤销
+                  {t("撤销")}
                 </button>
               </div>
             ))
           ) : (
             <p className="muted-copy">
-              授权聊天发送给 Bot 的链接后，应用会在这里显示获准接收的聊天。
+              {t(
+                "授权聊天发送给 Bot 的链接后，应用会在这里显示获准接收的聊天。",
+              )}
             </p>
           )}
         </fieldset>
         <fieldset className="telegram-chat-list">
-          <legend>待授权聊天</legend>
+          <legend>{t("待授权聊天")}</legend>
           {settings?.telegram.pendingChats.length ? (
             settings.telegram.pendingChats.map((chat) => (
               <div className="chat-option" key={chat.chatId}>
                 <span>
                   <strong>{chat.label}</strong>
                   <small>
-                    {chat.chatId} · 最近发现{" "}
-                    {new Date(chat.lastSeenAt).toLocaleString()}
+                    {chat.chatId}
+                    {t("· 最近发现")} {dateTime(chat.lastSeenAt)}
                   </small>
                 </span>
                 <button
                   className="button button-quiet"
                   onClick={() =>
                     void onAuthorizeTelegramChat(chat.chatId).then((success) =>
-                      finishAction(success, "聊天授权已更新"),
+                      finishAction(success, t("聊天授权已更新")),
                     )
                   }
                   disabled={busy}
                   data-chat-id={chat.chatId}
-                  aria-label={`授权 ${chat.label}`}
+                  aria-label={tf("授权 {0}", chat.label)}
                 >
-                  授权
+                  {t("授权")}
                 </button>
               </div>
             ))
           ) : (
-            <p className="muted-copy">还没有发现新的 Telegram 聊天。</p>
+            <p className="muted-copy">{t("还没有发现新的 Telegram 聊天。")}</p>
           )}
         </fieldset>
         <div className="settings-actions">
@@ -168,35 +199,35 @@ export function SettingsPage({
             className="button button-primary"
             onClick={() =>
               void onSaveTelegramToken(botToken.trim()).then((success) =>
-                finishAction(success, "设置已保存", true),
+                finishAction(success, t("设置已保存"), true),
               )
             }
             disabled={busy || !botToken.trim()}
           >
-            {busy ? "正在保存…" : "保存 Bot Token"}
+            {busy ? t("正在保存…") : t("保存 Bot Token")}
           </button>
           <button
             className="button button-quiet"
             onClick={() =>
               void onVerifyTelegramBot().then((success) =>
-                finishAction(success, "Bot 验证成功"),
+                finishAction(success, t("Bot 验证成功")),
               )
             }
             disabled={busy || !settings?.telegram.configured}
           >
-            验证 Bot
+            {t("验证 Bot")}
           </button>
           {settings?.telegram.configured && (
             <button
               className="text-button danger-text"
               onClick={() =>
                 void onClearTelegramBotToken().then((success) =>
-                  finishAction(success, "Bot Token 已清除", true),
+                  finishAction(success, t("Bot Token 已清除"), true),
                 )
               }
               disabled={busy}
             >
-              清除 Token
+              {t("清除 Token")}
             </button>
           )}
           {statusMessage && <span role="status">{statusMessage}</span>}
@@ -208,8 +239,8 @@ export function SettingsPage({
       >
         <div className="settings-section-heading">
           <div>
-            <p className="eyebrow">链接读取</p>
-            <h3 id="sources-title">内容来源</h3>
+            <p className="eyebrow">{t("链接读取")}</p>
+            <h3 id="sources-title">{t("内容来源")}</h3>
           </div>
         </div>
         <div className="source-capability-list">
@@ -223,13 +254,13 @@ export function SettingsPage({
                 </div>
                 <span className={`status-tag status-${source.status}`}>
                   {source.status === "ready"
-                    ? "可读取"
+                    ? t("可读取")
                     : source.status === "needs_login"
-                      ? "需要登录"
-                      : "暂不可用"}
+                      ? t("需要登录")
+                      : t("暂不可用")}
                 </span>
               </article>
-            )) ?? <p className="muted-copy">正在读取来源配置…</p>}
+            )) ?? <p className="muted-copy">{t("正在读取来源配置…")}</p>}
         </div>
         <XSettings />
       </section>

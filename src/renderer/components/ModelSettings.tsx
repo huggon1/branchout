@@ -1,3 +1,4 @@
+import { t, tf } from "../i18n";
 import { useEffect, useState } from "react";
 import type { ModelReply, ModelView } from "../../shared/model-contracts";
 import { failureMessages } from "../../shared/task-failure";
@@ -44,7 +45,7 @@ export function ModelSettings() {
           }
         }
       } catch {
-        if (active) setError("无法读取模型连接");
+        if (active) setError(t("无法读取模型连接"));
       }
     };
     const unsubscribe = bridge.onChanged(() => void load());
@@ -61,7 +62,7 @@ export function ModelSettings() {
       const result = await operation();
       if (!result.ok) setError(result.message);
     } catch {
-      setError("操作未完成，请重试");
+      setError(t("操作未完成，请重试"));
     } finally {
       setBusy(false);
     }
@@ -83,18 +84,22 @@ export function ModelSettings() {
       return bridge.saveModel(input);
     });
   return (
-    <section className="model-settings" aria-label="模型连接">
+    <section className="model-settings" aria-label={t("模型连接")}>
       <div className="setting-row">
         <div>
-          <h2>模型连接</h2>
+          <h2>{t("模型连接")}</h2>
           <p>
             {view?.current
-              ? `${view.current.method === "generic_api" ? "通用 API" : "Codex 订阅"} · ${view.current.modelId}`
-              : "未配置"}
+              ? `${view.current.method === "generic_api" ? t("通用 API") : t("Codex 订阅")} · ${view.current.modelId}`
+              : t("未配置")}
           </p>
         </div>
       </div>
-      <div className="connection-method" role="group" aria-label="连接方式">
+      <div
+        className="connection-method"
+        role="group"
+        aria-label={t("连接方式")}
+      >
         {(["generic_api", "codex_subscription"] as const).map((value) => (
           <button
             key={value}
@@ -106,14 +111,14 @@ export function ModelSettings() {
             }}
             disabled={busy}
           >
-            {value === "generic_api" ? "通用 API" : "Codex 订阅账号"}
+            {value === "generic_api" ? t("通用 API") : t("Codex 订阅账号")}
           </button>
         ))}
       </div>
       {method === "generic_api" ? (
         <div className="model-form">
           <label>
-            服务地址
+            {t("服务地址")}
             <input
               value={baseUrl}
               onChange={(event) => setBaseUrl(event.target.value)}
@@ -123,9 +128,9 @@ export function ModelSettings() {
             />
           </label>
           <label>
-            接口类型
+            {t("接口类型")}
             <select
-              aria-label="接口类型"
+              aria-label={t("接口类型")}
               value={api}
               onChange={(event) => setApi(event.target.value as typeof api)}
               disabled={busy}
@@ -137,11 +142,11 @@ export function ModelSettings() {
             </select>
           </label>
           <label>
-            模型标识
+            {t("模型标识")}
             <input
               value={modelId}
               onChange={(event) => setModelId(event.target.value)}
-              placeholder="模型 ID"
+              placeholder={t("模型 ID")}
               autoComplete="off"
               disabled={busy}
             />
@@ -152,7 +157,7 @@ export function ModelSettings() {
               type="password"
               value={key}
               onChange={(event) => setKey(event.target.value)}
-              placeholder={savedKey ? "已配置，留空保留" : "填写 API Key"}
+              placeholder={savedKey ? t("已配置，留空保留") : t("填写 API Key")}
               autoComplete="new-password"
               disabled={busy}
             />
@@ -162,10 +167,13 @@ export function ModelSettings() {
         <div className="codex-form">
           <p>
             {view?.auth === "signed_in"
-              ? `已登录${view.accountLabel ? ` · ${view.accountLabel}` : ""}`
+              ? tf(
+                  "已登录{0}",
+                  view.accountLabel ? ` · ${view.accountLabel}` : "",
+                )
               : view?.auth === "logging_in"
-                ? "等待浏览器登录"
-                : "尚未登录"}
+                ? t("等待浏览器登录")
+                : t("尚未登录")}
           </p>
           <div className="inline-actions">
             {view?.auth === "signed_in" ? (
@@ -173,38 +181,39 @@ export function ModelSettings() {
                 disabled={busy}
                 onClick={() => void action(bridge.refreshModels)}
               >
-                刷新模型
+                {t("刷新模型")}
               </Button>
             ) : view?.auth === "logging_in" ? (
               <Button
                 disabled={busy}
                 onClick={() => void action(bridge.cancelModelLogin)}
               >
-                取消登录
+                {t("取消登录")}
               </Button>
             ) : (
               <Button
                 disabled={busy}
                 onClick={() => void action(bridge.loginModel)}
               >
-                登录 ChatGPT
+                {t("登录 ChatGPT")}
               </Button>
             )}
           </div>
           {view?.auth === "signed_in" && (
             <label>
-              模型
+              {t("模型")}
               <select
-                aria-label="模型"
+                aria-label={t("模型")}
                 value={codexModel}
                 onChange={(event) => setCodexModel(event.target.value)}
                 disabled={busy || view.catalog !== "ready"}
               >
-                <option value="">选择模型</option>
+                <option value="">{t("选择模型")}</option>
                 {codexModel &&
                   !view.models.some((model) => model.id === codexModel) && (
                     <option value={codexModel} disabled>
-                      {codexModel} · 待刷新确认
+                      {codexModel}
+                      {t("· 待刷新确认")}
                     </option>
                   )}
                 {view.models.map((model) => (
@@ -214,7 +223,7 @@ export function ModelSettings() {
                     disabled={!model.compatible}
                   >
                     {model.name}
-                    {model.compatible ? "" : " · 当前 Pi 不支持"}
+                    {model.compatible ? "" : t(" · 当前 Pi 不支持")}
                   </option>
                 ))}
               </select>
@@ -233,23 +242,27 @@ export function ModelSettings() {
           }
           onClick={() => void save()}
         >
-          保存连接
+          {t("保存连接")}
         </Button>
-        <span>新连接将用于后续任务</span>
+        <span>{t("新连接将用于后续任务")}</span>
       </div>
       {error && (
         <p role="alert" className="model-error">
-          {error}
+          {t(error)}
         </p>
       )}
       <p className="connection-status" role="status">
-        {view?.message}
+        {t(view?.message ?? "")}
       </p>
       {view?.current && (
         <div className="connection-check">
           <div>
-            <h3>检查已保存的连接</h3>
-            <p>发送固定短句，不含项目数据；可能产生模型费用或消耗订阅额度。</p>
+            <h3>{t("检查已保存的连接")}</h3>
+            <p>
+              {t(
+                "发送固定短句，不含项目数据；可能产生模型费用或消耗订阅额度。",
+              )}
+            </p>
           </div>
           <div className="inline-actions">
             {view.check === "running" ? (
@@ -257,28 +270,28 @@ export function ModelSettings() {
                 onClick={() => void action(bridge.cancelModelCheck)}
                 disabled={busy}
               >
-                取消连接检查
+                {t("取消连接检查")}
               </Button>
             ) : (
               <Button
                 onClick={() => void action(bridge.checkModel)}
                 disabled={busy}
               >
-                发送检查请求
+                {t("发送检查请求")}
               </Button>
             )}
             <span role="status">
               {
                 {
-                  idle: "尚未检查",
-                  running: "检查中…",
+                  idle: t("尚未检查"),
+                  running: t("检查中…"),
                   passed: view.checkIsCurrent
-                    ? "连接检查通过"
-                    : "先前连接检查通过",
+                    ? t("连接检查通过")
+                    : t("先前连接检查通过"),
                   failed: view.checkFailure
-                    ? failureMessages[view.checkFailure]
-                    : "模型检查失败，请重试。",
-                  cancelled: "检查已取消",
+                    ? t(failureMessages[view.checkFailure])
+                    : t("模型检查失败，请重试。"),
+                  cancelled: t("检查已取消"),
                 }[view.check]
               }
             </span>

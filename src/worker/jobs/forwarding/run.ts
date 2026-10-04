@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { relationSystem } from "./prompts";
+import { promptExecution } from "../../prompt-execution";
 import { z } from "zod";
-import {
-  sourceSchema,
-} from "../../../shared/source-contracts";
+import { sourceSchema } from "../../../shared/source-contracts";
 import {
   xExecutionSessionSchema,
   xhsExecutionSessionSchema,
@@ -9,7 +10,10 @@ import {
 import { executionSchema } from "../../../shared/model-contracts";
 import type { SourceContent } from "../../../shared/source-contracts";
 import { selectPlatformAdapter } from "../../../platforms/registry";
-import { understandingInput } from "../../understanding/platform-content";
+import {
+  understandingInput,
+  understandingSystem,
+} from "../../understanding/platform-content";
 import { runWithPi } from "../../pi-runtime";
 import {
   forwardingJobCommandSchema,
@@ -17,6 +21,7 @@ import {
   type ForwardingFocusCard,
   type ForwardingJobCommand,
   type ForwardingReportDraft,
+  type ForwardingJobEventContract as ForwardingJobEvent,
   type SavedFocusEvaluation,
 } from "./contracts";
 import {
@@ -37,40 +42,7 @@ const runtimeCommandSchema = forwardingJobCommandSchema
   })
   .strict();
 
-export type ForwardingJobEvent =
-  | { type: "phase"; taskId: string; phase: "读取来源" | "理解内容" | "检查关注卡" }
-  | {
-      type: "source";
-      taskId: string;
-      resultId: string;
-      source: SourceContent;
-    }
-  | {
-      type: "understanding";
-      taskId: string;
-      resultId: string;
-      generalUnderstanding: string;
-    }
-  | {
-      type: "relations";
-      taskId: string;
-      resultId: string;
-      evaluatedFocusVersionIds: string[];
-      relations: NonNullable<SavedFocusEvaluation["relation"]>[];
-    }
-  | {
-      type: "result";
-      taskId: string;
-      resultId: string;
-      draft: ForwardingReportDraft;
-    }
-  | {
-      type: "failed";
-      taskId: string;
-      stage: "source" | "understanding" | "relations";
-      message: string;
-    };
-
+export type { ForwardingJobEventContract as ForwardingJobEvent } from "./contracts";
 type RuntimeCommand = z.infer<typeof runtimeCommandSchema>;
 
 export interface ForwardingJobDependencies {
@@ -93,22 +65,26 @@ export interface ForwardingJobDependencies {
   ): Promise<unknown>;
 }
 
-function defaultDependencies(emit: ForwardingJobDependencies["emit"]): ForwardingJobDependencies {
+function defaultDependencies(
+  emit: ForwardingJobDependencies["emit"],
+): ForwardingJobDependencies {
   return {
     emit,
     async readSource(command, signal) {
-      const result = await selectPlatformAdapter(command.sourceUrl, command).read(
-        command.taskId,
+      const result = await selectPlatformAdapter(
         command.sourceUrl,
-        signal,
-      );
+        command,
+      ).read(command.taskId, command.sourceUrl, signal);
       if (result.outcome !== "content")
         throw new Error(result.message || "来源读取失败");
       return result.content;
     },
     async understand(command, source, signal) {
-      const input = understandingInput(source);
-      if (estimateModelTokens(input.prompt) + estimateModelTokens(input.system) > 6000)
+      const input = understandingInput(source, command.outputLanguage);
+      if (
+        estimateModelTokens(input.prompt) + estimateModelTokens(input.system) >
+        6000
+      )
         throw new Error("来源正文超过单次理解的模型输入范围，来源快照已保留");
       return runWithPi(
         command.config,
@@ -120,7 +96,12 @@ function defaultDependencies(emit: ForwardingJobDependencies["emit"]): Forwardin
       );
     },
     async relate(command, source, understanding, cards, signal) {
-      const input = relationPrompt(source, understanding, cards);
+      const input = relationPrompt(
+        source,
+        understanding,
+        cards,
+        command.outputLanguage,
+      );
       const result = await runWithPi(
         command.config,
         `${command.taskId}:relations:${cards[0].focusVersionId}`,
@@ -138,10 +119,15 @@ function cardsForEvaluation(
   snapshot: ForwardingJobCommand["focusSet"],
   evaluations: SavedFocusEvaluation[],
 ) {
-  const known = new Map(snapshot.cards.map((card) => [card.focusVersionId, card]));
+  const known = new Map(
+    snapshot.cards.map((card) => [card.focusVersionId, card]),
+  );
   const seen = new Set<string>();
   for (const evaluation of evaluations) {
-    if (!known.has(evaluation.focusVersionId) || seen.has(evaluation.focusVersionId))
+    if (
+      !known.has(evaluation.focusVersionId) ||
+      seen.has(evaluation.focusVersionId)
+    )
       throw new Error("可恢复的关联结果与冻结关注卡集合不匹配");
     seen.add(evaluation.focusVersionId);
   }
@@ -174,8 +160,12 @@ function validateSavedEvaluations(
   );
 }
 
-function safeMessage(stage: "source" | "understanding" | "relations", error: unknown) {
-  if (error instanceof Error && error.message === "cancelled") return "任务已取消";
+function safeMessage(
+  stage: "source" | "understanding" | "relations",
+  error: unknown,
+) {
+  if (error instanceof Error && error.message === "cancelled")
+    return "任务已取消";
   const inputLimitMessages = new Set([
     "来源正文超过单次理解的模型输入范围，来源快照已保留",
     "来源正文和通用理解超过关注卡关联的模型输入范围",
@@ -197,6 +187,16 @@ export async function runForwardingJob(
   overrides: Partial<Omit<ForwardingJobDependencies, "emit">> = {},
 ) {
   const command = runtimeCommandSchema.parse(raw);
+  const execution = promptExecution(
+    understandingSystem(
+      selectPlatformAdapter(command.sourceUrl, command).platform,
+      command.outputLanguage,
+    ) + relationSystem(command.outputLanguage),
+    command.outputLanguage,
+    command.config.modelId,
+    { taskId: command.taskId, attemptId: randomUUID() },
+  );
+  emit({ type: "execution", taskId: command.taskId, execution });
   const dependencies = { ...defaultDependencies(emit), ...overrides, emit };
   let stage: "source" | "understanding" | "relations" = "source";
   try {
@@ -205,8 +205,14 @@ export async function runForwardingJob(
       if (source.sourceUrl !== command.sourceUrl)
         throw new Error("可恢复的来源与当前任务链接不匹配");
     } else {
-      dependencies.emit({ type: "phase", taskId: command.taskId, phase: "读取来源" });
-      source = sourceSchema.parse(await dependencies.readSource(command, signal));
+      dependencies.emit({
+        type: "phase",
+        taskId: command.taskId,
+        phase: "读取来源",
+      });
+      source = sourceSchema.parse(
+        await dependencies.readSource(command, signal),
+      );
       if (signal.aborted) throw new Error("cancelled");
       dependencies.emit({
         type: "source",
@@ -219,8 +225,16 @@ export async function runForwardingJob(
     stage = "understanding";
     let generalUnderstanding = command.resume?.generalUnderstanding;
     if (!generalUnderstanding) {
-      dependencies.emit({ type: "phase", taskId: command.taskId, phase: "理解内容" });
-      generalUnderstanding = await dependencies.understand(command, source, signal);
+      dependencies.emit({
+        type: "phase",
+        taskId: command.taskId,
+        phase: "理解内容",
+      });
+      generalUnderstanding = await dependencies.understand(
+        command,
+        source,
+        signal,
+      );
       if (signal.aborted) throw new Error("cancelled");
       if (!generalUnderstanding.trim()) throw new Error("模型没有返回通用理解");
       dependencies.emit({
@@ -232,14 +246,20 @@ export async function runForwardingJob(
     }
 
     stage = "relations";
-    dependencies.emit({ type: "phase", taskId: command.taskId, phase: "检查关注卡" });
+    dependencies.emit({
+      type: "phase",
+      taskId: command.taskId,
+      phase: "检查关注卡",
+    });
     const evaluations = command.resume?.evaluations ?? [];
     const validatedSaved = validateSavedEvaluations(
       command.focusSet,
       evaluations,
       source,
     );
-    const completedIds = new Set(validatedSaved.map((item) => item.focusVersionId));
+    const completedIds = new Set(
+      validatedSaved.map((item) => item.focusVersionId),
+    );
     const remaining = command.focusSet.cards.filter(
       (card) => !completedIds.has(card.focusVersionId),
     );
@@ -277,6 +297,8 @@ export async function runForwardingJob(
     const draft = forwardingReportDraftSchema.parse({
       source,
       generalUnderstanding,
+      execution,
+      outputLanguage: command.outputLanguage,
       focusSet: command.focusSet,
       evaluatedFocusVersionIds: allEvaluations.map(
         (item) => item.focusVersionId,

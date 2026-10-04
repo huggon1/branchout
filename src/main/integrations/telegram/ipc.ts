@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { handle } from "../../ipc";
 import { z } from "zod";
 import { telegramChannels } from "../../../shared/ipc-contracts";
 import type { TelegramCredentialStore } from "./credential-store";
@@ -11,7 +11,7 @@ export function registerTelegramIpc(
   changed: () => void,
 ) {
   for (const channel of Object.values(telegramChannels))
-    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    handle(channel, async (event, ...args: unknown[]) => {
       const count =
         channel === telegramChannels.status ||
         channel === telegramChannels.clearToken ||

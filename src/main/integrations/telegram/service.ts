@@ -80,7 +80,11 @@ export class TelegramService {
     ]);
     return {
       configured: !!token,
-      status: token ? snapshot.connection.status : "disconnected",
+      status: token
+        ? snapshot.connection.status === "polling" && !this.running
+          ? "disconnected"
+          : snapshot.connection.status
+        : "disconnected",
       authorizedChatIds: snapshot.authorizedChatIds,
       pendingChats: snapshot.pendingChats,
       queued: snapshot.queuedForwarding.filter((item) => item.state === "queued")

@@ -1,3 +1,5 @@
+import { dateTime } from "../i18n";
+import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
 import { useEffect, useMemo, useState } from "react";
 import type {
@@ -10,11 +12,11 @@ import { AnalysisReportView } from "./AnalysisReportView";
 import { EmptyState, Markdown, TaskStateIcon } from "./Primitives";
 
 const stateLabel: Record<UiTask["status"], string> = {
-  queued: "排队中",
-  running: "运行中",
-  completed: "已完成",
-  failed: "失败",
-  cancelled: "已取消",
+  queued: t("排队中"),
+  running: t("运行中"),
+  completed: t("已完成"),
+  failed: t("失败"),
+  cancelled: t("已取消"),
 };
 
 export function TasksPage({
@@ -77,30 +79,32 @@ export function TasksPage({
     <div className="tasks-page">
       <header className="page-intro">
         <label className="task-filter">
-          显示
+          {t("显示")}
           <select
-            aria-label="筛选任务"
+            aria-label={t("筛选任务")}
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           >
-            <option value="all">全部任务</option>
-            <option value="running">运行中</option>
-            <option value="queued">排队中</option>
-            <option value="completed">已完成</option>
-            <option value="failed">失败</option>
-            <option value="cancelled">已取消</option>
+            <option value="all">{t("全部任务")}</option>
+            <option value="running">{t("运行中")}</option>
+            <option value="queued">{t("排队中")}</option>
+            <option value="completed">{t("已完成")}</option>
+            <option value="failed">{t("失败")}</option>
+            <option value="cancelled">{t("已取消")}</option>
           </select>
         </label>
       </header>
       {!ordered.length ? (
-        <EmptyState title={tasks.length ? "没有符合条件的任务" : "还没有任务"}>
+        <EmptyState
+          title={tasks.length ? t("没有符合条件的任务") : t("还没有任务")}
+        >
           {tasks.length
-            ? "更换任务状态筛选，查看其他运行记录。"
-            : "添加一条内容链接或启动项目分析后，任务活动会显示在这里。"}
+            ? t("更换任务状态筛选，查看其他运行记录。")
+            : t("添加一条内容链接或启动项目分析后，任务活动会显示在这里。")}
         </EmptyState>
       ) : (
         <div className="task-workspace">
-          <ul className="task-list" aria-label="任务列表">
+          <ul className="task-list" aria-label={t("任务列表")}>
             {ordered.map((task) => (
               <li key={task.taskId}>
                 <button
@@ -120,13 +124,13 @@ export function TasksPage({
                     <strong>{task.label}</strong>
                     <small>{task.targetLabel}</small>
                     <span>
-                      {stateLabel[task.status]}
+                      {t(stateLabel[task.status])}
                       {task.phase !== stateLabel[task.status]
-                        ? ` · ${task.phase}`
+                        ? ` · ${t(task.phase)}`
                         : ""}
                     </span>
                   </span>
-                  <time>{new Date(task.updatedAt).toLocaleString()}</time>
+                  <time>{dateTime(task.updatedAt)}</time>
                 </button>
               </li>
             ))}
@@ -140,8 +144,10 @@ export function TasksPage({
               <header className="task-detail-heading">
                 <div>
                   <p className="eyebrow">
-                    {selected.kind === "forwarding" ? "转发处理" : "项目分析"} ·{" "}
-                    {stateLabel[selected.status]}
+                    {selected.kind === "forwarding"
+                      ? t("转发处理")
+                      : t("项目分析")}{" "}
+                    · {t(stateLabel[selected.status])}
                   </p>
                   <h3 id="task-detail-title">{selected.label}</h3>
                   {selected.kind === "forwarding" && (
@@ -155,7 +161,7 @@ export function TasksPage({
                     disabled={busy}
                     onClick={() => void onCancel(selected.taskId)}
                   >
-                    取消任务
+                    {t("取消任务")}
                   </button>
                 )}
               </header>
@@ -163,18 +169,18 @@ export function TasksPage({
                 selected.status === "queued") && (
                 <div className="run-status" role="status">
                   <span className="button-spinner" />
-                  {selected.phase}
+                  {t(selected.phase)}
                 </div>
               )}
               {selected.error && (
                 <div className="notice notice-warm">
                   <strong>
                     {selected.status === "failed"
-                      ? "任务遇到问题"
-                      : "任务已停止"}
+                      ? t("任务遇到问题")
+                      : t("任务已停止")}
                   </strong>
-                  <p>{selected.error}</p>
-                  <p>已完成范围保留在活动记录中。</p>
+                  <p>{t(selected.error ?? "")}</p>
+                  <p>{t("已完成范围保留在活动记录中。")}</p>
                 </div>
               )}
               {reports
@@ -200,8 +206,8 @@ export function TasksPage({
               <Disclosure
                 className="task-activity"
                 key={selected.taskId}
-                title="运行过程"
-                count={`${selected.activities.length} 条记录`}
+                title={t("运行过程")}
+                count={tf("{0} 条记录", selected.activities.length)}
               >
                 {selected.activities.length ? (
                   <ol>
@@ -211,18 +217,16 @@ export function TasksPage({
                         <li key={activity.sequence}>
                           <span className="activity-dot" aria-hidden="true" />
                           <div>
-                            <p>{activity.summary}</p>
+                            <p>{t(activity.summary)}</p>
                             {activity.body && (
                               <Markdown>{activity.body}</Markdown>
                             )}
-                            <time>
-                              {new Date(activity.occurredAt).toLocaleString()}
-                            </time>
+                            <time>{dateTime(activity.occurredAt)}</time>
                             {activity.completed !== undefined && (
                               <span className="activity-count">
                                 {activity.total !== undefined
                                   ? `${activity.completed} / ${activity.total}`
-                                  : `已处理 ${activity.completed}`}
+                                  : tf("已处理 {0}", activity.completed)}
                               </span>
                             )}
                           </div>
@@ -231,7 +235,7 @@ export function TasksPage({
                   </ol>
                 ) : (
                   <p className="muted-copy">
-                    任务启动后，已完成动作会按时间显示在这里。
+                    {t("任务启动后，已完成动作会按时间显示在这里。")}
                   </p>
                 )}
               </Disclosure>
@@ -243,7 +247,7 @@ export function TasksPage({
                       disabled={busy}
                       onClick={() => void onExportTrace(selected.taskId)}
                     >
-                      导出并打开详细记录
+                      {t("导出并打开详细记录")}
                     </button>
                   )}
                 {selected.kind === "forwarding" &&
@@ -253,7 +257,7 @@ export function TasksPage({
                       className="button button-primary"
                       onClick={() => onOpenResult(selected)}
                     >
-                      打开结果报告 →
+                      {t("打开结果报告 →")}
                     </button>
                   )}
                 {selected.partialResultId &&
@@ -262,7 +266,7 @@ export function TasksPage({
                       className="button"
                       onClick={() => onOpenResult(selected)}
                     >
-                      查看已保存阶段结果
+                      {t("查看已保存阶段结果")}
                     </button>
                   )}
                 {(selected.status === "failed" ||
@@ -273,13 +277,13 @@ export function TasksPage({
                     onClick={() => void onRetry(selected.taskId)}
                   >
                     {selected.kind === "project_analysis"
-                      ? "重新分析"
-                      : "重试任务"}
+                      ? t("重新分析")
+                      : t("重试任务")}
                   </button>
                 )}
                 {selected.status === "queued" ||
                 selected.status === "running" ? (
-                  <span>你可以离开此页；任务会继续运行。</span>
+                  <span>{t("你可以离开此页；任务会继续运行。")}</span>
                 ) : null}
               </div>
             </article>

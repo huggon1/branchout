@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-This is the shared visual contract for Branchout. The application and [the design preview](tools/design-preview/README.md) use the same tokens, buttons, and disclosure components. The preview provides fictional component and report scenes for subsequent visual changes.
+This is the shared visual contract for Branchout. Application pages use shared tokens, buttons, and disclosure components from `src/renderer/design/`.
 
 This file owns colors, typography, spacing, shapes, component states, and visual acceptance. [UX](docs/ux-spec.md) owns page responsibilities and flows; [product](docs/product-spec.md) owns behavior; [data contracts](docs/data-contracts.md) own persistence. The supplied Miro marketing analysis informed the document structure, white canvas, dark actions, and limited brand color. Branchout adapts those ideas to a Chinese desktop reading workspace.
 
@@ -53,7 +53,7 @@ Use a 4 px base with 8 px as the primary step. Icon-to-label space is 8 px; tigh
 
 The desktop shell uses a 184 px navigation area, a 230 px task index, and a reader up to 844 px including gutters. Content and project indexes may widen when their labels require it. Each index and reader owns its scroll area. Long object names wrap in readers and truncate with an accessible full label in indexes.
 
-At compact widths, preserve a usable reading measure and reachable actions. The preview hides its illustrative index below 760 px; production index-to-reader navigation follows the UX specification. Control groups wrap as groups; dialog actions remain together.
+At compact widths, preserve a usable reading measure and reachable actions. Index-to-reader navigation follows the UX specification. Control groups wrap as groups; dialog actions remain together.
 
 ## Shapes, elevation, and icons
 
@@ -63,7 +63,7 @@ Reading sections and rows remain flat. Dialogs use one neutral shadow, `0 16px 4
 
 Use Phosphor regular icons, 16 px within actions and 18–20 px in navigation. Functional icons inherit the control's foreground. Icon-only buttons use a 32–36 px square target, accessible name, and tooltip. Touch-oriented controls use a 44 px target.
 
-Preserve the folded-leaf silhouette. The application SVG assets use one yellow folded face and ink-to-neutral facets; their small and app-icon sizes appear together in the preview. Build scripts derive the PNG and native icon from the application SVG.
+Preserve the folded-leaf silhouette. The application SVG assets use one yellow folded face and ink-to-neutral facets. Build scripts derive the PNG and native icon from the application SVG.
 
 ## Components
 
@@ -83,11 +83,11 @@ The trigger is a native button with `aria-expanded` and `aria-controls`; the con
 
 ### Lists and selection
 
-Selected index rows use a neutral surface with an emphasized ink title; metadata remains muted. Selection is conveyed by the whole row surface. Hover is lighter than selection. Rows expose an actual navigation action when connected to application data. The preview's surrounding navigation and task list are illustrative context.
+Selected index rows use a neutral surface with an emphasized ink title; metadata remains muted. Selection is conveyed by the whole row surface. Hover is lighter than selection. Rows expose an actual navigation action when connected to application data.
 
 ### Inputs and dialogs
 
-Inputs use a neutral border and explicit labels. Dialogs reuse the existing native `Dialog` for top-layer placement, focus containment, Escape, and return-to-trigger focus. Editable dialogs initially focus their first field. Save keeps the draft until persistence succeeds; failure feedback appears beside the field or footer. The preview's draft exists only in the current browser session.
+Inputs use a neutral border and explicit labels. Dialogs reuse the existing native `Dialog` for top-layer placement, focus containment, Escape, and return-to-trigger focus. Editable dialogs initially focus their first field. Save keeps the draft until persistence succeeds; failure feedback appears beside the field or footer.
 
 ### Reading and suggestions
 
@@ -99,14 +99,14 @@ Surface feedback uses 150 ms easing. Press feedback moves 1 px. Expansion is imm
 
 ## Shared implementation and iteration
 
-Reusable button and disclosure components live in `src/renderer/design/Components.tsx`; tokens and component styles live beside them in `tokens-and-controls.css`. The application and preview import this shared source. Existing application button classes alias the same shared definitions. `Primitives.tsx` owns the native dialog, sanitized Markdown, and icon mappings. Page styles own composition and responsive geometry.
+Reusable button and disclosure components live in `src/renderer/design/Components.tsx`; tokens and component styles live beside them in `tokens-and-controls.css`. Application pages import this shared source. Existing application button classes alias the same shared definitions. `Primitives.tsx` owns the native dialog, sanitized Markdown, and icon mappings. Page styles own composition and responsive geometry.
 
 For a visual change:
 
 1. Identify the semantic role and existing shared component.
 2. Update that component and its token source; add a variant when the role has distinct behavior.
-3. Show the changed states in the preview and a populated report composition.
+3. Show the changed states in the application with a populated report composition.
 4. Verify keyboard operation, dialog focus, long labels, compact width, disabled controls, and reduced motion.
-5. Record screenshots and exercised interactions in the preview README; update this file when the rule changes.
+5. Include screenshots and exercised interactions in the change verification record; update this file when the rule changes.
 
 Visual acceptance checks button grouping, text hierarchy, icon weight and color, disclosure prominence, and reading measure. Runtime acceptance separately checks persistence, task execution, and version-sensitive writes through the application services.

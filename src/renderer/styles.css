@@ -2703,3 +2703,5 @@ textarea {
 .content-list-item strong {
   font-weight: 550;
 }
+
+html[lang="en"] .content-index .page-intro::before { content: "Recent content"; }

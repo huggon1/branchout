@@ -1,4 +1,5 @@
-import { ipcMain, shell } from "electron";
+import { handle } from "../../ipc";
+import { shell } from "electron";
 import { z } from "zod";
 import { forwardingChannels } from "../../../shared/ipc-contracts";
 import { repositoryEvidenceUrlSchema } from "../../../shared/source-contracts";
@@ -17,7 +18,7 @@ export function registerForwardingIpc(
   expected: string,
 ) {
   for (const channel of Object.values(forwardingChannels))
-    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    handle(channel, async (event, ...args: unknown[]) => {
       const count =
         channel === forwardingChannels.tasks
           ? 0

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import {
   useId,
   useState,
@@ -48,7 +49,9 @@ export function Disclosure({
           {title}
           {count && <small>{count}</small>}
         </span>
-        <span className="ds-disclosure-action">{open ? "收起" : "查看"}</span>
+        <span className="ds-disclosure-action">
+          {open ? t("收起") : t("查看")}
+        </span>
       </button>
       <div id={id} hidden={!open} className="ds-disclosure-body">
         {children}

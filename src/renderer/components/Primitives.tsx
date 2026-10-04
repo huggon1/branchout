@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import {
   ArticleIcon,
@@ -108,7 +109,11 @@ export function Dialog({
     >
       <header>
         <h2 id={id}>{title}</h2>
-        <button className="icon-button" aria-label="关闭" onClick={onClose}>
+        <button
+          className="icon-button"
+          aria-label={t("关闭")}
+          onClick={onClose}
+        >
           <XIcon size={20} />
         </button>
       </header>

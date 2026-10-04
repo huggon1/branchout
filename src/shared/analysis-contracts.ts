@@ -1,3 +1,5 @@
+import { promptExecutionSchema } from "./execution-contracts";
+import { languageSchema, type Language } from "./language";
 import { z } from "zod";
 import {
   focusCardSnapshotSchema,
@@ -12,7 +14,10 @@ export const analysisEvidenceRefSchema = z
     sourceId: z.string().min(1).max(300),
     location: z.string().min(1).max(4096),
     quote: z.string().min(1).max(12000),
-    contentDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    contentDigest: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
   })
   .strict();
 
@@ -38,10 +43,13 @@ export const projectAnalysisPreflightSchema = z
         candidateFileCount: z.number().int().nonnegative(),
       })
       .strict(),
-    codexDiscovery: z.object({
-      filesScanned: z.number().int().nonnegative(),
-      bounded: z.boolean(),
-    }).strict().optional(),
+    codexDiscovery: z
+      .object({
+        filesScanned: z.number().int().nonnegative(),
+        bounded: z.boolean(),
+      })
+      .strict()
+      .optional(),
     codexSessions: z.array(
       z
         .object({
@@ -50,17 +58,30 @@ export const projectAnalysisPreflightSchema = z
           date: z.string().datetime(),
           attribution: z.enum(["confirmed", "review"]),
           reason: z.string().min(1).max(2000),
-          attributionReason: z.enum(["same_repository_path", "same_git_repository", "same_remote_repository"]).optional(),
+          attributionReason: z
+            .enum([
+              "same_repository_path",
+              "same_git_repository",
+              "same_remote_repository",
+            ])
+            .optional(),
           workingDirectoryLabel: z.string().max(120).optional(),
           startedAt: z.string().datetime().optional(),
           lastModifiedAt: z.string().datetime().optional(),
-          preview: z.object({
-            signal: z.enum(["project_intent", "execution_focused", "no_usable_messages"]),
-            usableUserMessageCount: z.number().int().nonnegative(),
-            executionRecordCount: z.number().int().nonnegative(),
-            excerpts: z.array(z.string().min(1).max(300)).max(3),
-            bounded: z.boolean(),
-          }).strict().optional(),
+          preview: z
+            .object({
+              signal: z.enum([
+                "project_intent",
+                "execution_focused",
+                "no_usable_messages",
+              ]),
+              usableUserMessageCount: z.number().int().nonnegative(),
+              executionRecordCount: z.number().int().nonnegative(),
+              excerpts: z.array(z.string().min(1).max(300)).max(3),
+              bounded: z.boolean(),
+            })
+            .strict()
+            .optional(),
         })
         .strict(),
     ),
@@ -103,35 +124,49 @@ export const projectAnalysisReportSchema = z
     taskId: z.string().uuid(),
     projectId: z.string().uuid(),
     projectLabel: z.string().min(1).max(300),
+    outputLanguage: languageSchema.optional(),
     generatedAt: z.string().datetime(),
+    execution: promptExecutionSchema.optional(),
     summary: z.string().min(1).max(1400).optional(),
-    promptGuidance: z.object({
-      analysisGoal: z.string().max(4000),
-      cardWriting: z.string().max(4000),
-      revision: z.string().regex(/^sha256:[a-f0-9]{64}$/),
-    }).strict().optional(),
+    promptGuidance: z
+      .object({
+        analysisGoal: z.string().max(4000),
+        cardWriting: z.string().max(4000),
+        revision: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+      })
+      .strict()
+      .optional(),
     coverage: z
       .object({
         repositoryRead: z.array(z.string().min(1).max(4096)),
         repositorySkipped: z.array(z.string().min(1).max(4096)),
         repositoryFailed: z.array(
           z
-            .object({ path: z.string().min(1).max(4096), reason: z.string().max(1000) })
+            .object({
+              path: z.string().min(1).max(4096),
+              reason: z.string().max(1000),
+            })
             .strict(),
         ),
         // Historical reports retain the commit coverage saved by earlier versions.
         commitsRead: z.array(z.string().min(1).max(200)).optional(),
         commitsSkipped: z.array(z.string().min(1).max(200)).optional(),
-        commitRange: z.object({
-          rangeId: z.enum(["recent_30", "recent_100"]),
-          availableCount: z.number().int().nonnegative(),
-          skippedByRange: z.number().int().nonnegative(),
-        }).strict().optional(),
+        commitRange: z
+          .object({
+            rangeId: z.enum(["recent_30", "recent_100"]),
+            availableCount: z.number().int().nonnegative(),
+            skippedByRange: z.number().int().nonnegative(),
+          })
+          .strict()
+          .optional(),
         codexSessionsRead: z.array(z.string().min(1).max(300)),
         codexSessionsSkipped: z.array(z.string().min(1).max(300)),
         codexSessionsFailed: z.array(
           z
-            .object({ sessionId: z.string().min(1).max(300), reason: z.string().max(1000) })
+            .object({
+              sessionId: z.string().min(1).max(300),
+              reason: z.string().max(1000),
+            })
             .strict(),
         ),
         detail: z.unknown().optional(),
@@ -212,9 +247,7 @@ export type ProjectAnalysisReport = z.infer<typeof projectAnalysisReportSchema>;
 export type FocusSuggestionAcceptance = z.infer<
   typeof focusSuggestionAcceptanceSchema
 >;
-export type AcceptFocusSuggestion = z.infer<
-  typeof acceptFocusSuggestionSchema
->;
+export type AcceptFocusSuggestion = z.infer<typeof acceptFocusSuggestionSchema>;
 export type AcceptSuggestionResult = z.infer<
   typeof acceptSuggestionResultSchema
 >;

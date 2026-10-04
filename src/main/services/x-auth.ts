@@ -1,3 +1,4 @@
+import { nativeText } from "../native-language";
 import { BrowserWindow, session } from "electron";
 import { join } from "node:path";
 import type { XCredentials } from "../../shared/platform-contracts";
@@ -43,7 +44,7 @@ export class XAuth {
       height: 720,
       minWidth: 700,
       minHeight: 500,
-      title: "登录 X",
+      title: nativeText("登录 X", "Sign in to X"),
       icon: join(__dirname, "../assets/branchout.png"),
       webPreferences: {
         partition,

@@ -1,3 +1,5 @@
+import type { PromptExecution } from "../../../shared/execution-contracts";
+import type { Language } from "../../../shared/language";
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
 import type { AnalysisPromptSnapshot } from "../../../shared/analysis-prompt-contracts";
 
@@ -29,6 +31,7 @@ export type ProjectAnalysisFocusCard = {
 };
 
 export type ProjectAnalysisWorkerInput = {
+  outputLanguage?: Language;
   taskId: string;
   projectId: string;
   projectLabel: string;
@@ -58,6 +61,8 @@ export type ProjectAnalysisSuggestion = {
 };
 
 export type ProjectAnalysisReportDraft = {
+  execution?: PromptExecution;
+  outputLanguage?: Language;
   taskId: string;
   projectId: string;
   projectLabel: string;
@@ -83,7 +88,11 @@ export type ProjectAnalysisReportDraft = {
       workingTreeClean: boolean;
     };
     codexSessions: {
-      sourceState: "not_selected" | "selected_with_user_messages" | "selected_without_valid_user_messages" | "read_failed";
+      sourceState:
+        | "not_selected"
+        | "selected_with_user_messages"
+        | "selected_without_valid_user_messages"
+        | "read_failed";
       selected: number;
       read: number;
       failed: number;
@@ -114,7 +123,11 @@ export type ProjectAnalysisReportDraft = {
         omittedFinalAssistantMessages: number;
       }[];
     };
-    focusCards: { available: number; modelIncluded: number; modelOmitted: number };
+    focusCards: {
+      available: number;
+      modelIncluded: number;
+      modelOmitted: number;
+    };
     modelInput: {
       characterCount: number;
       maximumCharacters: number;
@@ -125,7 +138,12 @@ export type ProjectAnalysisReportDraft = {
 };
 
 export type ProjectAnalysisEvent =
-  | { type: "phase"; taskId: string; phase: "repository" | "codex_sessions" | "reasoning" }
+  | { type: "execution"; taskId: string; execution: PromptExecution }
+  | {
+      type: "phase";
+      taskId: string;
+      phase: "repository" | "codex_sessions" | "reasoning";
+    }
   | {
       type: "progress";
       taskId: string;
@@ -134,5 +152,6 @@ export type ProjectAnalysisEvent =
       messagesRead?: number;
       message?: string;
       body?: string;
-      activityKind?: "started" | "retrying" | "completed" | "failed" | "message" | "tool";
+      activityKind?:
+        "started" | "retrying" | "completed" | "failed" | "message" | "tool";
     };
