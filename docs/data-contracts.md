@@ -88,3 +88,13 @@ The main process handles worker events in this order:
 Pi session files stay under the application's local data directory. A user initiated export copies the selected task’s latest model-attempt HTML into a selected local directory and opens that file directly. Task activity stores validated summaries and bounded public-message bodies; model prompts and complete responses stay in the session files.
 
 Model configuration is frozen at launch. The current model connection is stored in `model-connection.json` with owner-only file permissions; the first read of a legacy `model-connection.enc` saves its validated contents into the new file. Renderer, snapshots, reports, and activities read redacted state. The main process validates source content, model output, card references, and suggestion changes before persistence.
+
+## Focus-search reports
+
+`focus_search` tasks reference `focus_search_report` results. A search report saves its task identity, creation time, frozen focus snapshot, selected platforms, period, and ordered card/platform sections. Sections save their exact search prompt and language, original platform response, candidate links, and completion or error status. Candidates carry stable identity, platform post identity, title, description, URL, and optional displayed date. URLs refer to posts on the section's platform and originate from observed browser links.
+
+Each successful browser capture returns a task-local `captureId`. Search workers select `replyCaptureId`; reading workers select `sourceCaptureId`. The main process resolves that identity to the captured text and image records before validating the result. The saved source and platform reply use the captured bytes.
+
+Xiaohongshu browser reading reconstructs the requested note address with the queued recovery token when available. Saved source records retain the canonical note URL; the owner-only queue stores the recovery token separately.
+
+Submission records map a report and canonical post identity to a reserved forwarding task ID. The reservation is saved before forwarding submission; replay uses the reserved identity. Batch replies contain a result for each candidate. Forwarding tasks retain their ordinary independent lifecycle and content-stage persistence.

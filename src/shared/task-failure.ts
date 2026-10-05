@@ -13,7 +13,6 @@ export const failureMessages = {
   tool_arguments: "模型工具调用参数无效，请重试或更换模型。",
   search_incomplete:
     "模型执行提前结束，请重试或更换模型。",
-  github_search: "GitHub 请求未完成，请检查网络和来源状态后重试。",
   task_timeout: "任务超时；已保存的阶段结果可在任务中查看。",
   worker_exit: "执行进程意外退出，请重新启动任务。",
   task_protocol: "任务消息或保存处理失败，请检查磁盘空间并重新启动应用。",
@@ -32,8 +31,6 @@ export const failureSchema = z
     stage: z.enum(["repository", "forwarding", "project_analysis", "runtime"]),
     modelTurns: z.number().int().nonnegative().optional(),
     toolCalls: z.number().int().nonnegative().optional(),
-    searches: z.number().int().nonnegative().optional(),
-    successfulSearches: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type TaskFailure = z.infer<typeof failureSchema>;

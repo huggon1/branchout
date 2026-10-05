@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { focusSetSnapshotSchema } from "./focus-contracts";
 
-export const taskKindSchema = z.enum(["forwarding", "project_analysis"]);
+export const taskKindSchema = z.enum([
+  "forwarding",
+  "project_analysis",
+  "focus_search",
+]);
 
 export const taskTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }).strict(),
@@ -19,7 +23,11 @@ export const taskTargetSchema = z.discriminatedUnion("kind", [
 
 export const taskResultRefSchema = z
   .object({
-    kind: z.enum(["forwarding_report", "project_analysis_report"]),
+    kind: z.enum([
+      "forwarding_report",
+      "project_analysis_report",
+      "focus_search_report",
+    ]),
     id: z.string().uuid(),
   })
   .strict();
@@ -203,13 +211,13 @@ export const createTaskSchema = z
   .strict()
   .superRefine((input, context) => {
     if (
-      ["forwarding", "project_analysis"].includes(input.kind) &&
+      ["forwarding", "project_analysis", "focus_search"].includes(input.kind) &&
       !input.focusSetSnapshot
     )
       context.addIssue({
         code: "custom",
         path: ["focusSetSnapshot"],
-        message: "转发与项目分析任务需要固定关注卡快照",
+        message: "任务需要固定关注卡快照",
       });
   });
 

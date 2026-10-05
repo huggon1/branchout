@@ -17,3 +17,5 @@ This guide describes current cross-process contracts. The [data contracts](../..
 - `ipc-contracts`: renderer-to-main commands and events.
 
 Worker commands and results for content and analysis are defined in `worker/jobs/forwarding/contracts.ts` and `worker/jobs/project-analysis/types.ts` respectively. Cards, reports, and tasks use stable references. Workers deliver drafts; the main process owns final state.
+
+`focus-search-contracts.ts` defines manual search selections, frozen per-card/platform reports, validated post candidates, and parsing submission associations. Task contracts include focus-search tasks and report references.

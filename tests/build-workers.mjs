@@ -4,6 +4,7 @@ const identity = JSON.parse(await readFile("dist/build-identity.json", "utf8"));
 await build({
   define: { __BRANCHOUT_BUILD_IDENTITY__: JSON.stringify(identity) },
   entryPoints: {
+    "browser-app": "tests/support/browser-app.ts",
     forwarding: "tests/support/forwarding.ts",
     analysis: "tests/support/analysis.ts",
   },

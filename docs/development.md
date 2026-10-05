@@ -27,15 +27,7 @@ Selecting a separate data path defaults to review mode. Review startup keeps Tel
 
 ## Work with X or Xiaohongshu content
 
-When trying one of these sources, prepare its reader:
-
-| Source | Command |
-| --- | --- |
-| X | `npm run setup:x` |
-| Xiaohongshu | `npm run setup:xhs` |
-| Both | `npm run prepare:runtime` |
-
-The downloaded readers reside in `.runtime/`. Complete the corresponding sign-in in application Settings.
+Install Google Chrome and complete each platform sign-in in Settings. Chrome profiles remain under the selected Branchout data directory across rebuilds. Xiaohongshu optionally uses its enhanced note reader, prepared with `npm run setup:xhs`; browser reading provides the fallback.
 
 ## Check types or build output
 

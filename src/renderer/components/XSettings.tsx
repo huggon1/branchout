@@ -2,177 +2,93 @@ import { t } from "../i18n";
 import { useEffect, useState } from "react";
 import { bridge } from "../bridge";
 import { Button } from "./Primitives";
-
 export function XSettings() {
-  const [signedIn, setSignedIn] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      const reply = await bridge.xStatus();
-      if (alive && reply.ok) setSignedIn(reply.value.signedIn);
-    };
-    const off = bridge.onChanged(() => void load());
-    void load();
-    return () => {
-      alive = false;
-      off();
-    };
-  }, []);
-  const action = async (
-    run: () => Promise<{ ok: boolean; message?: string }>,
-  ) => {
-    setBusy(true);
-    setError("");
-    try {
-      const reply = await run();
-      if (!reply.ok) setError(reply.message ?? t("操作未完成"));
-      else {
-        const status = await bridge.xStatus();
-        if (status.ok) setSignedIn(status.value.signedIn);
-      }
-    } catch {
-      setError(t("X 登录状态操作未完成"));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <section className="platform-settings">
-      <div className="setting-row">
-        <div>
-          <strong>{t("X 帖子读取")}</strong>
-          <p>
-            {t("读取受支持的公开帖子 ·")}
-            {signedIn ? t("账号已连接") : t("需要登录")}
-          </p>
-        </div>
-        <Button onClick={() => setExpanded(!expanded)}>
-          {expanded ? t("收起") : t("配置")}
-        </Button>
-      </div>
-      {expanded && (
-        <div className="platform-details">
-          <p>
-            {t(
-              "在独立窗口登录 X。应用使用已连接账号读取当前可访问的帖子内容。",
-            )}
-          </p>
-          <div className="inline-actions">
-            <Button disabled={busy} onClick={() => void action(bridge.loginX)}>
-              {signedIn ? t("打开 X") : t("登录 X")}
-            </Button>
-            {signedIn && (
-              <Button
-                disabled={busy}
-                onClick={() => void action(bridge.logoutX)}
-              >
-                {t("退出登录")}
-              </Button>
-            )}
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void action(async () => {
-                  const status = await bridge.xStatus();
-                  if (status.ok) setSignedIn(status.value.signedIn);
-                  return status;
-                })
-              }
-            >
-              {t("刷新状态")}
-            </Button>
-          </div>
-          {error && (
-            <p role="alert" className="model-error">
-              {t(error)}
-            </p>
-          )}
-        </div>
-      )}
-      <XhsSettings />
+      <PlatformSignIn platform="xiaohongshu" />
+      <PlatformSignIn platform="x" />
     </section>
   );
 }
-
-function XhsSettings() {
-  const [status, setStatus] = useState({ installed: false, signedIn: false });
+function PlatformSignIn({ platform }: { platform: "x" | "xiaohongshu" }) {
+  const [status, setStatus] = useState({ signedIn: false, installed: true });
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [qr, setQr] = useState("");
   const [error, setError] = useState("");
+  const read = () => (platform === "x" ? bridge.xStatus() : bridge.xhsStatus());
   useEffect(() => {
     let alive = true;
     const load = async () => {
       try {
-        const reply = await bridge.xhsStatus();
-        if (alive && reply.ok) {
-          setStatus(reply.value);
-          if (reply.value.signedIn) setQr("");
-        }
-      } catch {
-        /* connection can be retried explicitly */
-      }
+        const reply = await read();
+        if (alive && reply.ok)
+          setStatus({
+            signedIn: reply.value.signedIn,
+            installed:
+              "installed" in reply.value
+                ? reply.value.installed === true
+                : true,
+          });
+      } catch {}
     };
-    const off = bridge.onChanged(() => void load());
     void load();
+    const off = bridge.onChanged(() => void load());
     return () => {
       alive = false;
       off();
     };
-  }, []);
-  const act = async (kind: "login" | "logout" | "refresh") => {
+  }, [platform]);
+  const action = async (kind: "login" | "logout" | "refresh") => {
     setBusy(true);
     setError("");
     try {
-      if (kind === "login") {
-        const reply = await bridge.loginXhs();
-        if (!reply.ok) setError(reply.message);
-        else {
-          setStatus({ installed: true, signedIn: reply.value.signedIn });
-          setQr(reply.value.qr);
-        }
-      } else if (kind === "logout") {
-        const reply = await bridge.logoutXhs();
-        if (!reply.ok) setError(reply.message);
-        else {
-          setStatus({ installed: true, signedIn: false });
-          setQr("");
-        }
-      } else {
-        const reply = await bridge.xhsStatus();
-        if (!reply.ok) setError(reply.message);
-        else {
-          setStatus(reply.value);
-          if (reply.value.signedIn) setQr("");
-        }
+      const reply =
+        kind === "refresh"
+          ? await read()
+          : platform === "x"
+            ? await (kind === "login" ? bridge.loginX() : bridge.logoutX())
+            : await (kind === "login" ? bridge.loginXhs() : bridge.logoutXhs());
+      if (!reply.ok) setError(reply.message);
+      else {
+        const next = await read();
+        if (next.ok)
+          setStatus({
+            signedIn: next.value.signedIn,
+            installed:
+              "installed" in next.value ? next.value.installed === true : true,
+          });
       }
     } catch {
-      setError(t("小红书登录状态操作未完成"));
+      setError(t("平台登录操作未完成，请稍后重试"));
     } finally {
       setBusy(false);
     }
   };
-  const qrImage = /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(qr)
-    ? qr
-    : /^[A-Za-z0-9+/=]+$/.test(qr)
-      ? `data:image/png;base64,${qr}`
-      : "";
   return (
     <>
       <div className="setting-row">
-        <div>
-          <strong>{t("小红书图文笔记读取")}</strong>
-          <p>
-            {t("图文笔记搜索与读取 ·")}{" "}
-            {status.signedIn
-              ? t("已登录")
-              : status.installed
-                ? t("需要登录")
-                : t("需要安装本地组件")}
-          </p>
+        <div className="platform-identity">
+          <span
+            className={`platform-app-icon platform-app-icon--${platform}`}
+            aria-hidden="true"
+          >
+            {platform === "x" ? (
+              <svg
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                fill="currentColor"
+              >
+                <path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3L12 14.6 5.5 22H2.3l8.2-9.4L.8 2h6.5l4.5 6.8L18.9 2ZM17.8 20h1.7L6.3 4H4.5l13.3 16Z" />
+              </svg>
+            ) : (
+              "小红书"
+            )}
+          </span>
+          <div>
+            <strong>{platform === "x" ? "X" : t("小红书")}</strong>
+            <p>{status.signedIn ? t("已连接") : t("需要登录")}</p>
+          </div>
         </div>
         <Button onClick={() => setExpanded(!expanded)}>
           {expanded ? t("收起") : t("配置")}
@@ -180,39 +96,25 @@ function XhsSettings() {
       </div>
       {expanded && (
         <div className="platform-details">
-          <p>{t("在独立窗口连接小红书账号，用于读取受支持的图文笔记。")}</p>
           <div className="inline-actions">
-            {!status.signedIn && (
-              <Button
-                disabled={busy || !status.installed}
-                onClick={() => void act("login")}
-              >
-                {t("显示登录二维码")}
-              </Button>
-            )}
+            <Button disabled={busy} onClick={() => void action("login")}>
+              {status.signedIn ? t("打开平台") : t("登录")}
+            </Button>
             {status.signedIn && (
-              <Button disabled={busy} onClick={() => void act("logout")}>
+              <Button disabled={busy} onClick={() => void action("logout")}>
                 {t("退出登录")}
               </Button>
             )}
-            <Button disabled={busy} onClick={() => void act("refresh")}>
+            <Button disabled={busy} onClick={() => void action("refresh")}>
               {t("刷新状态")}
             </Button>
           </div>
           {!status.installed && (
-            <p>
-              {t("先在项目目录运行 npm run setup:xhs，然后返回这里刷新状态。")}
-            </p>
-          )}
-          {qrImage && !status.signedIn && (
-            <img className="xhs-qr" src={qrImage} alt={t("小红书登录二维码")} />
-          )}
-          {qrImage && !status.signedIn && (
-            <p>{t("用小红书 App 扫码后点击“刷新状态”。")}</p>
+            <p>{t("请先安装 Google Chrome，再打开浏览器登录。")}</p>
           )}
           {error && (
-            <p role="alert" className="model-error">
-              {t(error)}
+            <p className="model-error" role="alert">
+              {error}
             </p>
           )}
         </div>

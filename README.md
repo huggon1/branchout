@@ -25,6 +25,16 @@ You may recognize that an article is useful before you know which project it hel
 
 Projects, cards, reports, and tasks are stored locally. Model tasks receive the source content or selected project material needed for that run and use the model connection you configure.
 
+## Supported platforms
+
+| Platform | Forwarding parsing | Focus search | Search language | Login |
+| --- | --- | --- | --- | --- |
+| GitHub | Public repository README | — | — | Public access |
+| Xiaohongshu | Image/text notes | 点点 AI | Chinese | Required |
+| X | Posts | Grok | English | Required |
+
+Search asks about one card at a time for a recent day, week, or month. Reports retain the platform reply and linked posts; select posts to add them to content parsing.
+
 ## Run from source
 
 Development requires Node.js 24 or newer:
@@ -34,7 +44,7 @@ npm ci
 npm run dev
 ```
 
-Prepare the X and Xiaohongshu readers with `npm run setup:x` and `npm run setup:xhs` when using those sources.
+See the [development guide](docs/development.md) for browser and reader setup.
 
 In Settings, connect a general API or a Codex subscription account. The Codex subscription connection uses an available local Codex CLI. Then bind a local Git repository, write a focus card, and add a link from the Content page. X and Xiaohongshu require their respective sign-ins in Settings; Telegram forwarding requires a configured bot and an authorized chat.
 

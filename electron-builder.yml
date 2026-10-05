@@ -9,6 +9,9 @@ files:
 extraResources:
   - from: .runtime
     to: .runtime
+    filter:
+      - "**/*"
+      - "!bird-search/**/*"
 asar: true
 asarUnpack:
   - "**/*.node"

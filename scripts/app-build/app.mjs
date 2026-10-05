@@ -38,10 +38,6 @@ await mkdir("dist/renderer", { recursive: true });
 await mkdir("dist/assets", { recursive: true });
 await mkdir("dist/platforms", { recursive: true });
 await mkdir("dist/worker", { recursive: true });
-await copyFile(
-  "src/platforms/adapters/x/x-read.mjs",
-  "dist/platforms/x-read.mjs",
-);
 await sharp("assets/branchout-icon.svg")
   .resize(1024, 1024)
   .png()
@@ -56,12 +52,13 @@ await build({
   bundle: true,
   platform: "node",
   format: "cjs",
-  external: ["electron"],
+  external: ["electron", "playwright-core"],
 });
 await build({
   define,
   entryPoints: [
     "src/worker/model-worker.ts",
+    "src/worker/jobs/browser/worker-entry.ts",
     "src/worker/jobs/forwarding/worker-entry.ts",
     "src/worker/jobs/project-analysis/worker-entry.ts",
   ],

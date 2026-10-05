@@ -162,7 +162,7 @@ export interface UiTaskActivity {
 
 export interface UiTask {
   taskId: string;
-  kind: "forwarding" | "project_analysis";
+  kind: "forwarding" | "project_analysis" | "focus_search";
   projectId?: string;
   label: string;
   targetLabel: string;
@@ -173,7 +173,7 @@ export interface UiTask {
   updatedAt: string;
   activities: UiTaskActivity[];
   resultId?: string;
-  resultType?: "content" | "analysis";
+  resultType?: "content" | "analysis" | "search";
   partialResultId?: string;
   error?: string;
 }
@@ -379,8 +379,9 @@ type CanonicalPreflight = {
   }>;
 };
 type CanonicalTaskSnapshot = {
+  focusSetSnapshot?: { cards: Array<{ projectLabel: string }> };
   taskId: string;
-  kind: "forwarding" | "project_analysis";
+  kind: "forwarding" | "project_analysis" | "focus_search";
   target:
     | { kind: "none" }
     | { kind: "project"; projectId: string; projectLabel: string }
@@ -395,7 +396,8 @@ type CanonicalTaskSnapshot = {
   phase: string;
   progress: { completed: number; total?: number };
   result?: {
-    kind: "forwarding_report" | "project_analysis_report";
+    kind:
+      "forwarding_report" | "project_analysis_report" | "focus_search_report";
     id: string;
   };
   failure?: { message: string };
@@ -868,13 +870,21 @@ export function productUiBridge(): ProductUiBridge {
     const tasks = taskReply.value.map((task): UiTask => {
       const summary = summaryById.get(task.taskId);
       const isForwarding = task.kind === "forwarding";
-      const targetLabel = summary
-        ? `${summary.target.entry === "telegram" ? "Telegram" : new URL(summary.target.sourceUrl).hostname} · ${summary.target.sourceUrl}`
-        : task.target.kind === "project"
-          ? task.target.projectLabel
-          : task.target.kind === "source"
-            ? task.target.url
-            : t("Branchout 任务");
+      const targetLabel =
+        task.kind === "focus_search"
+          ? [
+              ...new Set(
+                task.focusSetSnapshot?.cards.map((card) => card.projectLabel) ??
+                  [],
+              ),
+            ].join(" · ") || t("关注卡搜索")
+          : summary
+            ? `${summary.target.entry === "telegram" ? "Telegram" : new URL(summary.target.sourceUrl).hostname} · ${summary.target.sourceUrl}`
+            : task.target.kind === "project"
+              ? task.target.projectLabel
+              : task.target.kind === "source"
+                ? task.target.url
+                : t("Branchout 任务");
       const forwardingActivities = summary?.activities ?? [];
       const activities: UiTaskActivity[] = isForwarding
         ? forwardingActivities.map((activity) => ({
@@ -902,7 +912,9 @@ export function productUiBridge(): ProductUiBridge {
           : {}),
         label: isForwarding
           ? tf("解析 {0}", targetLabel.split(" · ").at(-1))
-          : tf("分析 {0}", targetLabel),
+          : task.kind === "focus_search"
+            ? t("关注卡搜索")
+            : tf("分析 {0}", targetLabel),
         targetLabel,
         status,
         phase: summary?.phase ?? analysisPhase,
@@ -937,7 +949,9 @@ export function productUiBridge(): ProductUiBridge {
                 resultType:
                   task.result.kind === "forwarding_report"
                     ? ("content" as const)
-                    : ("analysis" as const),
+                    : task.result.kind === "focus_search_report"
+                      ? ("search" as const)
+                      : ("analysis" as const),
               }
             : {}),
         ...(summary?.message || task.failure?.message
@@ -945,6 +959,22 @@ export function productUiBridge(): ProductUiBridge {
           : {}),
       };
     });
+    await Promise.all(
+      tasks
+        .filter((t) => t.kind === "focus_search")
+        .map(async (task) => {
+          const reply = await bridge.taskActivities(task.taskId);
+          if (reply.ok)
+            task.activities = reply.value.map((a) => ({
+              sequence: a.sequence,
+              occurredAt: a.happenedAt,
+              summary: a.summary,
+              body: a.body,
+              completed: a.progress?.completed,
+              total: a.progress?.total,
+            }));
+        }),
+    );
     const contentDetails = await Promise.all(
       summaries
         .filter((summary) => summary.hasSource || summary.hasUnderstanding)
@@ -1186,6 +1216,8 @@ export function productUiBridge(): ProductUiBridge {
       const task = tasks.value.find((item) => item.taskId === taskId);
       if (!task) return failed(t("找不到要取消的任务。"));
       if (task.kind === "forwarding") return bridge.cancelForwarding(taskId);
+      if (task.kind === "focus_search")
+        return window.branchout.cancelFocusSearch(taskId);
       return replyOperation(
         bridge.cancelProjectAnalysis
           ? () => bridge.cancelProjectAnalysis!(taskId)
@@ -1198,6 +1230,8 @@ export function productUiBridge(): ProductUiBridge {
       if (!tasks.ok) return tasks;
       const task = tasks.value.find((item) => item.taskId === taskId);
       if (!task) return failed(t("找不到要重试的任务。"));
+      if (task.kind === "focus_search")
+        return window.branchout.retryFocusSearch(taskId);
       if (task.kind === "forwarding") {
         const reply = await bridge.retryForwarding(taskId);
         return reply.ok ? { ok: true, value: taskId } : reply;
@@ -1272,7 +1306,7 @@ export function productUiBridge(): ProductUiBridge {
               label: "GitHub",
               status: "ready",
               enabled: true,
-              detail: t("公开仓库和受支持内容可直接读取。"),
+              detail: t("公开仓库 README · 直接读取"),
             },
             {
               id: "x",

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
   channels,
+  searchChannels,
   projectChannels,
   focusCardChannels,
   analysisChannels,
@@ -15,6 +16,15 @@ import {
 } from "../shared/ipc-contracts";
 
 const bridge: DesktopBridge = {
+  focusSearchReports: () => ipcRenderer.invoke(searchChannels.reports),
+  startFocusSearch: (input) => ipcRenderer.invoke(searchChannels.start, input),
+  retryFocusSearch: (taskId) =>
+    ipcRenderer.invoke(searchChannels.retry, taskId),
+  cancelFocusSearch: (taskId) =>
+    ipcRenderer.invoke(searchChannels.cancel, taskId),
+  addSearchCandidates: (input) => ipcRenderer.invoke(searchChannels.add, input),
+  openSearchCandidate: (input) =>
+    ipcRenderer.invoke(searchChannels.open, input),
   preferences: () => ipcRenderer.invoke("preferences:view"),
   saveLanguage: (language) => ipcRenderer.invoke("preferences:save", language),
   projects: () => ipcRenderer.invoke(projectChannels.view),

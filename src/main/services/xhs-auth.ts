@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -36,16 +36,6 @@ export class XhsAuth {
   }
   installed() {
     return existsSync(this.executable());
-  }
-  private async request(path: string, method = "GET") {
-    const connection = await this.connect();
-    const response = await fetch(`${connection.url}/api/v1/${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${connection.token}` },
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (!response.ok) throw new Error(`小红书服务返回 ${response.status}`);
-    return response.json() as Promise<unknown>;
   }
   async connect(): Promise<XhsSession> {
     if (this.connection && this.process?.exitCode === null)
@@ -111,42 +101,38 @@ export class XhsAuth {
     child.kill();
     throw new Error("小红书组件启动失败或超时");
   }
-  async status() {
-    if (!this.installed()) return { installed: false, signedIn: false };
-    if (!this.connection && !existsSync(join(this.dataDir, "cookies.json")))
-      return { installed: true, signedIn: false };
-    const raw = (await this.request("login/status")) as {
-      data?: { is_logged_in?: boolean };
-    };
-    return { installed: true, signedIn: raw.data?.is_logged_in === true };
-  }
-  async login() {
-    const raw = (await this.request("login/qrcode")) as {
-      success?: boolean;
-      data?: { img?: string; is_logged_in?: boolean };
-    };
-    if (raw.success === false || (!raw.data?.img && !raw.data?.is_logged_in))
-      throw new Error("登录二维码未能生成");
-    this.changed();
-    return {
-      signedIn: raw.data?.is_logged_in === true,
-      qr: raw.data?.img ?? "",
-    };
+  async importBrowserCookies(
+    cookies: {
+      name: string;
+      value: string;
+      domain: string;
+      path: string;
+      expires: number;
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: string;
+    }[],
+  ) {
+    const relevant = cookies.filter((c) =>
+      c.domain.includes("xiaohongshu.com"),
+    );
+    if (!relevant.length) return;
+    await mkdir(this.dataDir, { recursive: true, mode: 0o700 });
+    await writeFile(
+      join(this.dataDir, "cookies.json"),
+      JSON.stringify(
+        relevant.map((c) => ({
+          ...c,
+          expires: c.expires,
+        })),
+      ),
+      { mode: 0o600 },
+    );
   }
   async logout() {
-    const raw = (await this.request("login/cookies", "DELETE")) as {
-      success?: boolean;
-    };
-    if (raw.success === false) throw new Error("退出登录失败");
+    this.shutdown();
+    await rm(join(this.dataDir, "cookies.json"), { force: true });
     this.changed();
-  }
-  async session(): Promise<XhsSession | undefined> {
-    if (!this.installed()) return undefined;
-    try {
-      return (await this.status()).signedIn ? await this.connect() : undefined;
-    } catch {
-      return undefined;
-    }
   }
   shutdown() {
     this.process?.kill();

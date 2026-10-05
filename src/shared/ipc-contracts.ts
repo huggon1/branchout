@@ -1,3 +1,9 @@
+import type {
+  FocusSearchReport,
+  StartFocusSearch,
+  SearchSelection,
+  SearchAddition,
+} from "./focus-search-contracts";
 import type { Language } from "./language";
 import type { ProjectState } from "./project-contracts";
 import type {
@@ -27,6 +33,15 @@ import type {
   AnalysisPromptSettings,
   AnalysisPromptView,
 } from "./analysis-prompt-contracts";
+
+export const searchChannels = {
+  reports: "search:reports",
+  start: "search:start",
+  retry: "search:retry",
+  cancel: "search:cancel",
+  add: "search:add",
+  open: "search:open",
+} as const;
 
 export const projectChannels = {
   view: "project:view",
@@ -109,6 +124,14 @@ export const channels = {
 } as const;
 
 export interface DesktopBridge {
+  focusSearchReports(): Promise<ModelReply<FocusSearchReport[]>>;
+  startFocusSearch(input: StartFocusSearch): Promise<ModelReply<string>>;
+  retryFocusSearch(taskId: string): Promise<ModelReply<string>>;
+  cancelFocusSearch(taskId: string): Promise<ModelReply<void>>;
+  addSearchCandidates(
+    input: SearchSelection,
+  ): Promise<ModelReply<SearchAddition[]>>;
+  openSearchCandidate(input: SearchSelection): Promise<ModelReply<void>>;
   preferences(): Promise<{ language: Language }>;
   saveLanguage(language: Language): Promise<{ language: Language }>;
   projects(): Promise<ModelReply<ProjectState>>;
@@ -174,7 +197,7 @@ export interface DesktopBridge {
   loginX(): Promise<ModelReply<void>>;
   logoutX(): Promise<ModelReply<void>>;
   xhsStatus(): Promise<ModelReply<{ installed: boolean; signedIn: boolean }>>;
-  loginXhs(): Promise<ModelReply<{ signedIn: boolean; qr: string }>>;
+  loginXhs(): Promise<ModelReply<void>>;
   logoutXhs(): Promise<ModelReply<void>>;
   onChanged(listener: () => void): () => void;
 }

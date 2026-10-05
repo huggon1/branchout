@@ -1,3 +1,4 @@
+import { FocusSearchDialog } from "./FocusSearchDialog";
 import { dateTime } from "../i18n";
 import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
@@ -20,11 +21,13 @@ export function FocusCardsPage({
   initialFocusId,
   initialVersionId,
   busy,
+  onSearchStarted,
   onCreate,
   onEdit,
   onSetActive,
   onSetDeleted,
 }: {
+  onSearchStarted: (taskId: string) => void;
   projects: UiProject[];
   cards: UiFocusCard[];
   initialProjectId?: string;
@@ -37,6 +40,7 @@ export function FocusCardsPage({
   onSetActive: (card: UiFocusCard, active: boolean) => Promise<boolean>;
   onSetDeleted: (card: UiFocusCard, deleted: boolean) => Promise<boolean>;
 }) {
+  const [searching, setSearching] = useState(false);
   const [projectFilter, setProjectFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<{
@@ -71,7 +75,33 @@ export function FocusCardsPage({
   );
   return (
     <div className="focus-page focus-library">
+      {searching && (
+        <FocusSearchDialog
+          cards={cards}
+          projects={projects}
+          onClose={() => setSearching(false)}
+          onStarted={(taskId) => {
+            setSearching(false);
+            onSearchStarted(taskId);
+          }}
+        />
+      )}
       <div className="page-toolbar">
+        <button
+          className="button button-quiet"
+          disabled={
+            busy ||
+            !cards.some(
+              (c) =>
+                !c.deletedAt &&
+                c.current.active &&
+                activeProjects.some((p) => p.projectId === c.projectId),
+            )
+          }
+          onClick={() => setSearching(true)}
+        >
+          {t("搜索相关讨论")}
+        </button>
         <input
           aria-label={t("搜索关注卡")}
           placeholder={t("搜索关注角度…")}
@@ -116,7 +146,9 @@ export function FocusCardsPage({
             }
           >
             {projects.length
-              ? t("写下关心的场景、遇到的困难和期待，后续内容会与这些关注关联。")
+              ? t(
+                  "写下关心的场景、遇到的困难和期待，后续内容会与这些关注关联。",
+                )
               : t("先在项目页绑定一个仓库。")}
           </EmptyState>
         )}
@@ -301,7 +333,9 @@ export function FocusCardsPage({
               onChange={(e) =>
                 setEditor({ ...editor, content: e.target.value })
               }
-              placeholder={t("例如：用英语沟通时，翻译容易改变语气。希望表达自然准确，同时保留自己的意思和说话习惯。")}
+              placeholder={t(
+                "例如：用英语沟通时，翻译容易改变语气。希望表达自然准确，同时保留自己的意思和说话习惯。",
+              )}
               disabled={busy}
             />
             {error && (

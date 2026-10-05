@@ -24,3 +24,5 @@ The renderer reads saved snapshots through the controlled preload interface and 
 Page components compose business states; shared components handle reusable presentation and interaction.
 
 `design/Components.tsx` and `design/tokens-and-controls.css` provide the shared disclosure, button, and color system used by application pages.
+
+FocusSearchDialog prepares card, platform, and period selections. FocusSearchReportView renders saved platform replies and post actions inside Tasks. Signed-in platform settings use shared browser-session actions; GitHub remains in Public Sources.

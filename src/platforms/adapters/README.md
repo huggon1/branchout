@@ -5,7 +5,6 @@
 ## File layout
 
 - `github/`: public GitHub repository links.
-- `x/`: X posts.
 - `xhs/`: Xiaohongshu notes.
 
-Each platform exposes an adapter through its `index.ts`. Platform-specific clients and normalization stay in their directories; the parent module owns the shared result format.
+GitHub and Xiaohongshu expose adapters through their `index.ts`. X uses the shared browser reading path. Platform-specific clients and normalization stay in their directories; the parent module owns the shared result format.

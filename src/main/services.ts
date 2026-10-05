@@ -1,3 +1,14 @@
+import { PlatformAccess } from "./services/platform-access";
+import {
+  searchSelectionSchema,
+  type SearchSection,
+} from "../shared/focus-search-contracts";
+import { FocusSearchStore } from "./storage/focus-search-store";
+import { FocusSearchService } from "./services/focus-search/service";
+import { PlatformBrowser } from "./services/platform-browser";
+import { BrowserAgent } from "./services/browser-agent";
+import { searchChannels } from "../shared/ipc-contracts";
+import { z } from "zod";
 import { handle } from "./ipc";
 import type { Language } from "../shared/language";
 import { app, safeStorage, shell, utilityProcess } from "electron";
@@ -47,7 +58,6 @@ import {
 import { AuthCleanup } from "./storage/auth-cleanup";
 import { checkModel, readPiCatalog } from "./services/model-worker-client";
 
-import { XAuth } from "./services/x-auth";
 import { XhsAuth } from "./services/xhs-auth";
 import { resolveRuntimeLayout } from "./services/runtime-layout";
 
@@ -69,7 +79,6 @@ export async function initializeServices(
   let analysisPromptSettings: AnalysisPromptSettingsService | undefined;
   let tasks: TaskService | undefined;
   let taskView: UnifiedTaskService | undefined;
-  let xAuth: XAuth | undefined;
   let xhsAuth: XhsAuth | undefined;
   const preferences = new Preferences(app.getPath("userData"));
   await preferences.open();
@@ -140,12 +149,24 @@ export async function initializeServices(
   stage("model_connection");
   await models.open();
 
-  xAuth = new XAuth(changed);
   xhsAuth = new XhsAuth(
     join(app.getPath("userData"), "xiaohongshu"),
     runtimeLayout.runtimeRoot,
     changed,
   );
+
+  const browser = new PlatformBrowser(
+    join(app.getPath("userData"), "platform-browser"),
+    changed,
+    xhsAuth,
+  );
+  const browserAgent = new BrowserAgent(
+    browser,
+    join(__dirname, "../worker/jobs/browser/worker-entry.mjs"),
+    join(app.getPath("userData"), "browser-traces"),
+  );
+
+  const platformAccess = new PlatformAccess(browserAgent, xhsAuth);
 
   const projectStore = new ProjectStore(
     join(app.getPath("userData"), "projects.json"),
@@ -245,12 +266,77 @@ export async function initializeServices(
       const local = readLocalIntegrationSecret(value);
       return local ?? decryptLegacyIntegration(value);
     },
-    xCredentials: () => xAuth!.credentials(),
-    xhsSession: () => xhsAuth!.connect(),
+    ...(profileMode === "test"
+      ? {}
+      : {
+          readSource: (
+            taskId,
+            url,
+            config,
+            signal,
+            accessToken,
+            refreshCredential,
+          ) =>
+            platformAccess.read(
+              taskId,
+              url,
+              config,
+              signal,
+              accessToken,
+              refreshCredential,
+            ),
+        }),
+    xhsSession: profileMode === "test" ? undefined : () => xhsAuth!.connect(),
   });
   stage("forwarding_recovery");
   await forwarding.recover();
   taskView = new UnifiedTaskService(tasks, forwarding);
+
+  const searchStore = new FocusSearchStore(
+    join(app.getPath("userData"), "focus-search.json"),
+  );
+  await searchStore.open();
+  const search = new FocusSearchService(
+    searchStore,
+    focusCards,
+    tasks,
+    forwarding,
+    async () => {
+      if (profileMode === "test" && process.env.BRANCHOUT_TEST_ENDPOINT)
+        return {
+          execute: async (section: SearchSection, signal: AbortSignal) => {
+            const response = await fetch(
+              `${process.env.BRANCHOUT_TEST_ENDPOINT}/search`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(section),
+                signal,
+              },
+            );
+            if (!response.ok) throw new Error("Fixture search failed");
+            return (await response.json()) as {
+              rawReply: string;
+              candidates: SearchSection["candidates"];
+            };
+          },
+          release: async () => {},
+        };
+      const lease = await models!.acquire();
+      return {
+        execute: (section: SearchSection, signal: AbortSignal) =>
+          platformAccess.search(
+            section,
+            lease.config,
+            signal,
+            lease.refreshCredential,
+          ),
+        release: () => lease.release(),
+      };
+    },
+    changed,
+  );
+  await search.recover();
 
   const telegramStore = new TelegramStore(
     join(app.getPath("userData"), "telegram.json"),
@@ -325,6 +411,50 @@ export async function initializeServices(
     changed();
     return { language: preferences.language };
   });
+  for (const channel of Object.values(searchChannels))
+    handle(channel, async (event, ...args: unknown[]) => {
+      if (
+        event.senderFrame !== event.sender.mainFrame ||
+        event.senderFrame?.url !== expected ||
+        args.length !== (channel === searchChannels.reports ? 0 : 1)
+      )
+        return { ok: false, message: "Invalid search request" };
+      try {
+        let value: unknown;
+        if (channel === searchChannels.reports) value = search.reports();
+        else if (channel === searchChannels.start)
+          value = await search.start(args[0]);
+        else if (channel === searchChannels.retry)
+          value = await search.retry(z.string().uuid().parse(args[0]));
+        else if (channel === searchChannels.cancel)
+          await search.cancel(z.string().uuid().parse(args[0]));
+        else {
+          const selection = searchSelectionSchema.parse(args[0]);
+          if (channel === searchChannels.add)
+            value = await search.add(
+              selection.reportId,
+              selection.candidateIds,
+            );
+          else {
+            const report = search
+              .reports()
+              .find((r) => r.reportId === selection.reportId);
+            const candidate = report?.sections
+              .flatMap((s) => s.candidates)
+              .find((c) => c.candidateId === selection.candidateIds[0]);
+            if (!candidate) throw new Error("Candidate unavailable");
+            await shell.openExternal(candidate.url);
+          }
+        }
+        return { ok: true, value };
+      } catch {
+        return {
+          ok: false,
+          message:
+            "Search action failed; check selected cards and platform access",
+        };
+      }
+    });
   stage("external_ipc");
   for (const channel of Object.values(xChannels))
     handle(channel, async (event, ...args: unknown[]) => {
@@ -337,9 +467,9 @@ export async function initializeServices(
         return { ok: false, message: "无效的请求" };
       try {
         if (channel === xChannels.status)
-          return { ok: true, value: await xAuth!.status() };
-        if (channel === xChannels.login) await xAuth!.login();
-        else await xAuth!.logout();
+          return { ok: true, value: await browser.status("x") };
+        if (channel === xChannels.login) await browser.login("x");
+        else await browser.logout("x");
         return { ok: true, value: undefined };
       } catch {
         return { ok: false, message: "X 登录状态操作未完成，请稍后重试" };
@@ -357,10 +487,12 @@ export async function initializeServices(
         return { ok: false, message: "无效的请求" };
       try {
         if (channel === xhsChannels.status)
-          return { ok: true, value: await xhsAuth!.status() };
-        if (channel === xhsChannels.login)
-          return { ok: true, value: await xhsAuth!.login() };
-        await xhsAuth!.logout();
+          return { ok: true, value: await browser.status("xiaohongshu") };
+        if (channel === xhsChannels.login) {
+          await browser.login("xiaohongshu");
+          return { ok: true, value: undefined };
+        }
+        await browser.logout("xiaohongshu");
         return { ok: true, value: undefined };
       } catch {
         return {
@@ -423,10 +555,12 @@ export async function initializeServices(
     shutdown: async () => {
       await Promise.all([
         forwarding?.shutdown(),
+        search.shutdown(),
         analysisPipeline?.shutdown(),
         telegram?.stop(),
       ]);
       await models?.close();
+      await browser.shutdown();
       xhsAuth?.shutdown();
     },
   };

@@ -240,7 +240,7 @@ export function SettingsPage({
         <div className="settings-section-heading">
           <div>
             <p className="eyebrow">{t("链接读取")}</p>
-            <h3 id="sources-title">{t("内容来源")}</h3>
+            <h3 id="sources-title">{t("公开来源")}</h3>
           </div>
         </div>
         <div className="source-capability-list">
@@ -262,6 +262,7 @@ export function SettingsPage({
               </article>
             )) ?? <p className="muted-copy">{t("正在读取来源配置…")}</p>}
         </div>
+        <h3>{t("需要登录的平台")}</h3>
         <XSettings />
       </section>
     </div>

@@ -4,7 +4,6 @@ import { promptExecution } from "../../prompt-execution";
 import { z } from "zod";
 import { sourceSchema } from "../../../shared/source-contracts";
 import {
-  xExecutionSessionSchema,
   xhsExecutionSessionSchema,
 } from "../../../shared/platform-contracts";
 import { executionSchema } from "../../../shared/model-contracts";
@@ -36,7 +35,6 @@ import {
 const runtimeCommandSchema = forwardingJobCommandSchema
   .extend({
     config: executionSchema,
-    xCredentials: xExecutionSessionSchema.optional(),
     xhsSession: xhsExecutionSessionSchema.optional(),
     xhsAccessToken: z.string().max(1000).optional(),
   })
@@ -323,10 +321,6 @@ export async function runForwardingJob(
     });
   } finally {
     command.config.credential = "";
-    if (command.xCredentials) {
-      command.xCredentials.authToken = "";
-      command.xCredentials.ct0 = "";
-    }
     if (command.xhsSession) command.xhsSession.token = "";
     if (command.xhsAccessToken) command.xhsAccessToken = "";
   }

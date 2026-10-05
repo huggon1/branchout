@@ -20,6 +20,9 @@ import { execFileSync } from "node:child_process";
 let server: Server, endpoint: string;
 let requests: string[];
 let unverified = false;
+let searchInputs: any[] = [];
+let failSearchOnce = true;
+let searchDelay = 0;
 let root: string,
   profile: string,
   repository: string,
@@ -50,15 +53,51 @@ test.beforeEach(async () => {
   let failed = false;
   requests = [];
   unverified = false;
+  searchInputs = [];
+  failSearchOnce = true;
+  searchDelay = 0;
   server = createServer(async (req, res) => {
     requests.push(req.url ?? "");
     let raw = "";
     for await (const chunk of req) raw += chunk;
     const input = JSON.parse(raw);
     let output: any;
+    if (req.url === "/search") {
+      searchInputs.push(input);
+      if (searchDelay)
+        await new Promise((resolve) => setTimeout(resolve, searchDelay));
+      if (input.platform === "x" && failSearchOnce) {
+        failSearchOnce = false;
+        res.writeHead(503);
+        res.end();
+        return;
+      }
+      output = {
+        rawReply:
+          input.platform === "x"
+            ? "Original Grok fixture reply about lost drafts"
+            : "点点虚构原始回复：重启后草稿丢失。",
+        candidates:
+          input.platform === "x"
+            ? []
+            : [
+                {
+                  candidateId: crypto.randomUUID(),
+                  postKey: "xiaohongshu:abcdef1234567890abcdef12",
+                  url: "https://www.xiaohongshu.com/explore/abcdef1234567890abcdef12?xsec_token=fictional",
+                  title: "重启后草稿丢失的讨论",
+                  description: "虚构搜索引用，等待正文解析",
+                },
+              ],
+      };
+    }
     if (req.url === "/source")
       output = {
-        platform: "github",
+        platform: input.url.includes("xiaohongshu")
+          ? "xiaohongshu"
+          : input.url.includes("x.com")
+            ? "x"
+            : "github",
         sourceUrl: input.url,
         sourceIdentity: "Fixture source",
         title: "Fixture source",
@@ -207,6 +246,58 @@ async function card(page: any) {
     .getByRole("button", { name: "关闭", exact: true })
     .click();
 }
+test("activation during startup restores the saved model before showing settings", async ({}, info) => {
+  const wrapper = join(root, "startup.mjs");
+  await writeFile(
+    wrapper,
+    `
+import fs from "node:fs/promises";
+import { app } from "electron";
+const read = fs.readFile;
+fs.readFile = async (path, ...args) => {
+  if (String(path).endsWith("model-connection.json"))
+    await new Promise(resolve => setTimeout(resolve, 1500));
+  return read(path, ...args);
+};
+app.whenReady().then(() => app.emit("activate"));
+await import(${JSON.stringify(resolve("dist/main/main.cjs"))});
+`,
+  );
+  application = await electron.launch({
+    args: [wrapper],
+    env: {
+      ...process.env,
+      BRANCHOUT_TEST_ENDPOINT: endpoint,
+      BRANCHOUT_RUN_MODE: "test",
+      BRANCHOUT_TEST_DATA: profile,
+      BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
+      BRANCHOUT_EVAL_DENY_KEYCHAIN: "1",
+      HOME: root,
+    },
+  });
+  const page = await application.firstWindow();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "设置", exact: true })
+    .click();
+  await expect(page.getByLabel("模型标识", { exact: true })).toHaveValue(
+    "fixture",
+    { timeout: 5000 },
+  );
+  await expect(page.getByText("无法读取模型连接", { exact: true })).toHaveCount(
+    0,
+  );
+  const artifact = info.outputPath("saved-model-after-startup.png");
+  await page.screenshot({ path: artifact });
+  await info.attach("saved-model-after-startup", {
+    path: artifact,
+    contentType: "image/png",
+  });
+  expect(
+    JSON.parse(await readFile(join(profile, "model-connection.json"), "utf8"))
+      .modelId,
+  ).toBe("fixture");
+});
 test("card persistence and bilingual switching preserve drafts and profile", async ({}, info) => {
   let page = await launch();
   await bind(page);
@@ -634,4 +725,179 @@ test("unverifiable model claims fail without saving partial reports", async ({},
     contentType: "application/json",
   });
   await page.screenshot({ path: info.outputPath("unverifiable.png") });
+});
+
+test("focus search preserves replies, retries failed sections, and adds one parsing task across restart", async ({}, info) => {
+  let page = await launch();
+  await bind(page);
+  await card(page);
+  const second = await page.evaluate(async () => {
+    const projects = await window.branchout.projects();
+    if (!projects.ok) throw new Error("fixture project missing");
+    return window.branchout.createFocusCard({
+      projectId: projects.value.projects[0].projectId,
+      content: "Keep notes portable between tools",
+    });
+  });
+  expect(second.ok).toBe(true);
+  await page.getByRole("button", { name: "搜索相关讨论", exact: true }).click();
+  await page.getByLabel("讨论时段", { exact: true }).selectOption("month");
+  await page.getByRole("button", { name: "开始搜索", exact: true }).click();
+  await expect(
+    page
+      .getByText("点点虚构原始回复：重启后草稿丢失。", { exact: true })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("部分搜索未完成，已收集的内容保留。", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "重试未完成部分", exact: true }),
+  ).toBeEnabled();
+  expect(searchInputs).toHaveLength(4);
+  expect(new Set(searchInputs.map((s) => s.focusId)).size).toBe(2);
+  expect(searchInputs.map((s) => s.focusId)).toEqual([
+    searchInputs[0].focusId,
+    searchInputs[1].focusId,
+    searchInputs[0].focusId,
+    searchInputs[1].focusId,
+  ]);
+  expect(searchInputs[0].prompt).toContain("past month");
+  expect(searchInputs[0].prompt).toContain("Keep drafts after restart");
+  expect(searchInputs.map((s) => s.promptLanguage)).toEqual([
+    "zh-CN",
+    "zh-CN",
+    "en",
+    "en",
+  ]);
+  await page
+    .getByRole("button", { name: "重试未完成部分", exact: true })
+    .click();
+  await expect.poll(() => searchInputs.length).toBe(5);
+  await expect(
+    page
+      .getByText("Original Grok fixture reply about lost drafts", {
+        exact: true,
+      })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("未收集到帖子链接", { exact: true }).first(),
+  ).toBeVisible();
+  expect(searchInputs).toHaveLength(5);
+  expect(searchInputs[4].platform).toBe("x");
+  const state = JSON.parse(
+    await readFile(join(profile, "focus-search.json"), "utf8"),
+  );
+  const report = state.reports.at(-1);
+  const candidate = report.sections[0].candidates[0];
+  const added = await page.evaluate(
+    async ({ reportId, candidateId }) =>
+      Promise.all([
+        window.branchout.addSearchCandidates({
+          reportId,
+          candidateIds: [candidateId],
+        }),
+        window.branchout.addSearchCandidates({
+          reportId,
+          candidateIds: [candidateId],
+        }),
+      ]),
+    { reportId: report.reportId, candidateId: candidate.candidateId },
+  );
+  expect(added[0].ok).toBe(true);
+  expect(added[1].ok).toBe(true);
+  expect((added[0] as any).value[0].taskId).toEqual(
+    (added[1] as any).value[0].taskId,
+  );
+  await expect(
+    page.getByRole("button", { name: "查看解析任务", exact: true }).first(),
+  ).toBeVisible();
+  await expect
+    .poll(async () => {
+      const forward = await page.evaluate(() =>
+        window.branchout.forwardingTasks(),
+      );
+      const task = (forward as any).value?.[0];
+      if (task?.state === "failed") {
+        const detail = await page.evaluate(
+          (id) => window.branchout.forwardingTask(id),
+          task.taskId,
+        );
+        throw new Error(JSON.stringify((detail as any).value.task));
+      }
+      return task?.state;
+    })
+    .toBe("completed");
+  await page.screenshot({ path: info.outputPath("search-report.png") });
+  await page.locator(".search-candidate").first().scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath("search-post-actions.png") });
+  await info.attach("search-post-actions", {
+    path: info.outputPath("search-post-actions.png"),
+    contentType: "image/png",
+  });
+  await info.attach("search-report", {
+    path: info.outputPath("search-report.png"),
+    contentType: "image/png",
+  });
+  const taskId = report.taskId;
+  await application.close();
+  page = await launch();
+  const restored = await page.evaluate(() =>
+    window.branchout.focusSearchReports(),
+  );
+  expect(restored.ok).toBe(true);
+  const restoredReport = (restored as any).value.find(
+    (r: any) => r.taskId === taskId,
+  );
+  expect(restoredReport.sections[0].rawReply).toBe(
+    "点点虚构原始回复：重启后草稿丢失。",
+  );
+  expect(restoredReport.submissions).toHaveLength(1);
+  const forward = await page.evaluate(() => window.branchout.forwardingTasks());
+  expect((forward as any).value).toHaveLength(1);
+  await info.attach("saved-search-state", {
+    body: JSON.stringify(restoredReport, null, 2),
+    contentType: "application/json",
+  });
+});
+
+test("cancelled focus search retains a retryable report and finishes after restart", async () => {
+  let page = await launch();
+  await bind(page);
+  await card(page);
+  searchDelay = 2000;
+  await page.getByRole("button", { name: "搜索相关讨论", exact: true }).click();
+  await page.getByRole("button", { name: "开始搜索", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "取消任务", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "取消任务", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const state = JSON.parse(
+        await readFile(join(profile, "focus-search.json"), "utf8"),
+      );
+      return state.reports[0].sections.every((s: any) => s.state === "failed");
+    })
+    .toBe(true);
+  await application.close();
+  searchDelay = 0;
+  failSearchOnce = false;
+  page = await launch();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "任务", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "重试未完成部分", exact: true })
+    .click();
+  await expect(
+    page.getByText("Original Grok fixture reply about lost drafts", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("点点虚构原始回复：重启后草稿丢失。", { exact: true }),
+  ).toBeVisible();
 });

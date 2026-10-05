@@ -1,3 +1,4 @@
+import { FocusSearchReportView } from "./FocusSearchReportView";
 import { dateTime } from "../i18n";
 import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
@@ -31,8 +32,10 @@ export function TasksPage({
   onCancel,
   onRetry,
   onOpenResult,
+  onOpenTask,
   onExportTrace,
 }: {
+  onOpenTask: (taskId: string) => void;
   tasks: UiTask[];
   reports: UiAnalysisReport[];
   projects: UiProject[];
@@ -146,7 +149,9 @@ export function TasksPage({
                   <p className="eyebrow">
                     {selected.kind === "forwarding"
                       ? t("转发处理")
-                      : t("项目分析")}{" "}
+                      : selected.kind === "focus_search"
+                        ? t("关注卡搜索")
+                        : t("项目分析")}{" "}
                     · {t(stateLabel[selected.status])}
                   </p>
                   <h3 id="task-detail-title">{selected.label}</h3>
@@ -185,6 +190,14 @@ export function TasksPage({
                   )}
                 </div>
               )}
+              {selected.kind === "focus_search" && (
+                <FocusSearchReportView
+                  key={`search-${selected.taskId}`}
+                  taskId={selected.taskId}
+                  onOpenTask={onOpenTask}
+                  onRetry={() => void onRetry(selected.taskId)}
+                />
+              )}
               {reports
                 .filter(
                   (report) => report.analysisReportId === selected.resultId,
@@ -205,10 +218,10 @@ export function TasksPage({
                     onOpenFocus={onOpenFocus}
                   />
                 ))}
-              {selected.kind === "forwarding" && (
+              {selected.kind !== "project_analysis" && (
                 <Disclosure
                   className="task-activity"
-                  key={selected.taskId}
+                  key={`activity-${selected.taskId}`}
                   title={t("运行过程")}
                   count={tf("{0} 条记录", selected.activities.length)}
                 >

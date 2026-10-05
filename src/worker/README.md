@@ -23,3 +23,5 @@ Each reader reports actual scope and failure locations. Task stages send readabl
 ## Project analysis writing
 
 `jobs/project-analysis/prompts.ts` owns report instructions, card instructions, and the output example. `summary` carries one Markdown body; findings retain numbered supporting evidence. The runtime offers read-only local document-link inspection alongside file exploration. Protocol version and actual fixed instructions identify each execution. Settings guidance is frozen per run.
+
+`jobs/browser/worker-entry.ts` runs an isolated Pi session with browser tools supplied over its parent port. Application prompts define platform reading and AI search. The main process owns Chrome profiles and validates captured results.
