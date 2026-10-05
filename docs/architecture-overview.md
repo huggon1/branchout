@@ -44,7 +44,7 @@ Dedicated readers inspect repository identity and parse selected Codex sessions.
 
 The startup layer resolves one runtime profile before creating services. It supplies that profile to persistence, authentication, browser sessions, logging, workers, and instance locking. Separate profiles can run concurrently; a second writer to the same profile reports its existing owner. Review-mode integration policy controls background ingestion and scheduling. The [development guide](development.md) describes current development commands.
 
-Application bootstrap owns lifecycle and startup ordering. Service assembly owns dependency wiring. Jobs own task sequencing and output validation. Model and platform adapters own external access. Automated verification replaces those external boundaries while retaining downstream application behavior.
+Application bootstrap owns lifecycle and startup ordering. It opens the main window after service initialization and IPC registration; activation during startup uses the same readiness boundary. Service assembly owns dependency wiring. Jobs own task sequencing and output validation. Model and platform adapters own external access. Automated verification replaces those external boundaries while retaining downstream application behavior.
 
 Each job owns its fixed English instructions, prompt builder, and output protocol. Shared prompt helpers own language selection and common data-boundary rules. Builders accept typed task inputs, supplemental guidance, and frozen language settings; they return model request content and revision metadata. Task sequencing and persistence remain with the job and main-process services.
 
@@ -66,3 +66,9 @@ The [data contracts](data-contracts.md) define cross-module fields.
 ## Renderer composition
 
 The shell owns navigation and one module heading. Projects owns binding and preflight; Tasks composes the shared AnalysisReportView and owns suggestion review. Content uses a persistent index and reader with source-snapshot dialogs. Focus Cards uses project-grouped rows and version-aware editing, deletion, and restore commands. Primitives and semantic stylesheet tokens provide shared presentation. The [design contract](../design.md) defines geometry, hierarchy, responsive states, and acceptance requirements.
+
+## Platform browser and focus search
+
+A shared Chrome browser service owns an isolated persistent profile per signed-in platform and a public GitHub profile. Browser operations expose page snapshots and bounded navigation, click, fill, and key actions to the Agent. Platform guides supply AI entry points and reading workflows. Source pages are data; the browser service confines navigation to the selected platform and protects login credentials. Xiaohongshu's note reader remains an optional enhancement using browser-session cookies; its failure falls back to browser reading.
+
+Focus-search orchestration saves frozen inputs and per-card/platform results in its own main-process store, while TaskService owns unified status and activity. Search result extraction verifies candidate URLs against captured browser links. A persisted candidate-to-forwarding-task association supports repeated submission and restart recovery. Browser workers use task-scoped parent-port requests; browser profiles remain in application data across rebuilds.

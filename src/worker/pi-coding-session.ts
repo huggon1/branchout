@@ -111,6 +111,7 @@ export interface PiCodingSessionOptions {
   maxTokens?: number;
   codexTokenProvider?: CodexTokenProvider;
   conversationFile?: string;
+  browserTools?: NonNullable<CreateAgentSessionOptions["customTools"]>;
 }
 
 export interface PiCodingSessionHandle {
@@ -322,14 +323,18 @@ export async function createPiCodingSession(
     sessionManager,
     settingsManager,
     resourceLoader,
-    tools: ["read", "grep", "find", "ls", "check_document_links"],
-    customTools: [
-      readTool,
-      grepTool,
-      findTool,
-      lsTool,
-      documentLinksTool,
-    ] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>,
+    tools: options.browserTools
+      ? options.browserTools.map((tool) => tool.name)
+      : ["read", "grep", "find", "ls", "check_document_links"],
+    customTools:
+      options.browserTools ??
+      ([
+        readTool,
+        grepTool,
+        findTool,
+        lsTool,
+        documentLinksTool,
+      ] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>),
   });
   return {
     session,

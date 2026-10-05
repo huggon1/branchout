@@ -21,6 +21,7 @@ export function useLanguage() {
   );
 }
 const dynamicLabels: Array<[RegExp, string]> = [
+  [/^正在搜索 (X|小红书) 的一张关注卡$/, "Searching $1 for one focus card"],
   [/^开始判断 (\d+) 张冻结关注卡$/, "Evaluating $1 frozen focus cards"],
   [/^已判断 (\d+)\/(\d+) 张关注卡$/, "Evaluated $1/$2 focus cards"],
   [

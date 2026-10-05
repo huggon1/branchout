@@ -21,3 +21,5 @@ One service owns project identity. Card editing, status changes, and suggestion 
 - `storage/`: atomic persistence for projects, card versions, reports, tasks, and integration cursors.
 
 The main process passes approved task input and model configuration to workers. The renderer reads controlled results and redacted state.
+
+PlatformBrowser owns persistent Chrome profiles and constrained page actions. BrowserAgent bridges task-scoped worker tools to those pages. PlatformAccess validates captured replies, post citations, and source snapshots, with Xiaohongshu note enhancement. FocusSearchService saves search reports and candidate submissions alongside unified tasks.

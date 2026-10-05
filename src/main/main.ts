@@ -48,6 +48,7 @@ if (!locked) {
   };
 
   const open = () => {
+    if (!servicesReady) return;
     const existing =
       mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
     if (existing) {

@@ -8,10 +8,7 @@ import {
   xhsShortUrlSchema,
   type SourceContent,
 } from "../../../shared/source-contracts";
-import type {
-  XCredentials,
-  XhsSession,
-} from "../../../shared/platform-contracts";
+import type { XhsSession } from "../../../shared/platform-contracts";
 import type { ModelExecutionConfig } from "../../../shared/model-contracts";
 import type {
   ForwardingTaskSummary,
@@ -40,6 +37,7 @@ type Lease = {
   config: ModelExecutionConfig;
   generation?: number;
   release(): Promise<void>;
+  refreshCredential?(): Promise<string>;
 };
 
 export interface ForwardingWorkerHandle {
@@ -54,6 +52,14 @@ export interface ActiveFocusSnapshotProvider {
 }
 
 export interface ForwardingServiceDependencies {
+  readSource?: (
+    taskId: string,
+    url: string,
+    config: ModelExecutionConfig,
+    signal: AbortSignal,
+    accessToken?: string,
+    refreshCredential?: () => Promise<string>,
+  ) => Promise<SourceContent>;
   language?: () => Language;
   store: ForwardingStore;
   focusCards: ActiveFocusSnapshotProvider;
@@ -62,7 +68,6 @@ export interface ForwardingServiceDependencies {
   changed(): void;
   protectSensitive(value: string): Promise<string>;
   revealSensitive(value: string): Promise<string>;
-  xCredentials?(): Promise<XCredentials | undefined>;
   xhsSession?(): Promise<XhsSession | undefined>;
 }
 
@@ -76,6 +81,7 @@ export interface ForwardingTelegramSubmission {
 }
 
 interface ActiveEntry {
+  controller?: AbortController;
   worker?: ForwardingWorkerHandle;
   timer?: NodeJS.Timeout;
   lease?: Lease;
@@ -196,11 +202,24 @@ export class ForwardingPipelineService {
     this.schedulePump();
   }
 
-  async submit(rawUrl: string) {
+  async submit(
+    rawUrl: string,
+    identity?: { taskId: string; resultId: string },
+  ) {
+    if (identity) {
+      const existing = this.dependencies.store
+        .snapshot()
+        .tasks.find((t) => t.taskId === identity.taskId);
+      if (existing) {
+        if (existing.resultId !== identity.resultId)
+          throw new Error("Forwarding identity conflict");
+        return existing.taskId;
+      }
+    }
     const normalized = await normalizeInput(rawUrl);
     return this.enqueue({
-      taskId: randomUUID(),
-      resultId: randomUUID(),
+      taskId: identity?.taskId ?? randomUUID(),
+      resultId: identity?.resultId ?? randomUUID(),
       ...normalized,
       entry: "app",
     });
@@ -349,6 +368,7 @@ export class ForwardingPipelineService {
     if (entry) {
       this.active.delete(taskId);
       clearTimeout(entry.timer);
+      entry.controller?.abort();
       entry.worker?.kill();
     }
     let changed = false;
@@ -454,6 +474,7 @@ export class ForwardingPipelineService {
 
   private async prepare(taskId: string, entry: ActiveEntry) {
     let stage: "source" | "understanding" | "relations" = "source";
+    let browserReading = false;
     try {
       entry.lease = await this.dependencies.acquire();
       const task = this.dependencies.store
@@ -489,6 +510,30 @@ export class ForwardingPipelineService {
                 : `开始判断 ${current.focusSet.cards.length} 张冻结关注卡`,
         });
       });
+      if (!task.source && this.dependencies.readSource) {
+        browserReading = true;
+        entry.controller = new AbortController();
+        const source = await this.dependencies.readSource(
+          taskId,
+          task.target.sourceUrl,
+          entry.lease.config,
+          entry.controller.signal,
+          task.xhsAccessTokenCiphertext
+            ? await this.dependencies.revealSensitive(
+                task.xhsAccessTokenCiphertext,
+              )
+            : undefined,
+          entry.lease.refreshCredential?.bind(entry.lease),
+        );
+        if (this.active.get(taskId) !== entry || this.closed) return;
+        await this.receive(taskId, {
+          type: "source",
+          taskId,
+          resultId: task.resultId,
+          source,
+        });
+        task.source = source;
+      }
       const worker = (entry.worker = this.dependencies.spawn());
       worker.on("message", (raw) => {
         entry.chain = entry.chain
@@ -537,12 +582,11 @@ export class ForwardingPipelineService {
           evaluations: task.evaluations,
         },
         config: entry.lease.config,
-        xCredentials: xPostUrlSchema.safeParse(task.target.sourceUrl).success
-          ? await this.dependencies.xCredentials?.()
-          : undefined,
-        xhsSession: xhsNoteUrlSchema.safeParse(task.target.sourceUrl).success
-          ? await this.dependencies.xhsSession?.()
-          : undefined,
+        xhsSession:
+          !task.source &&
+          xhsNoteUrlSchema.safeParse(task.target.sourceUrl).success
+            ? await this.dependencies.xhsSession?.()
+            : undefined,
         xhsAccessToken: task.xhsAccessTokenCiphertext
           ? await this.dependencies.revealSensitive(
               task.xhsAccessTokenCiphertext,
@@ -556,19 +600,21 @@ export class ForwardingPipelineService {
       worker.postMessage(command);
       command.config.credential = "";
       command.xhsAccessToken = "";
-      if (command.xCredentials) {
-        command.xCredentials.authToken = "";
-        command.xCredentials.ct0 = "";
-      }
       if (command.xhsSession) command.xhsSession.token = "";
       this.dependencies.changed();
     } catch {
       await this.failTask(
         taskId,
-        stage === "source" ? "understanding" : stage,
-        stage === "source"
-          ? "无法启动转发任务；请检查模型连接后重试"
-          : "转发任务未完成；已保存阶段可供重试",
+        browserReading
+          ? "source"
+          : stage === "source"
+            ? "understanding"
+            : stage,
+        browserReading
+          ? "来源读取未完成，请检查平台登录、浏览器或来源类型后重试"
+          : stage === "source"
+            ? "无法启动转发任务；请检查模型连接后重试"
+            : "转发任务未完成；已保存阶段可供重试",
       );
     }
   }
@@ -851,6 +897,7 @@ export class ForwardingPipelineService {
     if (this.active.get(taskId) !== entry) return;
     this.active.delete(taskId);
     clearTimeout(entry.timer);
+    entry.controller?.abort();
     if (kill) entry.worker?.kill();
     if (entry.lease) {
       const lease = entry.lease;
@@ -867,6 +914,7 @@ export class ForwardingPipelineService {
       active.map(async ([taskId, entry]) => {
         this.active.delete(taskId);
         clearTimeout(entry.timer);
+        entry.controller?.abort();
         entry.worker?.kill();
         await entry.preparing.catch(() => {});
         if (entry.lease) {

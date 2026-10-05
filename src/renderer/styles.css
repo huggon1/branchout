@@ -2704,4 +2704,82 @@ textarea {
   font-weight: 550;
 }
 
-html[lang="en"] .content-index .page-intro::before { content: "Recent content"; }
+html[lang="en"] .content-index .page-intro::before {
+  content: "Recent content";
+}
+
+/* Focus searches share the task reading axis. */
+.search-options {
+  border: 0;
+  margin: 16px 0;
+  padding: 0;
+}
+.search-options label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 12px 0;
+}
+.search-options label span {
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow: auto;
+}
+.search-batch-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--ds-line);
+}
+.search-platform-section {
+  margin-top: 32px;
+}
+.search-card-section {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--ds-line);
+}
+.search-card-section h3 {
+  margin: 8px 0 16px;
+}
+.search-candidate {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 0;
+}
+.search-candidate h4 {
+  margin: 0 0 6px;
+}
+.search-candidate p {
+  margin: 0 0 10px;
+}
+.search-candidate input {
+  margin-top: 4px;
+}
+.search-candidate .inline-actions {
+  margin-top: 12px;
+}
+
+.platform-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.platform-app-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ds-ink);
+  color: var(--ds-paper);
+}
+.platform-app-icon--xiaohongshu {
+  background: #ff2442;
+  font-size: 11px;
+  font-weight: 650;
+}

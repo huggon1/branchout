@@ -68,3 +68,11 @@ Settings contain one current model connection, Telegram access, and source reade
 Project analysis settings provide optional analysis-goal and focus-card-writing guidance. Filled fields enter the task message as user supplemental information. Each analysis run records the supplied guidance and its revision at launch. Evidence citation, JSON output, and source-as-data rules remain application controlled.
 
 Controlled local readers inspect repository identity and selected Codex conversations. Pi's read-only tools access the project directory and the task's conversation file. Telegram accepts messages from bound chats; its bot credential uses an owner-only local file. Reports, task activity, and UI state use redacted content and error summaries. Source content and work conversations are analysis data; application code controls execution instructions.
+
+## Manual focus search
+
+Users select available focus cards, Xiaohongshu and/or X, and a recent day, week, or month. A manual run searches each card independently through the platform AI. Xiaohongshu receives Chinese prompts; X receives English prompts. Free-form card text retains its project context and interest. Each request starts a separate platform conversation.
+
+The task report groups results by platform and card. Each result retains the original platform reply, extracted post titles, citation descriptions, source links, and failure state. The selected period is a fuzzy instruction to the platform AI. Available publication dates appear with their evidence. A completed search may yield zero links. Successful sections remain readable when another section fails. Retrying searches failed or interrupted sections with the saved inputs.
+
+Users open original posts or submit selected candidates to content parsing. Submission creates independent content tasks; the search report retains their identities. Repeated addition of the same platform post within a report returns its existing content task. Reports preserve the launch-time card text, platform selection, period, prompt, and prompt language.

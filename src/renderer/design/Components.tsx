@@ -26,16 +26,18 @@ export function DesignButton({
 }
 export function Disclosure({
   title,
+  defaultOpen = false,
   count,
   children,
   className = "",
 }: {
+  defaultOpen?: boolean;
   title: ReactNode;
   count?: string;
   className?: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const id = useId();
   return (
     <section className={`ds-disclosure ${className}`}>

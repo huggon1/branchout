@@ -279,6 +279,12 @@ export function App() {
             hidden={page !== "关注卡"}
           >
             <FocusCardsPage
+              onSearchStarted={(taskId) => {
+                setSelectedTaskId(taskId);
+                setTaskRequestId((value) => value + 1);
+                setPage("任务");
+                void refresh();
+              }}
               projects={projects}
               cards={projectsState?.focusCards ?? []}
               initialProjectId={focusTarget?.projectId}
@@ -377,6 +383,11 @@ export function App() {
             hidden={page !== "任务"}
           >
             <TasksPage
+              onOpenTask={(taskId) => {
+                const task = tasks.find((t) => t.taskId === taskId);
+                if (task) openTaskResult(task);
+                else setError(t("任务尚未刷新，请稍后重试"));
+              }}
               reports={reports}
               projects={projects}
               onAcceptSuggestion={acceptSuggestion}

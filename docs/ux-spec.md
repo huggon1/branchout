@@ -55,3 +55,9 @@ Model settings show one current connection, selected from general API and Codex 
 Project analysis settings show optional report-emphasis and focus-card-writing guidance in separate text fields. Report guidance adjusts emphasis, detail, and wording; card guidance accepts concerns and examples. Saving applies filled fields to later runs. Clear Supplemental Information empties both fields. The page shows field errors and whether edits remain unsaved.
 
 Empty projects, empty cards, zero connections, empty reports, missing model configuration, source failures, and insufficient analysis input each show a distinct state and next action. Narrow windows preserve the reading axis and primary actions; activities and connections scroll within their sections.
+
+## Focus search and platform sessions
+
+Focus Cards exposes Search Discussions. Its preparation dialog selects cards, Xiaohongshu and X, and a day, week, or month. Launch opens the search task in Tasks. The reader groups platform sections and card results, with the original AI reply followed by selectable candidate posts. Each candidate offers Open Original and Add to Parsing; added candidates link to their parsing task. A batch action submits selected candidates and displays individual failures. Empty and failed sections state their outcomes and offer retry for failed sections.
+
+Settings groups GitHub under Public Sources and Xiaohongshu and X under Signed-in Platforms. GitHub describes public README parsing. Signed-in platform rows show the app icon, platform name, and session status. Expanded connection controls show browser availability and login and logout actions. Platform login opens the persistent browser profile used for both search and content reading. Verification or expired sessions pause access for user handling.
