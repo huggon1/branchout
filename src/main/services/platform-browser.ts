@@ -1,10 +1,10 @@
-import { chromium, type BrowserContext, type Page } from "playwright-core";
-import { existsSync } from "node:fs";
+import { type BrowserContext, type Page } from "playwright-core";
 import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import type { Platform } from "../../platforms/types";
 import type { XhsAuth } from "./xhs-auth";
+import { ChromeProfiles, chromeExecutable } from "./chrome-profiles";
 const operationSchema = z
   .object({
     action: z.enum([
@@ -31,6 +31,9 @@ export class PlatformBrowser {
   private contexts = new Map<Platform, Promise<BrowserContext>>();
   private statusCache = new Map<Platform, string>();
   private locked = new Map<Platform, Promise<unknown>>();
+  private chrome = new ChromeProfiles();
+  private taskPages = new WeakSet<Page>();
+  private loginPages = new Map<Platform, Page>();
   constructor(
     private root: string,
     private changed: () => void,
@@ -43,32 +46,26 @@ export class PlatformBrowser {
       existing = (async () => {
         const dir = join(this.root, platform);
         await mkdir(dir, { recursive: true, mode: 0o700 });
-        const context = await chromium.launchPersistentContext(dir, {
-          channel: "chrome",
-          headless: this.options.headless ?? false,
-          viewport: null,
-          acceptDownloads: false,
-        });
+        const browser = await this.chrome.connect(dir, this.options.headless);
+        const context = browser.contexts()[0];
+        if (!context) {
+          await browser.close();
+          throw new Error("Platform browser context unavailable");
+        }
         context.setDefaultTimeout(12000);
-        context.on("close", () => {
-          this.contexts.delete(platform);
+        browser.on("disconnected", () => {
+          if (this.contexts.get(platform) === existing)
+            this.contexts.delete(platform);
+          this.loginPages.delete(platform);
           this.changed();
         });
-        // Platform pages stay in their isolated profile. External resources may load;
-        // navigation outside the platform is rejected at the page boundary.
-        await context.route("**/*", async (route) => {
-          if (
-            route.request().isNavigationRequest() &&
-            !this.allowed(platform, route.request().url())
-          )
-            await route.abort();
-          else await route.continue();
-        });
-        context.on("page", (page) =>
-          page.on("download", (download) => void download.cancel()),
+        const timer = setInterval(
+          () => void this.saveStatus(platform, context).catch(() => {}),
+          3000,
         );
-        for (const page of context.pages())
-          page.on("download", (download) => void download.cancel());
+        timer.unref();
+        browser.once("disconnected", () => clearInterval(timer));
+        await this.saveStatus(platform, context);
         return context;
       })();
       this.contexts.set(platform, existing);
@@ -95,8 +92,11 @@ export class PlatformBrowser {
     // Query existing profiles without launching a browser just to paint settings.
     let cookies: any[] = [];
     const running = this.contexts.get(platform);
-    if (running) cookies = await (await running).cookies();
-    else {
+    if (running) {
+      try {
+        cookies = await (await running).cookies();
+      } catch {}
+    } else {
       try {
         const { readFile } = await import("node:fs/promises");
         cookies = JSON.parse(
@@ -116,11 +116,7 @@ export class PlatformBrowser {
             (c.expires === -1 || c.expires > Date.now() / 1000),
         ),
       ),
-      installed:
-        process.platform !== "darwin" ||
-        existsSync(
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        ),
+      installed: !!chromeExecutable(),
     };
   }
   private async saveStatus(platform: Platform, context: BrowserContext) {
@@ -134,9 +130,16 @@ export class PlatformBrowser {
     );
     if (platform === "xiaohongshu" && this.xhs?.installed())
       await this.xhs.importBrowserCookies(cookies);
-    const status = JSON.stringify(
-      await this.status(platform as "x" | "xiaohongshu"),
-    );
+    const names = platform === "x" ? ["auth_token", "ct0"] : ["web_session"];
+    const status = JSON.stringify({
+      signedIn: names.every((name) =>
+        cookies.some(
+          (c) =>
+            c.name === name &&
+            (c.expires === -1 || c.expires > Date.now() / 1000),
+        ),
+      ),
+    });
     if (this.statusCache.get(platform) !== status) {
       this.statusCache.set(platform, status);
       this.changed();
@@ -144,35 +147,30 @@ export class PlatformBrowser {
   }
   async login(platform: "x" | "xiaohongshu") {
     const context = await this.context(platform);
-    const existing = context
-      .pages()
-      .find((p) =>
-        p.url().includes(platform === "x" ? "/flow/login" : "/explore"),
-      );
-    if (existing) {
+    const existing = this.loginPages.get(platform);
+    if (existing && !existing.isClosed()) {
       await existing.bringToFront();
       return;
     }
     const page = await context.newPage();
+    this.loginPages.set(platform, page);
     await page.goto(
       platform === "x"
         ? "https://x.com/i/flow/login"
         : "https://www.xiaohongshu.com/explore",
+      { waitUntil: "domcontentloaded" },
     );
     await page.bringToFront();
-    const timer = setInterval(
-      () => void this.saveStatus(platform, context).catch(() => {}),
-      3000,
-    );
     page.on("close", () => {
-      clearInterval(timer);
+      if (this.loginPages.get(platform) === page)
+        this.loginPages.delete(platform);
       void this.saveStatus(platform, context).catch(() => {});
     });
-    context.once("close", () => clearInterval(timer));
   }
   async logout(platform: "x" | "xiaohongshu") {
     const context = await this.context(platform);
     await context.clearCookies();
+    await this.chrome.clearPreviousSession(join(this.root, platform));
     for (const page of context.pages()) await page.close();
     await this.saveStatus(platform, context);
     if (platform === "xiaohongshu") await this.xhs?.logout();
@@ -192,6 +190,8 @@ export class PlatformBrowser {
         const abort = () => void page.close();
         signal.addEventListener("abort", abort, { once: true });
         try {
+          if (signal.aborted) throw new Error("Cancelled");
+          await this.guardTaskPage(platform, page);
           return await run(page);
         } finally {
           signal.removeEventListener("abort", abort);
@@ -202,6 +202,31 @@ export class PlatformBrowser {
     this.locked.set(platform, job);
     return job;
   }
+  private async guardTaskPage(platform: Platform, page: Page) {
+    if (this.taskPages.has(page)) return;
+    this.taskPages.add(page);
+    await page.route("**/*", async (route) => {
+      if (
+        route.request().isNavigationRequest() &&
+        !this.allowed(platform, route.request().url())
+      )
+        await route.abort();
+      else await route.fallback();
+    });
+    page.on("download", (download) => void download.cancel());
+    page.on("popup", (popup) => {
+      const check = () => {
+        if (
+          popup.url() !== "about:blank" &&
+          !this.allowed(platform, popup.url())
+        )
+          void popup.close().catch(() => {});
+      };
+      check();
+      popup.on("framenavigated", check);
+      void this.guardTaskPage(platform, popup).catch(() => {});
+    });
+  }
   async operation(
     platform: Platform,
     page: Page,
@@ -209,6 +234,13 @@ export class PlatformBrowser {
     purpose: "search" | "read" = "search",
   ) {
     const op = operationSchema.parse(raw);
+    await this.guardTaskPage(platform, page);
+    if (
+      op.action !== "navigate" &&
+      page.url() !== "about:blank" &&
+      !this.allowed(platform, page.url())
+    )
+      throw new Error("Page is outside the selected platform");
     if (op.action === "press") {
       const keys: Record<string, string> = {
         enter: "Enter",
@@ -248,7 +280,12 @@ export class PlatformBrowser {
         )
       )
         throw new Error("This action changes platform content");
-      if (op.action === "click") await target.click();
+      if (op.action === "click") {
+        const href = await target.getAttribute("href");
+        if (href && !this.allowed(platform, new URL(href, page.url()).href))
+          throw new Error("Navigation is outside the selected platform");
+        await target.click();
+      }
       if (
         (op.action === "fill" ||
           (op.action === "press" && op.value === "Enter")) &&
@@ -410,9 +447,15 @@ export class PlatformBrowser {
   }
   async shutdown() {
     await Promise.all(
-      [...this.contexts.values()].map(async (p) =>
-        (await p).close().catch(() => {}),
-      ),
+      [...this.contexts.entries()].map(async ([platform, pending]) => {
+        try {
+          const context = await pending;
+          await this.saveStatus(platform, context).catch(() => {});
+          await context.browser()?.close();
+        } catch {}
+      }),
     );
+    await this.chrome.shutdown();
+    this.contexts.clear();
   }
 }

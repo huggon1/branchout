@@ -55,6 +55,8 @@ The [npm scripts](../package.json) are the command authority. The [Playwright co
 
 ## Evidence and CI
 
+[Platform-session E2E](e2e/platform-session.spec.ts) exercises installed Chrome with separate temporary profiles and a local authentication fixture. It verifies ordinary startup, manual authentication navigation, task navigation boundaries, reconnect and restart persistence, isolated logout, and preservation of another browser. Its JSON attachment and screenshot record fictional session evidence. Real platform login and Grok availability use the separate live acceptance workflow.
+
 | Evidence | Producer and interpretation |
 | --- | --- |
 | `test-results/` | [Playwright configuration](../playwright.config.ts) stores scenario output, failure screenshots, and retained failure traces; scenario code saves the named artifacts listed above |

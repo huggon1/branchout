@@ -69,6 +69,20 @@ The shell owns navigation and one module heading. Projects owns binding and pref
 
 ## Platform browser and focus search
 
-A shared Chrome browser service owns an isolated persistent profile per signed-in platform and a public GitHub profile. Browser operations expose page snapshots and bounded navigation, click, fill, and key actions to the Agent. Platform guides supply AI entry points and reading workflows. Source pages are data; the browser service confines navigation to the selected platform and protects login credentials. Xiaohongshu's note reader remains an optional enhancement using browser-session cookies; its failure falls back to browser reading.
+A shared Chrome browser service resolves each browser profile as `<application-data>/platform-browser/<platform-id>`. Each signed-in platform has one persistent account session; public browser access has a separate platform profile. Search and content reading share their platform session. Profiles initialize when a connection or browser task requests access.
+
+| Layer | Responsibility |
+| --- | --- |
+| ChromeProfiles | Start installed Chrome, attach through the profile's loopback CDP endpoint, and track process ownership |
+| PlatformBrowser | Resolve platform profiles, maintain login state, present human login pages, serialize browser tasks per platform, and enforce task-page boundaries |
+| BrowserAgent | Run task-scoped browser tools and retain observed inputs, links, and captures |
+| PlatformAccess | Select retrieval strategies and validate source snapshots and AI-search results |
+| Platform adaptation | Define platform identity, allowed domains, source URL contracts, AI entry points, search language, and workflow guidance |
+
+ChromeProfiles preserves Chrome's native settings. Reconnection uses the selected profile's endpoint. Shutdown stops processes launched by the current service and disconnects from browsers already running when attached.
+
+Human login pages allow authentication-provider redirects. The service saves redacted session status and synchronizes Xiaohongshu cookies with its optional note reader. Browser operations expose page snapshots and bounded navigation, click, fill, and key actions to the Agent. Task-page navigation requests and clicked links are checked against the selected platform; task popups close when they reach another platform. Request interception belongs to task pages, keeping login pages and browser extension workers on their normal path. Platform guides supply AI entry points and reading workflows. Source pages are data; credentials stay inside the platform profile and its authorized reader. Xiaohongshu enhancement failure falls back to browser reading.
+
+Platform integration extends the shared access pipeline with identity, URL validation, domain boundaries, supported capabilities, and browser guidance. Capability contracts determine which platforms appear in content submission, search selection, and connection settings. The implementation maintains these definitions in typed source modules. A specialized reader plugs into PlatformAccess retrieval selection and returns the shared source contract; browser reading remains the fallback. X and Xiaohongshu AI search both use BrowserAgent with their platform guide. Xiaohongshu's specialized adapter supplies note reading.
 
 Focus-search orchestration saves frozen inputs and per-card/platform results in its own main-process store, while TaskService owns unified status and activity. Search result extraction verifies candidate URLs against captured browser links. A persisted candidate-to-forwarding-task association supports repeated submission and restart recovery. Browser workers use task-scoped parent-port requests; browser profiles remain in application data across rebuilds.
