@@ -62,6 +62,10 @@ Profile preparation accepts empty data, an existing development profile, or an e
 
 Copies include business records by default. Credentials and authentication require explicit selection of supported data groups. Private profiles reside in owner-only local storage; automated test artifacts use fictional data and redacted diagnostics.
 
+Platform Chrome profiles resolve by application data directory and platform identity, retaining one account session per platform across browser and application restarts. Search and source reading use the same session. Explicit platform sign-out clears that platform's cookies and compatibility backup. Redacted status files contain cookie names and expiry metadata. Cookie values remain within the platform profile and the authorized Xiaohongshu reader.
+
+Profile initialization supports native Chrome profiles and mock-keychain profiles. A mock-keychain profile carries saved session metadata and an absent native-initialization marker. Initialization reads its cookies with the compatible launcher, saves an owner-only JSON recovery backup containing cookie values, imports them into native Chrome, and records the marker. The backup uses filesystem permissions for protection. A native-initialized profile uses its active Chrome session on subsequent starts.
+
 `BuildIdentity` records source revision, dirty state, application version, platform, and build time. Packaged builds additionally record an artifact checksum. Installed data directories remain independent of checkout paths.
 
 `PromptExecution` records task and attempt identity, prompt revision, supplemental-guidance revision, output language (`zh-CN` or `en`), model identity, and build identity. Prompt revision derives from fixed instructions, builder version, and output protocol. Main-process task input freezes output language and supplied guidance; attempts record the builder and model actually used. Historical reports retain their execution metadata and generated text. Saved input reuse follows the owning retry flow; each attempt exposes its actual prompt revision.

@@ -13,6 +13,10 @@ The isolated Electron fixture uses fictional cards and local platform responses.
 | Add a candidate twice or in parallel | Both actions reference one forwarding task |
 | Batch addition partly fails | Each candidate shows its own result; successful additions remain associated |
 | Restart after addition | Saved reply, candidates, and parsing task references are restored |
+| Open both platforms with an independent browser already running | Each platform uses its own ordinary Chrome profile; the independent browser remains available |
+| A human login redirects to an authentication provider | The login page reaches the provider; task-page navigation remains confined to its platform |
+| Disconnect browser control and reconnect, then restart the service | Platform sessions remain available, and persisted status contains cookie names and expiry metadata |
+| Sign out of X | X becomes disconnected while the Xiaohongshu session remains available |
 | Activate the application while saved model data is loading | The window opens with the restored model connection after services are ready |
 | Restart during search | Unfinished sections become retryable and successful sections are retained |
 | Cancel a running search | Agent and browser access stop; saved sections remain readable |
