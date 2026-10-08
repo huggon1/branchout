@@ -10,7 +10,6 @@ import type {
   FocusCardView,
   CreateFocusCard,
   EditFocusCard,
-  SetFocusCardActive,
   SetFocusCardDeleted,
   FocusCard,
   FocusVersion,
@@ -53,7 +52,6 @@ export const focusCardChannels = {
   view: "focus-cards:view",
   create: "focus-cards:create",
   edit: "focus-cards:edit",
-  setActive: "focus-cards:set-active",
   setDeleted: "focus-cards:set-deleted",
 } as const;
 
@@ -140,9 +138,6 @@ export interface DesktopBridge {
   focusCardView(): Promise<ModelReply<FocusCardView>>;
   createFocusCard(input: CreateFocusCard): Promise<ModelReply<FocusCard>>;
   editFocusCard(input: EditFocusCard): Promise<ModelReply<FocusVersion>>;
-  setFocusCardActive(
-    input: SetFocusCardActive,
-  ): Promise<ModelReply<FocusVersion>>;
   setFocusCardDeleted(
     input: SetFocusCardDeleted,
   ): Promise<ModelReply<FocusVersion>>;

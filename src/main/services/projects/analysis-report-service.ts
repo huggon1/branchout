@@ -124,7 +124,6 @@ export class ProjectAnalysisReportService {
           focusId: card.focusId,
           version: current.version + 1,
           content: suggestion.content,
-          active: current.active,
           change: "edited",
           createdAt: timestamp,
         });
@@ -145,7 +144,6 @@ export class ProjectAnalysisReportService {
           focusId: card.focusId,
           version: 1,
           content: suggestion.content,
-          active: true,
           change: "created",
           createdAt: timestamp,
         });

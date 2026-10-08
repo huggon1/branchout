@@ -18,13 +18,6 @@ import type {
 } from "./product-ui";
 
 const pages: ProductPage[] = ["内容", "项目", "关注卡", "任务", "设置"];
-const pageTitle: Record<ProductPage, string> = {
-  内容: "内容",
-  关注卡: "关注卡",
-  项目: "项目",
-  任务: "任务",
-  设置: "设置",
-};
 
 export function App() {
   const language = useLanguage();
@@ -128,12 +121,10 @@ export function App() {
     }
   };
   const focusCounts = useMemo(() => {
-    const counts: Record<string, { active: number; paused: number }> = {};
+    const counts: Record<string, number> = {};
     for (const card of projectsState?.focusCards ?? []) {
       if (card.deletedAt) continue;
-      const count = counts[card.projectId] ?? { active: 0, paused: 0 };
-      count[card.current.active ? "active" : "paused"] += 1;
-      counts[card.projectId] = count;
+      counts[card.projectId] = (counts[card.projectId] ?? 0) + 1;
     }
     return counts;
   }, [projectsState]);
@@ -207,7 +198,7 @@ export function App() {
             <button
               key={name}
               className="nav-item"
-              title={t(name)}
+              title={t(name === "关注卡" ? "关注" : name)}
               aria-current={page === name ? "page" : undefined}
               onClick={() => {
                 setPage(name);
@@ -215,7 +206,7 @@ export function App() {
               }}
             >
               <NavigationIcon name={name} />
-              <span>{t(name)}</span>
+              <span>{t(name === "关注卡" ? "关注" : name)}</span>
               {name === "任务" && activeTaskCount > 0 && (
                 <span
                   className="nav-count"
@@ -229,19 +220,6 @@ export function App() {
         </nav>
       </aside>
       <main className="app-main">
-        <header className="app-topbar">
-          <div>
-            <h1>{t(pageTitle[page])}</h1>
-          </div>
-          <div className="topbar-task-state" aria-live="polite">
-            {activeTaskCount ? (
-              <button className="text-button" onClick={() => setPage("任务")}>
-                {activeTaskCount}
-                {t("个任务运行中 →")}
-              </button>
-            ) : null}
-          </div>
-        </header>
         {error && (
           <div className="global-alert" role="alert">
             <span>{t(error)}</span>
@@ -275,7 +253,7 @@ export function App() {
           </section>
           <section
             className="page-panel"
-            aria-label={t("关注卡")}
+            aria-label={t("关注")}
             hidden={page !== "关注卡"}
           >
             <FocusCardsPage
@@ -320,15 +298,6 @@ export function App() {
                     focusId: card.focusId,
                     expectedFocusVersionId: card.currentVersionId,
                     deleted,
-                  }),
-                )
-              }
-              onSetActive={(card, active) =>
-                run(() =>
-                  ui.uiSetFocusActive({
-                    focusId: card.focusId,
-                    expectedFocusVersionId: card.current.focusVersionId,
-                    active,
                   }),
                 )
               }

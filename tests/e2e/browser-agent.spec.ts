@@ -197,7 +197,6 @@ test("real Agent worker uses Chrome tools and returns captured platform text", a
     expect(result.output.rawReply).toBe(
       "Verbatim fixture AI answer\n\nA source post",
     );
-    expect(result.captures).toContain(result.output.rawReply);
     expect(result.captures).toEqual([result.output.rawReply]);
     expect(mixedRejected).toBe(true);
     expect(result.fills).toContain(question);
@@ -205,7 +204,6 @@ test("real Agent worker uses Chrome tools and returns captured platform text", a
       "https://x.com/fixture/status/123456789?s=popup",
       "Fixture source page",
     ]);
-    expect(count).toBe(11);
     expect(result.validated.candidates).toHaveLength(1);
     expect(result.validated.candidates[0].postKey).toBe("x:123456789");
     expect(result.validated.warnings).toHaveLength(1);

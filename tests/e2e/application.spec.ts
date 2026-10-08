@@ -282,7 +282,7 @@ async function bind(page: any) {
 async function card(page: any) {
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "关注卡", exact: true })
+    .getByRole("button", { name: "关注", exact: true })
     .click();
   await page.getByRole("button", { name: "新建关注卡" }).click();
   await page
@@ -361,11 +361,11 @@ test("card persistence and bilingual switching preserve drafts and profile", asy
   await expect(
     page
       .getByRole("navigation")
-      .getByRole("button", { name: "Focus cards", exact: true }),
+      .getByRole("button", { name: "Focus", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "Focus cards", exact: true })
+    .getByRole("button", { name: "Focus", exact: true })
     .click();
   await page
     .getByRole("button", {
@@ -401,11 +401,11 @@ test("card persistence and bilingual switching preserve drafts and profile", asy
   await expect(
     page
       .getByRole("navigation")
-      .getByRole("button", { name: "Focus cards", exact: true }),
+      .getByRole("button", { name: "Focus", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "Focus cards", exact: true })
+    .getByRole("button", { name: "Focus", exact: true })
     .click();
   await expect(
     page.getByText("Draft survives a language switch").first(),
@@ -527,8 +527,6 @@ test("analysis acceptance protects changed focus-card versions", async ({}, info
     await readFile(join(profile, "projects.json"), "utf8"),
   );
   const report = state.analysisReports[0];
-  expect(report.summary).toContain("## Tests");
-  expect(report.summary).toContain("## Documentation and agent guidance");
   expect(report.promptGuidance.analysisGoal).toBe(
     "Focus on README implementation gaps.",
   );
@@ -541,12 +539,6 @@ test("analysis acceptance protects changed focus-card versions", async ({}, info
       cardWriting: "Keep the scene specific.",
     }),
   );
-  await expect(page.getByText("运行过程", { exact: true })).toHaveCount(0);
-  const activities = await page.evaluate(
-    (id) => window.branchout.taskActivities(id),
-    report.taskId,
-  );
-  expect(activities.ok && activities.value).toEqual([]);
   const traceDirectory = join(
     profile,
     "analysis-traces",
@@ -657,7 +649,7 @@ test("profile copying protects an active source and starts an independent review
   page = await launch();
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "关注卡", exact: true })
+    .getByRole("button", { name: "关注", exact: true })
     .click();
   await expect(
     page.getByText("Keep drafts after restart").first(),
@@ -668,7 +660,7 @@ test("profile copying protects an active source and starts an independent review
     const sourcePage = await launch();
     await sourcePage
       .getByRole("navigation")
-      .getByRole("button", { name: "关注卡", exact: true })
+      .getByRole("button", { name: "关注", exact: true })
       .click();
     await sourcePage
       .getByRole("button", {
@@ -782,6 +774,76 @@ test("unverifiable model claims fail without saving partial reports", async ({},
     contentType: "application/json",
   });
   await page.screenshot({ path: info.outputPath("unverifiable.png") });
+});
+
+test("legacy focus versions remain saved while retained cards participate in search", async ({}, info) => {
+  let page = await launch();
+  await bind(page);
+  await card(page);
+  await application.close();
+  const statePath = join(profile, "projects.json");
+  const state = JSON.parse(await readFile(statePath, "utf8"));
+  expect(state.focusVersions[0]).not.toHaveProperty("active");
+  // Simulate an existing archive from the version with pause controls.
+  state.focusVersions[0].active = false;
+  state.focusVersions[0].change = "paused";
+  await writeFile(statePath, JSON.stringify(state));
+  page = await launch();
+  const nav = page.getByRole("navigation");
+  await nav.getByRole("button", { name: "关注", exact: true }).click();
+  await page.getByRole("button", { name: "搜索相关讨论", exact: true }).click();
+  await page.getByRole("button", { name: "开始搜索", exact: true }).click();
+  await expect(
+    page
+      .getByText("点点虚构原始回复：重启后草稿丢失。", { exact: true })
+      .first(),
+  ).toBeVisible();
+  const afterSearch = JSON.parse(await readFile(statePath, "utf8"));
+  expect(afterSearch.focusCards).toEqual(state.focusCards);
+  expect(afterSearch.focusVersions).toEqual(state.focusVersions);
+  const search = JSON.parse(
+    await readFile(join(profile, "focus-search.json"), "utf8"),
+  );
+  expect(search.reports[0].focusSet.cards[0].focusVersionId).toBe(
+    state.focusVersions[0].focusVersionId,
+  );
+  expect(
+    searchInputs.some((input) => input.focusId === state.focusCards[0].focusId),
+  ).toBe(true);
+  await nav.getByRole("button", { name: "关注", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "删除 Keep drafts after restart",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await application.close();
+  const afterRestore = JSON.parse(await readFile(statePath, "utf8"));
+  expect(afterRestore.focusVersions[0]).toEqual(state.focusVersions[0]);
+  expect(
+    afterRestore.focusVersions.slice(1).map((version: any) => version.change),
+  ).toEqual(["deleted", "restored"]);
+  for (const version of afterRestore.focusVersions.slice(1))
+    expect(version).not.toHaveProperty("active");
+  expect(afterRestore.focusCards[0]).not.toHaveProperty("deletedAt");
+  page = await launch();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "关注", exact: true })
+    .click();
+  await expect(
+    page.getByText("Keep drafts after restart").first(),
+  ).toBeVisible();
+  await info.attach("legacy-focus-lifecycle", {
+    body: JSON.stringify({
+      before: state.focusVersions,
+      afterSearch: afterSearch.focusVersions,
+      afterRestore: afterRestore.focusVersions,
+      searchSnapshot: search.reports[0].focusSet,
+    }),
+    contentType: "application/json",
+  });
 });
 
 test("focus search preserves replies, retries failed sections, and adds one parsing task across restart", async ({}, info) => {

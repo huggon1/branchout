@@ -3,13 +3,7 @@ import { dateTime } from "../i18n";
 import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
 import { useEffect, useState } from "react";
-import {
-  PencilSimpleIcon,
-  TrashIcon,
-  PauseIcon,
-  PlayIcon,
-  PlusIcon,
-} from "@phosphor-icons/react";
+import { PencilSimpleIcon, TrashIcon, PlusIcon } from "@phosphor-icons/react";
 import type { UiFocusCard, UiProject } from "../product-ui";
 import { Dialog, EmptyState, Markdown } from "./Primitives";
 
@@ -24,7 +18,6 @@ export function FocusCardsPage({
   onSearchStarted,
   onCreate,
   onEdit,
-  onSetActive,
   onSetDeleted,
 }: {
   onSearchStarted: (taskId: string) => void;
@@ -37,7 +30,6 @@ export function FocusCardsPage({
   busy: boolean;
   onCreate: (projectId: string, content: string) => Promise<boolean>;
   onEdit: (card: UiFocusCard, content: string) => Promise<boolean>;
-  onSetActive: (card: UiFocusCard, active: boolean) => Promise<boolean>;
   onSetDeleted: (card: UiFocusCard, deleted: boolean) => Promise<boolean>;
 }) {
   const [searching, setSearching] = useState(false);
@@ -94,7 +86,6 @@ export function FocusCardsPage({
             !cards.some(
               (c) =>
                 !c.deletedAt &&
-                c.current.active &&
                 activeProjects.some((p) => p.projectId === c.projectId),
             )
           }
@@ -177,11 +168,6 @@ export function FocusCardsPage({
                       </button>
                       <p>{lines.slice(1).join("\n")}</p>
                       <div className="focus-row-meta">
-                        <span
-                          className={`status-tag ${c.current.active ? "status-active" : "status-paused"}`}
-                        >
-                          {c.current.active ? t("活跃") : t("暂停")}
-                        </span>
                         <span>
                           {t("版本")}
                           {c.current.revision}
@@ -206,19 +192,6 @@ export function FocusCardsPage({
                           }}
                         >
                           <PencilSimpleIcon size={18} />
-                        </button>
-                        <button
-                          className="icon-button"
-                          title={c.current.active ? t("暂停") : t("启用")}
-                          aria-label={`${c.current.active ? t("暂停") : t("启用")} ${title}`}
-                          disabled={busy}
-                          onClick={() => void onSetActive(c, !c.current.active)}
-                        >
-                          {c.current.active ? (
-                            <PauseIcon size={18} />
-                          ) : (
-                            <PlayIcon size={18} />
-                          )}
                         </button>
                         <button
                           className="icon-button danger-text"

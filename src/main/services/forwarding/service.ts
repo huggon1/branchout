@@ -53,7 +53,7 @@ export interface ForwardingWorkerHandle {
 }
 
 export interface ActiveFocusSnapshotProvider {
-  activeSnapshot(): Promise<FocusSetSnapshot> | FocusSetSnapshot;
+  retainedSnapshot(): Promise<FocusSetSnapshot> | FocusSetSnapshot;
 }
 
 export interface ForwardingServiceDependencies {

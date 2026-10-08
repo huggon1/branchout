@@ -18,7 +18,7 @@ When you find a post or article to read later, send its link to Branchout. It cr
 
 ## ✨ What you can do
 
-- **Manage projects and focus cards:** Bind local Git repositories; write, edit, pause, and reactivate focus cards while retaining their versions.
+- **Manage projects and focus cards:** Bind local Git repositories; write, edit, delete, and restore focus cards while retaining their versions.
 - **Read content reports:** Submit an HTTPS article, post, or repository link. Read the main material and directly linked materials in your chosen language, with images, code, tables, and Mermaid diagrams. Same-language content is presented faithfully; other-language content is translated. Each material shows its actual coverage. Historical reports retain their saved focus-card connections.
 - **Search with focus cards:** Search X through Grok or Xiaohongshu through 点点 AI. Keep the platform reply and add selected posts to reading.
 - **Collect links from Telegram:** Send one link in an authorized chat and receive a queue confirmation. Read the full report in the desktop app. When the app opens again, it continues processing pending messages still available from Telegram.

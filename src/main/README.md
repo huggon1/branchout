@@ -6,7 +6,7 @@ This document describes current Electron main-process responsibilities. See the 
 
 `main` owns project bindings, card versions, content and analysis reports, unified task snapshots, and model and Telegram configuration. It validates renderer commands and worker results, persisting state before notifying the renderer or acknowledging Telegram.
 
-One service owns project identity. Card editing, status changes, and suggestion acceptance maintain versions. Content tasks freeze all active cards at launch. Telegram deduplicates by inbound message identity and resumes available pending messages at startup. Content and analysis tasks persist their execution state separately; Tasks reads a unified view.
+One service owns project identity. Card editing, deletion, restoration, and suggestion acceptance maintain versions. Focus searches freeze selected retained cards in bound projects at launch. Telegram deduplicates by inbound message identity and resumes available pending messages at startup. Content and analysis tasks persist their execution state separately; Tasks reads a unified view.
 
 ## Module layout
 

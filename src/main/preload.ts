@@ -35,8 +35,6 @@ const bridge: DesktopBridge = {
   createFocusCard: (input) =>
     ipcRenderer.invoke(focusCardChannels.create, input),
   editFocusCard: (input) => ipcRenderer.invoke(focusCardChannels.edit, input),
-  setFocusCardActive: (input) =>
-    ipcRenderer.invoke(focusCardChannels.setActive, input),
   setFocusCardDeleted: (input) =>
     ipcRenderer.invoke(focusCardChannels.setDeleted, input),
   projectAnalysisReports: (projectId) =>

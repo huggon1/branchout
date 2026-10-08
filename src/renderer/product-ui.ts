@@ -17,7 +17,6 @@ export interface UiProject {
 export interface UiFocusVersion {
   focusVersionId: string;
   content: string;
-  active: boolean;
   revision: number;
   savedAt: string;
 }
@@ -251,11 +250,6 @@ export interface ProductUiBridge {
     expectedFocusVersionId: string;
     deleted: boolean;
   }): Promise<ModelReply<UiFocusCard>>;
-  uiSetFocusActive(input: {
-    focusId: string;
-    expectedFocusVersionId: string;
-    active: boolean;
-  }): Promise<ModelReply<UiFocusCard>>;
   uiAddLink(url: string): Promise<ModelReply<string>>;
   uiCancelTask(taskId: string): Promise<ModelReply<void>>;
   uiRetryTask(taskId: string): Promise<ModelReply<string>>;
@@ -291,7 +285,6 @@ type CanonicalFocusVersion = {
   focusId: string;
   version: number;
   content: string;
-  active: boolean;
   createdAt: string;
 };
 type CanonicalFocusView = {
@@ -549,11 +542,6 @@ interface CanonicalBridge {
     expectedVersionId: string;
     deleted: boolean;
   }): Promise<ModelReply<CanonicalFocusVersion>>;
-  setFocusCardActive(input: {
-    focusId: string;
-    expectedVersionId: string;
-    active: boolean;
-  }): Promise<ModelReply<CanonicalFocusVersion>>;
   projectAnalysisPreflight?(
     projectId: string,
   ): Promise<ModelReply<CanonicalPreflight>>;
@@ -608,7 +596,6 @@ const staleSuggestionCache = new Map<
 const versionView = (version: CanonicalFocusVersion): UiFocusVersion => ({
   focusVersionId: version.focusVersionId,
   content: version.content,
-  active: version.active,
   revision: version.version,
   savedAt: version.createdAt,
 });
@@ -1204,22 +1191,6 @@ export function productUiBridge(): ProductUiBridge {
       return card
         ? { ok: true, value: card }
         : failed(t("关注卡已更新，但卡片视图尚未刷新。"));
-    },
-    uiSetFocusActive: async ({ focusId, expectedFocusVersionId, active }) => {
-      const reply = await bridge.setFocusCardActive({
-        focusId,
-        expectedVersionId: expectedFocusVersionId,
-        active,
-      });
-      if (!reply.ok) return reply;
-      const view = await bridge.focusCardView();
-      if (!view.ok) return failed(view.message);
-      const card = focusView(view.value).find(
-        (item) => item.focusId === focusId,
-      );
-      return card
-        ? { ok: true, value: card }
-        : failed(t("关注卡状态已更新，但卡片视图尚未刷新。"));
     },
     uiSetFocusDeleted: async ({ focusId, expectedFocusVersionId, deleted }) => {
       const reply = await bridge.setFocusCardDeleted({

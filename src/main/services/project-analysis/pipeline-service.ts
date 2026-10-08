@@ -443,7 +443,7 @@ export interface ProjectAnalysisPipelinePorts {
   spawnWorker(path: string): ProjectAnalysisWorker;
   projects: { get(projectId: string): ProjectRecord | undefined };
   focusCards: {
-    activeSnapshot(): { capturedAt: string; cards: FrozenFocusCard[] };
+    retainedSnapshot(): { capturedAt: string; cards: FrozenFocusCard[] };
   };
   prompts: { snapshot(): AnalysisPromptSnapshot };
   models: Pick<ModelService, "acquire">;
@@ -745,7 +745,7 @@ export class ProjectAnalysisPipelineService {
   }
 
   private focusSnapshot(projectId: string): RunInput["focusSetSnapshot"] {
-    const snapshot = this.ports.focusCards.activeSnapshot();
+    const snapshot = this.ports.focusCards.retainedSnapshot();
     const cards = snapshot.cards.filter((card) => card.projectId === projectId);
     return {
       capturedAt: snapshot.capturedAt,
@@ -812,7 +812,6 @@ export class ProjectAnalysisPipelineService {
           focusId: card.focusId,
           focusVersionId: card.focusVersionId,
           content: card.content,
-          active: true,
         })),
         outputLanguage: input.outputLanguage ?? "zh-CN",
         config: lease.config,

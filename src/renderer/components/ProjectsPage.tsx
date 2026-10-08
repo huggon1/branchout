@@ -44,7 +44,7 @@ export function ProjectsPage({
   onOpenTask,
 }: {
   projects: UiProject[];
-  focusCounts: Record<string, { active: number; paused: number }>;
+  focusCounts: Record<string, number>;
   tasks: UiTask[];
   initialProjectId?: string;
   initialPreflightRequestId?: number;
@@ -298,8 +298,8 @@ export function ProjectsPage({
                     <strong>{item.projectLabel}</strong>
                     <small title={item.directory}>{item.directory}</small>
                     <span>
-                      {focusCounts[item.projectId]?.active ?? 0}
-                      {t("张活跃关注卡")}
+                      {focusCounts[item.projectId] ?? 0}
+                      {t("张关注卡")}
                     </span>
                   </span>
                   <span aria-hidden="true">→</span>
@@ -343,12 +343,8 @@ export function ProjectsPage({
               </header>
               <div className="project-overview">
                 <div>
-                  <strong>{focusCounts[project.projectId]?.active ?? 0}</strong>
-                  <span>{t("活跃关注卡")}</span>
-                </div>
-                <div>
-                  <strong>{focusCounts[project.projectId]?.paused ?? 0}</strong>
-                  <span>{t("暂停关注卡")}</span>
+                  <strong>{focusCounts[project.projectId] ?? 0}</strong>
+                  <span>{t("相关关注卡")}</span>
                 </div>
                 <div>
                   <strong>
