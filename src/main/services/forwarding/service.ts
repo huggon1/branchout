@@ -1,3 +1,8 @@
+import {
+  readingMaterialsSchema,
+  readingMaterialSchema,
+  type ReadingMaterial,
+} from "../../../shared/reading-contracts";
 import type { Language } from "../../../shared/language";
 import { randomUUID } from "node:crypto";
 import {
@@ -52,6 +57,19 @@ export interface ActiveFocusSnapshotProvider {
 }
 
 export interface ForwardingServiceDependencies {
+  collectMaterials?: (
+    taskId: string,
+    url: string,
+    config: ModelExecutionConfig,
+    signal: AbortSignal,
+    refreshCredential?: () => Promise<string>,
+    onProgress?: (
+      materials: ReadingMaterial[],
+      changedId?: string,
+    ) => Promise<void>,
+    includeReferences?: boolean,
+    accessToken?: string,
+  ) => Promise<ReadingMaterial[]>;
   readSource?: (
     taskId: string,
     url: string,
@@ -90,7 +108,7 @@ interface ActiveEntry {
 }
 
 const knownStage = (phase: ForwardingTaskRecord["phase"]) =>
-  phase === "理解内容"
+  ["理解内容", "翻译材料", "生成摘要"].includes(phase)
     ? "understanding"
     : phase === "检查关注卡"
       ? "relations"
@@ -131,41 +149,18 @@ function relationMatchesSnapshot(
   );
 }
 
-async function resolveXhsShort(raw: string) {
-  for (
-    let redirects = 0;
-    xhsShortUrlSchema.safeParse(raw).success && redirects < 5;
-    redirects++
-  ) {
-    const response = await fetch(raw, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (response.status < 300 || response.status >= 400)
-      throw new Error("小红书短链接未能解析");
-    const location = response.headers.get("location");
-    if (!location) throw new Error("小红书短链接未能解析");
-    raw = new URL(location, raw).href;
-    if (
-      !xhsShortUrlSchema.safeParse(raw).success &&
-      !xhsNoteUrlSchema.safeParse(raw).success
-    )
-      throw new Error("短链接跳转到了不受支持的地址");
-  }
-  return raw;
-}
-
 async function normalizeInput(rawUrl: string) {
-  forwardingInputSchema.parse(rawUrl);
-  let inputUrl = rawUrl;
-  if (xhsShortUrlSchema.safeParse(inputUrl).success)
-    inputUrl = await resolveXhsShort(inputUrl);
-  const xhsAccessToken = xhsNoteUrlSchema.safeParse(inputUrl).success
-    ? (new URL(inputUrl).searchParams.get("xsec_token") ?? undefined)
-    : undefined;
+  const parsed = forwardingInputSchema.parse(rawUrl);
+  const note = xhsNoteUrlSchema.safeParse(parsed);
+  if (note.success)
+    return {
+      sourceUrl: note.data,
+      xhsAccessToken:
+        new URL(parsed).searchParams.get("xsec_token") ?? undefined,
+    };
   return {
-    sourceUrl: sourceUrlSchema.parse(inputUrl),
-    xhsAccessToken,
+    sourceUrl: parsed,
+    xhsAccessToken: undefined,
   };
 }
 
@@ -294,9 +289,10 @@ export class ForwardingPipelineService {
       this.schedulePump();
       return input.taskId;
     }
-    const focusSet = focusSetSnapshotSchema.parse(
-      await this.dependencies.focusCards.activeSnapshot(),
-    );
+    const focusSet = focusSetSnapshotSchema.parse({
+      capturedAt: now(),
+      cards: [],
+    });
     const xhsAccessTokenCiphertext = input.xhsAccessToken
       ? await this.dependencies.protectSensitive(input.xhsAccessToken)
       : undefined;
@@ -305,6 +301,7 @@ export class ForwardingPipelineService {
       if (state.tasks.some((task) => task.taskId === input.taskId)) return;
       const task: ForwardingTaskRecord = {
         taskId: input.taskId,
+        reading: true,
         materialId: randomUUID(),
         resultId: input.resultId,
         target: {
@@ -345,7 +342,17 @@ export class ForwardingPipelineService {
     await this.dependencies.store.update((state) => {
       const task = state.tasks.find((item) => item.taskId === taskId);
       if (!task) throw new Error("转发任务不存在");
-      if (task.state !== "failed") throw new Error("只有失败任务可以重试");
+      if (
+        task.state !== "failed" &&
+        task.state !== "cancelled" &&
+        !(
+          task.state === "completed" &&
+          task.reading &&
+          task.materials?.some((m) => m.state !== "completed")
+        )
+      )
+        throw new Error("当前任务已完成");
+      if (task.reading) task.report = undefined;
       task.state = "queued";
       task.phase = "等待处理";
       task.message = undefined;
@@ -409,10 +416,16 @@ export class ForwardingPipelineService {
         state: task.state,
         phase: task.phase,
         progress: {
-          evaluated: task.evaluations.length,
-          total: task.focusSet.cards.length,
+          evaluated: task.reading
+            ? (task.materials?.filter((m) => m.state === "completed").length ??
+              0)
+            : task.evaluations.length,
+          total: task.reading
+            ? (task.materials?.length ?? 0)
+            : task.focusSet.cards.length,
         },
         hasSource: !!task.source,
+        hasMaterials: Boolean(task.materials?.length),
         hasUnderstanding: !!task.generalUnderstanding,
         activities: task.activities.slice(-10),
         createdAt: task.createdAt,
@@ -430,6 +443,7 @@ export class ForwardingPipelineService {
     return {
       task: withoutSecret(task),
       partial: {
+        ...(task.materials ? { materials: task.materials } : {}),
         ...(task.source ? { source: task.source } : {}),
         ...(task.generalUnderstanding
           ? { generalUnderstanding: task.generalUnderstanding }
@@ -485,21 +499,29 @@ export class ForwardingPipelineService {
         return;
       }
       stage = knownStage(
-        task.source
-          ? task.generalUnderstanding
-            ? "检查关注卡"
-            : "理解内容"
-          : "读取来源",
+        task.reading
+          ? task.materials
+            ? "翻译材料"
+            : "读取来源"
+          : task.source
+            ? task.generalUnderstanding
+              ? "检查关注卡"
+              : "理解内容"
+            : "读取来源",
       );
       await this.dependencies.store.update((state) => {
         const current = state.tasks.find((item) => item.taskId === taskId);
         if (!current || current.state !== "queued") return;
         current.state = "running";
-        current.phase = task.source
-          ? task.generalUnderstanding
-            ? "检查关注卡"
-            : "理解内容"
-          : "读取来源";
+        current.phase = task.reading
+          ? task.materials
+            ? "翻译材料"
+            : "读取来源"
+          : task.source
+            ? task.generalUnderstanding
+              ? "检查关注卡"
+              : "理解内容"
+            : "读取来源";
         addForwardingActivity(current, {
           kind: "phase",
           summary:
@@ -507,10 +529,95 @@ export class ForwardingPipelineService {
               ? "开始读取来源内容"
               : current.phase === "理解内容"
                 ? "开始生成通用理解"
-                : `开始判断 ${current.focusSet.cards.length} 张冻结关注卡`,
+                : current.phase === "翻译材料"
+                  ? "开始翻译材料"
+                  : `开始判断 ${current.focusSet.cards.length} 张冻结关注卡`,
         });
       });
-      if (!task.source && this.dependencies.readSource) {
+      if (task.reading && this.dependencies.collectMaterials) {
+        browserReading = true;
+        entry.controller = new AbortController();
+        if (
+          !task.materials ||
+          (task.materials.length === 1 && !task.materials[0].source)
+        ) {
+          const materials = await this.dependencies.collectMaterials(
+            taskId,
+            task.target.sourceUrl,
+            entry.lease.config,
+            entry.controller.signal,
+            entry.lease.refreshCredential?.bind(entry.lease),
+            async (materials, changedId) => {
+              if (this.active.get(taskId) !== entry || this.closed) return;
+              await this.receive(
+                taskId,
+                changedId
+                  ? {
+                      type: "material",
+                      taskId,
+                      resultId: task.resultId,
+                      material: materials.find((m) => m.id === changedId)!,
+                    }
+                  : {
+                      type: "materials",
+                      taskId,
+                      resultId: task.resultId,
+                      materials,
+                    },
+              );
+            },
+            true,
+            task.xhsAccessTokenCiphertext
+              ? await this.dependencies.revealSensitive(
+                  task.xhsAccessTokenCiphertext,
+                )
+              : undefined,
+          );
+          if (this.active.get(taskId) !== entry || this.closed) return;
+          if (
+            !this.dependencies.store
+              .snapshot()
+              .tasks.find((t) => t.taskId === taskId)?.materials
+          )
+            await this.receive(taskId, {
+              type: "materials",
+              taskId,
+              resultId: task.resultId,
+              materials,
+            });
+          task.materials = materials;
+          task.source = materials[0].source;
+        } else {
+          for (const material of task.materials.filter((m) => !m.source)) {
+            try {
+              const collected = await this.dependencies.collectMaterials(
+                randomUUID(),
+                material.url,
+                entry.lease.config,
+                entry.controller.signal,
+                entry.lease.refreshCredential?.bind(entry.lease),
+                undefined,
+                false,
+                material.role === "main" && task.xhsAccessTokenCiphertext
+                  ? await this.dependencies.revealSensitive(
+                      task.xhsAccessTokenCiphertext,
+                    )
+                  : undefined,
+              );
+              material.source = collected[0].source;
+              material.state = material.source ? "pending" : "failed";
+              material.issue = collected[0].issue;
+              await this.receive(taskId, {
+                type: "material",
+                taskId,
+                resultId: task.resultId,
+                material,
+              });
+            } catch {}
+          }
+        }
+      }
+      if (!task.reading && !task.source && this.dependencies.readSource) {
         browserReading = true;
         entry.controller = new AbortController();
         const source = await this.dependencies.readSource(
@@ -572,9 +679,11 @@ export class ForwardingPipelineService {
         taskId: task.taskId,
         resultId: task.resultId,
         sourceUrl: task.target.sourceUrl,
+        reading: task.reading,
         focusSet: task.focusSet,
         outputLanguage: task.outputLanguage ?? "zh-CN",
         resume: {
+          ...(task.materials ? { materials: task.materials } : {}),
           ...(task.source ? { source: task.source } : {}),
           ...(task.generalUnderstanding
             ? { generalUnderstanding: task.generalUnderstanding }
@@ -640,6 +749,60 @@ export class ForwardingPipelineService {
       );
       return;
     }
+    if (event.type === "materials" || event.type === "material") {
+      if (!snapshotTask.reading) throw new Error("Unexpected reading material");
+      entry.timer?.refresh();
+      await this.dependencies.store.update((state) => {
+        const task = state.tasks.find((t) => t.taskId === taskId)!;
+        if (event.type === "materials") {
+          if (
+            (task.materials &&
+              (task.materials.length !== 1 ||
+                task.materials[0].source ||
+                task.materials[0].chunks.length)) ||
+            event.materials[0].url !== task.target.sourceUrl
+          )
+            throw new Error("Material identity mismatch");
+          task.materials = readingMaterialsSchema.parse(event.materials);
+          task.source = task.materials[0].source;
+        } else {
+          const index =
+            task.materials?.findIndex((m) => m.id === event.material.id) ?? -1;
+          if (
+            index < 0 ||
+            task.materials![index].url !== event.material.url ||
+            task.materials![index].role !== event.material.role
+          )
+            throw new Error("Material identity mismatch");
+          const saved = task.materials![index];
+          if (saved.source && !sameJson(saved.source, event.material.source))
+            throw new Error("Saved source changed");
+          if (
+            saved.chunks.some(
+              (c, i) => c.complete && !sameJson(c, event.material.chunks[i]),
+            )
+          )
+            throw new Error("Completed translation changed");
+          task.materials![index] = readingMaterialSchema.parse(event.material);
+          if (index === 0) task.source = event.material.source;
+        }
+        task.phase =
+          event.type === "materials" ||
+          (event.material.chunks.length === 0 &&
+            event.material.state !== "processing")
+            ? "读取来源"
+            : "翻译材料";
+        addForwardingActivity(task, {
+          kind: "source_saved",
+          summary:
+            event.type === "materials"
+              ? `已保存 ${task.materials!.length} 份材料`
+              : `${event.material.title}：${event.material.chunks.filter((c) => c.complete).length}/${event.material.chunks.length} 段已处理`,
+        });
+      });
+      this.dependencies.changed();
+      return;
+    }
     if (event.type === "execution") {
       if (event.execution.taskId !== taskId) {
         await this.failTask(taskId, "source", "工作进程返回了不匹配的执行身份");
@@ -668,11 +831,15 @@ export class ForwardingPipelineService {
           addForwardingActivity(task, {
             kind: "phase",
             summary:
-              event.phase === "读取来源"
-                ? "开始读取来源内容"
-                : event.phase === "理解内容"
-                  ? "开始生成通用理解"
-                  : `开始判断 ${task.focusSet.cards.length} 张冻结关注卡`,
+              event.phase === "翻译材料"
+                ? "开始翻译材料"
+                : event.phase === "生成摘要"
+                  ? "开始生成材料摘要"
+                  : event.phase === "读取来源"
+                    ? "开始读取来源内容"
+                    : event.phase === "理解内容"
+                      ? "开始生成通用理解"
+                      : `开始判断 ${task.focusSet.cards.length} 张冻结关注卡`,
           });
         }
       });
@@ -788,6 +955,33 @@ export class ForwardingPipelineService {
         });
       });
       if (!duplicate) this.dependencies.changed();
+      return;
+    }
+    if (event.type === "result" && snapshotTask.reading) {
+      if (
+        !event.draft.materials ||
+        !sameJson(event.draft.materials, snapshotTask.materials) ||
+        event.draft.outputLanguage !== snapshotTask.outputLanguage
+      )
+        throw new Error("Reading result differs from saved materials");
+      await this.dependencies.store.update((state) => {
+        const task = state.tasks.find((t) => t.taskId === taskId)!;
+        task.report = event.draft;
+        task.generalUnderstanding = event.draft.generalUnderstanding;
+        task.state = "completed";
+        task.phase = "已保存";
+        task.finishedAt = now();
+        task.message = task.materials!.some((m) => m.state !== "completed")
+          ? "部分材料待处理；已保存内容可阅读"
+          : undefined;
+        addForwardingActivity(task, {
+          kind: "completed",
+          summary: "阅读材料已保存",
+          occurredAt: task.finishedAt,
+        });
+      });
+      this.dependencies.changed();
+      await this.finish(taskId, entry, false);
       return;
     }
     if (event.type === "result") {

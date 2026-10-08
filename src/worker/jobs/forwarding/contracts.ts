@@ -1,3 +1,7 @@
+import {
+  readingMaterialsSchema,
+  readingMaterialSchema,
+} from "../../../shared/reading-contracts";
 import { promptExecutionSchema } from "../../../shared/execution-contracts";
 import { languageSchema, type Language } from "../../../shared/language";
 import { z } from "zod";
@@ -57,6 +61,7 @@ export const savedFocusEvaluationSchema = z
 export const forwardingResumeSchema = z
   .object({
     source: sourceSchema.optional(),
+    materials: readingMaterialsSchema.optional(),
     generalUnderstanding: z.string().min(1).max(16_000).optional(),
     evaluations: z.array(savedFocusEvaluationSchema),
   })
@@ -66,7 +71,8 @@ export const forwardingJobCommandSchema = z
   .object({
     taskId: z.string().uuid(),
     resultId: z.string().uuid(),
-    sourceUrl: z.string().url().max(2048),
+    sourceUrl: z.string().url().max(4096),
+    reading: z.boolean().optional(),
     outputLanguage: languageSchema.optional(),
     focusSet: focusSetSnapshotSchema,
     resume: forwardingResumeSchema.optional(),
@@ -94,6 +100,7 @@ export const relationBatchSchema = z
 export const forwardingReportDraftSchema = z
   .object({
     execution: promptExecutionSchema.optional(),
+    materials: readingMaterialsSchema.optional(),
     source: sourceSchema,
     generalUnderstanding: z.string().min(1).max(16_000),
     outputLanguage: languageSchema.optional(),
@@ -116,6 +123,22 @@ export const forwardingReportDraftSchema = z
 export const forwardingJobEventSchema = z.discriminatedUnion("type", [
   z
     .object({
+      type: z.literal("materials"),
+      taskId: z.string().uuid(),
+      resultId: z.string().uuid(),
+      materials: readingMaterialsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("material"),
+      taskId: z.string().uuid(),
+      resultId: z.string().uuid(),
+      material: readingMaterialSchema,
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("execution"),
       taskId: z.string().uuid(),
       execution: promptExecutionSchema,
@@ -125,7 +148,13 @@ export const forwardingJobEventSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("phase"),
       taskId: z.string().uuid(),
-      phase: z.enum(["读取来源", "理解内容", "检查关注卡"]),
+      phase: z.enum([
+        "读取来源",
+        "理解内容",
+        "检查关注卡",
+        "翻译材料",
+        "生成摘要",
+      ]),
     })
     .strict(),
   z

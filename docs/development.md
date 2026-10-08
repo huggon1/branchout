@@ -27,7 +27,7 @@ Selecting a separate data path defaults to review mode. Review startup keeps Tel
 
 ## Work with X or Xiaohongshu content
 
-Install Google Chrome and complete each platform sign-in in Settings. Chrome profiles remain under the selected Branchout data directory across rebuilds. Xiaohongshu optionally uses its enhanced note reader, prepared with `npm run setup:xhs`; browser reading provides the fallback.
+Install Google Chrome and complete each platform sign-in in Settings. Shared Chrome retains all website sessions under the selected Branchout data directory across rebuilds. Xiaohongshu optionally uses its enhanced note reader, prepared with `npm run setup:xhs`; browser reading provides the fallback.
 
 ## Check types or build output
 
@@ -82,3 +82,16 @@ npm run review:export -- --profile /absolute/path/to/review-data --output /absol
 The export writes one Markdown and JSON file per report, including card suggestions, evidence, language, execution identity, and guidance. Add `--report` with a report identity to select one run. Exports contain project material and belong in private local storage. Model credentials and raw conversation files remain in the profile.
 
 For feedback, identify the report and the paragraph, numbered supporting note, or card, describe the desired change, then compare the next run with the saved output. Wording changes use shared checks and real-model review; changes to protocol, persistence, or interaction also use application E2E.
+
+## Verify reading with live sources
+
+Build the application, select an inactive or independently prepared review profile with saved model and site sessions, then run:
+
+```sh
+npm run build
+npx tsx scripts/development/verify-reading.ts --profile /absolute/path/to/review-data --output /absolute/path/to/reading-evidence
+```
+
+The verifier submits the three reference posts through actual Electron IPC, records each material's source, translation, summary and state, and saves reading screenshots. The JSON identifies the real-browser and configured-model boundary. Platform failures and partial materials remain in the evidence. Review-mode Telegram receiving stays paused.
+
+`--retry-existing` continues unfinished tasks recorded in the output directory. `--only zero`, `--only boris`, or `--only lanshu` reruns one source while retaining the other saved acceptance results.

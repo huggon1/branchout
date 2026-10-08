@@ -6,11 +6,23 @@ import type { Platform } from "../../platforms/types";
 import { PlatformBrowser } from "./platform-browser";
 import { platformGuides } from "../../platforms/browser/prompts";
 import { createWorkerEnvironment } from "./worker-environment";
+export interface BrowserCapture {
+  text: string;
+  markdown: string;
+  url: string;
+  pageUrl: string;
+  links: { url: string; title: string }[];
+  images: { url: string; alt: string }[];
+}
 export class BrowserAgent {
   constructor(
     private browser: PlatformBrowser,
     private workerPath: string,
     private traceRoot: string,
+    private enhancedRead?: (
+      url: string,
+      signal: AbortSignal,
+    ) => Promise<unknown>,
   ) {}
   async run(
     platform: Platform,
@@ -18,7 +30,7 @@ export class BrowserAgent {
     config: ModelExecutionConfig,
     prompt: string,
     signal: AbortSignal,
-    purpose: "search" | "read" = "search",
+    purpose: "search" | "read" | "collect" = "search",
     refreshCredential?: () => Promise<string>,
   ) {
     await mkdir(this.traceRoot, { recursive: true, mode: 0o700 });
@@ -26,6 +38,8 @@ export class BrowserAgent {
       const observed = new Map<string, string>();
       const captures: string[] = [];
       const captureRecords = new Map<string, string>();
+      const captureData = new Map<string, BrowserCapture>();
+      const navigations = new Map<string, string>();
       const fills: string[] = [];
       const capturedImages = new Map<string, { url: string; alt: string }[]>();
       const popups = new Set<Page>();
@@ -37,6 +51,8 @@ export class BrowserAgent {
         captures: string[];
         fills: string[];
         capturedImages: Map<string, { url: string; alt: string }[]>;
+        captureData: Map<string, BrowserCapture>;
+        navigations: Map<string, string>;
       }>((resolve, reject) => {
         const worker = utilityProcess.fork(this.workerPath, [], {
           stdio: "pipe",
@@ -52,7 +68,16 @@ export class BrowserAgent {
           signal.removeEventListener("abort", abort);
           worker.kill();
           if (error) reject(error);
-          else resolve({ output, observed, captures, fills, capturedImages });
+          else
+            resolve({
+              output,
+              observed,
+              captures,
+              fills,
+              capturedImages,
+              captureData,
+              navigations,
+            });
         };
         const abort = () => finish(new Error("Cancelled"));
         const timer = setTimeout(
@@ -95,9 +120,34 @@ export class BrowserAgent {
                   });
               });
           } else if (data?.type === "browser_operation") {
-            void this.browser
-              .operation(platform, page, data.operation, purpose)
-              .then(async (value) => {
+            void (async () => {
+              if (data.operation.action === "guide") {
+                const guide =
+                  platformGuides[
+                    data.operation.value as keyof typeof platformGuides
+                  ];
+                return (
+                  guide ?? {
+                    guide:
+                      "Read the observed article body or repository README. Capture readable frames separately. Preserve direct material links.",
+                  }
+                );
+              }
+              if (data.operation.action === "enhanced_read") {
+                if (!this.enhancedRead || !observed.has(data.operation.value))
+                  throw new Error("Enhanced source requires an observed URL");
+                return this.enhancedRead(data.operation.value, signal);
+              }
+              return this.browser.operation(
+                platform,
+                page,
+                data.operation,
+                purpose,
+              );
+            })()
+              .then(async (value: any) => {
+                if (data.operation.action === "navigate")
+                  navigations.set(data.operation.value, page.url());
                 let captureId: string | undefined;
                 const openedLinks: { url: string; title: string }[] = [];
                 for (const popup of popups) {
@@ -120,6 +170,7 @@ export class BrowserAgent {
                   typeof data.operation.value === "string"
                 )
                   fills.push(data.operation.value);
+                if (value.clickedUrl) navigations.set(value.clickedUrl, openedLinks[0]?.url ?? page.url());
                 if ("links" in value)
                   for (const link of value.links)
                     observed.set(link.url, link.title);
@@ -148,6 +199,23 @@ export class BrowserAgent {
                   captures.push(value.capture);
                   captureId = `capture-${captures.length}`;
                   captureRecords.set(captureId, value.capture);
+                  captureData.set(captureId, {
+                    pageUrl: page.url(),
+                    text: value.capture,
+                    markdown:
+                      "markdown" in value
+                        ? String(value.markdown)
+                        : value.capture,
+                    url: "url" in value ? String(value.url) : page.url(),
+                    links:
+                      "links" in value
+                        ? (value.links as BrowserCapture["links"])
+                        : [],
+                    images:
+                      "images" in value
+                        ? (value.images as BrowserCapture["images"])
+                        : [],
+                  });
                   if ("images" in value)
                     capturedImages.set(value.capture, value.images);
                 }
@@ -188,6 +256,15 @@ export class BrowserAgent {
               )
                 finish(new Error(output.error));
               else {
+                if (purpose === "collect") {
+                  if (
+                    !Array.isArray(output.materials) ||
+                    !output.materials.length
+                  )
+                    throw new Error("Reading material capture required");
+                  finish(undefined, output);
+                  return;
+                }
                 const capture = captureRecords.get(
                   purpose === "search"
                     ? output.replyCaptureId
@@ -208,10 +285,7 @@ export class BrowserAgent {
           config,
           taskId,
           traceRoot: this.traceRoot,
-          prompt:
-            platform === "github" || purpose === "read"
-              ? prompt
-              : `${platformGuides[platform].guide}\nEntry: ${platformGuides[platform].entry}\n${prompt}`,
+          prompt,
         });
       }).finally(async () => {
         page.off("popup", trackPopup);

@@ -243,6 +243,11 @@ export function SettingsPage({
             <h3 id="sources-title">{t("公开来源")}</h3>
           </div>
         </div>
+        <p className="muted-copy">
+          {t(
+            "通用浏览器可读取网页正文。所有任务复用已保存的网站登录；平台增强说明按需加载。",
+          )}
+        </p>
         <div className="source-capability-list">
           {settings?.sources
             .filter((source) => source.id === "github")

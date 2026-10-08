@@ -42,20 +42,28 @@ test("Chrome tools capture observed replies and links, confine actions, and pers
       value: "https://x.com/i/grok",
     });
     const input = initial.elements.find((e: any) => e.tag === "TEXTAREA");
+    await context.route("https://example.com/**", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<main><h1>Linked article</h1></main>",
+      }),
+    );
+    const crossSite: any = await browser.operation("x", page, {
+      action: "navigate",
+      value: "https://example.com",
+    });
+    expect(crossSite.url).toBe("https://example.com/");
     await expect(
       browser.operation("x", page, {
         action: "navigate",
-        value: "https://example.com",
+        value: "file:///tmp/fixture",
       }),
-    ).rejects.toThrow("outside");
-    await expect(
-      browser.operation(
-        "x",
-        page,
-        { action: "fill", ref: input.ref, value: "change source" },
-        "read",
-      ),
-    ).rejects.toThrow("restricted");
+    ).rejects.toThrow();
+    const back: any = await browser.operation("x", page, {
+      action: "navigate",
+      value: "https://x.com/i/grok",
+    });
+    input.ref = back.elements.find((e: any) => e.tag === "TEXTAREA").ref;
     await browser.operation("x", page, {
       action: "fill",
       ref: input.ref,
@@ -84,21 +92,14 @@ test("Chrome tools capture observed replies and links, confine actions, and pers
     await expect(
       browser.operation("x", page, { action: "click", ref: follow.ref }),
     ).rejects.toThrow("changes");
-    await expect(
-      browser.operation(
-        "x",
-        page,
-        { action: "press", ref: input.ref, value: "ENTER" },
-        "read",
-      ),
-    ).rejects.toThrow("restricted");
     const submitted: any = await browser.operation("x", page, {
       action: "press",
       ref: input.ref,
       value: "ENTER",
     });
     const sources = submitted.elements.find(
-      (element: any) => element.tag === "DIV" && element.label === "Show sources",
+      (element: any) =>
+        element.tag === "DIV" && element.label === "Show sources",
     );
     expect(sources).toBeDefined();
     await browser.operation("x", page, {

@@ -1,11 +1,10 @@
+import { runReadingJob, type ReadingDependencies } from "./reading";
 import { randomUUID } from "node:crypto";
 import { relationSystem } from "./prompts";
 import { promptExecution } from "../../prompt-execution";
 import { z } from "zod";
 import { sourceSchema } from "../../../shared/source-contracts";
-import {
-  xhsExecutionSessionSchema,
-} from "../../../shared/platform-contracts";
+import { xhsExecutionSessionSchema } from "../../../shared/platform-contracts";
 import { executionSchema } from "../../../shared/model-contracts";
 import type { SourceContent } from "../../../shared/source-contracts";
 import { selectPlatformAdapter } from "../../../platforms/registry";
@@ -182,9 +181,13 @@ export async function runForwardingJob(
   raw: unknown,
   emit: ForwardingJobDependencies["emit"],
   signal: AbortSignal,
-  overrides: Partial<Omit<ForwardingJobDependencies, "emit">> = {},
+  overrides: Partial<Omit<ForwardingJobDependencies, "emit">> & {
+    reading?: Partial<ReadingDependencies>;
+  } = {},
 ) {
   const command = runtimeCommandSchema.parse(raw);
+  if (command.reading)
+    return runReadingJob(command, emit, signal, overrides.reading);
   const execution = promptExecution(
     understandingSystem(
       selectPlatformAdapter(command.sourceUrl, command).platform,

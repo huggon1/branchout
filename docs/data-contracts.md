@@ -6,15 +6,15 @@ This document defines the target design's logical objects, cross-process fields,
 
 The main process owns writable state. The renderer submits commands and reads saved snapshots. Workers deliver results for validation.
 
-| Identifier | Refers to |
-| --- | --- |
-| `projectId` | One local Git project binding |
-| `focusId`, `focusVersionId` | One focus card and one content or state version |
-| `taskId` | One content submission or project analysis task |
-| `resultId` | One task result awaiting persistence, used to detect repeated delivery |
-| `materialId` | One content report |
-| `analysisReportId` | One project analysis report |
-| `suggestionId` | One card-change suggestion in an analysis report |
+| Identifier                  | Refers to                                                              |
+| --------------------------- | ---------------------------------------------------------------------- |
+| `projectId`                 | One local Git project binding                                          |
+| `focusId`, `focusVersionId` | One focus card and one content or state version                        |
+| `taskId`                    | One content submission or project analysis task                        |
+| `resultId`                  | One task result awaiting persistence, used to detect repeated delivery |
+| `materialId`                | One content report                                                     |
+| `analysisReportId`          | One project analysis report                                            |
+| `suggestionId`              | One card-change suggestion in an analysis report                       |
 
 All timestamps include timezone information; the UI displays them in the user's timezone. Project binding is the sole source of project identity. Other objects reference `projectId` and retain a readable project name where history requires one.
 
@@ -30,15 +30,15 @@ At content task start, `FocusSetSnapshot` records the time, each active card's `
 
 ## Submitted sources and reports
 
-One link from the app or Telegram enters the same `ForwardingRequest`. It contains `taskId`, normalized URL, and entry point `app` or `telegram`. Telegram requests also contain verified chat and message identity. Supported links cover public GitHub repositories, X posts, and Xiaohongshu notes.
+One app or Telegram HTTPS URL enters the shared forwarding queue with task, result, and material identities. Telegram also supplies verified chat and message identity. New tasks set `reading: true` and freeze `outputLanguage`. Historical tasks retain the prior fields and workflow.
 
-`SourceContent` stores platform, original URL, title or source identity, retrieval time, ordered and locatable text blocks and image references, plus `completeness`: `complete`, `partial`, or `unknown`. Partial and unknown results explain actual coverage. Adapters may instead return `not_covered` or `read_failed` with a reason.
+`SourceContent` stores the requested URL, platform identity (`github`, `x`, `xiaohongshu`, or `web`), source identity, retrieval time, ordered Markdown, legacy content blocks, images, and actual completeness. Image records retain their remote URL and an optional local `branchout-image` cache URL. Source bytes remain fixed on retry.
 
-`GeneralUnderstanding` stores readable understanding derived from a source snapshot and that snapshot's ID. `FocusRelation` stores `projectId`, `focusId`, `focusVersionId`, rationale, and one or more evidence references to source blocks or excerpts. The relation list can be empty and grows with actual relevant cards.
+`ReadingMaterial` contains `id`, `role` (`main` or `reference`), URL, title, optional source, indexed translation chunks, summary, state, and issue. Each chunk contains `original`, `translated`, and `complete`. The material array starts with one main material and has unique IDs and URLs. States are pending, processing, completed, partial, and failed. A completed material has a source, summary, and completed chunks.
 
-`ForwardingReport` uses `materialId`, `taskId`, and `resultId` and stores the source snapshot, understanding, focus-set snapshot, relations, completion time, and display name. Each submission creates a separate report, even for the same URL. The main process deduplicates repeated worker delivery by `taskId + resultId`.
+The worker emits initial `materials`, individual `material` updates, phase changes, execution identity, and the final report. Main-process validation preserves material identity, saved source bytes, and completed chunks. A final report equals saved material state. Some materials may remain partial or failed while the report is readable and retryable.
 
-The relation stage records `evaluatedFocusVersionIds` against the full `FocusSetSnapshot`. A complete report requires equal sets and validated batches. Zero relations save an empty list with completed evaluation coverage.
+Historical `GeneralUnderstanding`, `FocusRelation`, frozen card sets, and evaluation fields retain their saved values and rendering. Each submission creates an independent report. Task and result identities deduplicate worker delivery.
 
 ## Project analysis input and results
 
@@ -62,7 +62,7 @@ Profile preparation accepts empty data, an existing development profile, or an e
 
 Copies include business records by default. Credentials and authentication require explicit selection of supported data groups. Private profiles reside in owner-only local storage; automated test artifacts use fictional data and redacted diagnostics.
 
-Platform Chrome profiles resolve by application data directory and platform identity, retaining one account session per platform across browser and application restarts. Search and source reading use the same session. Explicit platform sign-out clears that platform's cookies and compatibility backup. Redacted status files contain cookie names and expiry metadata. Cookie values remain within the platform profile and the authorized Xiaohongshu reader.
+Shared Chrome resolves by application data directory and retains website sessions across browser and application restarts. Search and source reading use the same session. Explicit platform sign-out clears that platform's cookies and compatibility backup. Redacted status files contain cookie names and expiry metadata. Cookie values remain within the platform profile and the authorized Xiaohongshu reader.
 
 Profile initialization supports native Chrome profiles and mock-keychain profiles. A mock-keychain profile carries saved session metadata and an absent native-initialization marker. Initialization reads its cookies with the compatible launcher, saves an owner-only JSON recovery backup containing cookie values, imports them into native Chrome, and records the marker. The backup uses filesystem permissions for protection. A native-initialized profile uses its active Chrome session on subsequent starts.
 
@@ -78,7 +78,7 @@ At startup, the app fetches updates Telegram still provides from the confirmed c
 
 ## Task snapshots and activity messages
 
-`TaskSnapshot` is the task center's unified view. It contains `taskId`, kind `forwarding` or `project_analysis`, target identity, status `queued`, `running`, `completed`, `failed`, or `cancelled`, current stage, processed count, update time, readable error, and successful result reference. Saved stage records build the content view. Content stages are receipt, source retrieval, understanding, card evaluation, and report save; analysis stages are repository, Codex sessions, exploration, and report save.
+`TaskSnapshot` is the task center's unified view. It contains `taskId`, kind `forwarding` or `project_analysis`, target identity, status `queued`, `running`, `completed`, `failed`, or `cancelled`, current stage, processed count, update time, readable error, and successful result reference. Saved stage records build the content view. New content stages are receipt, material collection, translation, summary, and report save; historical stages retain understanding and card evaluation; analysis stages are repository, Codex sessions, exploration, and report save.
 
 `TaskActivity` contains content-task events with increasing sequence number, time, action kind, readable summary, optional target identity, processed count, and an optional bounded display body. Project-analysis events update current stage and execution metadata. A heartbeat refreshes the worker inactivity deadline; its payload contains task identity. Pi messages and tool actions remain in the session record.
 
@@ -97,7 +97,7 @@ Model configuration is frozen at launch. The current model connection is stored 
 
 `focus_search` tasks reference `focus_search_report` results. A search report saves its task identity, creation time, frozen focus snapshot, selected platforms, period, and ordered card/platform sections. Sections save their exact search prompt and language, original platform response, candidate links, and completion or error status. Candidates carry stable identity, platform post identity, title, description, URL, and optional displayed date. URLs refer to posts on the section's platform and originate from observed browser links.
 
-Each successful browser capture returns a task-local `captureId`. Search workers select `replyCaptureId`; reading workers select `sourceCaptureId`. The main process resolves that identity to the captured text and image records before validating the result. The saved source and platform reply use the captured bytes.
+Each successful browser capture returns a task-local `captureId`. Search workers select `replyCaptureId`; material collectors select `sourceCaptureIds` and a reference's `citedFromCaptureId`. The main process resolves that identity to the captured text and image records before validating the result. The saved source and platform reply use the captured bytes.
 
 Xiaohongshu browser reading reconstructs the requested note address with the queued recovery token when available. Saved source records retain the canonical note URL; the owner-only queue stores the recovery token separately.
 

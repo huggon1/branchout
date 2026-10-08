@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile, rename, rm } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename, rm, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
@@ -112,10 +112,22 @@ export class ChromeProfiles {
         !/^\/devtools\/browser\/[a-f0-9-]+$/i.test(path)
       )
         return;
-      return await chromium.connectOverCDP(`ws://127.0.0.1:${port}${path}`, {
-        timeout: 1000,
-        noDefaults: true,
-      });
+      const browser = await chromium.connectOverCDP(
+        `ws://127.0.0.1:${port}${path}`,
+        { timeout: 1000, noDefaults: true },
+      );
+      const probe = await browser.contexts()[0].newPage();
+      try {
+        await probe.goto("chrome://version");
+        const actual = await probe.locator("#profile_path").innerText();
+        if (await realpath(actual) !== await realpath(join(directory, "Default"))) {
+          await browser.close();
+          return;
+        }
+      } finally {
+        await probe.close().catch(() => {});
+      }
+      return browser;
     } catch {
       return;
     }

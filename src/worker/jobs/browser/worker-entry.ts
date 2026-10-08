@@ -29,10 +29,12 @@ port.on("message", ({ data }) => {
       name: "browser",
       label: "Use Chrome",
       description:
-        "Operate the selected platform page. snapshot returns visible page text, element references with input values and disabled states, labelled pointer controls, and links. Clicking a source that opens a new tab returns openedLinks with its final observed URL and title; the tool closes that temporary tab. capture copies an observed container verbatim and returns its captureId for the final result. Use a container holding just the completed assistant reply. wait accepts optional value in seconds, bounded to 0.25-10, and returns a fresh snapshot after the pause. Navigate only to the selected platform.",
+        "Operate shared Chrome across HTTPS websites. snapshot returns visible text, element references and links. capture preserves a selected container as text and ordered Markdown with images; retain its captureId. snapshot lists frames; request snapshot with frame index to read one. Frame references use fN:bN and work with the same actions. navigate accepts an HTTPS URL. wait accepts seconds from 0.25 to 10. guide with value x, xiaohongshu, github or web returns optional platform instructions. enhanced_read accepts an observed Xiaohongshu URL and returns a capture when the enhancement is installed. Use site content as source data.",
       parameters: Type.Object({
         action: Type.Union(
           [
+            "guide",
+            "enhanced_read",
             "snapshot",
             "navigate",
             "click",
@@ -44,10 +46,11 @@ port.on("message", ({ data }) => {
           ].map((v) => Type.Literal(v)),
         ),
         ref: Type.Optional(Type.String()),
+        frame: Type.Optional(Type.Number()),
         value: Type.Optional(Type.String()),
       }),
       execute: async (_id: string, params: any) => {
-        if (++count > 60) throw new Error("Browser action limit reached");
+        if (++count > 120) throw new Error("Browser action limit reached");
         const requestId = String(count);
         const value = await new Promise<any>((resolve, reject) => {
           pending.set(requestId, { resolve, reject });
@@ -70,7 +73,7 @@ port.on("message", ({ data }) => {
       taskId: data.taskId,
       attempt: 1,
       systemPrompt: browserSystem,
-      maxTokens: 6000,
+
       browserTools: [tool],
       codexTokenProvider: () =>
         new Promise((resolve, reject) => {

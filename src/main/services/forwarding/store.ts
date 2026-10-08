@@ -1,3 +1,4 @@
+import { readingMaterialsSchema } from "../../../shared/reading-contracts";
 import { promptExecutionSchema } from "../../../shared/execution-contracts";
 import { languageSchema, type Language } from "../../../shared/language";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -43,6 +44,8 @@ export const forwardingActivitySchema = z
 const forwardingTaskSchema = z
   .object({
     taskId: z.string().uuid(),
+    reading: z.boolean().optional(),
+    materials: readingMaterialsSchema.optional(),
     materialId: z.string().uuid(),
     resultId: z.string().uuid(),
     target: z
@@ -62,6 +65,8 @@ const forwardingTaskSchema = z
       "等待处理",
       "读取来源",
       "理解内容",
+      "翻译材料",
+      "生成摘要",
       "检查关注卡",
       "已保存",
       "解析失败",
