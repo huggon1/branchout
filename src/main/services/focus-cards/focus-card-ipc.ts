@@ -25,7 +25,6 @@ export function registerFocusCardIpc(
           value = await service.edit(args[0]);
         else if (channel === focusCardChannels.setDeleted)
           value = await service.setDeleted(args[0]);
-        else value = await service.setActive(args[0]);
         return { ok: true, value };
       } catch (error) {
         const message =

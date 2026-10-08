@@ -21,7 +21,6 @@ export function FocusSearchDialog({
   const available = cards.filter(
     (c) =>
       !c.deletedAt &&
-      c.current.active &&
       projects.some(
         (p) => p.projectId === c.projectId && p.status === "active",
       ),

@@ -24,7 +24,8 @@ export const focusVersionSchema = z
     focusId: focusIdSchema,
     version: z.number().int().positive(),
     content: focusContentSchema,
-    active: z.boolean(),
+    // Legacy archives retain this field; current commands write text and lifecycle changes.
+    active: z.boolean().optional(),
     change: z.enum([
       "created",
       "edited",
@@ -85,14 +86,6 @@ export const editFocusCardSchema = z
   })
   .strict();
 
-export const setFocusCardActiveSchema = z
-  .object({
-    focusId: focusIdSchema,
-    expectedVersionId: focusVersionIdSchema,
-    active: z.boolean(),
-  })
-  .strict();
-
 export type FocusCard = z.infer<typeof focusCardSchema>;
 export type FocusVersion = z.infer<typeof focusVersionSchema>;
 export type FocusCardSnapshot = z.infer<typeof focusCardSnapshotSchema>;
@@ -100,7 +93,6 @@ export type FocusSetSnapshot = z.infer<typeof focusSetSnapshotSchema>;
 export type FocusCardView = z.infer<typeof focusCardViewSchema>;
 export type CreateFocusCard = z.infer<typeof createFocusCardSchema>;
 export type EditFocusCard = z.infer<typeof editFocusCardSchema>;
-export type SetFocusCardActive = z.infer<typeof setFocusCardActiveSchema>;
 
 export const setFocusCardDeletedSchema = z
   .object({

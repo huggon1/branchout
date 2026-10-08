@@ -24,7 +24,6 @@ const commandSchema = z
             focusId: z.string().uuid(),
             focusVersionId: z.string().uuid(),
             content: z.string().min(1).max(100000),
-            active: z.boolean(),
           })
           .strict(),
       )

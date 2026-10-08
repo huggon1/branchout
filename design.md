@@ -10,7 +10,7 @@ This file owns colors, typography, spacing, shapes, component states, and visual
 
 White surfaces carry content. Ink carries actions. A small yellow facet identifies the folded-leaf brand. Neutral functional icons follow their surrounding text. Conclusions receive the strongest reading emphasis; evidence and execution details become available beside the claims they support.
 
-The shell names the module once. The reader names the selected object. Lists organize peers, whitespace separates reading sections, and bounded panels identify actionable suggestions or decisions.
+The selected sidebar entry names the module. Pages start with their controls or content. The reader names the selected object. Lists organize peers, whitespace separates reading sections, and bounded panels identify actionable suggestions or decisions.
 
 ## Colors
 

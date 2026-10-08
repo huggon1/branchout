@@ -27,7 +27,6 @@ export type ProjectAnalysisFocusCard = {
   focusId: string;
   focusVersionId: string;
   content: string;
-  active: boolean;
 };
 
 export type ProjectAnalysisWorkerInput = {

@@ -65,7 +65,7 @@ The [data contracts](data-contracts.md) define cross-module fields.
 
 ## Renderer composition
 
-The shell owns navigation and one module heading. Projects owns binding and preflight; Tasks composes the shared AnalysisReportView and owns suggestion review. Content switches between its report index and a material directory with translated and original bodies. Historical reports retain source-snapshot dialogs. Focus Cards uses project-grouped rows and version-aware editing, deletion, and restore commands. Primitives and semantic stylesheet tokens provide shared presentation. The [design contract](../design.md) defines geometry, hierarchy, responsive states, and acceptance requirements.
+The shell owns navigation; the selected entry identifies the current module. Projects owns binding and preflight; Tasks composes the shared AnalysisReportView and owns suggestion review. Content switches between its report index and a material directory with translated and original bodies. Historical reports retain source-snapshot dialogs. Focus Cards uses project-grouped rows and version-aware editing, deletion, and restore commands. Primitives and semantic stylesheet tokens provide shared presentation. The [design contract](../design.md) defines geometry, hierarchy, responsive states, and acceptance requirements.
 
 ## Platform browser and focus search
 

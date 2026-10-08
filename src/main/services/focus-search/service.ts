@@ -54,7 +54,7 @@ export class FocusSearchService {
   }
   async start(raw: unknown) {
     const input = startFocusSearchSchema.parse(raw);
-    const snapshot = this.cards.activeSnapshot();
+    const snapshot = this.cards.retainedSnapshot();
     snapshot.cards = snapshot.cards.filter((c) =>
       input.focusIds.includes(c.focusId),
     );

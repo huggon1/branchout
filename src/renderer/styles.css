@@ -110,19 +110,12 @@ button {
   min-height: 0;
   flex-direction: column;
 }
-.app-topbar .eyebrow {
-  margin: 0 0 3px;
-}
 .eyebrow {
   color: var(--muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-}
-.topbar-task-state {
-  color: var(--muted);
-  font-size: 11px;
 }
 .page-host {
   position: relative;
@@ -1312,25 +1305,6 @@ textarea {
   letter-spacing: -0.02em;
   font-weight: 550;
   font-size: 15px;
-}
-.app-topbar {
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  border-bottom: 1px solid var(--line);
-  height: 65px;
-  min-height: 65px;
-  padding: 0 28px;
-  background: var(--paper);
-}
-.app-topbar h1 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 550;
-  letter-spacing: 0;
 }
 .page-panel {
   width: 100%;
@@ -2531,11 +2505,6 @@ blockquote span {
   }
   .brand {
     padding: 0 5px;
-  }
-  .app-topbar {
-    padding: 0 16px;
-    height: 56px;
-    min-height: 56px;
   }
   .content-page {
     display: block;

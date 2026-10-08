@@ -4,15 +4,15 @@ The [product specification](product-spec.md) defines product behavior. This docu
 
 ## Navigation and opening screen
 
-The left navigation shows Content, Projects, Focus Cards, Tasks, and Settings, in that order. Projects precede their cards. The app opens on the Content list. While tasks run, the Tasks entry continually shows the running count and states needing attention. Users can open the task center from any page to inspect current Agent work.
+The left navigation shows Content, Projects, Focus, Tasks, and Settings, in that order. The selected navigation entry identifies the module; each page starts with its controls or content. Projects precede their cards. The app opens on the Content list. While tasks run, the Tasks entry continually shows the running count and states needing attention. Users can open the task center from any page to inspect current Agent work.
 
-Content supports link submission, report search, and continuous reading. Focus Cards groups cards by project. Projects manages local repository bindings and starts analysis. Tasks owns analysis reports, suggestion review, and execution history. Settings manages models, Telegram, and content sources.
+Content supports link submission, report search, and continuous reading. Focus groups cards by project. Projects manages local repository bindings, shows the total related-card count, and starts analysis. Tasks owns analysis reports, suggestion review, and execution history. Settings manages models, Telegram, and content sources.
 
 ## Focus card editing
 
-The Focus Cards page presents project-grouped text rows with search and a project filter. Each row uses the first line as an identifying label, followed by a short body excerpt, active or paused status, version, and update time. Editing and creation open a dialog with one free-text area; creation also selects the owning project.
+The Focus page presents project-grouped text rows with search and a project filter. Each row uses the first line as an identifying label, followed by a short body excerpt, version and update time. Editing and creation open a dialog with one free-text area; creation also selects the owning project.
 
-Named icon actions edit, pause or activate, and delete a card. Deletion removes the row from the current list and later task snapshots, shows Undo, and retains the card in a collapsed Deleted section with Restore. Restoring preserves the saved active state. Historical project cards remain readable. Card links in reports open the exact referenced version; the version reader exposes all saved versions, including the current one.
+Named icon actions edit and delete a card. Deletion removes the row from the current list and later task snapshots, shows Undo, and retains the card in a collapsed Deleted section with Restore. Restoring returns the card to later task snapshots when its project is bound. Historical project cards remain readable. Card links in reports open the exact referenced version; the version reader exposes all saved versions, including the current one.
 
 ## Content list and reading
 
@@ -58,6 +58,6 @@ Empty projects, empty cards, zero connections, empty reports, missing model conf
 
 ## Focus search and platform sessions
 
-Focus Cards exposes Search Discussions. Its preparation dialog selects cards, Xiaohongshu and X, and a day, week, or month. Launch opens the search task in Tasks. The reader groups platform sections and card results, with the original AI reply followed by selectable candidate posts. Each candidate offers Open Original and Add to Parsing; added candidates link to their parsing task. A batch action submits selected candidates and displays individual failures. Empty and failed sections state their outcomes and offer retry for failed sections.
+Focus exposes Search Discussions in its top toolbar. Its preparation dialog selects cards, Xiaohongshu and X, and a day, week, or month. Launch opens the search task in Tasks. The reader groups platform sections and card results, with the original AI reply followed by selectable candidate posts. Each candidate offers Open Original and Add to Parsing; added candidates link to their parsing task. A batch action submits selected candidates and displays individual failures. Empty and failed sections state their outcomes and offer retry for failed sections.
 
 Settings groups GitHub under Public Sources and Xiaohongshu and X under Signed-in Platforms. GitHub describes public README parsing. Signed-in platform rows show the app icon, platform name, and session status. Expanded connection controls show browser availability and login and logout actions. Platform login opens a manual sign-in page in shared Chrome. Search, reading, and restart reuse all saved site sessions in the application profile. Reopening the connection brings its existing login page forward. Verification or expired sessions pause access for user handling.

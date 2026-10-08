@@ -3,7 +3,6 @@ import {
   createFocusCardSchema,
   editFocusCardSchema,
   focusSetSnapshotSchema,
-  setFocusCardActiveSchema,
   setFocusCardDeletedSchema,
   type FocusCard,
   type FocusVersion,
@@ -39,7 +38,6 @@ export class FocusCardService {
       focusId: card.focusId,
       version: 1,
       content: input.content,
-      active: true,
       change: "created",
       createdAt: timestamp,
     };
@@ -86,50 +84,7 @@ export class FocusCardService {
         focusId: card.focusId,
         version: current.version + 1,
         content: input.content,
-        active: current.active,
         change: "edited",
-        createdAt: timestamp,
-      };
-      state.focusVersions.push(result);
-      card.currentVersionId = result.focusVersionId;
-      card.updatedAt = timestamp;
-      updated = true;
-    });
-    if (updated) this.changed();
-    return result;
-  }
-
-  async setActive(raw: unknown): Promise<FocusVersion> {
-    const input = setFocusCardActiveSchema.parse(raw);
-    let result!: FocusVersion;
-    let updated = false;
-    await this.store.update((state) => {
-      const card = state.focusCards.find(
-        (item) => item.focusId === input.focusId,
-      );
-      if (!card || card.deletedAt) throw new Error("关注卡已删除或不存在");
-      const project = state.projects.find(
-        (item) => item.projectId === card.projectId,
-      );
-      if (!project || project.status !== "bound")
-        throw new Error("请先绑定该项目");
-      if (card.currentVersionId !== input.expectedVersionId)
-        throw new Error("关注卡已更新，请重新打开后操作");
-      const current = state.focusVersions.find(
-        (item) => item.focusVersionId === card.currentVersionId,
-      );
-      if (!current) throw new Error("关注卡当前版本无法读取");
-      if (current.active === input.active) {
-        result = current;
-        return;
-      }
-      const timestamp = now();
-      result = {
-        ...current,
-        focusVersionId: randomUUID(),
-        version: current.version + 1,
-        active: input.active,
-        change: input.active ? "activated" : "paused",
         createdAt: timestamp,
       };
       state.focusVersions.push(result);
@@ -167,7 +122,8 @@ export class FocusCardService {
       }
       const timestamp = now();
       result = {
-        ...current,
+        focusId: current.focusId,
+        content: current.content,
         focusVersionId: randomUUID(),
         version: current.version + 1,
         change: input.deleted ? "deleted" : "restored",
@@ -183,7 +139,7 @@ export class FocusCardService {
     return result;
   }
 
-  activeSnapshot(): FocusSetSnapshot {
+  retainedSnapshot(): FocusSetSnapshot {
     const state = this.store.snapshot();
     const boundProjects = new Map(
       state.projects
@@ -195,7 +151,7 @@ export class FocusCardService {
       const version = state.focusVersions.find(
         (item) => item.focusVersionId === card.currentVersionId,
       );
-      return project && !card.deletedAt && version?.active
+      return project && !card.deletedAt && version
         ? [
             {
               projectId: project.projectId,

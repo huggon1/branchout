@@ -4,7 +4,7 @@ This document describes the current renderer structure. See the [UX specificatio
 
 ## Responsibilities
 
-`renderer` presents Content, Projects, Focus Cards, Tasks, and Settings. Content handles links, lists, and report reading. Focus Cards manages free-text cards by project. Projects handles bindings and analysis preparation. Tasks owns analysis reports, suggestion review, current stage, and collapsed chronological activity.
+`renderer` presents Content, Projects, Focus, Tasks, and Settings. Content handles links, lists, and report reading. Focus manages free-text cards by project. Projects handles bindings and analysis preparation. Tasks owns analysis reports, suggestion review, current stage, and collapsed chronological activity.
 
 The renderer reads saved snapshots through the controlled preload interface and submits editing, content, analysis, and acceptance commands. Page changes retain project selection, filters, and reading position; task state restores from unified snapshots.
 
@@ -12,7 +12,7 @@ The renderer reads saved snapshots through the controlled preload interface and 
 
 - `App.tsx`: navigation, task indicator, and page transitions.
 - `components/ContentPage.tsx`: submission, list, source reading, understanding, and connections.
-- `components/FocusCardsPage.tsx`: project grouping, free-text editor, state, and version reading.
+- `components/FocusCardsPage.tsx`: project grouping, free-text editor, deletion, restoration, and version reading.
 - `components/ProjectsPage.tsx`: vertical project index, binding, overview, and analysis preparation dialog.
 - `components/TasksPage.tsx`: list, report ownership, stage, Agent activity, failures, and retry.
 - `components/AnalysisReportView.tsx`: shared report prose, coverage, evidence, suggestion comparison, and acceptance.
