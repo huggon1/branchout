@@ -9,7 +9,7 @@ import { chromium } from "playwright-core";
 // Failure cases: automation defaults replace ordinary Chrome settings; login
 // redirects are intercepted; task redirects escape the platform; reconnect loses
 // sessions; shutdown affects another profile; cookie values enter status files.
-test("ordinary Chrome sessions isolate accounts and retain login across reconnect and restart", async ({}, info) => {
+test("shared Chrome sessions retain both accounts and retain login across reconnect and restart", async ({}, info) => {
   test.setTimeout(90000);
   const root = await mkdtemp(join(tmpdir(), "branchout-session-e2e-"));
   let browser = new PlatformBrowser(
@@ -49,7 +49,7 @@ test("ordinary Chrome sessions isolate accounts and retain login across reconnec
       expect(command).not.toContain("--use-mock-keychain");
       expect(command).not.toContain("--disable-extensions");
       expect(command).not.toContain("--no-sandbox");
-      expect(command).toContain(join(root, "platforms", platform));
+      expect(command).toContain(join(root, "platforms", "shared"));
       await version.close();
       const manual = await context.newPage();
       await manual.goto(authUrl);
@@ -76,13 +76,12 @@ test("ordinary Chrome sessions isolate accounts and retain login across reconnec
           (cookie) => cookie.value === `fictional-${platform}`,
         ),
       ).toBe(true);
-      expect(
-        (await reconnected.cookies()).some(
-          (cookie) =>
-            cookie.domain ===
-            (platform === "x" ? ".xiaohongshu.com" : ".x.com"),
-        ),
-      ).toBe(false);
+      if (platform === "xiaohongshu")
+        expect(
+          (await reconnected.cookies()).some(
+            (cookie) => cookie.domain === ".x.com",
+          ),
+        ).toBe(true);
       await browser.exclusive(
         platform,
         new AbortController().signal,
@@ -93,7 +92,7 @@ test("ordinary Chrome sessions isolate accounts and retain login across reconnec
       evidence[platform] = {
         ordinaryLaunch: true,
         manualAuthNavigation: true,
-        taskNavigationConfined: true,
+        taskHTTPSBoundary: true,
         reconnectRetainsSession: true,
       };
     }
@@ -112,7 +111,7 @@ test("ordinary Chrome sessions isolate accounts and retain login across reconnec
       await browser.context(platform);
       expect((await browser.status(platform)).signedIn).toBe(true);
       const statusFile = await readFile(
-        join(root, "platforms", platform, "branchout-session-status.json"),
+        join(root, "platforms", "shared", "branchout-session-status.json"),
         "utf8",
       );
       expect(statusFile).not.toContain(`fictional-${platform}`);
@@ -175,6 +174,7 @@ test("existing browser login survives the move from the previous launcher", asyn
     headless: true,
   });
   try {
+    expect((await browser.status("xiaohongshu")).signedIn).toBe(true);
     const context = await browser.context("xiaohongshu");
     expect(
       (await context.cookies()).some(

@@ -3,7 +3,7 @@ import {
   spawnSync,
   type ChildProcessWithoutNullStreams,
 } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -182,7 +182,34 @@ export class CodexClient implements CodexRpc {
   }
   async request(method: string, params?: unknown) {
     await this.start();
-    return this.send(method, params);
+    const result = await this.send(method, params);
+    // Recent app-server versions report the login method while keeping OAuth
+    // access in the isolated file store selected at process startup.
+    if (
+      method === "getAuthStatus" &&
+      (params as { includeToken?: boolean })?.includeToken &&
+      (result as { authMethod?: string })?.authMethod === "chatgpt" &&
+      !(result as { authToken?: string })?.authToken
+    ) {
+      if ((params as { refreshToken?: boolean }).refreshToken)
+        await this.send("account/read", { refreshToken: true });
+      const auth = z
+        .object({
+          auth_mode: z.literal("chatgpt"),
+          tokens: z.object({ access_token: z.string().min(1) }),
+        })
+        .parse(
+          JSON.parse(await readFile(join(this.home, "auth.json"), "utf8")),
+        );
+      const token = auth.tokens.access_token;
+      const expiry = JSON.parse(
+        Buffer.from(token.split(".")[1], "base64url").toString("utf8"),
+      ).exp;
+      if (typeof expiry !== "number" || expiry * 1000 <= Date.now() + 60000)
+        throw new Error("模型认证失败，请在设置中刷新登录");
+      return { ...(result as object), authToken: token };
+    }
+    return result;
   }
   onNotice(listener: (method: string, params: unknown) => void) {
     this.listeners.add(listener);

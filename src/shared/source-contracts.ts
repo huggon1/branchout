@@ -138,18 +138,17 @@ export const xhsShortUrlSchema = z
       /^\/[A-Za-z0-9_-]{1,120}\/?$/.test(url.pathname)
     );
   }, "请输入小红书短链接");
-export const forwardingInputSchema = z.union([
-  repositoryUrlSchema,
-  xPostUrlSchema,
-  xhsNoteUrlSchema,
-  xhsShortUrlSchema,
-]);
-export const sourceUrlSchema = z.union([
-  repositoryUrlSchema,
-  xPostUrlSchema,
-  xhsNoteUrlSchema,
-]);
-export const platformSchema = z.enum(["github", "x", "xiaohongshu"]);
+export const webUrlSchema = z
+  .string()
+  .max(4096)
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password;
+  }, "请输入 HTTPS 网页链接");
+export const forwardingInputSchema = webUrlSchema;
+export const sourceUrlSchema = webUrlSchema;
+export const platformSchema = z.enum(["github", "x", "xiaohongshu", "web"]);
 export const imageHosts = [
   "raw.githubusercontent.com",
   "camo.githubusercontent.com",
@@ -157,25 +156,7 @@ export const imageHosts = [
   "private-user-images.githubusercontent.com",
   "avatars.githubusercontent.com",
 ] as const;
-export const imageUrlSchema = z
-  .string()
-  .max(4096)
-  .url()
-  .refine((value) => {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      !url.port &&
-      !url.username &&
-      !url.password &&
-      (([...imageHosts, "pbs.twimg.com"].some(
-        (host) => host === url.hostname,
-      ) &&
-        (url.hostname === "pbs.twimg.com" || !url.search)) ||
-        url.hostname === "xhscdn.com" ||
-        url.hostname.endsWith(".xhscdn.com"))
-    );
-  });
+export const imageUrlSchema = webUrlSchema;
 export const blockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string().max(300_000) }).strict(),
   z
@@ -191,6 +172,7 @@ export const blockSchema = z.discriminatedUnion("type", [
 export const sourceSchema = z
   .object({
     sourceUrl: sourceUrlSchema,
+    markdown: z.string().optional(),
     platform: platformSchema,
     title: z.string().max(500).optional(),
     sourceIdentity: z.string().max(300),
@@ -203,6 +185,10 @@ export const sourceSchema = z
             imageId: z.string().max(80),
             url: imageUrlSchema,
             alt: z.string().max(1000),
+            cachedUrl: z
+              .string()
+              .regex(/^branchout-image:\/\/[a-f0-9]{64}$/)
+              .optional(),
           })
           .strict(),
       )
@@ -211,18 +197,12 @@ export const sourceSchema = z
     completenessNote: z.string().max(1500),
   })
   .strict()
-  .refine(
-    (source) =>
-      (source.platform === "github"
-        ? repositoryUrlSchema.safeParse(source.sourceUrl).success
-        : source.platform === "x"
-          ? xPostUrlSchema.safeParse(source.sourceUrl).success
-          : xhsNoteUrlSchema.safeParse(source.sourceUrl).success) &&
-      source.contentBlocks.every(
-        (block) =>
-          block.type !== "image" ||
-          source.images.some((image) => image.imageId === block.imageId),
-      ),
+  .refine((source) =>
+    source.contentBlocks.every(
+      (block) =>
+        block.type !== "image" ||
+        source.images.some((image) => image.imageId === block.imageId),
+    ),
   );
 export type SourceContent = z.infer<typeof sourceSchema>;
 export type ContentBlock = z.infer<typeof blockSchema>;

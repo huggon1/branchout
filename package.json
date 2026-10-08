@@ -29,6 +29,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "dompurify": "^3.4.16",
     "marked": "^18.0.14",
+    "mermaid": "^12.1.0",
     "parse5": "^8.0.1",
     "playwright-core": "^1.63.0",
     "react": "^19.2.0",

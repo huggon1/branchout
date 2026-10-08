@@ -1,3 +1,4 @@
+import { MaterialReader } from "./MaterialReader";
 import { dateTime } from "../i18n";
 import { t, tf } from "../i18n";
 import { Disclosure } from "../design/Components";
@@ -6,6 +7,7 @@ import type { UiForwardingReport, UiProject } from "../product-ui";
 import { EmptyState, Dialog, Markdown } from "./Primitives";
 
 const sourceName: Record<UiForwardingReport["platform"], string> = {
+  web: t("网页"),
   github: "GitHub",
   x: "X",
   xiaohongshu: t("小红书"),
@@ -49,6 +51,7 @@ export function ContentPage({
   const [adding, setAdding] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string>();
+  const [listOnly, setListOnly] = useState(false);
   const listScroll = useRef(0);
   const contentList = useRef<HTMLDivElement>(null);
   const visible = useMemo(() => {
@@ -92,6 +95,7 @@ export function ContentPage({
       setProject("all");
       setRange("all");
       setSelectedId(openMaterialId);
+      setListOnly(false);
       onMaterialOpened?.();
     }
   }, [openMaterialId, reports, partialReports, onMaterialOpened]);
@@ -111,7 +115,7 @@ export function ContentPage({
 
   return (
     <div
-      className={`content-page ${selectedId && selected ? "mobile-detail" : ""}`}
+      className={`content-page ${selectedId && selected ? "mobile-detail" : ""} ${!listOnly && selected?.materials ? "material-detail" : ""} ${listOnly ? "material-list-only" : ""}`}
     >
       <aside className="content-index">
         <>
@@ -129,7 +133,7 @@ export function ContentPage({
               onSubmit={(event) => void submit(event)}
             >
               <label htmlFor="forward-url">
-                {t("GitHub 仓库、X 帖子或小红书笔记链接")}
+                {t("帖子、文章或仓库的网页链接")}
               </label>
               <div className="add-link-row">
                 <input
@@ -164,6 +168,7 @@ export function ContentPage({
               onChange={(event) => setSource(event.target.value)}
             >
               <option value="all">{t("全部来源")}</option>
+              <option value="web">{t("网页")}</option>
               <option value="github">GitHub</option>
               <option value="x">X</option>
               <option value="xiaohongshu">{t("小红书")}</option>
@@ -207,7 +212,10 @@ export function ContentPage({
                           ? "true"
                           : undefined
                       }
-                      onClick={() => setSelectedId(item.materialId)}
+                      onClick={() => {
+                        setSelectedId(item.materialId);
+                        setListOnly(false);
+                      }}
                     >
                       <div className="content-item-meta">
                         <span className="source-label">
@@ -234,22 +242,28 @@ export function ContentPage({
                       </p>
                       <div className="content-item-footer">
                         <span>
-                          {item.reportState && item.reportState !== "complete"
-                            ? t("报告阶段未完成")
-                            : item.relations.length
-                              ? item.relations
-                                  .map((relation) => relation.projectLabel)
-                                  .filter(
-                                    (label, index, values) =>
-                                      values.indexOf(label) === index,
-                                  )
-                                  .join(" · ")
-                              : t("无关注卡关联")}
+                          {item.materials
+                            ? tf("{0} 份材料", item.materials.length)
+                            : item.reportState &&
+                                item.reportState !== "complete"
+                              ? t("报告阶段未完成")
+                              : item.relations.length
+                                ? item.relations
+                                    .map((relation) => relation.projectLabel)
+                                    .filter(
+                                      (label, index, values) =>
+                                        values.indexOf(label) === index,
+                                    )
+                                    .join(" · ")
+                                : t("无关注卡关联")}
                         </span>
                         <span>
-                          {item.reportState && item.reportState !== "complete"
-                            ? t("查看已保存阶段结果")
-                            : tf("{0} 条关联", item.relations.length)}{" "}
+                          {item.materials
+                            ? t("阅读内容")
+                            : item.reportState &&
+                                item.reportState !== "complete"
+                              ? t("查看已保存阶段结果")
+                              : tf("{0} 条关联", item.relations.length)}{" "}
                           →
                         </span>
                       </div>
@@ -263,9 +277,7 @@ export function ContentPage({
               </EmptyState>
             ) : (
               <EmptyState title={t("还没有内容报告")}>
-                {t(
-                  "添加一条 GitHub、X 或小红书链接。解析完成后，原文、内容理解和关注卡关联会在这里汇总。",
-                )}
+                {t("添加一条网页链接。主内容和直接引用材料会以应用语言呈现。")}
               </EmptyState>
             )}
           </div>
@@ -282,13 +294,22 @@ export function ContentPage({
           >
             {reports.length + partialReports.length
               ? t("搜索标题、来源，或调整左侧筛选。")
-              : t(
-                  "添加 GitHub、X 或小红书链接，阅读内容理解，发现与你的项目有关的角度。",
-                )}
+              : t("添加网页链接，以目标语言阅读摘要、正文和直接引用材料。")}
           </EmptyState>
         </div>
       )}
-      {selected && (
+      {selected?.materials && !listOnly && (
+        <MaterialReader
+          key={selected.materialId}
+          report={selected}
+          onBack={() => {
+            setSelectedId(undefined);
+            setListOnly(true);
+          }}
+          onRetry={() => onRetryTask(selected.taskId)}
+        />
+      )}
+      {selected && !selected.materials && (
         <div className="content-reader" key={selected.materialId}>
           <>
             <div className="reader-toolbar">

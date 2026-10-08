@@ -1,6 +1,6 @@
 import { type BrowserContext, type Page } from "playwright-core";
 import { join } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, access } from "node:fs/promises";
 import { z } from "zod";
 import type { Platform } from "../../platforms/types";
 import type { XhsAuth } from "./xhs-auth";
@@ -18,15 +18,11 @@ const operationSchema = z
       "capture",
     ]),
     ref: z.string().optional(),
+    frame: z.number().int().nonnegative().optional(),
     value: z.string().max(30000).optional(),
   })
   .strict();
 export type BrowserOperation = z.infer<typeof operationSchema>;
-const roots = {
-  github: ["github.com"],
-  x: ["x.com", "twitter.com"],
-  xiaohongshu: ["xiaohongshu.com", "xhslink.com"],
-};
 export class PlatformBrowser {
   private contexts = new Map<Platform, Promise<BrowserContext>>();
   private statusCache = new Map<Platform, string>();
@@ -41,10 +37,11 @@ export class PlatformBrowser {
     private options: { headless?: boolean } = {},
   ) {}
   async context(platform: Platform) {
-    let existing = this.contexts.get(platform);
+    const key: Platform = "web";
+    let existing = this.contexts.get(key);
     if (!existing) {
       existing = (async () => {
-        const dir = join(this.root, platform);
+        const dir = join(this.root, "shared");
         await mkdir(dir, { recursive: true, mode: 0o700 });
         const browser = await this.chrome.connect(dir, this.options.headless);
         const context = browser.contexts()[0];
@@ -54,11 +51,11 @@ export class PlatformBrowser {
         }
         context.setDefaultTimeout(12000);
         browser.on("disconnected", () => {
-          if (this.contexts.get(platform) === existing)
-            this.contexts.delete(platform);
-          this.loginPages.delete(platform);
+          if (this.contexts.get(key) === existing) this.contexts.delete(key);
+          this.loginPages.clear();
           this.changed();
         });
+        await this.migrateSessions(context);
         const timer = setInterval(
           () => void this.saveStatus(platform, context).catch(() => {}),
           3000,
@@ -68,22 +65,52 @@ export class PlatformBrowser {
         await this.saveStatus(platform, context);
         return context;
       })();
-      this.contexts.set(platform, existing);
+      this.contexts.set(key, existing);
       existing.catch(() => {
-        this.contexts.delete(platform);
+        this.contexts.delete(key);
       });
     }
     return existing;
   }
-  allowed(platform: Platform, raw: string) {
+  private async migrateSessions(context: BrowserContext) {
+    for (const platform of ["github", "x", "xiaohongshu"] as const) {
+      const marker = join(this.root, "shared", `migrated-${platform}.json`);
+      try {
+        await access(marker);
+        continue;
+      } catch {}
+      const old = join(this.root, platform);
+      try {
+        await access(join(old, "branchout-session-status.json"));
+      } catch {
+        continue;
+      }
+      const previous = await this.chrome.connect(old, this.options.headless);
+      try {
+        const cookies = await previous.contexts()[0].cookies();
+        const current = await context.cookies();
+        const fresh = cookies.filter(
+          (c) =>
+            !current.some(
+              (n) =>
+                n.name === c.name && n.domain === c.domain && n.path === c.path,
+            ),
+        );
+        if (fresh.length) await context.addCookies(fresh);
+        await writeFile(
+          marker,
+          JSON.stringify({ migratedAt: new Date().toISOString() }),
+          { mode: 0o600 },
+        );
+      } finally {
+        await previous.close();
+      }
+    }
+  }
+  allowed(_platform: Platform, raw: string) {
     try {
       const url = new URL(raw);
-      return (
-        url.protocol === "https:" &&
-        roots[platform].some(
-          (host) => url.hostname === host || url.hostname.endsWith(`.${host}`),
-        )
-      );
+      return url.protocol === "https:" && !url.username && !url.password;
     } catch {
       return false;
     }
@@ -91,7 +118,7 @@ export class PlatformBrowser {
   async status(platform: "x" | "xiaohongshu") {
     // Query existing profiles without launching a browser just to paint settings.
     let cookies: any[] = [];
-    const running = this.contexts.get(platform);
+    const running = this.contexts.get("web");
     if (running) {
       try {
         cookies = await (await running).cookies();
@@ -99,12 +126,20 @@ export class PlatformBrowser {
     } else {
       try {
         const { readFile } = await import("node:fs/promises");
-        cookies = JSON.parse(
-          await readFile(
+        let metadata: string;
+        try {
+          metadata = await readFile(
+            join(this.root, "shared", "branchout-session-status.json"),
+            "utf8",
+          );
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          metadata = await readFile(
             join(this.root, platform, "branchout-session-status.json"),
             "utf8",
-          ),
-        ).cookies;
+          );
+        }
+        cookies = JSON.parse(metadata).cookies;
       } catch {}
     }
     const names = platform === "x" ? ["auth_token", "ct0"] : ["web_session"];
@@ -113,38 +148,51 @@ export class PlatformBrowser {
         cookies.some(
           (c) =>
             c.name === name &&
+            (!c.domain ||
+              c.domain.endsWith(
+                platform === "x" ? "x.com" : "xiaohongshu.com",
+              )) &&
             (c.expires === -1 || c.expires > Date.now() / 1000),
         ),
       ),
       installed: !!chromeExecutable(),
     };
   }
-  private async saveStatus(platform: Platform, context: BrowserContext) {
+  private async saveStatus(_platform: Platform, context: BrowserContext) {
     const cookies = await context.cookies();
     await writeFile(
-      join(this.root, platform, "branchout-session-status.json"),
+      join(this.root, "shared", "branchout-session-status.json"),
       JSON.stringify({
-        cookies: cookies.map((c) => ({ name: c.name, expires: c.expires })),
+        cookies: cookies.map((c) => ({
+          name: c.name,
+          domain: c.domain,
+          expires: c.expires,
+        })),
       }),
       { mode: 0o600 },
     );
-    if (platform === "xiaohongshu" && this.xhs?.installed())
-      await this.xhs.importBrowserCookies(cookies);
-    const names = platform === "x" ? ["auth_token", "ct0"] : ["web_session"];
-    const status = JSON.stringify({
-      signedIn: names.every((name) =>
-        cookies.some(
-          (c) =>
-            c.name === name &&
-            (c.expires === -1 || c.expires > Date.now() / 1000),
+    if (this.xhs?.installed()) await this.xhs.importBrowserCookies(cookies);
+    for (const platform of ["x", "xiaohongshu"] as const) {
+      const names = platform === "x" ? ["auth_token", "ct0"] : ["web_session"];
+      const status = JSON.stringify({
+        signedIn: names.every((name) =>
+          cookies.some(
+            (c) =>
+              c.name === name &&
+              c.domain.endsWith(
+                platform === "x" ? "x.com" : "xiaohongshu.com",
+              ) &&
+              (c.expires === -1 || c.expires > Date.now() / 1000),
+          ),
         ),
-      ),
-    });
-    if (this.statusCache.get(platform) !== status) {
-      this.statusCache.set(platform, status);
-      this.changed();
+      });
+      if (this.statusCache.get(platform) !== status) {
+        this.statusCache.set(platform, status);
+        this.changed();
+      }
     }
   }
+
   async login(platform: "x" | "xiaohongshu") {
     const context = await this.context(platform);
     const existing = this.loginPages.get(platform);
@@ -169,9 +217,12 @@ export class PlatformBrowser {
   }
   async logout(platform: "x" | "xiaohongshu") {
     const context = await this.context(platform);
-    await context.clearCookies();
+    await context.clearCookies({
+      domain: platform === "x" ? /(^|\.)x\.com$/ : /(^|\.)xiaohongshu\.com$/,
+    });
     await this.chrome.clearPreviousSession(join(this.root, platform));
-    for (const page of context.pages()) await page.close();
+    const login = this.loginPages.get(platform);
+    await login?.close().catch(() => {});
     await this.saveStatus(platform, context);
     if (platform === "xiaohongshu") await this.xhs?.logout();
   }
@@ -180,7 +231,7 @@ export class PlatformBrowser {
     signal: AbortSignal,
     run: (page: Page) => Promise<T>,
   ) {
-    const previous = this.locked.get(platform) ?? Promise.resolve();
+    const previous = this.locked.get("web") ?? Promise.resolve();
     const job = previous
       .catch(() => {})
       .then(async () => {
@@ -199,7 +250,7 @@ export class PlatformBrowser {
           await this.saveStatus(platform, context).catch(() => {});
         }
       });
-    this.locked.set(platform, job);
+    this.locked.set("web", job);
     return job;
   }
   private async guardTaskPage(platform: Platform, page: Page) {
@@ -231,16 +282,27 @@ export class PlatformBrowser {
     platform: Platform,
     page: Page,
     raw: unknown,
-    purpose: "search" | "read" = "search",
+    purpose: "search" | "read" | "collect" = "search",
   ) {
     const op = operationSchema.parse(raw);
+    let clickedUrl: string | undefined;
     await this.guardTaskPage(platform, page);
+    const frameMatch = op.ref?.match(/^f(\d+):(b\d+)$/);
+    const frameIndex = frameMatch ? Number(frameMatch[1]) : op.frame;
+    const frame =
+      frameIndex === undefined ? page.mainFrame() : page.frames()[frameIndex];
+    if (
+      !frame ||
+      (!this.allowed(platform, frame.url()) && frame !== page.mainFrame())
+    )
+      throw new Error("Refresh frame snapshot");
+    if (frameMatch) op.ref = frameMatch[2];
     if (
       op.action !== "navigate" &&
       page.url() !== "about:blank" &&
       !this.allowed(platform, page.url())
     )
-      throw new Error("Page is outside the selected platform");
+      throw new Error("Page is outside HTTPS browsing");
     if (op.action === "press") {
       const keys: Record<string, string> = {
         enter: "Enter",
@@ -254,7 +316,7 @@ export class PlatformBrowser {
     }
     if (op.action === "navigate") {
       if (!op.value || !this.allowed(platform, op.value))
-        throw new Error("Navigation is outside the selected platform");
+        throw new Error("Navigation is outside HTTPS browsing");
       await page.goto(op.value, { waitUntil: "domcontentloaded" });
     } else if (op.action === "wait") {
       const seconds = Number(op.value ?? "1.5");
@@ -268,7 +330,7 @@ export class PlatformBrowser {
     else if (op.action !== "snapshot") {
       if (!op.ref || !/^b\d+$/.test(op.ref))
         throw new Error("Use a reference from the current snapshot");
-      const target = page.locator(`[data-branchout-ref="${op.ref}"]`);
+      const target = frame.locator(`[data-branchout-ref="${op.ref}"]`);
       const label =
         (await target.innerText().catch(() => "")) ||
         (await target.getAttribute("aria-label")) ||
@@ -282,15 +344,15 @@ export class PlatformBrowser {
         throw new Error("This action changes platform content");
       if (op.action === "click") {
         const href = await target.getAttribute("href");
+        if (href) clickedUrl = new URL(href, frame.url()).href;
         if (href && !this.allowed(platform, new URL(href, page.url()).href))
-          throw new Error("Navigation is outside the selected platform");
+          throw new Error("Navigation is outside HTTPS browsing");
         await target.click();
       }
       if (
         (op.action === "fill" ||
           (op.action === "press" && op.value === "Enter")) &&
-        (purpose !== "search" ||
-          !/\/i\/grok|\/grok|\/ai_chat/.test(new URL(page.url()).pathname))
+        !/\/i\/grok|\/grok|\/ai_chat/.test(new URL(page.url()).pathname)
       )
         throw new Error("Text submission is restricted to platform AI search");
       if (op.action === "fill") {
@@ -317,29 +379,153 @@ export class PlatformBrowser {
           throw new Error("Unsupported key");
         await target.press(op.value!);
       }
-      if (op.action === "capture")
+      if (op.action === "capture") {
+        const structured = await target.evaluate((element) => {
+          const links: { url: string; title: string }[] = [];
+          const images: { url: string; alt: string }[] = [];
+          const escape = (s: string) => s.replace(/[\\[\]]/g, "\\$&");
+          const walk = (node: Node): string => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              const text = node.textContent ?? "";
+              const preserve =
+                node.parentElement &&
+                /pre/.test(getComputedStyle(node.parentElement).whiteSpace);
+              return (preserve ? text : text.replace(/\s+/g, " ")).replace(
+                /[\\`*_[\]<>]/g,
+                "\\$&",
+              );
+            }
+            if (!(node instanceof HTMLElement)) return "";
+            const style = getComputedStyle(node);
+            if (style.display === "none" || style.visibility === "hidden")
+              return "";
+            const tag = node.tagName;
+            if (
+              [
+                "SCRIPT",
+                "STYLE",
+                "NAV",
+                "BUTTON",
+                "INPUT",
+                "TEXTAREA",
+                "SVG",
+              ].includes(tag)
+            )
+              return "";
+            if (tag === "IMG") {
+              const img = node as HTMLImageElement;
+              const rect = img.getBoundingClientRect();
+              if (rect.width < 48 || rect.height < 48 || !img.currentSrc)
+                return "";
+              const item = { url: img.currentSrc, alt: img.alt };
+              images.push(item);
+              return `\n\n![${escape(item.alt)}](<${item.url}>)\n\n`;
+            }
+            if (tag === "PRE") {
+              const code = node.querySelector("code");
+              const classes = `${node.className} ${code?.className ?? ""} ${node.parentElement?.className ?? ""}`;
+              const observed =
+                code?.getAttribute("data-lang") ??
+                node.getAttribute("data-lang") ??
+                classes.match(
+                  /(?:language-|lang-|highlight-(?:source|text)-)([\w+-]+)/,
+                )?.[1] ??
+                "";
+              const language = /^[\w+-]{0,40}$/.test(observed) ? observed : "";
+              const text = node.innerText;
+              const fence = "`".repeat(
+                Math.max(
+                  3,
+                  ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1),
+                ),
+              );
+              return `\n\n${fence}${language}\n${text}\n${fence}\n\n`;
+            }
+            if (tag === "CODE") {
+              const text = node.textContent ?? "";
+              const fence = "`".repeat(
+                Math.max(
+                  1,
+                  ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1),
+                ),
+              );
+              const padding =
+                text.startsWith("`") || text.endsWith("`") ? " " : "";
+              return `${fence}${padding}${text}${padding}${fence}`;
+            }
+            if (tag === "BR") return "\n";
+            if (tag === "TABLE") {
+              const rows = [...node.querySelectorAll("tr")].map((row) =>
+                [...row.children].map((cell) =>
+                  [...cell.childNodes]
+                    .map(walk)
+                    .join("")
+                    .trim()
+                    .replace(/\|/g, "\\|")
+                    .replace(/\n+/g, "<br>"),
+                ),
+              );
+              if (!rows.length) return "";
+              return (
+                "\n\n" +
+                rows
+                  .map(
+                    (row, i) =>
+                      "| " +
+                      row.join(" | ") +
+                      " |" +
+                      (i === 0
+                        ? "\n| " + row.map(() => "---").join(" | ") + " |"
+                        : ""),
+                  )
+                  .join("\n") +
+                "\n\n"
+              );
+            }
+            const inner = [...node.childNodes].map(walk).join("");
+            if (tag === "A") {
+              const a = node as HTMLAnchorElement;
+              if (!/^https?:/.test(a.href)) return inner;
+              links.push({ url: a.href, title: a.innerText });
+              const label = inner.trim().replace(/\n+/g, " ");
+              return label ? `[${label}](<${a.href}>)` : "";
+            }
+            if (/^H[1-6]$/.test(tag))
+              return `\n\n${"#".repeat(Number(tag[1]))} ${inner.trim()}\n\n`;
+            if (tag === "STRONG" || tag === "B") return `**${inner}**`;
+            if (tag === "EM" || tag === "I") return `*${inner}*`;
+            if (tag === "BLOCKQUOTE")
+              return `\n\n${inner
+                .trim()
+                .split("\n")
+                .map((l) => "> " + l)
+                .join("\n")}\n\n`;
+            if (tag === "LI")
+              return `\n${node.parentElement?.tagName === "OL" ? "1." : "-"} ${inner.trim()}\n`;
+            if (["P", "DIV", "SECTION", "ARTICLE", "UL", "OL"].includes(tag))
+              return `\n\n${inner.trim()}\n\n`;
+            return inner;
+          };
+          return {
+            markdown: walk(element)
+              .replace(/\n[ \t]+\n/g, "\n\n")
+              .replace(/\n{3,}/g, "\n\n")
+              .trim(),
+            links,
+            images,
+          };
+        });
         return {
           capture: await target.innerText(),
-          url: page.url(),
-          images: await target.locator("img").evaluateAll((elements) =>
-            elements
-              .filter((element) => {
-                const rect = element.getBoundingClientRect();
-                return rect.width >= 48 && rect.height >= 48;
-              })
-              .map((element) => ({
-                url:
-                  (element as HTMLImageElement).currentSrc ||
-                  (element as HTMLImageElement).src,
-                alt: element.getAttribute("alt") ?? "",
-              })),
-          ),
+          url: frame.url(),
+          ...structured,
         };
+      }
     }
-    const snapshot = await page.evaluate(() => {
+    const snapshot = await frame.evaluate(() => {
       const controls = Array.from(
         document.querySelectorAll(
-          'main,article,section,[role="main"],[role="article"],button,a,input,textarea,[contenteditable="true"],[role="button"]',
+          'body,main,article,section,[role="main"],[role="article"],button,a,img,input,textarea,[contenteditable="true"],[role="button"]',
         ),
       );
       const pointerControls = Array.from(
@@ -443,7 +629,22 @@ export class PlatformBrowser {
         })),
       };
     });
-    return { url: page.url(), ...snapshot };
+    if (frameIndex !== undefined) {
+      snapshot.elements = snapshot.elements.map((element) => ({
+        ...element,
+        ref: `f${frameIndex}:${element.ref}`,
+      }));
+    }
+    return {
+      url: frame.url(),
+      ...(clickedUrl ? { clickedUrl } : {}),
+      ...snapshot,
+      frames: page.frames().map((child, index) => ({
+        index,
+        url: child.url(),
+        readable: this.allowed(platform, child.url()),
+      })),
+    };
   }
   async shutdown() {
     await Promise.all(

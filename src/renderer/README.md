@@ -26,3 +26,5 @@ Page components compose business states; shared components handle reusable prese
 `design/Components.tsx` and `design/tokens-and-controls.css` provide the shared disclosure, button, and color system used by application pages.
 
 FocusSearchDialog prepares card, platform, and period selections. FocusSearchReportView renders saved platform replies and post actions inside Tasks. Signed-in platform settings use shared browser-session actions; GitHub remains in Public Sources.
+
+MaterialReader presents each saved reading material, its introduction, one body in the target language, coverage, and retry state. Its header names the report's saved target language. It preserves per-material scroll positions and uses a compact material menu at narrow widths.

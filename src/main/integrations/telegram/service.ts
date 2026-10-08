@@ -16,10 +16,10 @@ export type { TelegramStatus } from "../../../shared/telegram-contracts";
 const receivedMessage =
   "已收取，正在处理。你可以在 Branchout 中查看进度。";
 const unsupportedMessages = {
-  no_link: "请发送一条 GitHub 公开仓库、X 帖子或小红书笔记链接。",
+  no_link: "请发送一条 HTTPS 网页链接。",
   multiple_links: "请每条消息只发送一个链接。",
   extra_text: "请单独发送链接，每条消息只提交一个。",
-  unsupported: "这个链接暂不支持，请发送 GitHub 公开仓库、X 帖子或小红书笔记链接。",
+  unsupported: "请使用 HTTPS 网页链接，并单独发送。",
 } as const;
 
 export interface TelegramSecretCipher {

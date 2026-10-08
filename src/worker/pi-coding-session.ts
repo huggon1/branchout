@@ -336,6 +336,13 @@ export async function createPiCodingSession(
         documentLinksTool,
       ] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>),
   });
+  if (model.maxTokens === 0 && options.maxTokens === undefined) {
+    session.agent.onPayload = (payload: any) => {
+      delete payload.max_tokens;
+      delete payload.max_completion_tokens;
+      delete payload.max_output_tokens;
+    };
+  }
   return {
     session,
     sessionManager,

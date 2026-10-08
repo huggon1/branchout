@@ -14,9 +14,9 @@ One project-binding service provides project identity, directory, and name. Card
 
 In-app submissions and Telegram messages enter one content queue. Telegram integration fetches bot updates in the main process, validates chat identity, parses one link, and deduplicates by update identity. It persists the inbound message, task, pending acknowledgment, and cursor together. After sending acknowledgment, it saves delivery status and resumes pending sends after restart. Startup resumes from the persisted update cursor for messages Telegram still provides.
 
-At task start, the main process freezes current versions of every active, available focus card and records their count and version IDs. The worker retrieves the source snapshot through a platform adapter, generates general understanding, then evaluates each frozen card. Cards may be processed in batches; validated batch results are merged, and missing cards enter retry batches. Completion requires an evaluation for every card. Connections cite the source and frozen card.
+At task start, the main process freezes the output language and model connection. PlatformAccess invokes BrowserAgent with the reading-collection task instruction. The same runtime and browser tools serve focus search. The collection result names successful capture IDs; the main process resolves them to exact text, ordered Markdown, links, and images. Reference validation requires a direct URL in a main or author-reply capture. The collector resolves short links and deduplicates final destinations.
 
-Source, general understanding, and connections are separately saved stages. The main process deduplicates by stable task and stage identity, validates source locations and card references, then forms the final report. Saved stages remain readable after a failure; retries reuse valid stage results. The complete report is saved after every stage succeeds.
+The main process saves the main material and discovered reference list, then saves each reference as its separate browser task returns. The forwarding worker translates each unfinished chunk, writes material updates through validated events, and generates a short introduction. Per-material failures preserve other results. Saved completed chunks and source bytes remain fixed during retry. Historical forwarding records retain the prior source, understanding, and relation workflow.
 
 ## Project analysis pipeline
 
@@ -65,24 +65,22 @@ The [data contracts](data-contracts.md) define cross-module fields.
 
 ## Renderer composition
 
-The shell owns navigation and one module heading. Projects owns binding and preflight; Tasks composes the shared AnalysisReportView and owns suggestion review. Content uses a persistent index and reader with source-snapshot dialogs. Focus Cards uses project-grouped rows and version-aware editing, deletion, and restore commands. Primitives and semantic stylesheet tokens provide shared presentation. The [design contract](../design.md) defines geometry, hierarchy, responsive states, and acceptance requirements.
+The shell owns navigation and one module heading. Projects owns binding and preflight; Tasks composes the shared AnalysisReportView and owns suggestion review. Content switches between its report index and a material directory with translated and original bodies. Historical reports retain source-snapshot dialogs. Focus Cards uses project-grouped rows and version-aware editing, deletion, and restore commands. Primitives and semantic stylesheet tokens provide shared presentation. The [design contract](../design.md) defines geometry, hierarchy, responsive states, and acceptance requirements.
 
 ## Platform browser and focus search
 
-A shared Chrome browser service resolves each browser profile as `<application-data>/platform-browser/<platform-id>`. Each signed-in platform has one persistent account session; public browser access has a separate platform profile. Search and content reading share their platform session. Profiles initialize when a connection or browser task requests access.
+Shared Chrome uses `<application-data>/platform-browser/shared`. All task types receive the same site sessions and browser tools. Existing platform profiles migrate their cookies once; their original files remain available. Separate Branchout runtime profiles retain separate browser data.
 
-| Layer | Responsibility |
-| --- | --- |
-| ChromeProfiles | Start installed Chrome, attach through the profile's loopback CDP endpoint, and track process ownership |
-| PlatformBrowser | Resolve platform profiles, maintain login state, present human login pages, serialize browser tasks per platform, and enforce task-page boundaries |
-| BrowserAgent | Run task-scoped browser tools and retain observed inputs, links, and captures |
-| PlatformAccess | Select retrieval strategies and validate source snapshots and AI-search results |
-| Platform adaptation | Define platform identity, allowed domains, source URL contracts, AI entry points, search language, and workflow guidance |
+| Layer             | Responsibility                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| ChromeProfiles    | Start installed Chrome, attach through loopback CDP, and track process ownership                                                           |
+| PlatformBrowser   | Maintain the shared session, human login pages, serialized task pages, HTTPS navigation, snapshots, frame access, and ordered body capture |
+| BrowserAgent      | Run the shared Pi browser session and retain observed inputs, navigation destinations, links, and captures                                 |
+| PlatformAccess    | Validate source provenance, save original materials and cached images, and validate search candidates                                      |
+| Platform guidance | Supply optional site instructions, AI entry points, and enhanced reading through shared tools                                              |
 
-ChromeProfiles preserves Chrome's native settings. Reconnection uses the selected profile's endpoint. Shutdown stops processes launched by the current service and disconnects from browsers already running when attached.
+Each task injects one requirement message after the common browser system instructions. Platform instructions load through the guide action when the Agent requests them. The enhanced-read action is available to every browser task and reports availability at use. The [Agent prompt flow](agent-prompt-flow.md) maps these inputs to their owning modules.
 
-Human login pages allow authentication-provider redirects. The service saves redacted session status and synchronizes Xiaohongshu cookies with its optional note reader. Browser operations expose page snapshots and bounded navigation, click, fill, and key actions to the Agent. Task-page navigation requests and clicked links are checked against the selected platform; task popups close when they reach another platform. Request interception belongs to task pages, keeping login pages and browser extension workers on their normal path. Platform guides supply AI entry points and reading workflows. Source pages are data; credentials stay inside the platform profile and its authorized reader. Xiaohongshu enhancement failure falls back to browser reading.
+Task navigation accepts credential-free HTTPS URLs across sites. Search text submission uses recognized platform AI pages. Human sign-in stays in manual login pages. The shared browser stores website credentials; task captures and reports contain retrieved source content. Status files store cookie names, domains, and expiry metadata. Xiaohongshu cookie synchronization supplies its optional reader. Signing out clears only the selected platform's session cookies.
 
-Platform integration extends the shared access pipeline with identity, URL validation, domain boundaries, supported capabilities, and browser guidance. Capability contracts determine which platforms appear in content submission, search selection, and connection settings. The implementation maintains these definitions in typed source modules. A specialized reader plugs into PlatformAccess retrieval selection and returns the shared source contract; browser reading remains the fallback. X and Xiaohongshu AI search both use BrowserAgent with their platform guide. Xiaohongshu's specialized adapter supplies note reading.
-
-Focus-search orchestration saves frozen inputs and per-card/platform results in its own main-process store, while TaskService owns unified status and activity. Search result extraction verifies candidate URLs against captured browser links. A persisted candidate-to-forwarding-task association supports repeated submission and restart recovery. Browser workers use task-scoped parent-port requests; browser profiles remain in application data across rebuilds.
+Focus-search orchestration saves frozen cards and per-card/platform results in its own store. TaskService owns unified status and activity. Extraction verifies candidate URLs against observed browser links. A persisted candidate-to-forwarding-task association supports repeated submission and restart recovery.

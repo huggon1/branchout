@@ -1,6 +1,7 @@
 import type { SourceContent } from "../../shared/source-contracts";
 import { outputLanguage, type Language } from "../../shared/language";
 const context = {
+  web: "Explain the supplied web source.",
   x: "For an X post, distinguish opinions, factual claims, and author context. Reposts, replies, and linked pages have only the coverage explicitly supplied.",
   xiaohongshu:
     "For a Xiaohongshu note, distinguish personal experiences, advice, and verifiable facts. Comments, videos, and image details have only the coverage explicitly supplied.",

@@ -1,3 +1,4 @@
+import type { ReadingMaterial } from "../shared/reading-contracts";
 import { dateTime } from "./i18n";
 import { bridge as desktopBridge } from "./bridge";
 import { t, tf } from "./i18n";
@@ -48,11 +49,12 @@ export interface UiFocusRelation {
 }
 
 export interface UiForwardingReport {
+  materials?: ReadingMaterial[];
   outputLanguage?: "zh-CN" | "en";
   materialId: string;
   taskId: string;
   title: string;
-  platform: "github" | "x" | "xiaohongshu";
+  platform: "github" | "x" | "xiaohongshu" | "web";
   sourceUrl: string;
   sourceIdentity: string;
   fetchedAt: string;
@@ -423,6 +425,7 @@ type CanonicalForwardingSummary = {
   phase: string;
   progress: { evaluated: number; total: number };
   hasSource: boolean;
+  hasMaterials?: boolean;
   hasUnderstanding: boolean;
   activities: Array<{
     sequence: number;
@@ -461,6 +464,7 @@ type CanonicalFocusRelation = {
   evidence: Array<{ blockIndex: number; quote: string }>;
 };
 type CanonicalForwardingReport = {
+  materials?: ReadingMaterial[];
   outputLanguage?: "zh-CN" | "en";
   source: CanonicalSource;
   generalUnderstanding: string;
@@ -478,6 +482,7 @@ type CanonicalForwardingReport = {
 };
 type CanonicalForwardingDetail = {
   task: {
+    outputLanguage?: "zh-CN" | "en";
     taskId: string;
     materialId: string;
     resultId: string;
@@ -501,6 +506,7 @@ type CanonicalForwardingDetail = {
     message?: string;
   };
   partial: {
+    materials?: ReadingMaterial[];
     source?: CanonicalSource;
     generalUnderstanding?: string;
     evaluatedFocusVersionIds: string[];
@@ -805,16 +811,22 @@ const mapForwardingReport = (
   partial: CanonicalForwardingDetail["partial"],
   focusCards: CanonicalForwardingReport["focusSet"]["cards"],
   failureStage?: CanonicalForwardingDetail["task"]["failureStage"],
+  outputLanguage?: CanonicalForwardingDetail["task"]["outputLanguage"],
 ): UiForwardingReport | undefined => {
   const source = report?.source ?? partial.source;
   const understanding =
     report?.generalUnderstanding ?? partial.generalUnderstanding;
-  if (!source && !understanding) return undefined;
+  if (!source && !understanding && !partial.materials?.length) return undefined;
   return {
-    outputLanguage: report?.outputLanguage,
+    materials: report?.materials ?? partial.materials,
+    outputLanguage: report?.outputLanguage ?? outputLanguage,
     materialId,
     taskId,
-    title: source?.title || source?.sourceIdentity || t("转发内容"),
+    title:
+      source?.title ||
+      partial.materials?.[0]?.title ||
+      source?.sourceIdentity ||
+      t("转发内容"),
     platform: source?.platform ?? "github",
     sourceUrl: source?.sourceUrl ?? "",
     sourceIdentity: source?.sourceIdentity ?? t("来源读取尚未完成"),
@@ -841,7 +853,15 @@ const mapForwardingReport = (
       taskState === "failed" && failureStage === "relations"
         ? tf("已保存的来源和理解仍可阅读。{0}", message ? ` ${message}` : "")
         : message,
-    retryAvailable: taskState === "failed" || taskState === "cancelled",
+    retryAvailable:
+      taskState === "failed" ||
+      taskState === "cancelled" ||
+      Boolean(
+        taskState === "completed" &&
+        (report?.materials ?? partial.materials)?.some(
+          (m) => m.state !== "completed",
+        ),
+      ),
   };
 };
 
@@ -939,7 +959,9 @@ export function productUiBridge(): ProductUiBridge {
                     resultType: "content" as const,
                   }
                 : {}),
-              ...(summary.hasSource || summary.hasUnderstanding
+              ...(summary.hasSource ||
+              summary.hasMaterials ||
+              summary.hasUnderstanding
                 ? { partialResultId: summary.materialId }
                 : {}),
             }
@@ -977,7 +999,12 @@ export function productUiBridge(): ProductUiBridge {
     );
     const contentDetails = await Promise.all(
       summaries
-        .filter((summary) => summary.hasSource || summary.hasUnderstanding)
+        .filter(
+          (summary) =>
+            summary.hasSource ||
+            summary.hasMaterials ||
+            summary.hasUnderstanding,
+        )
         .map(
           async (summary) =>
             [summary, await bridge.forwardingTask(summary.taskId)] as const,
@@ -999,6 +1026,7 @@ export function productUiBridge(): ProductUiBridge {
         reply.value.task.report?.focusSet.cards ??
           reply.value.task.focusSet.cards,
         reply.value.task.failureStage,
+        reply.value.task.outputLanguage,
       );
       if (!report) continue;
       if (taskState === "completed" && reply.value.task.report)

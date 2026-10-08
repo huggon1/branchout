@@ -1,12 +1,18 @@
 import { claimProfile } from "./runtime/profile-lock";
 import { nativeText } from "./native-language";
 import { installMenu } from "./menu";
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, protocol } from "electron";
 import { join, resolve } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { channels } from "../shared/ipc-contracts";
 import { initializeServices } from "./services";
 import { createWindow } from "./window";
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "branchout-image",
+    privileges: { standard: true, secure: true, supportFetchAPI: true },
+  },
+]);
 if (process.env.BRANCHOUT_TEST_DATA)
   app.setPath("userData", resolve(process.env.BRANCHOUT_TEST_DATA));
 else

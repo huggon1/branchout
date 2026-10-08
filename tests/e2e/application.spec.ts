@@ -91,6 +91,57 @@ test.beforeEach(async () => {
               ],
       };
     }
+    if (req.url === "/collect")
+      output = [
+        {
+          id: "main",
+          role: "main",
+          url: input.url,
+          title: "Fixture source",
+          chunks: [],
+          summary: "",
+          state: "pending",
+          source: {
+            platform: input.url.includes("xiaohongshu")
+              ? "xiaohongshu"
+              : "github",
+            sourceUrl: input.url,
+            sourceIdentity: "Fixture source",
+            title: "Fixture source",
+            fetchedAt: new Date().toISOString(),
+            markdown: "People lose their drafts when tools restart.",
+            contentBlocks: [
+              {
+                type: "text",
+                text: "People lose their drafts when tools restart.",
+              },
+            ],
+            images: [],
+            completeness: "complete",
+            completenessNote: "",
+          },
+        },
+      ];
+    if (req.url === "/translate") {
+      if (input.material.url.endsWith("/fail") && !failed) {
+        failed = true;
+        res.writeHead(503);
+        res.end();
+        return;
+      }
+      output = {
+        text:
+          input.language === "en"
+            ? "People lose their drafts when tools restart."
+            : "工具重启时，人们会丢失草稿。",
+        truncated: false,
+      };
+    }
+    if (req.url === "/summary")
+      output =
+        input.language === "en"
+          ? "Fixture source understanding"
+          : "虚构来源的内容理解";
     if (req.url === "/source")
       output = {
         platform: input.url.includes("xiaohongshu")
@@ -369,7 +420,7 @@ test("card persistence and bilingual switching preserve drafts and profile", asy
     contentType: "application/json",
   });
 });
-test("forwarding saves zero connections and resumes failed stages with frozen language", async ({}, info) => {
+test("forwarding reading resumes failed materials with frozen language", async ({}, info) => {
   const page = await launch();
   await bind(page);
   await card(page);
@@ -394,6 +445,7 @@ test("forwarding saves zero connections and resumes failed stages with frozen la
   );
   expect(data.tasks[0].report.relations).toEqual([]);
   expect(data.tasks[0].report.execution.taskId).toBe(data.tasks[0].taskId);
+  await page.getByRole("button", { name: "返回内容列表", exact: true }).click();
   await page.getByRole("button", { name: "+ 添加链接" }).click();
   await page
     .getByPlaceholder("https://…")
@@ -406,9 +458,11 @@ test("forwarding saves zero connections and resumes failed stages with frozen la
           await readFile(join(profile, "forwarding.json"), "utf8"),
         ).tasks.find((x: any) => x.target.sourceUrl.endsWith("/fail"))?.state,
     )
-    .toBe("failed");
+    .toBe("completed");
   data = JSON.parse(await readFile(join(profile, "forwarding.json"), "utf8"));
-  const failed = data.tasks.find((x: any) => x.state === "failed");
+  const failed = data.tasks.find((x: any) =>
+    x.target.sourceUrl.endsWith("/fail"),
+  );
   expect(failed.source).toBeTruthy();
   expect(failed.outputLanguage).toBe("zh-CN");
   await page
@@ -420,7 +474,10 @@ test("forwarding saves zero connections and resumes failed stages with frozen la
     .getByRole("navigation")
     .getByRole("button", { name: "Tasks", exact: true })
     .click();
-  await page.getByRole("button", { name: "Retry task", exact: true }).click();
+  await page.evaluate(
+    (id) => window.branchout.retryForwarding(id),
+    failed.taskId,
+  );
   await expect
     .poll(
       async () =>
@@ -429,7 +486,7 @@ test("forwarding saves zero connections and resumes failed stages with frozen la
         ).tasks.find((x: any) => x.taskId === failed.taskId).state,
     )
     .toBe("completed");
-  expect(requests.filter((x) => x === "/source")).toHaveLength(2);
+  expect(requests.filter((x) => x === "/collect")).toHaveLength(2);
   data = JSON.parse(await readFile(join(profile, "forwarding.json"), "utf8"));
   expect(
     data.tasks.find((x: any) => x.taskId === failed.taskId).executionAttempts,

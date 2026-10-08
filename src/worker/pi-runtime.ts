@@ -8,6 +8,10 @@ import {
   type AgentTool,
   type StreamFn,
 } from "@earendil-works/pi-agent-core";
+import {
+  getBuiltinProviders,
+  getBuiltinModels,
+} from "@earendil-works/pi-ai/providers/all";
 import type { Model } from "@earendil-works/pi-ai";
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { streamSimple as responses } from "@earendil-works/pi-ai/api/openai-responses";
@@ -29,6 +33,9 @@ export function resolveModel(
     return model;
   }
   if (!config.baseUrl || !config.api) throw new Error("连接配置不完整");
+  const catalog = getBuiltinProviders()
+    .flatMap((provider) => getBuiltinModels(provider) as Model<any>[])
+    .find((candidate) => candidate.id === config.modelId);
   return {
     id: config.modelId,
     name: config.modelId,
@@ -38,8 +45,8 @@ export function resolveModel(
     reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 8192,
-    maxTokens: 512,
+    contextWindow: catalog?.contextWindow ?? 32768,
+    maxTokens: catalog?.maxTokens ?? 0,
   };
 }
 export async function runWithPi(
@@ -48,11 +55,12 @@ export async function runWithPi(
   signal: AbortSignal,
   prompt: string,
   systemPrompt: string,
-  maxTokens: number,
+  maxTokens: number | undefined,
   fetchOverride?: typeof fetch,
   tools: AgentTool[] = [],
   continuation?: () => string | undefined,
   maxTurns = 14,
+  onPartial?: (text: string) => void,
 ) {
   let turns = 0;
   let turnLimit = false;
@@ -66,9 +74,10 @@ export async function runWithPi(
     try {
       response = await (fetchOverride ?? fetch)(input, init);
     } catch (error) {
-      const cause = error instanceof Error
-        ? (error as Error & { cause?: { code?: unknown } }).cause
-        : undefined;
+      const cause =
+        error instanceof Error
+          ? (error as Error & { cause?: { code?: unknown } }).cause
+          : undefined;
       diagnostic = { transportCode: safeProviderCode(cause?.code) };
       throw error;
     }
@@ -89,8 +98,10 @@ export async function runWithPi(
   const failureCode = (error: unknown) => {
     if (diagnostic?.httpStatus === 401) return "model_auth" as const;
     if (diagnostic?.httpStatus === 429) return "model_rate_limit" as const;
-    if (diagnostic?.httpStatus === 408 ||
-      (diagnostic?.httpStatus !== undefined && diagnostic.httpStatus >= 500))
+    if (
+      diagnostic?.httpStatus === 408 ||
+      (diagnostic?.httpStatus !== undefined && diagnostic.httpStatus >= 500)
+    )
       return "model_unavailable" as const;
     return classifyModelError(error);
   };
@@ -106,9 +117,18 @@ export async function runWithPi(
       ...options,
       apiKey: config.credential,
       transport: "sse" as const,
-      maxTokens,
+      ...(maxTokens === undefined ? {} : { maxTokens }),
       maxRetries: 0,
       fetch: observedFetch,
+      ...(maxTokens === undefined && model.maxTokens === 0
+        ? {
+            onPayload: (payload: any) => {
+              delete payload.max_tokens;
+              delete payload.max_completion_tokens;
+              delete payload.max_output_tokens;
+            },
+          }
+        : {}),
     };
     if (model.api === "openai-responses")
       return responses(
@@ -150,10 +170,23 @@ export async function runWithPi(
     const validate = () => {
       const last = agent.state.messages.at(-1);
       if (turnLimit) throw new ExecutionFailure("model_turn_limit");
-      if (last?.role === "assistant" && last.stopReason === "length")
+      if (last?.role === "assistant" && last.stopReason === "length") {
+        onPartial?.(
+          last.content
+            .filter((p) => p.type === "text")
+            .map((p) => p.text)
+            .join("\n")
+            .split(config.credential)
+            .join("[已隐藏]"),
+        );
         throw new ExecutionFailure("model_output_limit");
+      }
       if (last?.role === "assistant" && last.stopReason === "error")
-        throw new ExecutionFailure(failureCode(last.errorMessage), {}, diagnostic);
+        throw new ExecutionFailure(
+          failureCode(last.errorMessage),
+          {},
+          diagnostic,
+        );
       if (
         signal.aborted ||
         !last ||

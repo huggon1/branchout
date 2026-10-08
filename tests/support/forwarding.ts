@@ -21,6 +21,18 @@ port.on("message", ({ data }) => {
     (event) => port.postMessage(event),
     controller.signal,
     {
+      reading: {
+        collect: (url) => request("collect", { url }),
+        translate: (material, text, index) =>
+          request("translate", {
+            material,
+            text,
+            index,
+            language: data.outputLanguage,
+          }),
+        summarize: (material) =>
+          request("summary", { material, language: data.outputLanguage }),
+      },
       readSource: async (command) =>
         request("source", { url: command.sourceUrl }),
       understand: async (command, source) =>

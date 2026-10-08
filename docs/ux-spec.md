@@ -16,11 +16,11 @@ Named icon actions edit, pause or activate, and delete a card. Deletion removes 
 
 ## Content list and reading
 
-The Content list offers Add Link at the top and filters for search, source, time, and related project. Each item shows a title or identifiable link, retrieval status, completion time, and related projects. Reports with zero connections have an explicit state in the list and reading view.
+The Content list offers Add Link and filters for search, source, time, and historical related projects. New items show a title, retrieval status, completion time, material count, and summary excerpt. Opening a reading report replaces the report index with its material directory and body. Return to Content List restores the index.
 
-The desktop reading view keeps the content index alongside the selected item. Previous and next actions retain filters; compact windows provide a return-to-index action. The reader presents source identity and completeness, general understanding, then “Connected to your focus.” Connections group by project and show the card label, rationale, a collapsed evidence disclosure, and a historical-version link. A source-snapshot dialog presents stored text and images; Open Original Link opens the external source.
+The material directory lists the main material first, followed by references and individual processing states. Selecting a material displays its title, source link, short introduction, actual coverage, and one Markdown body in the target language. A line beneath the source identity names the language frozen for that report. Selecting another material preserves each material's scroll position. The body renders images in source order, links, code, tables, and Mermaid diagrams. Narrow windows place the directory behind a Materials action.
 
-When only some stages finish, the reading view shows saved source or understanding, the unfinished stage, and a retry action. Completeness appears by the source; connection failures appear by the connection area.
+Saved partial translations remain readable with their stopping position and a Continue Unfinished Materials action. A failed attachment shows its source and issue while other materials remain readable. Historical reports retain general understanding, grouped card connections, source snapshots, and saved-version links.
 
 ## Telegram forwarding
 
@@ -60,4 +60,4 @@ Empty projects, empty cards, zero connections, empty reports, missing model conf
 
 Focus Cards exposes Search Discussions. Its preparation dialog selects cards, Xiaohongshu and X, and a day, week, or month. Launch opens the search task in Tasks. The reader groups platform sections and card results, with the original AI reply followed by selectable candidate posts. Each candidate offers Open Original and Add to Parsing; added candidates link to their parsing task. A batch action submits selected candidates and displays individual failures. Empty and failed sections state their outcomes and offer retry for failed sections.
 
-Settings groups GitHub under Public Sources and Xiaohongshu and X under Signed-in Platforms. GitHub describes public README parsing. Signed-in platform rows show the app icon, platform name, and session status. Expanded connection controls show browser availability and login and logout actions. Platform login opens its dedicated Chrome window for manual sign-in. Search, content reading, and application restart reuse the saved platform session. Reopening the connection brings its existing login page forward. Verification or expired sessions pause access for user handling.
+Settings groups GitHub under Public Sources and Xiaohongshu and X under Signed-in Platforms. GitHub describes public README parsing. Signed-in platform rows show the app icon, platform name, and session status. Expanded connection controls show browser availability and login and logout actions. Platform login opens a manual sign-in page in shared Chrome. Search, reading, and restart reuse all saved site sessions in the application profile. Reopening the connection brings its existing login page forward. Verification or expired sessions pause access for user handling.

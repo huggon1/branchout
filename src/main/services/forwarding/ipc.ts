@@ -2,7 +2,7 @@ import { handle } from "../../ipc";
 import { shell } from "electron";
 import { z } from "zod";
 import { forwardingChannels } from "../../../shared/ipc-contracts";
-import { repositoryEvidenceUrlSchema } from "../../../shared/source-contracts";
+import { webUrlSchema } from "../../../shared/source-contracts";
 import type { ForwardingPipelineService } from "./service";
 
 function isMainFrame(event: Electron.IpcMainInvokeEvent, expected: string) {
@@ -55,7 +55,7 @@ export function registerForwardingIpc(
           if (!task) throw new Error("转发报告不存在");
           await shell.openExternal(task.target.sourceUrl);
         } else {
-          const url = repositoryEvidenceUrlSchema.parse(args[0]);
+          const url = webUrlSchema.parse(args[0]);
           await shell.openExternal(url);
         }
         return { ok: true, value };

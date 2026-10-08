@@ -9,6 +9,7 @@ This guide describes current cross-process contracts. The [data contracts](../..
 - `project-contracts`: bindings and normalized directory identity.
 - `focus-contracts`: cards, frozen versions, and active-set snapshots.
 - `source-contracts`: links, source snapshots, and content blocks.
+- `reading-contracts`: main and reference materials, original snapshots, translation chunks, introductions, and processing states.
 - `forwarding-view-contracts`: content task and report structures read by the UI.
 - `analysis-contracts`: repository and Codex session inputs; evidence, reports, suggestions, and historical report fields.
 - `task-contracts`: unified state, stage results, activity, and cancellation.

@@ -4,7 +4,8 @@ This document describes current Agent worker responsibilities. See [data contrac
 
 ## Tasks
 
-- **Content:** Read a normalized link, generate general understanding, evaluate every active card in the input snapshot, and return source, understanding, coverage, and connections.
+- **Reading:** Translate saved main and reference materials into the frozen task language, generate a short introduction for each, and preserve completed chunks across retry. Historical content tasks retain their saved understanding and card evaluations.
+- **Browser access:** Run shared browser tools with either a reading-collection or focus-search requirement and return captured source identities.
 - **Project analysis:** Give Pi the repository root and a cleaned XML of selected Codex sessions; use read-only tools to explore files and produce evidence-backed findings and card suggestions.
 - **Model support:** Create an independent Pi session for each task using configuration frozen by the main process; deliver structured stage and activity events.
 
@@ -12,7 +13,7 @@ Workers receive approved directories, source scope, card versions, and cancellat
 
 ## Module layout
 
-- `jobs/forwarding/worker-entry.ts`: source retrieval, understanding, and per-card evaluation.
+- `jobs/forwarding/worker-entry.ts`: material translation, short introductions, stage recovery, and historical understanding/evaluation.
 - `jobs/project-analysis/worker-entry.ts`: findings and card suggestions.
 - [readers](../readers/README.md): local inputs shared by previews and analysis.
 - `reasoning/`: model input and output validation for understanding, connections, and suggestions.

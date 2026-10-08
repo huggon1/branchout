@@ -1,3 +1,5 @@
+import { registerMaterialImages } from "./services/material-images";
+import { selectPlatformAdapter } from "../platforms/registry";
 import { PlatformAccess } from "./services/platform-access";
 import {
   searchSelectionSchema,
@@ -160,13 +162,47 @@ export async function initializeServices(
     changed,
     xhsAuth,
   );
+  const imageRoot = join(app.getPath("userData"), "material-images");
+  registerMaterialImages(imageRoot);
   const browserAgent = new BrowserAgent(
     browser,
     join(__dirname, "../worker/jobs/browser/worker-entry.mjs"),
     join(app.getPath("userData"), "browser-traces"),
+    async (url, signal) => {
+      if (!xhsAuth!.installed())
+        throw new Error("Xiaohongshu enhancement is unavailable");
+      const source = await selectPlatformAdapter(url, {
+        xhsSession: await xhsAuth!.connect(),
+        xhsAccessToken: new URL(url).searchParams.get("xsec_token") ?? "",
+      }).read("enhanced-reading", url, signal);
+      if (source.outcome !== "content")
+        throw new Error("Enhanced reading is unavailable");
+      const content = source.content;
+      return {
+        capture: content.contentBlocks
+          .filter((b) => b.type !== "image")
+          .map((b) => b.text)
+          .join("\n\n"),
+        markdown: content.contentBlocks
+          .map((b) =>
+            b.type === "image"
+              ? `![image](<${content.images.find((i) => i.imageId === b.imageId)?.url}>)`
+              : b.text,
+          )
+          .join("\n\n"),
+        url,
+        links: [],
+        images: content.images,
+      };
+    },
   );
 
-  const platformAccess = new PlatformAccess(browserAgent, xhsAuth);
+  const platformAccess = new PlatformAccess(
+    browserAgent,
+    xhsAuth,
+    browser,
+    imageRoot,
+  );
 
   const projectStore = new ProjectStore(
     join(app.getPath("userData"), "projects.json"),
@@ -269,6 +305,26 @@ export async function initializeServices(
     ...(profileMode === "test"
       ? {}
       : {
+          collectMaterials: (
+            taskId,
+            url,
+            config,
+            signal,
+            refreshCredential,
+            onProgress,
+            includeReferences = true,
+            accessToken,
+          ) =>
+            platformAccess.collect(
+              taskId,
+              url,
+              config,
+              signal,
+              refreshCredential,
+              includeReferences,
+              onProgress,
+              accessToken,
+            ),
           readSource: (
             taskId,
             url,
