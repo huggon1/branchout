@@ -23,9 +23,9 @@
     "build:analysis": "node scripts/app-build/app.mjs --analysis-worker"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.87.1",
-    "@earendil-works/pi-ai": "^0.87.1",
-    "@earendil-works/pi-coding-agent": "0.87.1",
+    "@earendil-works/pi-agent-core": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-coding-agent": "1.1.0",
     "@phosphor-icons/react": "^2.1.10",
     "dompurify": "^3.4.16",
     "marked": "^18.0.14",
