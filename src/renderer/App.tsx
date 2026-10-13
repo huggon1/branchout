@@ -1,412 +1,1041 @@
-import { useLanguage, selectLanguage } from "./i18n";
-import { t, tf } from "./i18n";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Brand, NavigationIcon } from "./components/Primitives";
-import { ContentPage } from "./components/ContentPage";
-import { FocusCardsPage } from "./components/FocusCardsPage";
-import { ProjectsPage } from "./components/ProjectsPage";
-import { TasksPage } from "./components/TasksPage";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  MagnifyingGlass,
+  BookOpen,
+  BookmarkSimple,
+  ListBullets,
+  GearSix,
+  List,
+  CaretRight,
+} from "@phosphor-icons/react";
+import { Brand, Dialog, Markdown } from "./components/Primitives";
+import { MaterialReader } from "./components/MaterialReader";
 import { SettingsPage } from "./components/SettingsPage";
-import { productUiBridge, type ProductPage } from "./product-ui";
-import type {
-  UiAnalysisPreflight,
-  UiContentWorkspace,
-  UiProjectWorkspace,
-  UiSettings,
-  UiSuggestionAcceptance,
-  UiTask,
+import {
+  productUiBridge,
+  type UiContentWorkspace,
+  type UiSettings,
+  type UiTask,
 } from "./product-ui";
+import { bridge } from "./bridge";
+import { t, dateTime, selectLanguage, useLanguage } from "./i18n";
+import type {
+  FocusSearchReport,
+  Follow,
+  SaveFollow,
+  SearchPlatform,
+  SearchPeriod,
+} from "../shared/focus-search-contracts";
+import type { ModelReply } from "../shared/model-contracts";
+import "./refactor.css";
 
-const pages: ProductPage[] = ["内容", "项目", "关注卡", "任务", "设置"];
+type Page = "search" | "parsed" | "reports" | "follows" | "tasks" | "settings";
+const labels: Record<Page, string> = {
+  search: "搜索",
+  parsed: "解析结果",
+  reports: "搜索结果",
+  follows: "关注",
+  tasks: "任务",
+  settings: "设置",
+};
+const platforms = [
+  { id: "x", name: "X / Grok" },
+  { id: "xiaohongshu", name: "小红书 / 点点" },
+] as const;
+const periods: { id: SearchPeriod; name: string }[] = [
+  { id: "day", name: "近一天" },
+  { id: "week", name: "近一周" },
+  { id: "month", name: "近一月" },
+  { id: "all", name: "不限" },
+];
+const statusNames: Record<string, string> = {
+  queued: "排队",
+  running: "进行中",
+  completed: "完成",
+  partial: "部分完成",
+  failed: "失败",
+  stopped: "已停止",
+  cancelled: "已停止",
+  pending: "等待中",
+};
+const status = (value: string) => t(statusNames[value] ?? value);
+const title = (report: FocusSearchReport) => report.question;
+const live = (task?: UiTask) =>
+  !!task && ["queued", "running"].includes(task.status);
 
 export function App() {
   const language = useLanguage();
-  useEffect(() => {
-    void window.branchout
-      .preferences()
-      .then((value) => selectLanguage(value.language));
-  }, []);
-  const [page, setPage] = useState<ProductPage>("内容");
-  const [projectsState, setProjectsState] = useState<UiProjectWorkspace>();
-  const [contentState, setContentState] = useState<UiContentWorkspace>();
-  const [settings, setSettings] = useState<UiSettings>();
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [openMaterialId, setOpenMaterialId] = useState("");
-  const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [taskRequestId, setTaskRequestId] = useState(0);
-  const [focusTarget, setFocusTarget] = useState<{
-    projectId: string;
-    focusId?: string;
-    versionId?: string;
-    requestId: number;
-  }>();
-  const [projectTarget, setProjectTarget] = useState<{
-    projectId: string;
-    preflightRequestId?: number;
-  }>();
   const ui = useMemo(() => productUiBridge(), []);
-  const projects = projectsState?.projects ?? [];
-  const reports = projectsState?.analysisReports ?? [];
-  const contentReports = contentState?.reports ?? [];
-  const tasks = useMemo(() => {
-    const source = contentState?.tasks ?? [];
-    const live = new Map(source.map((task) => [task.taskId, task]));
-    return [...live.values()];
-  }, [contentState]);
-  const activeTaskCount = tasks.filter(
-    (task) => task.status === "queued" || task.status === "running",
-  ).length;
-
-  const loadProjects = useCallback(async () => {
-    try {
-      const result = await ui.uiProjects();
-      if (result.ok) setProjectsState(result.value);
-      else setError(result.message);
-    } catch {
-      setError(t("项目与关注卡状态读取失败。界面正在等待项目服务连接。"));
-    }
-  }, [ui]);
-  const loadContent = useCallback(async () => {
-    try {
-      const result = await ui.uiContent();
-      if (result.ok) setContentState(result.value);
-      else setError(result.message);
-    } catch {
-      setError(t("内容报告读取失败。界面正在等待转发服务连接。"));
-    }
-  }, [ui]);
-  const loadSettings = useCallback(async () => {
-    try {
-      const result = await ui.uiSettings();
-      if (result.ok) setSettings(result.value);
-      else setError(result.message);
-    } catch {
-      setError(t("接入设置读取失败。界面正在等待设置服务连接。"));
-    }
-  }, [ui]);
+  const [page, setPage] = useState<Page>("search");
+  const [drawer, setDrawer] = useState(false);
+  const navToggle = useRef<HTMLButtonElement>(null);
+  const navPanel = useRef<HTMLElement>(null);
+  const [contentOpen, setContentOpen] = useState(true);
+  const [content, setContent] = useState<UiContentWorkspace>();
+  const [settings, setSettings] = useState<UiSettings>();
+  const [reports, setReports] = useState<FocusSearchReport[]>([]);
+  const [follows, setFollows] = useState<Follow[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [question, setQuestion] = useState("");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<SearchPlatform[]>([
+    "x",
+    "xiaohongshu",
+  ]);
+  const [period, setPeriod] = useState<SearchPeriod>("week");
+  const [followDraft, setFollowDraft] = useState<{
+    input: SaveFollow;
+    followId?: string;
+  }>();
+  const [source, setSource] = useState("all");
+  const [selectedReport, setSelectedReport] = useState("");
+  const [selectedContent, setSelectedContent] = useState("");
+  const [selectedTask, setSelectedTask] = useState("");
+  const [readerOpen, setReaderOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [contentQuery, setContentQuery] = useState("");
   const refresh = useCallback(async () => {
-    await Promise.all([loadProjects(), loadContent(), loadSettings()]);
-  }, [loadProjects, loadContent, loadSettings]);
+    const values = await Promise.allSettled([
+      ui.uiContent(),
+      ui.uiSettings(),
+      bridge.focusSearchReports(),
+      bridge.follows(),
+    ]);
+    const errors: string[] = [];
+    values.forEach((value, i) => {
+      if (value.status === "rejected") {
+        errors.push(t("状态读取失败"));
+        return;
+      }
+      if (!value.value.ok) {
+        errors.push(value.value.message);
+        return;
+      }
+      if (i === 0) setContent(value.value.value as UiContentWorkspace);
+      if (i === 1) setSettings(value.value.value as UiSettings);
+      if (i === 2) setReports(value.value.value as FocusSearchReport[]);
+      if (i === 3) setFollows(value.value.value as Follow[]);
+    });
+    if (errors.length) setError(errors.join(" · "));
+  }, [ui]);
   useEffect(() => {
-    const changed =
-      typeof ui.uiChanged === "function"
-        ? ui.uiChanged(() => void refresh())
-        : () => {};
+    void bridge.preferences().then((v) => selectLanguage(v.language));
+  }, []);
+  useEffect(() => {
     void refresh();
-    return changed;
-  }, [ui, refresh, language]);
-
-  const run = async <T,>(
-    operation: () => Promise<{ ok: boolean; value?: T; message?: string }>,
-    after?: (value: T | undefined) => void | Promise<void>,
-  ): Promise<boolean> => {
+    return bridge.onChanged(() => void refresh());
+  }, [refresh, language]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 4500);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useEffect(() => {
+    if (!drawer) return;
+    const buttons = () =>
+      Array.from(
+        navPanel.current?.querySelectorAll<HTMLButtonElement>(
+          "button:not([disabled])",
+        ) ?? [],
+      );
+    buttons()[0]?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDrawer(false);
+        navToggle.current?.focus();
+      }
+      if (event.key === "Tab") {
+        const items = buttons();
+        const first = items[0];
+        const last = items.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [drawer]);
+  async function run<T>(
+    operation: () => Promise<ModelReply<T>>,
+    message?: string,
+  ) {
     setBusy(true);
     setError("");
     try {
-      const result = await operation();
-      if (!result.ok) {
-        setError(result.message ?? t("操作未完成，请重试。"));
+      const reply = await operation();
+      if (!reply.ok) {
+        setError(reply.message);
         return false;
-      } else {
-        await after?.(result.value);
-        await refresh();
-        return true;
       }
-    } catch {
-      setError(t("操作未完成，请重试。"));
+      await refresh();
+      if (message) setNotice(t(message));
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t("操作未完成"));
       return false;
     } finally {
       setBusy(false);
     }
-  };
-  const focusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const card of projectsState?.focusCards ?? []) {
-      if (card.deletedAt) continue;
-      counts[card.projectId] = (counts[card.projectId] ?? 0) + 1;
-    }
-    return counts;
-  }, [projectsState]);
-  const navigateToFocus = (
-    projectId: string,
-    focusId?: string,
-    versionId?: string,
-  ) => {
-    setFocusTarget((current) => ({
-      projectId,
-      focusId,
-      versionId,
-      requestId: (current?.requestId ?? 0) + 1,
-    }));
-    setPage("关注卡");
-  };
-  const openTaskResult = (task: UiTask) => {
-    setTaskRequestId((value) => value + 1);
-    setSelectedTaskId(task.taskId);
-    if (
-      (task.resultType === "content" && task.resultId) ||
-      task.partialResultId
-    ) {
-      setOpenMaterialId(task.partialResultId ?? task.resultId!);
-      setPage("内容");
-    } else if (
-      task.resultType === "analysis" &&
-      task.projectId &&
-      task.resultId
-    ) {
-      setPage("任务");
-    } else {
-      setPage("任务");
-    }
-  };
-  const acceptSuggestion = async (
-    analysisReportId: string,
-    suggestionId: string,
-    reviewedCurrentFocusVersionId?: string,
-  ): Promise<UiSuggestionAcceptance | undefined> => {
-    setBusy(true);
+  }
+  const navigate = (next: Page) => {
+    setPage(next);
+    setDrawer(false);
+    setReaderOpen(false);
     setError("");
-    try {
-      const result = await ui.uiAcceptSuggestion({
-        analysisReportId,
-        suggestionId,
-        ...(reviewedCurrentFocusVersionId
-          ? { reviewedCurrentFocusVersionId }
-          : {}),
-      });
-      if (!result.ok) {
-        setError(result.message);
-        return undefined;
-      }
-      await refresh();
-      return result.value;
-    } catch {
-      setError(t("建议接受失败，请重新读取报告和关注卡版本后再试。"));
-      return undefined;
-    } finally {
-      setBusy(false);
-    }
   };
+  const tasks = (content?.tasks ?? []).map((task) => {
+    const report = reports.find((r) => r.taskId === task.taskId);
+    return report
+      ? {
+          ...task,
+          targetLabel: title(report),
+        }
+      : task;
+  });
+  const activeCount = tasks.filter(live).length;
+  const displayedReports = [...reports]
+    .filter((r) => source === "all" || (r.origin ?? "manual") === source)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const report =
+    displayedReports.find((r) => r.reportId === selectedReport) ??
+    displayedReports[0];
+  const readingReports = [
+    ...(content?.reports ?? []),
+    ...(content?.partialReports ?? []),
+  ]
+    .filter(
+      (r, i, all) => all.findIndex((v) => v.materialId === r.materialId) === i,
+    )
+    .filter((r) =>
+      `${r.title} ${r.sourceUrl}`
+        .toLowerCase()
+        .includes(contentQuery.toLowerCase()),
+    )
+    .sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt));
+  const reading =
+    readingReports.find((r) => r.materialId === selectedContent) ??
+    readingReports[0];
+  const task = tasks.find((item) => item.taskId === selectedTask) ?? tasks[0];
+  const nav = (key: Page, icon?: ReactNode) => (
+    <button
+      key={key}
+      className="nav-item"
+      aria-current={page === key ? "page" : undefined}
+      onClick={() => navigate(key)}
+    >
+      {icon}
+      <span>{t(labels[key])}</span>
+      {key === "tasks" && activeCount > 0 && (
+        <span className="nav-count">{activeCount}</span>
+      )}
+    </button>
+  );
+  const stop = (id: string) =>
+    run(() => ui.uiCancelTask(id), "已停止，并保留已有结果");
+  const back = (
+    <button
+      className="button button-quiet"
+      onClick={() => setReaderOpen(false)}
+    >
+      {t("返回列表")}
+    </button>
+  );
 
   return (
-    <div className="app-shell">
-      <aside className="app-sidebar">
+    <div className={`refactor-shell ${drawer ? "drawer-open" : ""}`}>
+      <header className="compact-header">
+        <button
+          className="icon-button"
+          ref={navToggle}
+          aria-label={t("打开导航")}
+          aria-expanded={drawer}
+          onClick={() => setDrawer(!drawer)}
+        >
+          <List size={20} />
+        </button>
+        <Brand />
+      </header>
+      {drawer && (
+        <button
+          className="nav-scrim"
+          aria-label={t("关闭导航")}
+          onClick={() => setDrawer(false)}
+        />
+      )}
+      <aside ref={navPanel} className="app-sidebar">
         <Brand />
         <nav aria-label={t("主导航")}>
-          {pages.map((name) => (
-            <button
-              key={name}
-              className="nav-item"
-              title={t(name === "关注卡" ? "关注" : name)}
-              aria-current={page === name ? "page" : undefined}
-              onClick={() => {
-                setPage(name);
-                setError("");
-              }}
-            >
-              <NavigationIcon name={name} />
-              <span>{t(name === "关注卡" ? "关注" : name)}</span>
-              {name === "任务" && activeTaskCount > 0 && (
-                <span
-                  className="nav-count"
-                  aria-label={tf("{0} 个运行中任务", activeTaskCount)}
-                >
-                  {activeTaskCount}
-                </span>
-              )}
-            </button>
-          ))}
+          {nav("search", <MagnifyingGlass size={18} />)}
+          <button
+            className="nav-item"
+            aria-expanded={contentOpen}
+            onClick={() => setContentOpen(!contentOpen)}
+          >
+            <BookOpen size={18} />
+            <span>{t("内容")}</span>
+            <CaretRight
+              className={`nav-chevron ${contentOpen ? "open" : ""}`}
+              size={14}
+            />
+          </button>
+          {contentOpen && (
+            <div className="content-nav">
+              {nav("parsed")}
+              {nav("reports")}
+            </div>
+          )}
+          {nav("follows", <BookmarkSimple size={18} />)}
+          {nav("tasks", <ListBullets size={18} />)}
+          {nav("settings", <GearSix size={18} />)}
         </nav>
       </aside>
-      <main className="app-main">
+      <main className="refactor-main">
         {error && (
           <div className="global-alert" role="alert">
-            <span>{t(error)}</span>
+            <span>{error}</span>
             <button aria-label={t("关闭提示")} onClick={() => setError("")}>
               ×
             </button>
           </div>
         )}
-        <div className="page-host">
-          <section
-            className="page-panel"
-            aria-label={t("内容")}
-            hidden={page !== "内容"}
-          >
-            <ContentPage
-              reports={contentReports}
-              partialReports={contentState?.partialReports ?? []}
-              projects={projects}
-              openMaterialId={openMaterialId || undefined}
-              onMaterialOpened={() => setOpenMaterialId("")}
-              onAddLink={(url) => run(() => ui.uiAddLink(url))}
-              onOpenSource={async (materialId) => {
-                await run(() => ui.uiOpenSource(materialId));
-              }}
-              onOpenFocus={navigateToFocus}
-              onRetryTask={async (taskId) => {
-                await run(() => ui.uiRetryTask(taskId));
-              }}
-              busy={busy}
-            />
-          </section>
-          <section
-            className="page-panel"
-            aria-label={t("关注")}
-            hidden={page !== "关注卡"}
-          >
-            <FocusCardsPage
-              onSearchStarted={(taskId) => {
-                setSelectedTaskId(taskId);
-                setTaskRequestId((value) => value + 1);
-                setPage("任务");
-                void refresh();
-              }}
-              projects={projects}
-              cards={projectsState?.focusCards ?? []}
-              initialProjectId={focusTarget?.projectId}
-              initialRequestId={focusTarget?.requestId}
-              initialFocusId={focusTarget?.focusId}
-              initialVersionId={focusTarget?.versionId}
-              busy={busy}
-              onCreate={(projectId, content) =>
-                run(
-                  () => ui.uiCreateFocus({ projectId, content }),
-                  (focusId) => {
-                    if (focusId)
-                      setFocusTarget((current) => ({
-                        projectId,
-                        focusId,
-                        requestId: (current?.requestId ?? 0) + 1,
-                      }));
-                  },
-                )
-              }
-              onEdit={(card, content) =>
-                run(() =>
-                  ui.uiEditFocus({
-                    focusId: card.focusId,
-                    expectedFocusVersionId: card.current.focusVersionId,
-                    content,
-                  }),
-                )
-              }
-              onSetDeleted={(card, deleted) =>
-                run(() =>
-                  ui.uiSetFocusDeleted({
-                    focusId: card.focusId,
-                    expectedFocusVersionId: card.currentVersionId,
-                    deleted,
-                  }),
-                )
-              }
-            />
-          </section>
-          <section
-            className="page-panel"
-            aria-label={t("项目")}
-            hidden={page !== "项目"}
-          >
-            <ProjectsPage
-              projects={projects}
-              focusCounts={focusCounts}
-              tasks={tasks}
-              initialProjectId={projectTarget?.projectId}
-              initialPreflightRequestId={projectTarget?.preflightRequestId}
-              busy={busy}
-              onBind={() =>
-                run(
-                  () => ui.uiBindProject(),
-                  (project) => {
-                    if (project)
-                      setProjectTarget({ projectId: project.projectId });
-                  },
-                )
-              }
-              onUnbind={(projectId) => run(() => ui.uiUnbindProject(projectId))}
-              onPreflight={async (
-                projectId,
-              ): Promise<UiAnalysisPreflight | undefined> => {
-                const result = await ui.uiPreflightAnalysis(projectId);
-                if (result.ok) return result.value;
-                setError(result.message);
-                return undefined;
-              }}
-              onStartAnalysis={(projectId, sessionIds) =>
-                run(
-                  () => ui.uiStartAnalysis({ projectId, sessionIds }),
-                  (taskId) => {
-                    if (taskId) setSelectedTaskId(taskId);
-                    setPage("任务");
-                  },
-                )
-              }
-              onManageFocus={(projectId) => navigateToFocus(projectId)}
-              onOpenTask={openTaskResult}
-            />
-          </section>
-          <section
-            className="page-panel"
-            aria-label={t("任务")}
-            hidden={page !== "任务"}
-          >
-            <TasksPage
-              onOpenTask={(taskId) => {
-                const task = tasks.find((t) => t.taskId === taskId);
-                if (task) openTaskResult(task);
-                else setError(t("任务尚未刷新，请稍后重试"));
-              }}
-              reports={reports}
-              projects={projects}
-              onAcceptSuggestion={acceptSuggestion}
-              onOpenFocus={navigateToFocus}
-              tasks={tasks}
-              initialRequestId={taskRequestId}
-              initialTaskId={selectedTaskId || undefined}
-              busy={busy}
-              onCancel={async (taskId) => {
-                await run(() => ui.uiCancelTask(taskId));
-              }}
-              onRetry={async (taskId) => {
-                await run(
-                  () => ui.uiRetryTask(taskId),
-                  (newTaskId) => {
-                    if (newTaskId) setSelectedTaskId(newTaskId);
-                  },
+        {page === "search" && (
+          <section className="search-home">
+            <h1>{t("搜索")}</h1>
+            <p className="muted">
+              {t("发起一轮搜索，或把当前条件保存为关注。")}
+            </p>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void run(
+                  () =>
+                    bridge.startFocusSearch({
+                      question: question.trim(),
+                      platforms: selectedPlatforms,
+                      period,
+                    }),
+                  "已添加搜索任务",
                 );
               }}
-              onOpenResult={openTaskResult}
-              onExportTrace={async (taskId) => {
-                await run(() => ui.uiExportAnalysisTrace(taskId));
-              }}
-            />
+            >
+              <div className="search-composer">
+                <label className="sr-only" htmlFor="search-question">
+                  {t("问题")}
+                </label>
+                <textarea
+                  id="search-question"
+                  placeholder={t("想找什么讨论？")}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  required
+                  maxLength={12000}
+                />
+                <div className="search-conditions">
+                  <fieldset>
+                    <legend className="sr-only">{t("平台")}</legend>
+                    {platforms.map((p) => (
+                      <label className="condition-chip" key={p.id}>
+                        <input
+                          type="checkbox"
+                          checked={selectedPlatforms.includes(p.id)}
+                          onChange={(e) =>
+                            setSelectedPlatforms((values) =>
+                              e.target.checked
+                                ? [...values, p.id]
+                                : values.filter((v) => v !== p.id),
+                            )
+                          }
+                        />
+                        {p.name}
+                      </label>
+                    ))}
+                  </fieldset>
+                  <fieldset className="period-segments">
+                    <legend className="sr-only">{t("内容时间范围")}</legend>
+                    {periods.map((p) => (
+                      <label
+                        className={period === p.id ? "chosen" : ""}
+                        key={p.id}
+                      >
+                        <input
+                          className="sr-only"
+                          type="radio"
+                          name="period"
+                          checked={period === p.id}
+                          onChange={() => setPeriod(p.id)}
+                        />
+                        {t(p.name)}
+                      </label>
+                    ))}
+                  </fieldset>
+                </div>
+              </div>
+              <div className="search-actions">
+                <button
+                  className="button button-primary"
+                  disabled={
+                    busy || !question.trim() || !selectedPlatforms.length
+                  }
+                >
+                  {t("搜索")}
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={
+                    busy || !question.trim() || !selectedPlatforms.length
+                  }
+                  onClick={() =>
+                    setFollowDraft({
+                      input: {
+                        question,
+                        platforms: selectedPlatforms,
+                        period,
+                        schedule: { cadence: "daily", time: "08:30" },
+                      },
+                    })
+                  }
+                >
+                  {t("保存为关注")}
+                </button>
+              </div>
+              <p className="muted support-note">
+                {t(
+                  "Gemini / YouTube 暂未接入。时间范围由平台 AI 按问题理解，报告保留实际取得的结果。",
+                )}
+              </p>
+            </form>
           </section>
-          <section
-            className="page-panel"
-            aria-label={t("设置")}
-            hidden={page !== "设置"}
+        )}
+        {page === "reports" && (
+          <div className={`refactor-workspace ${readerOpen ? "reading" : ""}`}>
+            <aside className="result-index">
+              <h1>{t("搜索结果")}</h1>
+              <div className="source-tabs" role="group" aria-label={t("来源")}>
+                {[
+                  ["all", "全部"],
+                  ["manual", "手动搜索"],
+                  ["follow", "关注运行"],
+                ].map(([id, name]) => (
+                  <button
+                    key={id}
+                    aria-pressed={source === id}
+                    onClick={() => {
+                      setSource(id);
+                      setReaderOpen(false);
+                    }}
+                  >
+                    {t(name)}
+                  </button>
+                ))}
+              </div>
+              {displayedReports.map((r) => (
+                <button
+                  className="result-row"
+                  key={r.reportId}
+                  aria-current={
+                    report?.reportId === r.reportId ? "true" : undefined
+                  }
+                  onClick={() => {
+                    setSelectedReport(r.reportId);
+                    setReaderOpen(true);
+                  }}
+                >
+                  <strong>{title(r)}</strong>
+                  <small>
+                    {t(r.origin === "follow" ? "关注" : "手动搜索")} ·{" "}
+                    {status(r.status ?? "completed")} · {dateTime(r.createdAt)}
+                  </small>
+                </button>
+              ))}
+              {!displayedReports.length && (
+                <p className="empty-copy">{t("搜索结果会保存在这里。")}</p>
+              )}
+            </aside>
+            <section className="result-reader">
+              {report ? (
+                <>
+                  {back}
+                  <h1>{title(report)}</h1>
+                  <p className="muted">
+                    {t(report.origin === "follow" ? "关注运行" : "手动搜索")} ·{" "}
+                    {report.platforms
+                      .map((p) => platforms.find((x) => x.id === p)?.name)
+                      .join("、")}{" "}
+                    · {status(report.status ?? "completed")}
+                  </p>
+                  {["queued", "running"].includes(report.status ?? "") && (
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={() => void stop(report.taskId)}
+                    >
+                      {t("停止")}
+                    </button>
+                  )}
+                  {report.sections.map((section) => (
+                    <section
+                      className="platform-section"
+                      key={section.sectionId}
+                    >
+                      <header>
+                        <h2>
+                          {
+                            platforms.find((p) => p.id === section.platform)
+                              ?.name
+                          }
+                        </h2>
+                        <span className="muted">{status(section.state)}</span>
+                      </header>
+                      {section.error && (
+                        <p className="error-text">{t(section.error)}</p>
+                      )}
+                      {section.rawReply && (
+                        <Markdown>{section.rawReply}</Markdown>
+                      )}
+                      {section.rawReply &&
+                        ["pending", "running"].includes(
+                          section.citationExtraction?.state ?? "",
+                        ) && <p className="muted">{t("正在提取引用帖子")}</p>}
+                      {section.rawReply &&
+                        section.citationExtraction?.state === "failed" && (
+                          <div className="error-text">
+                            <p>{t("引用提取未完成")}</p>
+                            {section.citationExtraction.error && (
+                              <p>{t(section.citationExtraction.error)}</p>
+                            )}
+                          </div>
+                        )}
+                      {section.rawReply &&
+                        section.citationExtraction?.state === "empty" && (
+                          <p className="muted">{t("平台回答未提供引用帖子")}</p>
+                        )}
+                      {section.warnings?.map((warning, index) => (
+                        <p className="muted" key={index}>
+                          {t(warning)}
+                        </p>
+                      ))}
+                      {section.candidates.map((candidate) => (
+                        <div className="source-row" key={candidate.candidateId}>
+                          <div>
+                            <strong>{candidate.title}</strong>
+                            <button
+                              className="source-link"
+                              onClick={() =>
+                                void run(() =>
+                                  bridge.openSearchCandidate({
+                                    reportId: report.reportId,
+                                    candidateIds: [candidate.candidateId],
+                                  }),
+                                )
+                              }
+                            >
+                              {candidate.url.split("?")[0]}
+                            </button>
+                          </div>
+                          <button
+                            className="button"
+                            disabled={
+                              busy ||
+                              report.submissions.some(
+                                (s) =>
+                                  s.postKey === candidate.postKey &&
+                                  s.submitted,
+                              )
+                            }
+                            onClick={() =>
+                              void run(async () => {
+                                const reply = await bridge.addSearchCandidates({
+                                  reportId: report.reportId,
+                                  candidateIds: [candidate.candidateId],
+                                });
+                                if (reply.ok && reply.value[0]?.error)
+                                  return {
+                                    ok: false,
+                                    message: reply.value[0].error,
+                                  };
+                                return reply;
+                              }, "已加入解析")
+                            }
+                          >
+                            {t(
+                              report.submissions.some(
+                                (s) =>
+                                  s.postKey === candidate.postKey &&
+                                  s.submitted,
+                              )
+                                ? "已加入解析"
+                                : "加入解析",
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                    </section>
+                  ))}
+                </>
+              ) : (
+                <p className="empty-copy">{t("选择一条搜索结果。")}</p>
+              )}
+            </section>
+          </div>
+        )}
+        {page === "parsed" && (
+          <div
+            className={`refactor-workspace parsed-workspace ${readerOpen ? "reading" : ""}`}
           >
-            <SettingsPage
-              settings={settings}
-              busy={busy}
-              onSaveTelegramToken={(token) =>
-                run(() => ui.uiSaveTelegramToken(token))
-              }
-              onClearTelegramBotToken={() =>
-                run(() => ui.uiClearTelegramBotToken())
-              }
-              onVerifyTelegramBot={() => run(() => ui.uiVerifyTelegramBot())}
-              onAuthorizeTelegramChat={(chatId) =>
-                run(() => ui.uiAuthorizeTelegramChat(chatId))
-              }
-              onRevokeTelegramChat={(chatId) =>
-                run(() => ui.uiRevokeTelegramChat(chatId))
-              }
-            />
+            <aside className="result-index">
+              <h1>{t("解析结果")}</h1>
+              <form
+                className="add-source"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void run(() => ui.uiAddLink(url), "已添加解析任务").then(
+                    (ok) => {
+                      if (ok) setUrl("");
+                    },
+                  );
+                }}
+              >
+                <input
+                  type="url"
+                  aria-label={t("原文链接")}
+                  placeholder="https://…"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  required
+                />
+                <button className="button" disabled={busy || !url.trim()}>
+                  {t("加入解析")}
+                </button>
+              </form>
+              <input
+                className="content-query"
+                aria-label={t("搜索内容")}
+                placeholder={t("搜索标题或来源")}
+                value={contentQuery}
+                onChange={(e) => setContentQuery(e.target.value)}
+              />
+              {readingReports.map((r) => (
+                <button
+                  key={r.materialId}
+                  className="result-row"
+                  aria-current={
+                    reading?.materialId === r.materialId ? "true" : undefined
+                  }
+                  onClick={() => {
+                    setSelectedContent(r.materialId);
+                    setReaderOpen(true);
+                  }}
+                >
+                  <strong>{r.title || r.sourceIdentity}</strong>
+                  <small>
+                    {r.platform} · {r.stageLabel || t("完成")} ·{" "}
+                    {dateTime(r.fetchedAt)}
+                  </small>
+                </button>
+              ))}
+              {!readingReports.length && (
+                <p className="empty-copy">
+                  {t("添加原文链接，或从搜索结果选择加入解析。")}
+                </p>
+              )}
+            </aside>
+            <section className="parsed-reader">
+              {reading ? (
+                <>
+                  {live(
+                    tasks.find((task) => task.taskId === reading.taskId),
+                  ) && (
+                    <button
+                      className="button stop-reading"
+                      disabled={busy}
+                      onClick={() => void stop(reading.taskId)}
+                    >
+                      {t("停止")}
+                    </button>
+                  )}
+                  {reading.materials?.length ? (
+                    <MaterialReader
+                      key={reading.materialId}
+                      report={reading}
+                      onBack={() => setReaderOpen(false)}
+                    />
+                  ) : (
+                    <div className="result-reader">
+                      {back}
+                      <h1>{reading.title}</h1>
+                      <p>{reading.taskMessage || reading.stageLabel}</p>
+                      <Markdown>{reading.summary}</Markdown>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="empty-copy">{t("选择一条解析结果。")}</p>
+              )}
+            </section>
+          </div>
+        )}
+        {page === "follows" && (
+          <section className="follow-page">
+            <h1>{t("关注")}</h1>
+            <p className="muted">
+              {t("保存的搜索条件和运行周期。应用开启时按计划运行。")}
+            </p>
+            {follows.map((f) => (
+              <article className="follow-row" key={f.followId}>
+                <h2>{f.name || f.question}</h2>
+                {f.name && f.name !== f.question && <p>{f.question}</p>}
+                <p className="muted">
+                  {f.platforms
+                    .map((p) => platforms.find((x) => x.id === p)?.name)
+                    .join("、")}{" "}
+                  · {t(periods.find((p) => p.id === f.period)?.name ?? "不限")}{" "}
+                  · {t(f.schedule.cadence === "daily" ? "每天" : "每周")}
+                  {f.schedule.cadence === "weekly"
+                    ? t(
+                        [
+                          "周日",
+                          "周一",
+                          "周二",
+                          "周三",
+                          "周四",
+                          "周五",
+                          "周六",
+                        ][f.schedule.weekday ?? 1],
+                      )
+                    : ""}{" "}
+                  {f.schedule.time} · {t(f.paused ? "已暂停" : "已启用")}
+                </p>
+                {!f.paused && f.nextRunAt && (
+                  <p className="muted">
+                    {t("下次运行")} {dateTime(f.nextRunAt)}
+                  </p>
+                )}
+                <div className="row-actions">
+                  <button
+                    className="button"
+                    onClick={() =>
+                      setFollowDraft({
+                        input: {
+                          name: f.name,
+                          question: f.question,
+                          platforms: f.platforms,
+                          period: f.period,
+                          schedule: f.schedule,
+                        },
+                        followId: f.followId,
+                      })
+                    }
+                  >
+                    {t("编辑")}
+                  </button>
+                  <button
+                    className="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(() =>
+                        bridge.setFollowPaused(f.followId, !f.paused),
+                      )
+                    }
+                  >
+                    {t(f.paused ? "恢复" : "暂停")}
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(
+                        () => bridge.deleteFollow(f.followId),
+                        "已删除关注，历史结果已保留",
+                      )
+                    }
+                  >
+                    {t("删除")}
+                  </button>
+                </div>
+              </article>
+            ))}
+            {!follows.length && (
+              <p className="empty-copy">
+                {t("在搜索页输入问题，然后保存为关注。")}
+              </p>
+            )}
           </section>
-        </div>
+        )}
+        {page === "tasks" && (
+          <div className={`refactor-workspace ${readerOpen ? "reading" : ""}`}>
+            <aside className="result-index">
+              <h1>{t("任务")}</h1>
+              {tasks.map((item) => (
+                <button
+                  key={item.taskId}
+                  className="result-row"
+                  aria-current={
+                    task?.taskId === item.taskId ? "true" : undefined
+                  }
+                  onClick={() => {
+                    setSelectedTask(item.taskId);
+                    setReaderOpen(true);
+                  }}
+                >
+                  <strong>{item.targetLabel || item.label}</strong>
+                  <small>
+                    {status(item.status)} · {item.phase}
+                  </small>
+                </button>
+              ))}
+            </aside>
+            <section className="result-reader">
+              {task ? (
+                <>
+                  {back}
+                  <h1>{task.targetLabel || task.label}</h1>
+                  <p className="muted">
+                    {status(task.status)} · {task.phase}
+                  </p>
+                  <p className="muted">{dateTime(task.updatedAt)}</p>
+                  {task.error && <p className="error-text">{task.error}</p>}
+                  <button
+                    className="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(() => bridge.exportTaskPiLogs(task.taskId))
+                    }
+                  >
+                    {t("导出 Agent 日志")}
+                  </button>
+                </>
+              ) : (
+                <p className="empty-copy">{t("任务运行状态会显示在这里。")}</p>
+              )}
+            </section>
+          </div>
+        )}
+        {page === "settings" && (
+          <SettingsPage
+            settings={settings}
+            busy={busy}
+            onSaveTelegramToken={(token) =>
+              run(() => ui.uiSaveTelegramToken(token))
+            }
+            onClearTelegramBotToken={() =>
+              run(() => ui.uiClearTelegramBotToken())
+            }
+            onVerifyTelegramBot={() => run(() => ui.uiVerifyTelegramBot())}
+            onAuthorizeTelegramChat={(id) =>
+              run(() => ui.uiAuthorizeTelegramChat(id))
+            }
+            onRevokeTelegramChat={(id) =>
+              run(() => ui.uiRevokeTelegramChat(id))
+            }
+          />
+        )}
       </main>
+      {notice && (
+        <div className="refactor-toast" role="status">
+          {notice}
+        </div>
+      )}
+      {followDraft && (
+        <FollowEditor
+          draft={followDraft}
+          busy={busy}
+          onClose={() => setFollowDraft(undefined)}
+          onSave={async (input) => {
+            const ok = await run(
+              () =>
+                followDraft.followId
+                  ? bridge.updateFollow({
+                      ...input,
+                      followId: followDraft.followId,
+                    })
+                  : bridge.saveFollow(input),
+              "已保存关注",
+            );
+            if (ok) setFollowDraft(undefined);
+            return ok;
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function FollowEditor({
+  draft,
+  busy,
+  onClose,
+  onSave,
+}: {
+  draft: { input: SaveFollow; followId?: string };
+  busy: boolean;
+  onClose: () => void;
+  onSave: (input: SaveFollow) => Promise<boolean>;
+}) {
+  const [input, setInput] = useState(draft.input);
+  const [failure, setFailure] = useState(false);
+  const next = new Date();
+  const [hours, minutes] = input.schedule.time.split(":").map(Number);
+  next.setHours(hours, minutes, 0, 0);
+  if (input.schedule.cadence === "weekly") {
+    next.setDate(
+      next.getDate() +
+        (((input.schedule.weekday ?? 1) - next.getDay() + 7) % 7),
+    );
+    if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 7);
+  } else if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1);
+  return (
+    <Dialog
+      title={t(draft.followId ? "编辑关注" : "保存为关注")}
+      onClose={onClose}
+    >
+      <form
+        className="follow-editor"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void onSave(input).then((ok) => setFailure(!ok));
+        }}
+      >
+        <label>
+          {t("问题")}
+          <textarea
+            value={input.question}
+            required
+            onChange={(e) => setInput({ ...input, question: e.target.value })}
+          />
+        </label>
+        <fieldset>
+          <legend>{t("平台")}</legend>
+          {platforms.map((p) => (
+            <label key={p.id}>
+              <input
+                type="checkbox"
+                checked={input.platforms.includes(p.id)}
+                onChange={(e) =>
+                  setInput({
+                    ...input,
+                    platforms: e.target.checked
+                      ? [...input.platforms, p.id]
+                      : input.platforms.filter((v) => v !== p.id),
+                  })
+                }
+              />
+              {p.name}
+            </label>
+          ))}
+        </fieldset>
+        <label>
+          {t("内容时间范围")}
+          <select
+            value={input.period}
+            onChange={(e) =>
+              setInput({ ...input, period: e.target.value as SearchPeriod })
+            }
+          >
+            {periods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {t(p.name)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset>
+          <legend>{t("重复")}</legend>
+          {(["daily", "weekly"] as const).map((c) => (
+            <label key={c}>
+              <input
+                type="radio"
+                name="cadence"
+                checked={input.schedule.cadence === c}
+                onChange={() =>
+                  setInput({
+                    ...input,
+                    schedule: {
+                      ...input.schedule,
+                      cadence: c,
+                      ...(c === "weekly"
+                        ? { weekday: input.schedule.weekday ?? 1 }
+                        : {}),
+                    },
+                  })
+                }
+              />
+              {t(c === "daily" ? "每天" : "每周")}
+            </label>
+          ))}
+        </fieldset>
+        <label>
+          {t("时刻")}
+          <input
+            type="time"
+            required
+            value={input.schedule.time}
+            onChange={(e) =>
+              setInput({
+                ...input,
+                schedule: { ...input.schedule, time: e.target.value },
+              })
+            }
+          />
+        </label>
+        {input.schedule.cadence === "weekly" && (
+          <label>
+            {t("星期")}
+            <select
+              value={input.schedule.weekday ?? 1}
+              onChange={(e) =>
+                setInput({
+                  ...input,
+                  schedule: {
+                    ...input.schedule,
+                    weekday: Number(e.target.value),
+                  },
+                })
+              }
+            >
+              {["周日", "周一", "周二", "周三", "周四", "周五", "周六"].map(
+                (d, i) => (
+                  <option key={d} value={i}>
+                    {t(d)}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+        )}
+        <p className="muted">
+          {t("下次运行")}{" "}
+          {Number.isFinite(next.getTime()) ? dateTime(next.toISOString()) : "—"}{" "}
+          · {Intl.DateTimeFormat().resolvedOptions().timeZone}
+        </p>
+        {failure && (
+          <p role="alert">{t("保存失败，输入已保留。请检查条件后重试。")}</p>
+        )}
+        <div className="row-actions">
+          <button type="button" className="button" onClick={onClose}>
+            {t("取消")}
+          </button>
+          <button
+            className="button button-primary"
+            disabled={busy || !input.question.trim() || !input.platforms.length}
+          >
+            {t("保存关注")}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

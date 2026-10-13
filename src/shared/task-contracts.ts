@@ -1,21 +1,9 @@
 import { z } from "zod";
-import { focusSetSnapshotSchema } from "./focus-contracts";
 
-export const taskKindSchema = z.enum([
-  "forwarding",
-  "project_analysis",
-  "focus_search",
-]);
+export const taskKindSchema = z.enum(["forwarding", "focus_search"]);
 
 export const taskTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }).strict(),
-  z
-    .object({
-      kind: z.literal("project"),
-      projectId: z.string().uuid(),
-      projectLabel: z.string().min(1).max(300),
-    })
-    .strict(),
   z
     .object({ kind: z.literal("source"), url: z.string().url().max(2048) })
     .strict(),
@@ -23,11 +11,7 @@ export const taskTargetSchema = z.discriminatedUnion("kind", [
 
 export const taskResultRefSchema = z
   .object({
-    kind: z.enum([
-      "forwarding_report",
-      "project_analysis_report",
-      "focus_search_report",
-    ]),
+    kind: z.enum(["forwarding_report", "focus_search_report"]),
     id: z.string().uuid(),
   })
   .strict();
@@ -52,7 +36,6 @@ export const taskSnapshotSchema = z
         total: z.number().int().nonnegative().optional(),
       })
       .strict(),
-    focusSetSnapshot: focusSetSnapshotSchema.optional(),
     result: taskResultRefSchema.optional(),
     failure: z
       .object({
@@ -65,7 +48,7 @@ export const taskSnapshotSchema = z
     updatedAt: z.string().datetime(),
     finishedAt: z.string().datetime().optional(),
   })
-  .strict()
+  .strip()
   .superRefine((task, context) => {
     if (
       task.progress.total !== undefined &&
@@ -206,20 +189,8 @@ export const createTaskSchema = z
     kind: taskKindSchema,
     target: taskTargetSchema,
     phase: z.string().min(1).max(160),
-    focusSetSnapshot: focusSetSnapshotSchema.optional(),
   })
-  .strict()
-  .superRefine((input, context) => {
-    if (
-      ["forwarding", "project_analysis", "focus_search"].includes(input.kind) &&
-      !input.focusSetSnapshot
-    )
-      context.addIssue({
-        code: "custom",
-        path: ["focusSetSnapshot"],
-        message: "任务需要固定关注卡快照",
-      });
-  });
+  .strict();
 
 export type TaskSnapshot = z.infer<typeof taskSnapshotSchema>;
 export type TaskActivity = z.infer<typeof taskActivitySchema>;

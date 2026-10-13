@@ -1,10 +1,9 @@
 import { searchStateSchema } from "../../shared/focus-search-contracts";
 import { claimProfile } from "./profile-lock";
+import { businessGenerationSchema } from "./business-reset";
 import { z } from "zod";
 import { taskStateSchema } from "../../shared/task-contracts";
-import { analysisPromptSettingsSchema } from "../../shared/analysis-prompt-contracts";
 import { languageSchema } from "../../shared/language";
-import { projectAnalysisRunInputSchema } from "../services/project-analysis/pipeline-service";
 import {
   cp,
   lstat,
@@ -17,15 +16,12 @@ import {
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { projectStateSchema } from "../../shared/project-contracts";
 import { forwardingStateSchema } from "../services/forwarding/store";
 
 const businessFiles = [
+  "business-generation.json",
   "focus-search.json",
-  "projects.json",
   "tasks.json",
-  "project-analysis-inputs.json",
-  "analysis-prompt.json",
   "forwarding.json",
   "preferences.json",
 ];
@@ -117,22 +113,18 @@ export async function prepareProfile(
       for (const file of businessFiles) {
         try {
           const path = join(stage, file);
-          const data = JSON.parse(await readFile(path, "utf8"));
+          let data = JSON.parse(await readFile(path, "utf8"));
+          if (file === "business-generation.json") {
+            const marker = businessGenerationSchema.parse(data);
+            if (marker.state === "resetting")
+              throw new Error(
+                "Complete the source profile business reset before copying it",
+              );
+          }
           if (file === "preferences.json")
             z.object({ language: languageSchema }).strict().parse(data);
-          if (file === "analysis-prompt.json")
-            analysisPromptSettingsSchema.parse(data);
-          if (file === "project-analysis-inputs.json")
-            z.object({
-              inputs: z.record(
-                z.string().uuid(),
-                projectAnalysisRunInputSchema,
-              ),
-            })
-              .strict()
-              .parse(data);
           if (file === "tasks.json") {
-            taskStateSchema.parse(data);
+            data = taskStateSchema.parse(data);
             for (const task of data.tasks) {
               if (["queued", "running"].includes(task.state)) {
                 task.state = "failed";
@@ -144,20 +136,16 @@ export async function prepareProfile(
                 };
               }
             }
-            taskStateSchema.parse(data);
+            data = taskStateSchema.parse(data);
           }
-          if (file === "focus-search.json") searchStateSchema.parse(data);
-          if (file === "projects.json") projectStateSchema.parse(data);
+          if (file === "focus-search.json")
+            data = searchStateSchema.parse(data);
           if (file === "forwarding.json") {
-            forwardingStateSchema.parse(data);
+            data = forwardingStateSchema.parse(data);
             for (const task of data.tasks) {
               delete task.xhsAccessTokenCiphertext;
               if (["queued", "running"].includes(task.state)) {
-                task.failureStage = task.source
-                  ? task.generalUnderstanding
-                    ? "relations"
-                    : "understanding"
-                  : "source";
+                task.failureStage = task.source ? "translation" : "source";
                 task.state = "failed";
                 task.phase = "上次解析中断";
                 task.message = "上次解析中断";

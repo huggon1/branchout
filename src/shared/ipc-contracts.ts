@@ -1,26 +1,14 @@
 import type {
+  Follow,
+  SaveFollow,
+  UpdateFollow,
   FocusSearchReport,
   StartFocusSearch,
   SearchSelection,
   SearchAddition,
 } from "./focus-search-contracts";
 import type { Language } from "./language";
-import type { ProjectState } from "./project-contracts";
-import type {
-  FocusCardView,
-  CreateFocusCard,
-  EditFocusCard,
-  SetFocusCardDeleted,
-  FocusCard,
-  FocusVersion,
-} from "./focus-contracts";
-import type {
-  AcceptFocusSuggestion,
-  AcceptSuggestionResult,
-  ProjectAnalysisPreflight,
-  ProjectAnalysisReport,
-  StartProjectAnalysis,
-} from "./analysis-contracts";
+import type { ApplicationPreferences } from "./preferences-contracts";
 import type { TaskActivity, TaskSnapshot } from "./task-contracts";
 import type { ModelReply, ModelView, SaveModelInput } from "./model-contracts";
 import type {
@@ -28,13 +16,14 @@ import type {
   ForwardingTaskSummary,
 } from "./forwarding-view-contracts";
 import type { TelegramStatus } from "./telegram-contracts";
-import type {
-  AnalysisPromptSettings,
-  AnalysisPromptView,
-} from "./analysis-prompt-contracts";
 
 export const searchChannels = {
   reports: "search:reports",
+  follows: "search:follows",
+  saveFollow: "search:save-follow",
+  updateFollow: "search:update-follow",
+  pauseFollow: "search:pause-follow",
+  deleteFollow: "search:delete-follow",
   start: "search:start",
   retry: "search:retry",
   cancel: "search:cancel",
@@ -42,39 +31,9 @@ export const searchChannels = {
   open: "search:open",
 } as const;
 
-export const projectChannels = {
-  view: "project:view",
-  bind: "project:bind",
-  unbind: "project:unbind",
-} as const;
-
-export const focusCardChannels = {
-  view: "focus-cards:view",
-  create: "focus-cards:create",
-  edit: "focus-cards:edit",
-  setDeleted: "focus-cards:set-deleted",
-} as const;
-
 export const taskChannels = {
   snapshots: "tasks:snapshots",
   activities: "tasks:activities",
-} as const;
-
-export const analysisChannels = {
-  reports: "analysis:reports",
-  readReport: "analysis:read-report",
-  preflight: "analysis:preflight",
-  start: "analysis:start",
-  retry: "analysis:retry",
-  cancel: "analysis:cancel",
-  exportTrace: "analysis:export-trace",
-  acceptSuggestion: "analysis:accept-suggestion",
-} as const;
-
-export const analysisPromptChannels = {
-  view: "analysis-prompt:view",
-  save: "analysis-prompt:save",
-  reset: "analysis-prompt:reset",
 } as const;
 
 export const forwardingChannels = {
@@ -122,6 +81,12 @@ export const channels = {
 } as const;
 
 export interface DesktopBridge {
+  follows(): Promise<ModelReply<Follow[]>>;
+  saveFollow(input: SaveFollow): Promise<ModelReply<Follow>>;
+  updateFollow(input: UpdateFollow): Promise<ModelReply<Follow>>;
+  setFollowPaused(followId: string, paused: boolean): Promise<ModelReply<void>>;
+  deleteFollow(followId: string): Promise<ModelReply<void>>;
+  exportTaskPiLogs(taskId: string): Promise<ModelReply<string | undefined>>;
   focusSearchReports(): Promise<ModelReply<FocusSearchReport[]>>;
   startFocusSearch(input: StartFocusSearch): Promise<ModelReply<string>>;
   retryFocusSearch(taskId: string): Promise<ModelReply<string>>;
@@ -130,42 +95,11 @@ export interface DesktopBridge {
     input: SearchSelection,
   ): Promise<ModelReply<SearchAddition[]>>;
   openSearchCandidate(input: SearchSelection): Promise<ModelReply<void>>;
-  preferences(): Promise<{ language: Language }>;
-  saveLanguage(language: Language): Promise<{ language: Language }>;
-  projects(): Promise<ModelReply<ProjectState>>;
-  bindProject(): Promise<ModelReply<string | undefined>>;
-  unbindProject(projectId: string): Promise<ModelReply<void>>;
-  focusCardView(): Promise<ModelReply<FocusCardView>>;
-  createFocusCard(input: CreateFocusCard): Promise<ModelReply<FocusCard>>;
-  editFocusCard(input: EditFocusCard): Promise<ModelReply<FocusVersion>>;
-  setFocusCardDeleted(
-    input: SetFocusCardDeleted,
-  ): Promise<ModelReply<FocusVersion>>;
+  preferences(): Promise<ApplicationPreferences>;
+  saveLanguage(language: Language): Promise<ApplicationPreferences>;
+  saveTaskBrowserVisible(visible: boolean): Promise<ApplicationPreferences>;
   unifiedTaskSnapshots(): Promise<ModelReply<TaskSnapshot[]>>;
   taskActivities(taskId: string): Promise<ModelReply<TaskActivity[]>>;
-  projectAnalysisReports(
-    projectId?: string,
-  ): Promise<ModelReply<ProjectAnalysisReport[]>>;
-  readProjectAnalysisReport(
-    analysisReportId: string,
-  ): Promise<ModelReply<ProjectAnalysisReport>>;
-  projectAnalysisPreflight(
-    projectId: string,
-  ): Promise<ModelReply<ProjectAnalysisPreflight>>;
-  analysisPromptView(): Promise<ModelReply<AnalysisPromptView>>;
-  saveAnalysisPrompt(
-    input: AnalysisPromptSettings,
-  ): Promise<ModelReply<AnalysisPromptView>>;
-  resetAnalysisPrompt(): Promise<ModelReply<AnalysisPromptView>>;
-  startProjectAnalysis(
-    input: StartProjectAnalysis,
-  ): Promise<ModelReply<string>>;
-  exportProjectAnalysisTrace(
-    taskId: string,
-  ): Promise<ModelReply<string | undefined>>;
-  acceptFocusSuggestion(
-    input: AcceptFocusSuggestion,
-  ): Promise<ModelReply<AcceptSuggestionResult>>;
   forwardingTasks(): Promise<ModelReply<ForwardingTaskSummary[]>>;
   forwardingTask(taskId: string): Promise<ModelReply<ForwardingTaskDetail>>;
   addLink(url: string): Promise<ModelReply<string>>;
@@ -180,8 +114,6 @@ export interface DesktopBridge {
   authorizeTelegramChat(chatId: string): Promise<ModelReply<void>>;
   revokeTelegramChat(chatId: string): Promise<ModelReply<void>>;
   modelView(): Promise<ModelReply<ModelView>>;
-  retryProjectAnalysis(taskId: string): Promise<ModelReply<string>>;
-  cancelProjectAnalysis(taskId: string): Promise<ModelReply<void>>;
   saveModel(input: SaveModelInput): Promise<ModelReply<void>>;
   loginModel(): Promise<ModelReply<void>>;
   cancelModelLogin(): Promise<ModelReply<void>>;

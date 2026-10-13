@@ -1,6 +1,4 @@
 import { runForwardingJob } from "../../src/worker/jobs/forwarding/run";
-import { understandingInput } from "../../src/worker/understanding/platform-content";
-import { relationPrompt } from "../../src/worker/jobs/forwarding/prompts";
 const port = process.parentPort!;
 const controller = new AbortController();
 async function request(kind: string, input: unknown) {
@@ -16,8 +14,9 @@ port.on("message", ({ data }) => {
     controller.abort();
     return;
   }
+  const { traceRoot, ...command } = data;
   void runForwardingJob(
-    data,
+    command,
     (event) => port.postMessage(event),
     controller.signal,
     {
@@ -33,18 +32,6 @@ port.on("message", ({ data }) => {
         summarize: (material) =>
           request("summary", { material, language: data.outputLanguage }),
       },
-      readSource: async (command) =>
-        request("source", { url: command.sourceUrl }),
-      understand: async (command, source) =>
-        request("understand", {
-          url: command.sourceUrl,
-          ...understandingInput(source, command.outputLanguage),
-        }),
-      relate: async (command, source, understanding, cards) =>
-        request(
-          "relate",
-          relationPrompt(source, understanding, cards, command.outputLanguage),
-        ),
     },
-  );
+  ).finally(() => port.postMessage({ type: "logs_saved" }));
 });

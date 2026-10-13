@@ -1,28 +1,12 @@
 # Worker
 
-This document describes current Agent worker responsibilities. See [data contracts](../../docs/data-contracts.md) for task input and output and the [architecture overview](../../docs/architecture-overview.md) for runtime design.
+[Architecture](../../docs/architecture-overview.md) owns processes; [prompt flow](../../docs/agent-prompt-flow.md) owns instruction loading and recovery.
 
-## Tasks
-
-- **Reading:** Translate saved main and reference materials into the frozen task language, generate a short introduction for each, and preserve completed chunks across retry. Historical content tasks retain their saved understanding and card evaluations.
-- **Browser access:** Run shared browser tools with either a reading-collection or focus-search requirement and return captured source identities.
-- **Project analysis:** Give Pi the repository root and a cleaned XML of selected Codex sessions; use read-only tools to explore files and produce evidence-backed findings and card suggestions.
-- **Model support:** Create an independent Pi session for each task using configuration frozen by the main process; deliver structured stage and activity events.
-
-Workers receive approved directories, source scope, card versions, and cancellation signals. Readers return locatable sources and actual coverage; reasoning modules consume normalized inputs. The main process validates results, persists state, manages tasks, and accepts suggestions.
-
-## Module layout
-
-- `jobs/forwarding/worker-entry.ts`: material translation, short introductions, stage recovery, and historical understanding/evaluation.
-- `jobs/project-analysis/worker-entry.ts`: findings and card suggestions.
-- [readers](../readers/README.md): local inputs shared by previews and analysis.
-- `reasoning/`: model input and output validation for understanding, connections, and suggestions.
-- `pi-runtime.ts` and `model-worker.ts`: Pi sessions, model checks, and execution boundaries.
-
-Each reader reports actual scope and failure locations. Task stages send readable summaries to the main-process task center. Project analysis emits stage changes and internal heartbeat events through `pi-coding-session.ts`; its local Pi record retains model messages and tool actions. The [task contract](../../docs/data-contracts.md#task-snapshots-and-activity-messages) defines stage and activity persistence.
-
-## Project analysis writing
-
-`jobs/project-analysis/prompts.ts` owns report instructions, card instructions, and the output example. `summary` carries one Markdown body; findings retain numbered supporting evidence. The runtime offers read-only local document-link inspection alongside file exploration. Protocol version and actual fixed instructions identify each execution. Settings guidance is frozen per run.
-
-`jobs/browser/worker-entry.ts` runs an isolated Pi session with browser tools supplied over its parent port. Application prompts define platform reading and AI search. The main process owns Chrome profiles and validates captured results.
+| Path | Responsibility |
+| --- | --- |
+| `jobs/browser/worker-entry.ts` | Browser/skill tool loop and native export |
+| `jobs/forwarding/reading.ts` | Translation, fidelity correction, and introduction |
+| `jobs/forwarding/worker-entry.ts` | Reading dispatch and task events |
+| `pi-coding-session.ts` | Persisted sessions and explicit resource boundaries |
+| `pi-runtime.ts` | Lightweight Agent calls and transcript export |
+| `model-worker.ts` | Connection checks |

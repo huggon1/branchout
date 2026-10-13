@@ -29,8 +29,9 @@ export class UnifiedTaskService {
             completed: summary.progress.evaluated,
             total: summary.progress.total,
           },
-          focusSetSnapshot: detail.task.focusSet,
-          ...(summary.state === "completed"
+          ...(summary.state === "completed" ||
+          detail.task.report ||
+          summary.hasMaterials
             ? { result: { kind: "forwarding_report", id: summary.materialId } }
             : {}),
           ...(summary.state === "failed"

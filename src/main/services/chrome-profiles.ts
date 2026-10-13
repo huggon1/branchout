@@ -1,6 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile, rename, rm, realpath } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  writeFile,
+  rename,
+  rm,
+  realpath,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
@@ -33,8 +40,8 @@ export function chromeExecutable() {
   return candidates.find(existsSync);
 }
 
-// Only processes spawned here are stopped. Existing ordinary Chrome profiles
-// can be reattached through their own loopback endpoint after a client restart.
+// Reattachment verifies profile path and launch mode. Mode changes restart
+// that verified profile and retain its website session.
 export class ChromeProfiles {
   private children = new Map<string, ChildProcess>();
 
@@ -88,7 +95,9 @@ export class ChromeProfiles {
     }
   }
 
-  private async attach(directory: string): Promise<Browser | undefined> {
+  private async attach(
+    directory: string,
+  ): Promise<{ browser: Browser; headless: boolean } | undefined> {
     try {
       let port: string, path: string;
       try {
@@ -117,30 +126,42 @@ export class ChromeProfiles {
         { timeout: 1000, noDefaults: true },
       );
       const probe = await browser.contexts()[0].newPage();
+      let headless: boolean;
       try {
         await probe.goto("chrome://version");
         const actual = await probe.locator("#profile_path").innerText();
-        if (await realpath(actual) !== await realpath(join(directory, "Default"))) {
+        if (
+          (await realpath(actual)) !==
+          (await realpath(join(directory, "Default")))
+        ) {
           await browser.close();
           return;
         }
+        const command = await probe.locator("#command_line").innerText();
+        headless = /--headless(?:=\S+)?(?:\s|$)/.test(command);
       } finally {
         await probe.close().catch(() => {});
       }
-      return browser;
+      return { browser, headless };
     } catch {
       return;
     }
   }
 
-  async connect(directory: string, headless = false): Promise<Browser> {
+  async connect(directory: string, headless = true): Promise<Browser> {
     directory = resolve(directory);
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const existing = await this.attach(directory);
-    if (existing) return this.finish(directory, existing);
+    let cookies: Cookie[] | undefined;
+    if (existing) {
+      if (existing.headless === headless)
+        return this.finish(directory, existing.browser);
+      cookies = await existing.browser.contexts()[0].cookies();
+      await this.close(directory, existing.browser);
+    }
     const executable = chromeExecutable();
     if (!executable) throw new Error("Google Chrome is unavailable");
-    const cookies = await this.previousSession(directory, headless);
+    cookies ??= await this.previousSession(directory, headless);
     const port = await new Promise<number>((resolve, reject) => {
       const server = createServer();
       server.once("error", reject);
@@ -167,7 +188,7 @@ export class ChromeProfiles {
         ...(headless ? ["--headless=new"] : []),
         "--no-startup-window",
       ],
-      { stdio: ["ignore", "ignore", "pipe"], windowsHide: false },
+      { stdio: ["ignore", "ignore", "pipe"], windowsHide: headless },
     );
     let output = "";
     let endpointSaved = Promise.resolve();
@@ -196,8 +217,15 @@ export class ChromeProfiles {
     });
     for (let attempt = 0; attempt < 100; attempt++) {
       await endpointSaved;
-      const browser = await this.attach(directory);
-      if (browser) return this.finish(directory, browser, cookies);
+      const attached = await this.attach(directory);
+      if (attached) {
+        if (attached.headless !== headless) {
+          await attached.browser.close();
+          await this.stop(child);
+          throw new Error("Platform browser opened in an unexpected mode");
+        }
+        return this.finish(directory, attached.browser, cookies);
+      }
       if (failed || child.exitCode !== null || child.signalCode !== null) break;
       await delay(200);
     }
@@ -205,6 +233,25 @@ export class ChromeProfiles {
     throw new Error(
       "Platform browser could not start; close its window and try again",
     );
+  }
+
+  async close(directory: string, browser: Browser) {
+    const disconnected = new Promise<void>((resolve) => {
+      if (!browser.isConnected()) resolve();
+      else browser.once("disconnected", () => resolve());
+    });
+    // CDP Browser.close stops this verified profile, including a process
+    // retained from a previous application instance.
+    const session = await browser.newBrowserCDPSession();
+    await Promise.race([
+      session.send("Browser.close").catch(() => {}),
+      delay(5000),
+    ]);
+    await Promise.race([disconnected, delay(5000)]);
+    const child = this.children.get(resolve(directory));
+    if (child) await this.stop(child);
+    if (browser.isConnected())
+      throw new Error("Platform browser is still closing; try again shortly");
   }
 
   private async stop(child: ChildProcess) {

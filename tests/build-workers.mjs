@@ -5,8 +5,9 @@ await build({
   define: { __BRANCHOUT_BUILD_IDENTITY__: JSON.stringify(identity) },
   entryPoints: {
     "browser-app": "tests/support/browser-app.ts",
+    "worker-network-app": "tests/support/worker-network-app.ts",
     forwarding: "tests/support/forwarding.ts",
-    analysis: "tests/support/analysis.ts",
+    "reading-model/forwarding": "tests/support/forwarding-model.ts",
   },
   outdir: "build/test-workers",
   outExtension: { ".js": ".mjs" },
@@ -14,4 +15,5 @@ await build({
   bundle: true,
   format: "esm",
   packages: "external",
+  loader: { ".md": "text" },
 });

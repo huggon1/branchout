@@ -109,7 +109,7 @@ export const xhsNoteUrlSchema = z
       !url.port &&
       !url.username &&
       !url.password &&
-      /^\/(?:explore|discovery\/item)\/[A-Za-z0-9_-]{8,80}\/?$/.test(
+      /^\/(?:explore|discovery\/item|search_result)\/[A-Za-z0-9_-]{8,80}\/?$/.test(
         url.pathname,
       )
     );

@@ -15,20 +15,30 @@ import {
   type SearchSection,
 } from "../../shared/focus-search-contracts";
 import type { ModelExecutionConfig } from "../../shared/model-contracts";
-import { selectPlatformAdapter } from "../../platforms/registry";
 import {
   materialCollectionInstruction,
-  readingInstruction,
-  searchCaptureInstruction,
+  platformSearchInstruction,
 } from "../../platforms/browser/prompts";
-import type { BrowserAgent, BrowserCapture } from "./browser-agent";
-import type { XhsAuth } from "./xhs-auth";
+import type {
+  BrowserAgent,
+  BrowserCapture,
+  SearchProgress,
+} from "./browser-agent";
 function samePage(left: string, right: string) {
   const a = new URL(left),
     b = new URL(right);
   a.hash = "";
   b.hash = "";
-  return a.href === b.href;
+  if (a.href === b.href) return true;
+  const platform = xPostUrlSchema.safeParse(right).success
+    ? "x"
+    : xhsNoteUrlSchema.safeParse(right).success
+      ? "xiaohongshu"
+      : undefined;
+  return (
+    !!platform &&
+    canonicalPost(platform, left)?.key === canonicalPost(platform, right)?.key
+  );
 }
 function authorProfile(capture?: BrowserCapture) {
   return capture?.links
@@ -47,7 +57,6 @@ function authorProfile(capture?: BrowserCapture) {
 export class PlatformAccess {
   constructor(
     private agent: BrowserAgent,
-    private xhs: XhsAuth,
     private browser?: PlatformBrowser,
     private imageRoot?: string,
   ) {}
@@ -225,7 +234,7 @@ export class PlatformAccess {
         if (material.source) continue;
         try {
           const collected = await this.collect(
-            randomUUID(),
+            taskId,
             material.url,
             config,
             signal,
@@ -245,89 +254,23 @@ export class PlatformAccess {
       }
     return readingMaterialsSchema.parse(materials);
   }
-  async read(
-    taskId: string,
-    url: string,
-    config: ModelExecutionConfig,
-    signal: AbortSignal,
-    accessToken?: string,
-    refreshCredential?: () => Promise<string>,
-  ) {
-    const platform = xPostUrlSchema.safeParse(url).success
-      ? "x"
-      : xhsNoteUrlSchema.safeParse(url).success
-        ? "xiaohongshu"
-        : "github";
-    if (platform === "xiaohongshu" && this.xhs.installed()) {
-      try {
-        const connection = await this.xhs.connect();
-        const result = await selectPlatformAdapter(url, {
-          xhsSession: connection,
-          xhsAccessToken: accessToken ?? "",
-        }).read(taskId, url, signal);
-        if (result.outcome === "content") return result.content;
-      } catch {
-        if (signal.aborted) throw new Error("Cancelled");
-      }
-    }
-    const browserUrl = new URL(url);
-    if (platform === "xiaohongshu" && accessToken)
-      browserUrl.searchParams.set("xsec_token", accessToken);
-    const result = await this.agent.run(
-      platform,
-      taskId,
-      config,
-      readingInstruction(browserUrl.href),
-      signal,
-      "read",
-      refreshCredential,
-    );
-    if (
-      typeof result.output.text !== "string" ||
-      !result.output.text.trim() ||
-      !result.captures.includes(result.output.text)
-    )
-      throw new Error("Source text must match captured browser content");
-    const images = (result.capturedImages.get(result.output.text) ?? [])
-      .filter((image) => imageUrlSchema.safeParse(image.url).success)
-      .slice(0, 100)
-      .map((image, index) => ({
-        imageId: `browser-image-${index + 1}`,
-        url: image.url,
-        alt: image.alt.slice(0, 1000),
-      }));
-    return sourceSchema.parse({
-      platform,
-      sourceUrl: url,
-      sourceIdentity: result.output.sourceIdentity,
-      title: result.output.title,
-      fetchedAt: new Date().toISOString(),
-      contentBlocks: [
-        { type: "text", text: result.output.text },
-        ...images.map((image) => ({ type: "image", imageId: image.imageId })),
-      ],
-      images,
-      completeness: "partial",
-      completenessNote:
-        result.output.completenessNote ||
-        "Browser captures visible source text and available images; replies, videos, and linked pages remain outside this snapshot",
-    });
-  }
   async search(
     section: SearchSection,
     config: ModelExecutionConfig,
     signal: AbortSignal,
     refreshCredential?: () => Promise<string>,
+    taskId = section.sectionId,
+    onProgress?: (progress: SearchProgress) => Promise<void>,
   ) {
     const result = await this.agent.run(
       section.platform,
-      section.sectionId,
+      taskId,
       config,
-      searchCaptureInstruction(section.prompt) +
-        `\nSearch platform: ${section.platform}. Load its guide for the AI entry and workflow.`,
+      platformSearchInstruction(section.platform, section.prompt),
       signal,
       "search",
       refreshCredential,
+      onProgress,
     );
     if (
       typeof result.output.rawReply !== "string" ||
@@ -337,27 +280,189 @@ export class PlatformAccess {
       throw new Error("Reply did not match captured source");
     const candidates: SearchSection["candidates"] = [];
     const seen = new Set<string>();
+    const scopedCaptures = [...result.sourceCaptures]
+      .map((id) => result.captureData.get(id))
+      .filter((capture): capture is BrowserCapture => !!capture);
+    const xhsAddress = (key: string) => {
+      for (const [url, ids] of result.sourceOpened) {
+        if (
+          canonicalPost("xiaohongshu", url)?.key !== key ||
+          !new URL(url).searchParams.get("xsec_token") ||
+          result.sourceFailures.has(url)
+        )
+          continue;
+        const source = [...ids]
+          .map((id) =>
+            result.sourceCaptures.has(id)
+              ? result.captureData.get(id)
+              : undefined,
+          )
+          .find((capture) => capture?.sourceKind === "source_panel");
+        if (source) return { url, source };
+      }
+      for (const source of scopedCaptures) {
+        if (source.sourceKind !== "source_panel") continue;
+        const link = source.links.find(
+          (link) =>
+            canonicalPost("xiaohongshu", link.url)?.key === key &&
+            !!new URL(link.url).searchParams.get("xsec_token") &&
+            !result.sourceFailures.has(link.url),
+        );
+        if (link) return { url: link.url, source, link };
+      }
+      const url = result.readableSources.get(key);
+      return url && !result.sourceFailures.has(url) ? { url } : undefined;
+    };
+    const xhsFailure = (key: string) =>
+      [...result.sourceFailures].find(
+        ([url]) => canonicalPost("xiaohongshu", url)?.key === key,
+      )?.[1];
     let excluded = 0;
-    for (const item of result.output.candidates ?? []) {
+    let unverified = 0;
+    let sourceFailure: string | undefined;
+    for (const item of Array.isArray(result.output.candidates)
+      ? result.output.candidates
+      : []) {
       const post = canonicalPost(section.platform, item.url);
-      if (!post || !result.observed.has(item.url)) {
+      const source = result.sourceCaptures.has(item.sourceCaptureId)
+        ? result.captureData.get(item.sourceCaptureId)
+        : undefined;
+      const link = source?.links.find(
+        (link) =>
+          link.url === item.url ||
+          result.navigations.get(link.url) === item.url ||
+          (!!post &&
+            canonicalPost(section.platform, link.url)?.key === post.key),
+      );
+      const opened = result.sourceOpened
+        .get(item.url)
+        ?.has(item.sourceCaptureId);
+      if (!post || !source || (!link && !opened)) {
         excluded++;
+        continue;
+      }
+      const xhs =
+        section.platform === "xiaohongshu" ? xhsAddress(post.key) : undefined;
+      if (section.platform === "xiaohongshu" && !xhs) {
+        excluded++;
+        unverified++;
+        sourceFailure ??= xhsFailure(post.key);
         continue;
       }
       if (seen.has(post.key)) continue;
       seen.add(post.key);
+      const observedPost = link
+        ? canonicalPost(section.platform, link.url)
+        : undefined;
+      const sourceUrl = xhs?.url ?? observedPost?.url ?? post.url;
+      const titleSource = xhs && "source" in xhs ? xhs.source! : source;
+      const titleLink = xhs && "link" in xhs ? xhs.link : link;
+      const requestedTitle =
+        typeof item.title === "string" ? item.title.trim() : "";
+      const title =
+        requestedTitle && titleSource.text.includes(requestedTitle)
+          ? requestedTitle
+          : titleLink?.title?.trim() || sourceUrl;
       candidates.push({
         candidateId: randomUUID(),
         postKey: post.key,
-        url: post.url,
-        title: String(item.title || result.observed.get(item.url) || post.url),
-        description: String(item.description ?? ""),
+        url: sourceUrl,
+        title: title.slice(0, 1000),
+        description: String(item.description ?? "").slice(0, 5000),
         ...(typeof item.publishedAt === "string" &&
-        result.output.rawReply.includes(item.publishedAt)
-          ? { publishedAt: item.publishedAt }
+        titleSource.text.includes(item.publishedAt)
+          ? { publishedAt: item.publishedAt.slice(0, 120) }
           : {}),
       });
     }
+    const requestedState = result.output.citationState;
+    if (requestedState === "failed" || !candidates.length)
+      for (const source of scopedCaptures) {
+        const posts = source.links
+          .map((link) => ({
+            link,
+            post: canonicalPost(section.platform, link.url),
+          }))
+          .filter(
+            (
+              item,
+            ): item is {
+              link: BrowserCapture["links"][number];
+              post: NonNullable<ReturnType<typeof canonicalPost>>;
+            } => !!item.post,
+          );
+        for (const { link, post } of posts) {
+          if (seen.has(post.key)) continue;
+          const xhs =
+            section.platform === "xiaohongshu"
+              ? xhsAddress(post.key)
+              : undefined;
+          if (section.platform === "xiaohongshu" && !xhs) {
+            sourceFailure ??= xhsFailure(post.key);
+            continue;
+          }
+          seen.add(post.key);
+          candidates.push({
+            candidateId: randomUUID(),
+            postKey: post.key,
+            url: xhs?.url ?? post.url,
+            title: (
+              (xhs && "link" in xhs ? xhs.link?.title : link.title)?.trim() ||
+              post.url
+            ).slice(0, 1000),
+            description: "",
+          });
+        }
+      }
+    if (
+      section.platform === "xiaohongshu" &&
+      (requestedState === "failed" || !candidates.length)
+    ) {
+      for (const [url, ids] of result.sourceOpened) {
+        const post = canonicalPost("xiaohongshu", url);
+        if (!post || seen.has(post.key)) continue;
+        const address = xhsAddress(post.key);
+        const source = [...ids]
+          .map((id) =>
+            result.sourceCaptures.has(id)
+              ? result.captureData.get(id)
+              : undefined,
+          )
+          .find((capture) => capture?.sourceKind === "source_panel");
+        if (!address || !source) continue;
+        seen.add(post.key);
+        const title = result.observed.get(url)?.trim();
+        candidates.push({
+          candidateId: randomUUID(),
+          postKey: post.key,
+          url: address.url,
+          title: (title && source.text.includes(title)
+            ? title
+            : address.url
+          ).slice(0, 1000),
+          description: "",
+        });
+      }
+    }
+    const sourceIds: string[] = Array.isArray(result.output.sourceCaptureIds)
+      ? result.output.sourceCaptureIds
+      : [];
+    const capturedSources = sourceIds
+      .filter((id) => result.sourceCaptures.has(id))
+      .map((id) => result.captureData.get(id)!);
+    const observedPosts = capturedSources.some((capture) =>
+      capture.links.some((link) => canonicalPost(section.platform, link.url)),
+    );
+    const citationState =
+      requestedState === "completed" && candidates.length && !unverified
+        ? "completed"
+        : requestedState === "empty" &&
+            result.output.citationsPending === false &&
+            capturedSources.length &&
+            !observedPosts &&
+            !candidates.length
+          ? "empty"
+          : "failed";
     if (
       typeof result.output.platformPrompt !== "string" ||
       !result.fills.includes(result.output.platformPrompt)
@@ -367,6 +472,19 @@ export class PlatformAccess {
       rawReply: result.output.rawReply,
       candidates,
       platformPrompt: result.output.platformPrompt,
+      citationExtraction: {
+        state: citationState,
+        ...(citationState === "failed"
+          ? {
+              error: String(
+                sourceFailure ??
+                  (unverified
+                    ? "source_unverified: 小红书原帖地址尚未核验"
+                    : (result.output.error ?? "browser_interaction_failed")),
+              ),
+            }
+          : {}),
+      } as NonNullable<SearchSection["citationExtraction"]>,
       warnings: excluded ? ["部分链接未通过来源校验，已从帖子列表中排除"] : [],
     };
   }

@@ -8,11 +8,7 @@ import {
   sourceSchema,
   sourceUrlSchema,
 } from "../../../shared/source-contracts";
-import {
-  focusSetSnapshotSchema,
-  forwardingReportDraftSchema,
-  savedFocusEvaluationSchema,
-} from "../../../worker/jobs/forwarding/contracts";
+import { forwardingReportDraftSchema } from "../../../worker/jobs/forwarding/contracts";
 
 export const forwardingActivitySchema = z
   .object({
@@ -22,8 +18,8 @@ export const forwardingActivitySchema = z
       "received",
       "phase",
       "source_saved",
-      "understanding_saved",
-      "relations_saved",
+      "model_attempt",
+      "model_recovery",
       "completed",
       "failed",
       "cancelled",
@@ -44,7 +40,6 @@ export const forwardingActivitySchema = z
 const forwardingTaskSchema = z
   .object({
     taskId: z.string().uuid(),
-    reading: z.boolean().optional(),
     materials: readingMaterialsSchema.optional(),
     materialId: z.string().uuid(),
     resultId: z.string().uuid(),
@@ -64,10 +59,8 @@ const forwardingTaskSchema = z
     phase: z.enum([
       "等待处理",
       "读取来源",
-      "理解内容",
       "翻译材料",
       "生成摘要",
-      "检查关注卡",
       "已保存",
       "解析失败",
       "已取消",
@@ -75,27 +68,19 @@ const forwardingTaskSchema = z
     ]),
     executionAttempts: z.array(promptExecutionSchema).optional(),
     outputLanguage: languageSchema.optional(),
-    focusSet: focusSetSnapshotSchema,
     source: sourceSchema.optional(),
-    generalUnderstanding: z.string().min(1).max(16_000).optional(),
-    evaluations: z.array(savedFocusEvaluationSchema),
     activities: z.array(forwardingActivitySchema).max(200).default([]),
     report: forwardingReportDraftSchema.optional(),
     createdAt: z.string().datetime(),
     finishedAt: z.string().datetime().optional(),
-    failureStage: z.enum(["source", "understanding", "relations"]).optional(),
+    failureStage: z.enum(["source", "translation", "summary"]).optional(),
     xhsAccessTokenCiphertext: z.string().max(4096).optional(),
     updatedAt: z.string().datetime(),
     message: z.string().max(500).optional(),
   })
-  .strict()
+  .strip()
   .refine((task) => task.state !== "completed" || !!task.report)
-  .refine((task) => task.state !== "completed" || !!task.finishedAt)
-  .refine(
-    (task) =>
-      new Set(task.evaluations.map((item) => item.focusVersionId)).size ===
-      task.evaluations.length,
-  );
+  .refine((task) => task.state !== "completed" || !!task.finishedAt);
 
 export const forwardingStateSchema = z
   .object({ version: z.literal(1), tasks: z.array(forwardingTaskSchema) })

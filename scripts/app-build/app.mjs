@@ -15,30 +15,12 @@ const identity = {
   builtAt: new Date().toISOString(),
 };
 const define = { __BRANCHOUT_BUILD_IDENTITY__: JSON.stringify(identity) };
-// Prompt-only iterations rebuild the analysis worker. New tasks fork a fresh worker.
-if (process.argv.includes("--analysis-worker")) {
-  await build({
-    define,
-    entryPoints: ["src/worker/jobs/project-analysis/worker-entry.ts"],
-    outdir: "dist/worker",
-    outExtension: { ".js": ".mjs" },
-    bundle: true,
-    platform: "node",
-    format: "esm",
-    packages: "external",
-  });
-  console.log(
-    "Analysis worker rebuilt; the next new analysis uses the updated prompts.",
-  );
-  process.exit(0);
-}
-
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist/renderer", { recursive: true });
 await mkdir("dist/assets", { recursive: true });
 await mkdir("dist/platforms", { recursive: true });
 await mkdir("dist/worker", { recursive: true });
-await sharp("assets/branchout-icon.svg")
+await sharp("assets/branchout-icon.svg", { density: 576 })
   .resize(1024, 1024)
   .png()
   .toFile("dist/assets/branchout.png");
@@ -52,7 +34,8 @@ await build({
   bundle: true,
   platform: "node",
   format: "cjs",
-  external: ["electron", "playwright-core"],
+  external: ["electron", "playwright-core", "@earendil-works/pi-coding-agent"],
+  loader: { ".md": "text" },
 });
 await build({
   define,
@@ -60,7 +43,6 @@ await build({
     "src/worker/model-worker.ts",
     "src/worker/jobs/browser/worker-entry.ts",
     "src/worker/jobs/forwarding/worker-entry.ts",
-    "src/worker/jobs/project-analysis/worker-entry.ts",
   ],
   outdir: "dist/worker",
   outExtension: { ".js": ".mjs" },
@@ -68,6 +50,7 @@ await build({
   platform: "node",
   format: "esm",
   packages: "external",
+  loader: { ".md": "text" },
 });
 await build({
   define,

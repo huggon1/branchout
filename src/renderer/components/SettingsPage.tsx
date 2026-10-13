@@ -1,10 +1,9 @@
 import { dateTime } from "../i18n";
 import { useLanguage, selectLanguage } from "../i18n";
 import { t, tf } from "../i18n";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { UiSettings } from "../product-ui";
 import { ModelSettings } from "./ModelSettings";
-import { AnalysisPromptSettings } from "./AnalysisPromptSettings";
 import { XSettings } from "./XSettings";
 
 export function SettingsPage({
@@ -27,6 +26,27 @@ export function SettingsPage({
   const language = useLanguage();
   const [botToken, setBotToken] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [taskBrowserVisible, setTaskBrowserVisible] = useState(false);
+  const [savingBrowserMode, setSavingBrowserMode] = useState(false);
+  const [browserModeError, setBrowserModeError] = useState("");
+  useEffect(() => {
+    let active = true;
+    const refresh = () =>
+      void window.branchout
+        .preferences()
+        .then((value) => {
+          if (active) setTaskBrowserVisible(value.taskBrowserVisible);
+        })
+        .catch(() => {
+          if (active) setBrowserModeError(t("设置读取失败"));
+        });
+    refresh();
+    const unsubscribe = window.branchout.onChanged(refresh);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
   const finishAction = (
     success: boolean,
     message: string,
@@ -61,9 +81,39 @@ export function SettingsPage({
             <option value="en">English</option>
           </select>
         </label>
+        <label className="settings-field">
+          <span>{t("任务浏览器")}</span>
+          <select
+            aria-label={t("任务浏览器")}
+            value={taskBrowserVisible ? "visible" : "headless"}
+            disabled={savingBrowserMode}
+            onChange={async (event) => {
+              const visible = event.target.value === "visible";
+              setSavingBrowserMode(true);
+              setBrowserModeError("");
+              try {
+                const saved =
+                  await window.branchout.saveTaskBrowserVisible(visible);
+                setTaskBrowserVisible(saved.taskBrowserVisible);
+              } catch {
+                setBrowserModeError(t("设置保存失败"));
+              } finally {
+                setSavingBrowserMode(false);
+              }
+            }}
+          >
+            <option value="headless">{t("后台运行（默认）")}</option>
+            <option value="visible">{t("显示窗口")}</option>
+          </select>
+          <small>
+            {t(
+              "搜索和解析按此设置运行。登录时打开窗口；修改在下一次浏览器任务开始时生效。",
+            )}
+          </small>
+          {browserModeError && <small role="status">{browserModeError}</small>}
+        </label>
       </section>
       <ModelSettings />
-      <AnalysisPromptSettings />
       <section
         className="settings-section telegram-settings"
         aria-labelledby="telegram-settings-title"

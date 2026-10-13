@@ -1,0 +1,512 @@
+/* Adapted from the accepted Grok 4.7 prototype; existing readers and settings retain shared controls. */
+.refactor-shell {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  background: #fff;
+  color: #242621;
+  font-size: 14px;
+}
+.refactor-shell .app-sidebar {
+  width: 220px;
+  flex: 0 0 220px;
+  background: #f7f7f5;
+  border-right: 1px solid #ecece9;
+  padding: 24px 12px;
+  display: flex;
+  flex-direction: column;
+}
+.refactor-shell .brand {
+  padding: 0 10px 26px;
+  gap: 10px;
+}
+.refactor-shell .brand img {
+  width: 24px;
+  height: 24px;
+}
+.refactor-shell nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.refactor-shell .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  font-size: 14px;
+  color: inherit;
+  min-height: 36px;
+}
+.refactor-shell .nav-item:hover {
+  background: #efefec;
+}
+.refactor-shell .nav-item[aria-current="page"] {
+  background: #fff;
+  font-weight: 600;
+}
+.nav-chevron {
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+.nav-chevron.open {
+  transform: rotate(90deg);
+}
+.content-nav .nav-item {
+  padding-left: 46px;
+  font-size: 13px;
+}
+.refactor-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+}
+.refactor-shell h1 {
+  font-size: 27px;
+  line-height: 1.4;
+  letter-spacing: -0.04em;
+  margin: 0 0 10px;
+}
+.refactor-shell h2 {
+  font-size: 17px;
+  line-height: 1.5;
+}
+.muted {
+  color: #71746d;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.search-home {
+  max-width: 760px;
+  padding: 48px 40px;
+  margin: 0 auto;
+}
+.search-home > p {
+  margin-bottom: 28px;
+}
+.search-composer {
+  border: 1px solid #e5e6e2;
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: 0 1px 3px #00000004;
+}
+.search-composer textarea {
+  border: 0;
+  resize: vertical;
+  background: transparent;
+  box-shadow: none !important;
+  width: 100%;
+  min-height: 92px;
+  padding: 6px 4px;
+  font: inherit;
+}
+.search-conditions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  border-top: 1px solid #ededeb;
+  padding-top: 8px;
+}
+.search-conditions fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.condition-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e6e7e3;
+  border-radius: 18px;
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.refactor-shell input[type="checkbox"],
+.refactor-shell input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  padding: 0;
+  accent-color: #31372e;
+}
+.period-segments {
+  margin-left: auto !important;
+}
+.period-segments label {
+  border-radius: 16px;
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.period-segments .chosen {
+  background: #f1f2ee;
+  font-weight: 600;
+}
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.support-note {
+  margin-top: 18px;
+  font-size: 12px;
+}
+.refactor-workspace {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.result-index {
+  flex: 0 0 250px;
+  overflow: auto;
+  border-right: 1px solid #ededeb;
+  padding: 24px 12px;
+}
+.result-index h1 {
+  font-size: 16px;
+  margin: 0 8px 16px;
+  letter-spacing: 0;
+}
+.source-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 3px 16px;
+}
+.source-tabs button {
+  border: 0;
+  background: transparent;
+  border-radius: 20px;
+  padding: 6px 9px;
+  font-size: 12px;
+  color: #686d63;
+}
+.source-tabs button[aria-pressed="true"] {
+  background: #f3f4f0;
+  color: #242621;
+}
+.result-row {
+  display: block;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px 9px;
+  border-radius: 10px;
+  color: inherit;
+  cursor: pointer;
+}
+.result-row strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.result-row small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #757970;
+  margin-top: 4px;
+}
+.result-row[aria-current="true"] {
+  background: #f6f7f3;
+}
+.result-row:hover {
+  background: #f8f8f6;
+}
+.result-reader {
+  padding: 32px 48px;
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  line-height: 1.8;
+}
+.result-reader > h1 {
+  margin-top: 10px;
+}
+.platform-section {
+  padding: 20px 0;
+  border-top: 1px solid #e7e8e4;
+  margin-top: 28px;
+}
+.platform-section > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.platform-section h2 {
+  margin: 0;
+}
+.source-row {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-top: 1px solid #eee;
+  line-height: 1.5;
+}
+.source-row > div {
+  min-width: 0;
+}
+.source-row strong {
+  font-size: 14px;
+}
+.source-row > .button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.source-link {
+  display: block;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #667a98;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  text-align: left;
+  text-decoration: underline;
+}
+.error-text {
+  color: #9b5042;
+}
+.empty-copy {
+  padding: 24px;
+  color: #74796f;
+  line-height: 1.8;
+}
+.follow-page {
+  max-width: 900px;
+  padding: 40px 48px;
+  margin: auto;
+}
+.follow-row {
+  padding: 24px 0;
+  border-bottom: 1px solid #e8e9e5;
+}
+.follow-row h2 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.refactor-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 22px;
+  background: #30352d;
+  color: white;
+  border-radius: 12px;
+  z-index: 200;
+  box-shadow: 0 4px 16px #0002;
+}
+.follow-editor {
+  display: grid;
+  gap: 16px;
+}
+.follow-editor > label {
+  display: grid;
+  gap: 8px;
+}
+.follow-editor textarea {
+  min-height: 100px;
+}
+.follow-editor fieldset {
+  display: flex;
+  gap: 18px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.follow-editor fieldset label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.follow-editor legend {
+  margin-bottom: 8px;
+}
+.add-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.add-source input,
+.content-query {
+  width: 100%;
+  min-width: 0;
+}
+.parsed-reader {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+.parsed-reader .material-reader {
+  height: 100%;
+  min-height: 0;
+}
+.parsed-reader .material-layout {
+  flex: 1;
+  min-height: 0;
+}
+.stop-reading {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  z-index: 2;
+}
+.refactor-shell .settings-page {
+  max-width: 940px;
+  margin: 0 auto;
+}
+.compact-header,
+.nav-scrim {
+  display: none;
+}
+.refactor-shell .ds-disclosure-trigger {
+  border-top: 0;
+  min-height: 40px;
+  padding: 8px 0;
+}
+.refactor-shell .ds-disclosure-body {
+  padding: 12px 20px;
+}
+.refactor-shell .ds-disclosure-trigger svg {
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+.refactor-shell .ds-disclosure-trigger[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+@media (max-width: 960px) {
+  .refactor-shell {
+    display: block;
+    padding-top: 52px;
+  }
+  .compact-header {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    align-items: center;
+    gap: 12px;
+    background: #f7f7f5;
+    border-bottom: 1px solid #e8e9e5;
+    padding: 0 12px;
+    z-index: 30;
+  }
+  .compact-header .brand {
+    padding: 0;
+  }
+  .refactor-shell .app-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.15s;
+  }
+  .drawer-open .app-sidebar {
+    transform: translateX(0);
+  }
+  .nav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: #0003;
+    border: 0;
+  }
+  .refactor-main {
+    height: 100%;
+  }
+  .search-home {
+    padding: 28px;
+  }
+  .follow-page {
+    padding: 28px;
+  }
+  .refactor-workspace > .result-index {
+    flex: 1;
+    border: 0;
+  }
+  .refactor-workspace > .result-reader,
+  .refactor-workspace > .parsed-reader {
+    display: none;
+  }
+  .refactor-workspace.reading > .result-index {
+    display: none;
+  }
+  .refactor-workspace.reading > .result-reader,
+  .refactor-workspace.reading > .parsed-reader {
+    display: block;
+    flex: 1;
+  }
+  .result-reader {
+    padding: 24px;
+  }
+  .refactor-shell .global-alert {
+    position: relative;
+  }
+  .source-row {
+    align-items: flex-start;
+  }
+  .source-row strong {
+    display: block;
+  }
+  .period-segments {
+    margin-left: 0 !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .refactor-shell * {
+    transition: none !important;
+  }
+}
+/* Replace the old icon-only breakpoint and last-row spacing in the shared shell. */
+.refactor-shell .app-sidebar nav {
+  margin-top: 0;
+}
+.refactor-shell .nav-item {
+  justify-content: flex-start;
+}
+.refactor-shell .nav-item:last-child {
+  margin-top: 0;
+}
+.refactor-shell .brand span,
+.refactor-shell .nav-item > span {
+  display: inline;
+}
+.refactor-shell .nav-count {
+  position: static;
+  margin-left: auto;
+}
+@media (max-width: 960px) {
+  .refactor-shell .app-sidebar {
+    visibility: hidden;
+  }
+  .refactor-shell.drawer-open .app-sidebar {
+    visibility: visible;
+  }
+}

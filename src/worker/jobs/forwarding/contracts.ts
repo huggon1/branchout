@@ -3,67 +3,39 @@ import {
   readingMaterialSchema,
 } from "../../../shared/reading-contracts";
 import { promptExecutionSchema } from "../../../shared/execution-contracts";
-import { languageSchema, type Language } from "../../../shared/language";
+import { languageSchema } from "../../../shared/language";
 import { z } from "zod";
 import { sourceSchema } from "../../../shared/source-contracts";
+import { failureCodeSchema } from "../../../shared/task-failure";
 
-export const forwardingFocusCardSchema = z
+const diagnosticSchema = z
   .object({
-    projectId: z.string().uuid(),
-    projectLabel: z.string().min(1).max(300),
-    focusId: z.string().uuid(),
-    focusVersionId: z.string().uuid(),
-    content: z.string().min(1).max(100_000),
+    httpStatus: z.number().int().min(100).max(599).optional(),
+    providerCode: z
+      .string()
+      .regex(/^[a-zA-Z0-9_.-]{1,64}$/)
+      .optional(),
+    transportCode: z
+      .string()
+      .regex(/^[a-zA-Z0-9_.-]{1,64}$/)
+      .optional(),
   })
   .strict();
 
-export const focusSetSnapshotSchema = z
+const readingFailureSchema = z
   .object({
-    capturedAt: z.string().datetime(),
-    cards: z.array(forwardingFocusCardSchema),
-  })
-  .strict()
-  .refine(
-    (snapshot) =>
-      new Set(snapshot.cards.map((card) => card.focusVersionId)).size ===
-        snapshot.cards.length &&
-      new Set(snapshot.cards.map((card) => card.focusId)).size ===
-        snapshot.cards.length,
-    "冻结关注卡身份和版本必须唯一",
-  );
-
-export const sourceEvidenceRefSchema = z
-  .object({
-    blockIndex: z.number().int().nonnegative(),
-    quote: z.string().min(2).max(2000),
+    materialId: z.string().min(1).max(100),
+    stage: z.enum(["source", "translation", "summary"]),
+    message: z.string().min(1).max(500),
+    code: failureCodeSchema.optional(),
+    diagnostic: diagnosticSchema.optional(),
   })
   .strict();
-
-export const focusRelationSchema = z
-  .object({
-    projectId: z.string().uuid(),
-    projectLabel: z.string().min(1).max(300),
-    focusId: z.string().uuid(),
-    focusVersionId: z.string().uuid(),
-    relationship: z.enum(["direct", "adjacent"]),
-    reason: z.string().min(1).max(8000),
-    evidence: z.array(sourceEvidenceRefSchema).min(1).max(20),
-  })
-  .strict();
-
-export const savedFocusEvaluationSchema = z
-  .object({
-    focusVersionId: z.string().uuid(),
-    relation: focusRelationSchema.optional(),
-  })
-  .strict();
+export type ForwardingReadingFailure = z.infer<typeof readingFailureSchema>;
 
 export const forwardingResumeSchema = z
   .object({
-    source: sourceSchema.optional(),
     materials: readingMaterialsSchema.optional(),
-    generalUnderstanding: z.string().min(1).max(16_000).optional(),
-    evaluations: z.array(savedFocusEvaluationSchema),
   })
   .strict();
 
@@ -72,55 +44,35 @@ export const forwardingJobCommandSchema = z
     taskId: z.string().uuid(),
     resultId: z.string().uuid(),
     sourceUrl: z.string().url().max(4096),
-    reading: z.boolean().optional(),
-    outputLanguage: languageSchema.optional(),
-    focusSet: focusSetSnapshotSchema,
+    outputLanguage: languageSchema,
     resume: forwardingResumeSchema.optional(),
-  })
-  .strict();
-
-export const relationBatchSchema = z
-  .object({
-    evaluations: z
-      .array(
-        z
-          .object({
-            focusVersionId: z.string().uuid(),
-            related: z.boolean(),
-            relationship: z.enum(["direct", "adjacent"]).optional(),
-            reason: z.string().max(8000).optional(),
-            evidence: z.array(sourceEvidenceRefSchema).max(20).optional(),
-          })
-          .strict(),
-      )
-      .min(1),
   })
   .strict();
 
 export const forwardingReportDraftSchema = z
   .object({
     execution: promptExecutionSchema.optional(),
-    materials: readingMaterialsSchema.optional(),
+    materials: readingMaterialsSchema,
     source: sourceSchema,
-    generalUnderstanding: z.string().min(1).max(16_000),
-    outputLanguage: languageSchema.optional(),
-    focusSet: focusSetSnapshotSchema,
-    evaluatedFocusVersionIds: z.array(z.string().uuid()),
-    relations: z.array(focusRelationSchema),
+    outputLanguage: languageSchema,
   })
-  .strict()
-  .refine(
-    (report) =>
-      report.evaluatedFocusVersionIds.length === report.focusSet.cards.length &&
-      new Set(report.evaluatedFocusVersionIds).size ===
-        report.evaluatedFocusVersionIds.length &&
-      report.focusSet.cards.every((card) =>
-        report.evaluatedFocusVersionIds.includes(card.focusVersionId),
-      ),
-    "报告必须覆盖冻结关注卡集合",
-  );
+  .strip();
 
 export const forwardingJobEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("model_attempt"),
+      taskId: z.string().uuid(),
+      materialId: z.string().min(1).max(100),
+      stage: z.enum(["translation", "summary"]),
+      operationId: z.string().min(1).max(300),
+      attempt: z.number().int().min(1).max(3),
+      total: z.number().int().min(1).max(3),
+      outcome: z.enum(["started", "retrying", "completed", "failed"]),
+      failureCode: failureCodeSchema.optional(),
+      diagnostic: diagnosticSchema.optional(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal("materials"),
@@ -148,71 +100,28 @@ export const forwardingJobEventSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("phase"),
       taskId: z.string().uuid(),
-      phase: z.enum([
-        "读取来源",
-        "理解内容",
-        "检查关注卡",
-        "翻译材料",
-        "生成摘要",
-      ]),
+      phase: z.enum(["读取来源", "翻译材料", "生成摘要"]),
     })
     .strict(),
-  z
-    .object({
-      type: z.literal("source"),
-      taskId: z.string().uuid(),
-      resultId: z.string().uuid(),
-      source: sourceSchema,
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("understanding"),
-      taskId: z.string().uuid(),
-      resultId: z.string().uuid(),
-      generalUnderstanding: z.string().min(1).max(16_000),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("relations"),
-      taskId: z.string().uuid(),
-      resultId: z.string().uuid(),
-      evaluatedFocusVersionIds: z.array(z.string().uuid()).min(1),
-      relations: z.array(focusRelationSchema),
-    })
-    .strict()
-    .refine(
-      (event) =>
-        new Set(event.evaluatedFocusVersionIds).size ===
-          event.evaluatedFocusVersionIds.length &&
-        event.relations.every((relation) =>
-          event.evaluatedFocusVersionIds.includes(relation.focusVersionId),
-        ),
-    ),
   z
     .object({
       type: z.literal("result"),
       taskId: z.string().uuid(),
       resultId: z.string().uuid(),
       draft: forwardingReportDraftSchema,
+      failure: readingFailureSchema.optional(),
     })
     .strict(),
   z
     .object({
       type: z.literal("failed"),
       taskId: z.string().uuid(),
-      stage: z.enum(["source", "understanding", "relations"]),
+      stage: z.enum(["source", "translation", "summary"]),
       message: z.string().min(1).max(500),
     })
     .strict(),
 ]);
 
-export type ForwardingFocusCard = z.infer<typeof forwardingFocusCardSchema>;
-export type FocusSetSnapshot = z.infer<typeof focusSetSnapshotSchema>;
-export type SourceEvidenceRef = z.infer<typeof sourceEvidenceRefSchema>;
-export type FocusRelation = z.infer<typeof focusRelationSchema>;
-export type SavedFocusEvaluation = z.infer<typeof savedFocusEvaluationSchema>;
 export type ForwardingResume = z.infer<typeof forwardingResumeSchema>;
 export type ForwardingJobCommand = z.infer<typeof forwardingJobCommandSchema>;
 export type ForwardingReportDraft = z.infer<typeof forwardingReportDraftSchema>;

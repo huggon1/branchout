@@ -1,30 +1,14 @@
 # Renderer
 
-This document describes the current renderer structure. See the [UX specification](../../docs/ux-spec.md) for target page behavior and [design contract](../../design.md) for shared rules.
+[Product specification](../../docs/product-spec.md) owns page behavior. UI changes follow the repository [AGENTS.md](../../AGENTS.md).
 
-## Responsibilities
-
-`renderer` presents Content, Projects, Focus, Tasks, and Settings. Content handles links, lists, and report reading. Focus manages free-text cards by project. Projects handles bindings and analysis preparation. Tasks owns analysis reports, suggestion review, current stage, and collapsed chronological activity.
-
-The renderer reads saved snapshots through the controlled preload interface and submits editing, content, analysis, and acceptance commands. Page changes retain project selection, filters, and reading position; task state restores from unified snapshots.
-
-## Module layout
-
-- `App.tsx`: navigation, task indicator, and page transitions.
-- `components/ContentPage.tsx`: submission, list, source reading, understanding, and connections.
-- `components/FocusCardsPage.tsx`: project grouping, free-text editor, deletion, restoration, and version reading.
-- `components/ProjectsPage.tsx`: vertical project index, binding, overview, and analysis preparation dialog.
-- `components/TasksPage.tsx`: list, report ownership, stage, Agent activity, failures, and retry.
-- `components/AnalysisReportView.tsx`: shared report prose, coverage, evidence, suggestion comparison, and acceptance.
-- `components/Primitives.tsx`: brand, icons, buttons, dialogs, empty states, and sanitized Markdown.
-- `styles.css`: shared semantic tokens, visual roles, page geometry, and responsive rules.
-- `components/SettingsPage.tsx`: model, Telegram chats, and source configuration.
-- `product-ui.ts` and `bridge.ts`: page-facing queries, commands, and state subscriptions.
-
-Page components compose business states; shared components handle reusable presentation and interaction.
-
-`design/Components.tsx` and `design/tokens-and-controls.css` provide the shared disclosure, button, and color system used by application pages.
-
-FocusSearchDialog prepares card, platform, and period selections. FocusSearchReportView renders saved platform replies and post actions inside Tasks. Signed-in platform settings use shared browser-session actions; GitHub remains in Public Sources.
-
-MaterialReader presents each saved reading material, its introduction, one body in the target language, coverage, and retry state. Its header names the report's saved target language. It preserves per-material scroll positions and uses a compact material menu at narrow widths.
+| Path | Responsibility |
+| --- | --- |
+| `App.tsx` | Navigation and page assembly |
+| `refactor.css` | Existing shell and responsive layouts |
+| `components/MaterialReader.tsx` | Material directory and saved body reader |
+| `components/SettingsPage.tsx` | Settings assembly |
+| `components/Primitives.tsx` | Controls, dialogs, and sanitized Markdown |
+| `design/Components.tsx`, `design/tokens-and-controls.css` | Existing disclosure and control components |
+| `bridge.ts`, `product-ui.ts` | Desktop calls and view mapping |
+| `i18n/` | Interface language and labels |

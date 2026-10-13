@@ -1,5 +1,7 @@
+import { resetLegacyBusinessData } from "./runtime/business-reset";
+import { exportTaskPiLogs } from "./services/tasks/pi-log-export";
 import { registerMaterialImages } from "./services/material-images";
-import { selectPlatformAdapter } from "../platforms/registry";
+import { createXhsAdapter } from "../platforms/adapters/xhs";
 import { PlatformAccess } from "./services/platform-access";
 import {
   searchSelectionSchema,
@@ -8,7 +10,7 @@ import {
 import { FocusSearchStore } from "./storage/focus-search-store";
 import { FocusSearchService } from "./services/focus-search/service";
 import { PlatformBrowser } from "./services/platform-browser";
-import { BrowserAgent } from "./services/browser-agent";
+import { BrowserAgent, type SearchProgress } from "./services/browser-agent";
 import { searchChannels } from "../shared/ipc-contracts";
 import { z } from "zod";
 import { handle } from "./ipc";
@@ -23,7 +25,6 @@ import {
   xChannels,
   xhsChannels,
 } from "../shared/ipc-contracts";
-import { ProjectStore } from "./storage/project-store";
 import { TaskStore } from "./storage/task-store";
 import { ForwardingStore } from "./services/forwarding/store";
 import { ForwardingPipelineService } from "./services/forwarding/service";
@@ -32,19 +33,6 @@ import { TelegramStore } from "./integrations/telegram/store";
 import { TelegramCredentialStore } from "./integrations/telegram/credential-store";
 import { TelegramService } from "./integrations/telegram/service";
 import { registerTelegramIpc } from "./integrations/telegram/ipc";
-import { ProjectService } from "./services/projects/project-service";
-import { registerProjectIpc } from "./services/projects/project-ipc";
-import { FocusCardService } from "./services/focus-cards/focus-card-service";
-import { registerFocusCardIpc } from "./services/focus-cards/focus-card-ipc";
-import { ProjectAnalysisReportService } from "./services/projects/analysis-report-service";
-import { registerAnalysisReportIpc } from "./services/projects/analysis-report-ipc";
-import { ProjectAnalysisPipelineService } from "./services/project-analysis/pipeline-service";
-import { registerProjectAnalysisPipelineIpc } from "./services/project-analysis/pipeline-ipc";
-import { exportProjectAnalysisTrace } from "./services/project-analysis/trace-export";
-import { ProjectAnalysisInputStore } from "./storage/project-analysis-input-store";
-import { AnalysisPromptStore } from "./storage/analysis-prompt-store";
-import { AnalysisPromptSettingsService } from "./services/project-analysis/prompt-settings-service";
-import { registerAnalysisPromptSettingsIpc } from "./services/project-analysis/prompt-settings-ipc";
 import { TaskService } from "./services/tasks/task-service";
 import { registerTaskIpc } from "./services/tasks/task-ipc";
 import { UnifiedTaskService } from "./services/tasks/unified-task-service";
@@ -70,15 +58,11 @@ export async function initializeServices(
   profileMode: string,
   onLanguage: (language: Language) => void,
 ) {
+  await resetLegacyBusinessData(app.getPath("userData"));
   let models: ModelService | undefined;
   let forwarding: ForwardingPipelineService | undefined;
   let telegram: TelegramService | undefined;
   let telegramCredentials: TelegramCredentialStore | undefined;
-  let projects: ProjectService | undefined;
-  let focusCards: FocusCardService | undefined;
-  let analysisReports: ProjectAnalysisReportService | undefined;
-  let analysisPipeline: ProjectAnalysisPipelineService | undefined;
-  let analysisPromptSettings: AnalysisPromptSettingsService | undefined;
   let tasks: TaskService | undefined;
   let taskView: UnifiedTaskService | undefined;
   let xhsAuth: XhsAuth | undefined;
@@ -161,6 +145,7 @@ export async function initializeServices(
     join(app.getPath("userData"), "platform-browser"),
     changed,
     xhsAuth,
+    { headless: () => !preferences.taskBrowserVisible },
   );
   const imageRoot = join(app.getPath("userData"), "material-images");
   registerMaterialImages(imageRoot);
@@ -171,9 +156,9 @@ export async function initializeServices(
     async (url, signal) => {
       if (!xhsAuth!.installed())
         throw new Error("Xiaohongshu enhancement is unavailable");
-      const source = await selectPlatformAdapter(url, {
-        xhsSession: await xhsAuth!.connect(),
-        xhsAccessToken: new URL(url).searchParams.get("xsec_token") ?? "",
+      const source = await createXhsAdapter(await xhsAuth!.connect(), {
+        id: new URL(url).pathname.split("/").filter(Boolean).at(-1)!,
+        token: new URL(url).searchParams.get("xsec_token") ?? "",
       }).read("enhanced-reading", url, signal);
       if (source.outcome !== "content")
         throw new Error("Enhanced reading is unavailable");
@@ -195,76 +180,16 @@ export async function initializeServices(
         images: content.images,
       };
     },
+    () => xhsAuth!.installed(),
   );
 
-  const platformAccess = new PlatformAccess(
-    browserAgent,
-    xhsAuth,
-    browser,
-    imageRoot,
-  );
-
-  const projectStore = new ProjectStore(
-    join(app.getPath("userData"), "projects.json"),
-  );
-  stage("projects");
-  await projectStore.open();
-  projects = new ProjectService(projectStore, changed);
-  focusCards = new FocusCardService(projectStore, changed);
-  analysisReports = new ProjectAnalysisReportService(projectStore, changed);
+  const platformAccess = new PlatformAccess(browserAgent, browser, imageRoot);
 
   const taskStore = new TaskStore(join(app.getPath("userData"), "tasks.json"));
   stage("tasks");
   await taskStore.open();
   tasks = new TaskService(taskStore, changed);
   await tasks.recover();
-
-  const analysisInputStore = new ProjectAnalysisInputStore(
-    join(app.getPath("userData"), "project-analysis-inputs.json"),
-  );
-  stage("analysis_inputs");
-  await analysisInputStore.open();
-  const analysisPromptStore = new AnalysisPromptStore(
-    join(app.getPath("userData"), "analysis-prompt.json"),
-  );
-  stage("analysis_prompt");
-  await analysisPromptStore.open();
-  analysisPromptSettings = new AnalysisPromptSettingsService(
-    analysisPromptStore,
-    changed,
-  );
-  analysisPipeline = new ProjectAnalysisPipelineService({
-    language: () => preferences.language,
-    workerPath: testWorkerRoot
-      ? join(testWorkerRoot, "analysis.mjs")
-      : join(__dirname, "../worker/jobs/project-analysis/worker-entry.mjs"),
-    traceRoot: join(app.getPath("userData"), "analysis-traces"),
-    exportTrace: exportProjectAnalysisTrace,
-    spawnWorker: (path) => {
-      const worker = utilityProcess.fork(path, [], {
-        stdio: "pipe",
-        env: createWorkerEnvironment(process.env, runtimeLayout),
-      });
-      worker.stdout?.resume();
-      worker.stderr?.resume();
-      return worker;
-    },
-    projects: {
-      get: (projectId) =>
-        projects!
-          .view()
-          .projects.find((project) => project.projectId === projectId),
-    },
-    focusCards,
-    prompts: analysisPromptSettings,
-    models,
-    tasks,
-    reports: analysisReports,
-    runInputs: analysisInputStore,
-    notify: changed,
-  });
-  stage("analysis_recovery");
-  await analysisPipeline.recover();
 
   const forwardingStore = new ForwardingStore(
     join(app.getPath("userData"), "forwarding.json"),
@@ -277,9 +202,9 @@ export async function initializeServices(
   );
   await forwardingStore.open();
   forwarding = new ForwardingPipelineService({
+    traceRoot: join(app.getPath("userData"), "browser-traces"),
     language: () => preferences.language,
     store: forwardingStore,
-    focusCards,
     acquire: () => models!.acquire(),
     spawn: () => {
       const worker = utilityProcess.fork(
@@ -325,24 +250,7 @@ export async function initializeServices(
               onProgress,
               accessToken,
             ),
-          readSource: (
-            taskId,
-            url,
-            config,
-            signal,
-            accessToken,
-            refreshCredential,
-          ) =>
-            platformAccess.read(
-              taskId,
-              url,
-              config,
-              signal,
-              accessToken,
-              refreshCredential,
-            ),
         }),
-    xhsSession: profileMode === "test" ? undefined : () => xhsAuth!.connect(),
   });
   stage("forwarding_recovery");
   await forwarding.recover();
@@ -354,13 +262,17 @@ export async function initializeServices(
   await searchStore.open();
   const search = new FocusSearchService(
     searchStore,
-    focusCards,
     tasks,
     forwarding,
     async () => {
       if (profileMode === "test" && process.env.BRANCHOUT_TEST_ENDPOINT)
         return {
-          execute: async (section: SearchSection, signal: AbortSignal) => {
+          execute: async (
+            section: SearchSection,
+            signal: AbortSignal,
+            _taskId: string,
+            onProgress?: (progress: SearchProgress) => Promise<void>,
+          ) => {
             const response = await fetch(
               `${process.env.BRANCHOUT_TEST_ENDPOINT}/search`,
               {
@@ -371,26 +283,52 @@ export async function initializeServices(
               },
             );
             if (!response.ok) throw new Error("Fixture search failed");
-            return (await response.json()) as {
+            const result = (await response.json()) as {
               rawReply: string;
               candidates: SearchSection["candidates"];
+              platformPrompt?: string;
+              citationExtraction?: SearchSection["citationExtraction"];
             };
+            if (result.citationExtraction?.state === "running") {
+              await onProgress?.(result);
+              const sources = await fetch(
+                `${process.env.BRANCHOUT_TEST_ENDPOINT}/search-sources`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(section),
+                  signal,
+                },
+              );
+              if (!sources.ok)
+                throw new Error("Fixture source extraction failed");
+              return { ...result, ...(await sources.json()) };
+            }
+            return result;
           },
           release: async () => {},
         };
       const lease = await models!.acquire();
       return {
-        execute: (section: SearchSection, signal: AbortSignal) =>
+        execute: (
+          section: SearchSection,
+          signal: AbortSignal,
+          taskId: string,
+          onProgress?: (progress: SearchProgress) => Promise<void>,
+        ) =>
           platformAccess.search(
             section,
             lease.config,
             signal,
             lease.refreshCredential,
+            taskId,
+            onProgress,
           ),
         release: () => lease.release(),
       };
     },
     changed,
+    { language: () => preferences.language },
   );
   await search.recover();
 
@@ -431,16 +369,6 @@ export async function initializeServices(
   const expected = pathToFileURL(
     join(__dirname, "../renderer/index.html"),
   ).href;
-  stage("project_ipc");
-  registerProjectIpc(projects, expected);
-  stage("focus_ipc");
-  registerFocusCardIpc(focusCards, expected);
-  stage("report_ipc");
-  registerAnalysisReportIpc(analysisReports, expected);
-  stage("analysis_ipc");
-  registerProjectAnalysisPipelineIpc(analysisPipeline, expected);
-  stage("prompt_ipc");
-  registerAnalysisPromptSettingsIpc(analysisPromptSettings, expected);
   stage("task_ipc");
   registerTaskIpc(taskView, expected);
   stage("forwarding_ipc");
@@ -454,7 +382,7 @@ export async function initializeServices(
       event.senderFrame !== event.sender.mainFrame
     )
       throw new Error("Invalid preferences request");
-    return { language: preferences.language };
+    return preferences.view();
   });
   handle("preferences:save", async (event, language: unknown) => {
     if (
@@ -465,20 +393,65 @@ export async function initializeServices(
     await preferences.save(language);
     onLanguage(preferences.language);
     changed();
-    return { language: preferences.language };
+    return preferences.view();
+  });
+  handle("preferences:save-task-browser", async (event, visible: unknown) => {
+    if (
+      event.senderFrame?.url !== expected ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      throw new Error("Invalid preferences request");
+    await preferences.saveTaskBrowserVisible(z.boolean().parse(visible));
+    changed();
+    return preferences.view();
+  });
+  handle("tasks:export-pi-logs", async (event, taskId: unknown) => {
+    if (
+      event.senderFrame !== event.sender.mainFrame ||
+      event.senderFrame?.url !== expected
+    )
+      return { ok: false, message: "Invalid task request" };
+    try {
+      const id = z.string().uuid().parse(taskId);
+      const value = await exportTaskPiLogs(
+        [join(app.getPath("userData"), "browser-traces")],
+        id,
+      );
+      return { ok: true, value };
+    } catch {
+      return { ok: false, message: "当前任务的 Pi 日志暂不可用" };
+    }
   });
   for (const channel of Object.values(searchChannels))
     handle(channel, async (event, ...args: unknown[]) => {
       if (
         event.senderFrame !== event.sender.mainFrame ||
         event.senderFrame?.url !== expected ||
-        args.length !== (channel === searchChannels.reports ? 0 : 1)
+        args.length !==
+          ([searchChannels.reports, searchChannels.follows].includes(
+            channel as "search:reports" | "search:follows",
+          )
+            ? 0
+            : 1)
       )
         return { ok: false, message: "Invalid search request" };
       try {
         let value: unknown;
         if (channel === searchChannels.reports) value = search.reports();
-        else if (channel === searchChannels.start)
+        else if (channel === searchChannels.follows) value = search.follows();
+        else if (channel === searchChannels.saveFollow)
+          value = await search.saveFollow(args[0]);
+        else if (channel === searchChannels.updateFollow)
+          value = await search.updateFollow(args[0]);
+        else if (channel === searchChannels.deleteFollow)
+          await search.deleteFollow(z.string().uuid().parse(args[0]));
+        else if (channel === searchChannels.pauseFollow) {
+          const input = z
+            .object({ followId: z.string().uuid(), paused: z.boolean() })
+            .strict()
+            .parse(args[0]);
+          value = await search.setFollowPaused(input.followId, input.paused);
+        } else if (channel === searchChannels.start)
           value = await search.start(args[0]);
         else if (channel === searchChannels.retry)
           value = await search.retry(z.string().uuid().parse(args[0]));
@@ -506,8 +479,7 @@ export async function initializeServices(
       } catch {
         return {
           ok: false,
-          message:
-            "Search action failed; check selected cards and platform access",
+          message: "搜索操作未完成，请检查问题、运行计划和平台连接",
         };
       }
     });
@@ -612,7 +584,6 @@ export async function initializeServices(
       await Promise.all([
         forwarding?.shutdown(),
         search.shutdown(),
-        analysisPipeline?.shutdown(),
         telegram?.stop(),
       ]);
       await models?.close();
