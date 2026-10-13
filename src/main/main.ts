@@ -1,3 +1,7 @@
+import { ApplicationUpdates } from "./services/application-updates";
+import { createElectronUpdateDriver } from "./services/electron-update-driver";
+import { registerUpdateIpc } from "./services/application-updates-ipc";
+import { updateChannels } from "../shared/update-contracts";
 import { claimProfile } from "./runtime/profile-lock";
 import { nativeText } from "./native-language";
 import { installMenu } from "./menu";
@@ -34,6 +38,7 @@ if (!locked) {
   app.quit();
 } else {
   let services: Awaited<ReturnType<typeof initializeServices>> | undefined;
+  let updates: ApplicationUpdates | undefined;
   let servicesReady = false;
   let shuttingDown = false;
   let mainWindow: BrowserWindow | undefined;
@@ -77,6 +82,7 @@ if (!locked) {
     if (shuttingDown || !servicesReady) return;
     event.preventDefault();
     shuttingDown = true;
+    updates?.close();
     void services
       ?.shutdown()
       .catch(() => {
@@ -104,10 +110,33 @@ if (!locked) {
         profileMode,
         (language) => installMenu(language, open),
       );
+      const driver =
+        app.isPackaged && process.platform === "darwin"
+          ? createElectronUpdateDriver()
+          : undefined;
+      updates = new ApplicationUpdates({
+        version: app.getVersion(),
+        root: app.getPath("userData"),
+        gate: services.executionGate,
+        driver,
+        changed: () => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.webContents.send(updateChannels.changed);
+        },
+        install: async () => {
+          await services!.shutdown();
+          updates!.close();
+          shuttingDown = true;
+          driver!.quitAndInstall();
+        },
+      });
+      await updates.open();
+      registerUpdateIpc(updates, join(__dirname, "../renderer/index.html"));
       startupStage = "menu";
       startupStage = "window";
       servicesReady = true;
       open();
+      updates.start();
       const session = mainWindow!.webContents.session;
       session.setPermissionRequestHandler(
         (_webContents, _permission, callback) => callback(false),

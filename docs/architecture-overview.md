@@ -6,12 +6,12 @@
 
 Electron Main owns stores, model leases, Telegram, scheduling, and execution queues. The React renderer sends preload commands and reads saved snapshots. Workers return captures or model output. Main validates identities, persists progress, then publishes changes.
 
-| Store | Saved state |
-| --- | --- |
-| `FocusSearchStore` | `focus-search.json`: follows and independent reports |
-| `ForwardingStore` | `forwarding.json`: submitted sources, material progress, and parsed results |
-| `TaskStore` | `tasks.json`: task snapshots and activity |
-| Trace root | `browser-traces/`: task-associated Pi sessions and native HTML |
+| Store              | Saved state                                                                 |
+| ------------------ | --------------------------------------------------------------------------- |
+| `FocusSearchStore` | `focus-search.json`: follows and independent reports                        |
+| `ForwardingStore`  | `forwarding.json`: submitted sources, material progress, and parsed results |
+| `TaskStore`        | `tasks.json`: task snapshots and activity                                   |
+| Trace root         | `browser-traces/`: task-associated Pi sessions and native HTML              |
 
 ## Search and follow orchestration
 
@@ -27,12 +27,12 @@ Worker environments inherit explicit proxy variables. On macOS, a GUI launch wit
 
 ## Platform browser and focus search
 
-| Component | Responsibility |
-| --- | --- |
-| `ChromeProfiles` | Start Chrome and attach through loopback CDP |
-| `PlatformBrowser` | Human login, saved sessions, serialized access, and constrained actions |
-| `BrowserAgent` | Bridge worker tool requests to Main, retaining observations and captures |
-| `PlatformAccess` | Capture provenance, canonical links, material validation, and image caching |
+| Component               | Responsibility                                                               |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `ChromeProfiles`        | Start Chrome and attach through loopback CDP                                 |
+| `PlatformBrowser`       | Human login, saved sessions, serialized access, and constrained actions      |
+| `BrowserAgent`          | Bridge worker tool requests to Main, retaining observations and captures     |
+| `PlatformAccess`        | Capture provenance, canonical links, material validation, and image caching  |
 | Bundled platform skills | Per-platform search and reading instructions loaded through a dedicated tool |
 
 Browser navigation uses validated HTTPS addresses. Text submission targets recognized platform AI entries. Optional Xiaohongshu retrieval is a separate tool available to reading tasks when its runtime is installed.
@@ -44,3 +44,9 @@ Browser workers use persisted Pi coding sessions. Reading uses lightweight Agent
 ## Language and profile boundaries
 
 Runtime profiles resolve stores, credentials, browser sessions, and traces under independent data directories. Main completes the [business reset](data-contracts.md#telegram-queue-and-business-reset) before opening writers or integrations. The [development guide](development.md) owns launch and profile preparation.
+
+## Application updater
+
+`ApplicationUpdates` owns update state and explicit download/install actions. `electron-update-driver.ts` uses electron-updater for version checks and ZIP integrity, then Electron's native updater to stage and validate macOS signatures before shutdown. Preload exposes fixed commands and a separate update event so download progress refreshes only update UI.
+
+`ExecutionGate` counts admitted search and parsing jobs through worker and lease cleanup. Installation waiting holds admission in both queues. The updater reads active jobs from this gate, validates the package, then uses Main's service shutdown and native installation path. [Product behavior](product-spec.md#application-updates) owns user choices and failure states.

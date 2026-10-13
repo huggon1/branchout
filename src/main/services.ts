@@ -1,3 +1,4 @@
+import { ExecutionGate } from "./services/execution-gate";
 import { resetLegacyBusinessData } from "./runtime/business-reset";
 import { exportTaskPiLogs } from "./services/tasks/pi-log-export";
 import { registerMaterialImages } from "./services/material-images";
@@ -59,6 +60,7 @@ export async function initializeServices(
   onLanguage: (language: Language) => void,
 ) {
   await resetLegacyBusinessData(app.getPath("userData"));
+  const executionGate = new ExecutionGate();
   let models: ModelService | undefined;
   let forwarding: ForwardingPipelineService | undefined;
   let telegram: TelegramService | undefined;
@@ -202,6 +204,7 @@ export async function initializeServices(
   );
   await forwardingStore.open();
   forwarding = new ForwardingPipelineService({
+    executionGate,
     traceRoot: join(app.getPath("userData"), "browser-traces"),
     language: () => preferences.language,
     store: forwardingStore,
@@ -328,7 +331,7 @@ export async function initializeServices(
       };
     },
     changed,
-    { language: () => preferences.language },
+    { language: () => preferences.language, executionGate },
   );
   await search.recover();
 
@@ -579,8 +582,10 @@ export async function initializeServices(
     });
 
   return {
+    executionGate,
     preferences,
     shutdown: async () => {
+      executionGate.close();
       await Promise.all([
         forwarding?.shutdown(),
         search.shutdown(),

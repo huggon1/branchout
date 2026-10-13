@@ -34,7 +34,13 @@ await build({
   bundle: true,
   platform: "node",
   format: "cjs",
-  external: ["electron", "playwright-core", "@earendil-works/pi-coding-agent"],
+  external: [
+    "electron",
+    "electron-updater",
+    "builder-util-runtime",
+    "playwright-core",
+    "@earendil-works/pi-coding-agent",
+  ],
   loader: { ".md": "text" },
 });
 await build({

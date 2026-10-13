@@ -34,7 +34,7 @@ npm run prepare:runtime
 npm run package:app
 ```
 
-Packaging rebuilds the app and icon and writes ARM64 DMG and ZIP files to `release/`. The [release workflow](../.github/workflows/release.yml) handles tagged releases.
+Packaging clears generated `release/` output, rebuilds the app and icon, and writes ARM64 DMG, ZIP, update manifests, blockmaps, and checksums. The cleanup also retires the obsolete bird-search runtime.
 
 ## Prepare a review profile
 
@@ -59,3 +59,15 @@ npx tsx scripts/development/verify-reading.ts --profile /absolute/path/to/review
 ```
 
 The helper's `--help` lists sample selection. `--retry-existing` exercises the retained internal recovery API; user-facing flows use new submission and Stop.
+
+## Release preparation
+
+The release line starts at 0.1.0. Tag `v<package version>` from main after verification. The [Release workflow](../.github/workflows/release.yml) checks tag/version equality and main ancestry, then prepares a draft GitHub Release. Publishing the reviewed draft makes its stable version available to installed clients. A manual workflow run produces package verification and upgrade evidence.
+
+macOS packages use the fixed project certificate named `Branchout Release Signing` in the `release-signing` environment. `MAC_CSC_LINK` holds the base64 P12, `MAC_CSC_KEY_PASSWORD` unlocks it, and `MAC_CERT_SHA256` identifies the expected certificate. Keep the same certificate and private key for later releases so native updates satisfy the installed application's signing requirement. This project signature is separate from Apple Developer ID and notarization. macOS may require first-open approval in Privacy & Security for the downloaded application.
+
+Required assets are the ARM64 DMG and ZIP, `latest-mac.yml`, generated blockmaps, `SHA256SUMS.txt`, and `build-manifest.json`. The package manifest records the source revision and artifact hashes. The draft job verifies checksums before uploading assets. Historical CI evidence remains in Actions; a packaging run replaces its generated local output.
+
+In a manual workflow run, `npm run prepare:upgrade` builds signed 0.1.0 and trial 0.1.1 packages. A separate, fresh macOS runner uses `npm run test:upgrade` to serve a local feed and exercise production check, download, native installation, and restart. Its bootstrap fixes an isolated profile across native restarts. The acceptance runner verifies that project signing material is absent from its keychains. Evidence is written to `.tmp/signed-upgrade/evidence/` and uploaded by the workflow. The trial version belongs to verification artifacts; package.json remains 0.1.0. [Update behavior](product-spec.md#application-updates) defines runtime acceptance.
+
+Manual runs can reuse `package_run_id` after source validation confirms matching production inputs. Changes to application code, dependencies, assets, or packaging select a fresh package pair.

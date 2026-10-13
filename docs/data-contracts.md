@@ -76,3 +76,9 @@ Telegram state saves authorized chats, pending authorization candidates, confirm
 A fresh business generation clears old test projects, cards, task records, reports, and allowlisted business traces and caches. It preserves model and bot credentials, platform profiles, authorized chats, and receipt progress. Each cleared receipt keeps its inbound key and update identity with outcome `retired_by_reset`; old task references and acknowledgments are removed. Old queued forwarding is cleared before integration startup.
 
 `business-generation.json` records generation `search-follow-v1` and state resetting or committed. A resetting marker causes idempotent cleanup to resume before writers start. A committed marker preserves later-generation records. The reset validates affected regular files and Telegram schema before destructive steps. The explicit allowlist protects credential and browser storage boundaries.
+
+## Update receipt and queue recovery
+
+`application-update.json` stores the current and target versions immediately before installation. Startup consumes a matching target receipt and exposes the previous version for the completion notice. A failed installation clears the receipt. Upgrades keep the selected runtime profile and its committed business generation.
+
+A queued search with pending, empty platform sections resumes from its saved conditions at startup. Queued task snapshots keep that state. Searches that already ran follow the saved-result recovery path. Parsing retains its queued records through shutdown. The [updater behavior](product-spec.md#application-updates) owns installation admission and user actions.

@@ -1,3 +1,4 @@
+import type { ExecutionGate } from "../execution-gate";
 import {
   readingMaterialsSchema,
   readingMaterialSchema,
@@ -44,6 +45,7 @@ export interface ForwardingWorkerHandle {
 }
 
 export interface ForwardingServiceDependencies {
+  executionGate?: ExecutionGate;
   traceRoot?: string;
   collectMaterials?: (
     taskId: string,
@@ -77,6 +79,7 @@ export interface ForwardingTelegramSubmission {
 }
 
 interface ActiveEntry {
+  releaseExecution?: () => void;
   controller?: AbortController;
   worker?: ForwardingWorkerHandle;
   timer?: NodeJS.Timeout;
@@ -127,7 +130,12 @@ export class ForwardingPipelineService {
   private pumping?: Promise<void>;
   private maxActive = 2;
 
-  constructor(private readonly dependencies: ForwardingServiceDependencies) {}
+  constructor(private readonly dependencies: ForwardingServiceDependencies) {
+    dependencies.executionGate?.subscribe(() => {
+      if (!dependencies.executionGate?.paused && !this.closed)
+        queueMicrotask(() => this.schedulePump());
+    });
+  }
 
   async recover() {
     await this.dependencies.store.update((state) => {
@@ -344,6 +352,8 @@ export class ForwardingPipelineService {
       entry.lease = undefined;
       await lease.release();
     }
+    await entry?.preparing.catch(() => {});
+    entry?.releaseExecution?.();
     if (changed) this.dependencies.changed();
     this.schedulePump();
   }
@@ -396,14 +406,25 @@ export class ForwardingPipelineService {
   private async pump() {
     if (this.pumping) return this.pumping;
     this.pumping = (async () => {
-      while (!this.closed && this.active.size < this.maxActive) {
+      while (
+        !this.closed &&
+        !this.dependencies.executionGate?.paused &&
+        this.active.size < this.maxActive
+      ) {
         const task = this.dependencies.store
           .snapshot()
           .tasks.find(
             (item) => item.state === "queued" && !this.active.has(item.taskId),
           );
         if (!task) break;
+        const releaseExecution = this.dependencies.executionGate?.tryEnter({
+          id: task.taskId,
+          kind: "parsing",
+          label: task.target.sourceUrl,
+        });
+        if (this.dependencies.executionGate && !releaseExecution) break;
         const entry: ActiveEntry = {
+          releaseExecution,
           chain: Promise.resolve(),
           preparing: Promise.resolve(),
         };
@@ -893,6 +914,7 @@ export class ForwardingPipelineService {
       entry.lease = undefined;
       await lease.release();
     }
+    entry.releaseExecution?.();
     this.schedulePump();
   }
 
@@ -911,6 +933,7 @@ export class ForwardingPipelineService {
           entry.lease = undefined;
           await lease.release();
         }
+        entry.releaseExecution?.();
         await this.dependencies.store.update((state) => {
           const task = state.tasks.find((item) => item.taskId === taskId);
           if (task && task.state === "running") {

@@ -1,6 +1,6 @@
 {
   "name": "branchout",
-  "version": "0.4.0",
+  "version": "0.1.0",
   "license": "MIT",
   "private": true,
   "main": "dist/main/main.cjs",
@@ -9,7 +9,7 @@
     "setup:xhs": "node scripts/app-build/with-env-proxy.mjs scripts/app-build/prepare-xhs-runtime.mjs",
     "prepare:runtime": "npm run setup:xhs",
     "build:icon": "node scripts/app-build/icon.mjs",
-    "package:app": "npm run build && npm run build:icon && electron-builder --mac --arm64 --publish never && node scripts/app-build/checksums.mjs",
+    "package:app": "node scripts/app-build/clean-package.mjs && npm run build && npm run build:icon && electron-builder --mac --arm64 --publish never && node scripts/app-build/checksums.mjs",
     "dev": "npm run build && electron .",
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
@@ -18,14 +18,18 @@
     "docs:check": "node scripts/checks/docs.mjs",
     "check": "npm run typecheck && npm run docs:check && npm run test:rules",
     "test:e2e": "npm run build && node tests/build-workers.mjs && playwright test",
-    "check:full": "npm run check && npm run test:e2e"
+    "check:full": "npm run check && npm run test:e2e",
+    "test:upgrade": "node scripts/development/verify-upgrade.mjs",
+    "prepare:upgrade": "node scripts/development/verify-upgrade.mjs --prepare"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.1.0",
     "@earendil-works/pi-ai": "1.1.0",
     "@earendil-works/pi-coding-agent": "1.1.0",
     "@phosphor-icons/react": "^2.1.10",
+    "builder-util-runtime": "9.7.0",
     "dompurify": "^3.4.16",
+    "electron-updater": "6.8.10",
     "marked": "^18.0.14",
     "mermaid": "^12.1.0",
     "parse5": "^8.0.1",
