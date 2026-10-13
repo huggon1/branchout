@@ -6,12 +6,16 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 // Failure cases: references recurse; an attachment failure hides the main text;
-// retries retranslate completed chunks; language switches change saved output;
-// images lose their position; restart loses progress; historical reports break.
+// language switches change saved output;
+// images lose their position; restart loses saved partial materials.
 test("reading preserves materials, partial output, frozen language and restart recovery", async ({}, info) => {
   const root = await mkdtemp(join(tmpdir(), "branchout-reading-"));
   const profile = join(root, "profile");
   await mkdir(profile);
+  await writeFile(
+    join(profile, "business-generation.json"),
+    JSON.stringify({ generation: "search-follow-v1", state: "committed" }),
+  );
   const cacheId = "b".repeat(64);
   await mkdir(join(profile, "material-images"));
   await writeFile(
@@ -190,10 +194,10 @@ test("reading preserves materials, partial output, frozen language and restart r
           JSON.parse(await readFile(join(profile, "forwarding.json"), "utf8"))
             .tasks[0].state,
       )
-      .toBe("completed");
+      .toBe("failed");
     await page
       .getByRole("navigation")
-      .getByRole("button", { name: "内容", exact: true })
+      .getByRole("button", { name: "解析结果", exact: true })
       .click();
     await expect(
       page.getByRole("heading", { name: "主内容", exact: true }),
@@ -220,7 +224,10 @@ test("reading preserves materials, partial output, frozen language and restart r
     await expect(reader).toHaveJSProperty("scrollTop", 500);
     await page.getByRole("button", { name: /Linked article/ }).click();
     await expect(reader).toHaveJSProperty("scrollTop", 0);
-    await page.getByRole("button", { name: /Main fixture/ }).click();
+    await page
+      .locator(".material-index")
+      .getByRole("button", { name: /Main fixture/ })
+      .click();
     await expect(reader).toHaveJSProperty("scrollTop", 500);
     await page.getByRole("button", { name: /Linked article/ }).click();
     await expect(
@@ -235,7 +242,7 @@ test("reading preserves materials, partial output, frozen language and restart r
     await page.getByLabel("Language", { exact: true }).selectOption("en");
     await page
       .getByRole("navigation")
-      .getByRole("button", { name: "Content", exact: true })
+      .getByRole("button", { name: "Parsed content", exact: true })
       .click();
     await expect(
       page.getByText(
@@ -245,15 +252,23 @@ test("reading preserves materials, partial output, frozen language and restart r
     ).toBeVisible();
     await app!.close();
     page = await launch();
-    await page.evaluate((id) => window.branchout.retryForwarding(id), taskId);
-    await expect
-      .poll(async () => {
-        const state = JSON.parse(
-          await readFile(join(profile, "forwarding.json"), "utf8"),
-        );
-        return state.tasks[0].materials[1].state;
-      })
-      .toBe("completed");
+    await page
+      .getByRole("navigation")
+      .getByRole("button", { name: "Parsed content", exact: true })
+      .click();
+    await page
+      .locator(".result-row")
+      .filter({ hasText: "Main fixture" })
+      .click();
+    await page.getByRole("button", { name: /Linked article/ }).click();
+    await expect(
+      page.getByText("已返回的段落。", { exact: true }),
+    ).toBeVisible();
+    const saved = JSON.parse(
+      await readFile(join(profile, "forwarding.json"), "utf8"),
+    ).tasks.find((task: any) => task.taskId === taskId);
+    expect(saved.materials[1].state).toBe("partial");
+    expect(saved.outputLanguage).toBe("zh-CN");
     expect(
       calls.filter((c) => c.route === "/translate" && c.material.id === "main"),
     ).toHaveLength(1);
@@ -279,7 +294,7 @@ test("reading preserves materials, partial output, frozen language and restart r
         return state.tasks.find((t: any) => t.taskId === (added as any).value)
           ?.state;
       })
-      .toBe("completed");
+      .toBe("failed");
     const noteState = JSON.parse(
       await readFile(join(profile, "forwarding.json"), "utf8"),
     ).tasks.find((t: any) => t.taskId === (added as any).value);
@@ -301,13 +316,10 @@ test("reading preserves materials, partial output, frozen language and restart r
       .toBe("failed");
     await page
       .getByRole("navigation")
-      .getByRole("button", { name: "Content", exact: true })
+      .getByRole("button", { name: "Parsed content", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Back to content list", exact: true })
-      .click();
-    await page
-      .locator(".content-list-item")
+      .locator(".result-row")
       .filter({ hasText: "Recoverable main" })
       .click();
     await expect(
@@ -318,34 +330,12 @@ test("reading preserves materials, partial output, frozen language and restart r
         exact: true,
       }),
     ).toBeVisible();
-    await page
-      .getByRole("button", {
+    await expect(
+      page.getByRole("button", {
         name: "Continue unfinished materials",
         exact: true,
-      })
-      .click();
-    await expect
-      .poll(async () => {
-        const detail = await page.evaluate(
-          (id) => window.branchout.forwardingTask(id),
-          (recovery as any).value,
-        );
-        return detail.ok && detail.value.task.report?.materials?.length;
-      })
-      .toBe(3);
-    await page
-      .getByRole("navigation")
-      .getByRole("button", { name: "Content", exact: true })
-      .click();
-    await page.getByRole("button", { name: /Linked article/ }).click();
-    await expect(
-      page.getByText("Attachment body.", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Content is presented in the target language (English).", {
-        exact: true,
       }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await page.setViewportSize({ width: 780, height: 780 });
     await page.screenshot({ path: info.outputPath("compact-reading.png") });
     const english = await page.evaluate(() =>
@@ -360,13 +350,10 @@ test("reading preserves materials, partial output, frozen language and restart r
         );
         return detail.ok && detail.value.task.state;
       })
-      .toBe("completed");
+      .toBe("failed");
     await page.setViewportSize({ width: 1280, height: 800 });
     await page
-      .getByRole("button", { name: "Back to content list", exact: true })
-      .click();
-    await page
-      .locator(".content-list-item")
+      .locator(".result-row")
       .filter({ hasText: "English fixture" })
       .click();
     await expect(
@@ -385,7 +372,7 @@ test("reading preserves materials, partial output, frozen language and restart r
     await page.getByLabel("Language", { exact: true }).selectOption("zh-CN");
     await page
       .getByRole("navigation")
-      .getByRole("button", { name: "内容", exact: true })
+      .getByRole("button", { name: "解析结果", exact: true })
       .click();
     await expect(
       page.getByText("内容按目标语言（英文）呈现。", { exact: true }),

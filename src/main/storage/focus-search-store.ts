@@ -5,7 +5,7 @@ import {
   type SearchState,
 } from "../../shared/focus-search-contracts";
 export class FocusSearchStore {
-  private state: SearchState = { version: 1, reports: [] };
+  private state: SearchState = { version: 1, reports: [], follows: [] };
   private queue: Promise<unknown> = Promise.resolve();
   constructor(private file: string) {}
   async open() {

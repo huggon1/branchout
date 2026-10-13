@@ -2,10 +2,6 @@ import { contextBridge, ipcRenderer } from "electron";
 import {
   channels,
   searchChannels,
-  projectChannels,
-  focusCardChannels,
-  analysisChannels,
-  analysisPromptChannels,
   taskChannels,
   forwardingChannels,
   telegramChannels,
@@ -16,6 +12,16 @@ import {
 } from "../shared/ipc-contracts";
 
 const bridge: DesktopBridge = {
+  follows: () => ipcRenderer.invoke(searchChannels.follows),
+  saveFollow: (input) => ipcRenderer.invoke(searchChannels.saveFollow, input),
+  updateFollow: (input) =>
+    ipcRenderer.invoke(searchChannels.updateFollow, input),
+  setFollowPaused: (followId, paused) =>
+    ipcRenderer.invoke(searchChannels.pauseFollow, { followId, paused }),
+  deleteFollow: (followId) =>
+    ipcRenderer.invoke(searchChannels.deleteFollow, followId),
+  exportTaskPiLogs: (taskId) =>
+    ipcRenderer.invoke("tasks:export-pi-logs", taskId),
   focusSearchReports: () => ipcRenderer.invoke(searchChannels.reports),
   startFocusSearch: (input) => ipcRenderer.invoke(searchChannels.start, input),
   retryFocusSearch: (taskId) =>
@@ -27,32 +33,8 @@ const bridge: DesktopBridge = {
     ipcRenderer.invoke(searchChannels.open, input),
   preferences: () => ipcRenderer.invoke("preferences:view"),
   saveLanguage: (language) => ipcRenderer.invoke("preferences:save", language),
-  projects: () => ipcRenderer.invoke(projectChannels.view),
-  bindProject: () => ipcRenderer.invoke(projectChannels.bind),
-  unbindProject: (projectId) =>
-    ipcRenderer.invoke(projectChannels.unbind, projectId),
-  focusCardView: () => ipcRenderer.invoke(focusCardChannels.view),
-  createFocusCard: (input) =>
-    ipcRenderer.invoke(focusCardChannels.create, input),
-  editFocusCard: (input) => ipcRenderer.invoke(focusCardChannels.edit, input),
-  setFocusCardDeleted: (input) =>
-    ipcRenderer.invoke(focusCardChannels.setDeleted, input),
-  projectAnalysisReports: (projectId) =>
-    ipcRenderer.invoke(analysisChannels.reports, projectId),
-  readProjectAnalysisReport: (analysisReportId) =>
-    ipcRenderer.invoke(analysisChannels.readReport, analysisReportId),
-  projectAnalysisPreflight: (projectId) =>
-    ipcRenderer.invoke(analysisChannels.preflight, projectId),
-  analysisPromptView: () => ipcRenderer.invoke(analysisPromptChannels.view),
-  saveAnalysisPrompt: (input) =>
-    ipcRenderer.invoke(analysisPromptChannels.save, input),
-  resetAnalysisPrompt: () => ipcRenderer.invoke(analysisPromptChannels.reset),
-  startProjectAnalysis: (input) =>
-    ipcRenderer.invoke(analysisChannels.start, input),
-  exportProjectAnalysisTrace: (taskId) =>
-    ipcRenderer.invoke(analysisChannels.exportTrace, taskId),
-  acceptFocusSuggestion: (input) =>
-    ipcRenderer.invoke(analysisChannels.acceptSuggestion, input),
+  saveTaskBrowserVisible: (visible) =>
+    ipcRenderer.invoke("preferences:save-task-browser", visible),
   unifiedTaskSnapshots: () => ipcRenderer.invoke(taskChannels.snapshots),
   taskActivities: (taskId) =>
     ipcRenderer.invoke(taskChannels.activities, taskId),
@@ -78,10 +60,6 @@ const bridge: DesktopBridge = {
   revokeTelegramChat: (chatId) =>
     ipcRenderer.invoke(telegramChannels.revokeChat, chatId),
   modelView: () => ipcRenderer.invoke(modelChannels.view),
-  retryProjectAnalysis: (taskId) =>
-    ipcRenderer.invoke(analysisChannels.retry, taskId),
-  cancelProjectAnalysis: (taskId) =>
-    ipcRenderer.invoke(analysisChannels.cancel, taskId),
   saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
   loginModel: () => ipcRenderer.invoke(modelChannels.login),
   cancelModelLogin: () => ipcRenderer.invoke(modelChannels.cancelLogin),

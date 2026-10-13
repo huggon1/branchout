@@ -1,34 +1,29 @@
 # Agent prompt flow
 
-This document maps current prompt and tool assembly. The [architecture overview](architecture-overview.md#platform-browser-and-focus-search) owns the runtime boundaries.
+## Loading paths
 
-```mermaid
-flowchart TD
-    A[Forwarded link] --> R[Reading collection instruction]
-    B[Focus card search] --> S[Search instruction]
-    R --> C[Common browser system and shared Pi runtime]
-    S --> C
-    C --> D[Shared Chrome with saved site sessions]
-    C --> G[Optional platform guide or enhanced reader]
-    G --> C
-    D --> C
-    C --> V[Validate observed captures and URLs]
-    V --> M[Saved materials: translation chunks and summary]
-    V --> Q[Saved search reply and candidate posts]
-```
+| Stage | System | User | Tools and additional instructions |
+| --- | --- | --- | --- |
+| Search answer | Generic `browserSystem` plus capture/access rules, assembled in browser worker | `platformSearchInstruction`: adapted question and reply capture | Browser plus the selected search skill catalog; `load_platform_skill` returns its full file |
+| Search sources | Same persisted browser session | `searchCitationInstruction`: extract citations after saving the answer | Browser and `capture_search_sources`, with the loaded platform skill |
+| Main/reference collection | Same browser system | `materialCollectionInstruction`: address, capture requirements, reference scope, and schema | Browser plus reading skill catalog; optional `read_xiaohongshu` tool |
+| Translation | `translationSystem` in a new lightweight Agent | One original Markdown chunk | Empty tool list |
+| Fidelity correction | Translation system plus correction instructions | Original, returned translation, and preservation issues | One new lightweight Agent with empty tools |
+| Introduction | `summarySystem` in a new lightweight Agent | Material title, coverage, and available translation | Empty tools; long inputs use successive reduction calls |
+| Connection check | Fixed connection-check system | Fixed OK request | Empty tool list, bounded output |
 
-| Input                                     | Owner                                                                  | Loading time                        |
-| ----------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------- |
-| Common system                             | [Browser prompts](../src/platforms/browser/prompts.ts) `browserSystem` | Each browser task                   |
-| Reading requirement                       | Same module, `materialCollectionInstruction`                           | Forwarding collection               |
-| Search requirement                        | Same module, `searchInstruction` and `searchCaptureInstruction`        | Each card/platform section          |
-| Browser operations, guide and enhancement | [Browser worker](../src/worker/jobs/browser/worker-entry.ts)           | Same tool definition for both tasks |
-| Platform guide                            | Browser prompts `platformGuides`                                       | Agent calls guide                   |
-| Optional note reader                      | [Service assembly](../src/main/services.ts)                            | Agent calls enhanced_read           |
-| Translation and introduction              | [Reading prompts](../src/worker/jobs/forwarding/reading-prompts.ts)    | After original materials are saved  |
+[Browser prompts](../src/platforms/browser/prompts.ts) owns common task templates. [Reading prompts](../src/worker/jobs/forwarding/reading-prompts.ts) owns translation and introduction systems. [Browser worker](../src/worker/jobs/browser/worker-entry.ts) assembles persisted sessions; [Pi runtime](../src/worker/pi-runtime.ts) creates lightweight Agents.
 
-BrowserAgent sends the common system plus the task requirement to the same Pi session factory. Platform selection supplies task identity and guide selection; the shared browser allows HTTPS navigation across sites. PlatformAccess resolves selected capture IDs to saved bytes and checks reference-link provenance.
+## Platform skills and tools
 
-Translation preserves source Markdown. The introduction describes one material in a short paragraph. Model catalog capacity sizes chunks for known models. Custom models with absent capacity metadata use conservative input chunks and provider-default output capacity. A provider output-limit stop stores returned text and the unfinished chunk position. Summary reduction reads every translated chunk before producing the material introduction.
+[Bundled skills](../src/platforms/browser/skills.ts) derive names and descriptions from separate `SKILL.md` files. Search exposes only its selected platform's search skill. Collection exposes reading skill summaries so redirected or referenced pages can select the relevant instructions. `load_platform_skill` loads one file into a tool response; other bodies stay outside model context.
 
-Translation validation restores executable code and inline identifiers from the source, compares link and image destinations, and requests one correction when preservation checks fail. A remaining mismatch saves the returned text with a partial state and retry guidance. Text diagrams and natural-language prompt examples remain translatable.
+[Tool definitions](../src/platforms/browser/tools.ts) owns browser operations and optional enhancement descriptions. Adding a tool changes its definition and registration. Platform instructions change in their own skill file. The generic system stays platform-independent.
+
+Persisted sessions use the application system and Pi's working-directory section. The factory fixes append-system input to an empty list and disables automatic context, skill, extension, and template discovery. Application skills use the explicit tool catalog. Lightweight Agents receive their explicit system directly.
+
+## Recovery and logs
+
+Browser recovery keeps the same session and task budget, with up to three transient-failure attempts and bounded result corrections. Tool-free translation and introduction calls also permit three transient-failure attempts, with short waits and cancellation checks. Authentication, quota, and invalid configuration failures end the call. Fidelity correction uses its own preservation check and correction prompt.
+
+Persistent sessions write native Pi JSONL and HTML. Lightweight export copies the actual system, user, assistant, and tool-result messages into the persisted session and restores the Agent message state before native export. [Execution identity](data-contracts.md#development-profiles-and-execution-identity) defines revision scope.

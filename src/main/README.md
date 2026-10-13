@@ -1,25 +1,17 @@
 # Main process
 
-This document describes current Electron main-process responsibilities. See the [architecture overview](../../docs/architecture-overview.md) for runtime design and [data contracts](../../docs/data-contracts.md) for cross-module objects.
+[Architecture](../../docs/architecture-overview.md) owns runtime boundaries; [data contracts](../../docs/data-contracts.md) owns persistence.
 
-## Responsibilities
-
-`main` owns project bindings, card versions, content and analysis reports, unified task snapshots, and model and Telegram configuration. It validates renderer commands and worker results, persisting state before notifying the renderer or acknowledging Telegram.
-
-One service owns project identity. Card editing, deletion, restoration, and suggestion acceptance maintain versions. Focus searches freeze selected retained cards in bound projects at launch. Telegram deduplicates by inbound message identity and resumes available pending messages at startup. Content and analysis tasks persist their execution state separately; Tasks reads a unified view.
-
-## Module layout
-
-- `main.ts`, `window.ts`, `preload.ts`: app lifecycle, window, and controlled renderer bridge.
-- `services/projects` and `services/focus-cards`: project binding, card versions, and active-set snapshots.
-- `services/forwarding`: shared in-app and Telegram queue, stage persistence, and report publication.
-- `services/project-analysis`: preview, task input, report persistence, suggestion acceptance, and version conflicts. Previews use [local readers](../readers/README.md).
-- `services/tasks`: analysis state, content activity, and a unified content and analysis view.
-- `integrations/telegram`: bot connection, authorized chats, update cursor, and receipt acknowledgment.
-- `services/model-service.ts`, `services/codex-client.ts`, `storage/model-store.ts`: model connection, Codex login, execution configuration, and credential lifecycle.
-- `services/runtime-layout.ts`: app resource paths in development and packaged builds for workers.
-- `storage/`: atomic persistence for projects, card versions, reports, tasks, and integration cursors.
-
-The main process passes approved task input and model configuration to workers. The renderer reads controlled results and redacted state.
-
-ChromeProfiles owns Chrome startup, loopback CDP attachment, and process ownership. PlatformBrowser owns one persistent shared browser session, human login pages, and constrained task-page actions. BrowserAgent bridges task-scoped worker tools to those pages. PlatformAccess selects retrieval strategies and validates captured replies, post citations, and source snapshots. FocusSearchService saves search reports and candidate submissions alongside unified tasks. The [platform access architecture](../../docs/architecture-overview.md#platform-browser-and-focus-search) defines shared layers and platform extension responsibilities.
+| Path | Responsibility |
+| --- | --- |
+| `services.ts`, `main.ts`, `window.ts`, `preload.ts` | Service assembly, lifecycle, windows, and renderer bridge |
+| `services/focus-search/` | Search admission, follow scheduler, and candidate submission |
+| `services/forwarding/` | Collection orchestration and reading queue |
+| `services/tasks/` | Task snapshots and native Pi export |
+| `services/platform-access.ts` | Capture and material validation |
+| `services/browser-agent.ts` | Browser and skill tool bridge |
+| `services/platform-browser.ts` | Shared Chrome operations and access lock |
+| `integrations/telegram/` | Authorization, receipts, and acknowledgments |
+| `services/model-service.ts` | Model connections and execution leases |
+| `runtime/business-reset.ts`, `runtime/profile.ts` | Generation reset and profile preparation |
+| `storage/` | Atomic local stores |

@@ -1,3 +1,4 @@
+import { CaretRight } from "@phosphor-icons/react";
 import { t } from "../i18n";
 import {
   useId,
@@ -51,9 +52,7 @@ export function Disclosure({
           {title}
           {count && <small>{count}</small>}
         </span>
-        <span className="ds-disclosure-action">
-          {open ? t("收起") : t("查看")}
-        </span>
+        <CaretRight size={14} aria-hidden="true" />
       </button>
       <div id={id} hidden={!open} className="ds-disclosure-body">
         {children}

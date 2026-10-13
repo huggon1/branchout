@@ -1,15 +1,6 @@
-import { outputValidationDiagnostic } from "./reasoning/output-validation-diagnostic";
-import { Type } from "typebox";
-import { inspectLocalDocumentLinks } from "../readers/document-links";
-import { existsSync } from "node:fs";
-import { access, mkdir, readFile, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import {
   createAgentSession,
-  createFindToolDefinition,
-  createGrepToolDefinition,
-  createLsToolDefinition,
-  createReadToolDefinition,
   DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
@@ -23,7 +14,6 @@ import {
   type CredentialStore,
 } from "@earendil-works/pi-ai";
 import type { ModelExecutionConfig } from "../shared/model-contracts";
-import { ExecutionFailure, classifyModelError } from "../shared/task-failure";
 import { resolveModel } from "./pi-runtime";
 
 const MIN_TOKEN_LIFETIME_MS = 5 * 60_000;
@@ -110,16 +100,13 @@ export interface PiCodingSessionOptions {
   systemPrompt: string;
   maxTokens?: number;
   codexTokenProvider?: CodexTokenProvider;
-  conversationFile?: string;
-  browserTools?: NonNullable<CreateAgentSessionOptions["customTools"]>;
+  browserTools: NonNullable<CreateAgentSessionOptions["customTools"]>;
 }
 
 export interface PiCodingSessionHandle {
   session: AgentSession;
   sessionManager: SessionManager;
   sessionFile: string | undefined;
-  conversationMessageIds: Set<string>;
-  readFiles: Map<string, Buffer>;
 }
 
 function initialCodexToken(accessToken: string): CodexAccessToken {
@@ -145,7 +132,7 @@ export async function createPiCodingSession(
     !Number.isSafeInteger(attempt) ||
     attempt < 1
   )
-    throw new Error("Invalid analysis attempt identity");
+    throw new Error("Invalid task attempt identity");
 
   const cwd = resolve(options.cwd);
   const traceRoot = resolve(options.traceRoot);
@@ -167,6 +154,7 @@ export async function createPiCodingSession(
     noThemes: true,
     noContextFiles: true,
     systemPrompt: options.systemPrompt,
+    appendSystemPrompt: [],
   });
   await resourceLoader.reload();
 
@@ -216,104 +204,6 @@ export async function createPiCodingSession(
   const sessionManager = SessionManager.create(cwd, sessionDir, {
     id: `${taskId}-attempt-${attempt}`,
   });
-  const conversationFile = options.conversationFile
-    ? await realpath(options.conversationFile)
-    : undefined;
-  const conversationMessageIds = new Set<string>();
-  const allowedPath = async (path: string, includeConversation = false) => {
-    const absolute = await realpath(resolve(cwd, path));
-    if (includeConversation && absolute === conversationFile) return absolute;
-    const within = relative(cwd, absolute);
-    if (
-      within === ".." ||
-      within.startsWith(`..${sep}`) ||
-      isAbsolute(within) ||
-      within
-        .split(sep)
-        .some(
-          (part) =>
-            part === ".git" ||
-            part === "node_modules" ||
-            part.startsWith(".env"),
-        )
-    )
-      throw new Error("项目分析只能读取项目目录及所选对话文件");
-    return absolute;
-  };
-  const readFiles = new Map<string, Buffer>();
-  const captureRead = async (path: string) => {
-    const bytes = await readFile(path);
-    readFiles.set(await realpath(path), bytes);
-    return bytes;
-  };
-  const readTool = createReadToolDefinition(cwd, {
-    operations: { access, readFile: captureRead },
-  });
-  const nativeRead = readTool.execute;
-  readTool.execute = async (id, params, signal, update, context) => {
-    const path = await allowedPath(params.path, true);
-    const result = await nativeRead(id, params, signal, update, context);
-    if (path === conversationFile) {
-      for (const part of result.content) {
-        if (part.type !== "text") continue;
-        for (const match of part.text.matchAll(
-          /<message id="([^"]+)"[\s\S]*?<\/message>/g,
-        ))
-          conversationMessageIds.add(match[1]);
-      }
-    }
-    return result;
-  };
-  const grepTool = createGrepToolDefinition(cwd);
-  const nativeGrep = grepTool.execute;
-  grepTool.execute = async (id, params, signal, update, context) => {
-    await allowedPath(params.path ?? ".");
-    if (params.glob?.includes("..") || (params.glob && isAbsolute(params.glob)))
-      throw new Error("搜索范围超出项目目录");
-    return nativeGrep(id, params, signal, update, context);
-  };
-  const findTool = createFindToolDefinition(cwd);
-  const nativeFind = findTool.execute;
-  findTool.execute = async (id, params, signal, update, context) => {
-    await allowedPath(params.path ?? ".");
-    if (params.pattern.includes("..") || isAbsolute(params.pattern))
-      throw new Error("搜索范围超出项目目录");
-    return nativeFind(id, params, signal, update, context);
-  };
-  const lsTool = createLsToolDefinition(cwd);
-  const nativeLs = lsTool.execute;
-  lsTool.execute = async (id, params, signal, update, context) => {
-    await allowedPath(params.path ?? ".");
-    return nativeLs(id, params, signal, update, context);
-  };
-  const documentLinksTool = {
-    name: "check_document_links",
-    label: "Check document links",
-    description:
-      "Check Markdown local file links and heading anchors in one repository document. External links are reported without network access. Cite the original document text as evidence.",
-    parameters: Type.Object({ path: Type.String() }),
-    execute: async (_id: string, params: { path: string }) => {
-      const path = await allowedPath(params.path);
-      const text = await readFile(path, "utf8");
-      if (Buffer.byteLength(text) > 200_000)
-        throw new Error("Document exceeds inspection limit");
-      const links = await inspectLocalDocumentLinks(cwd, path, text);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({
-              document: relative(cwd, path),
-              links,
-              scope:
-                "First 200 distinct Markdown links; local files and standard heading anchors",
-            }),
-          },
-        ],
-        details: {},
-      };
-    },
-  };
   const { session } = await createAgentSession({
     cwd,
     agentDir,
@@ -323,18 +213,8 @@ export async function createPiCodingSession(
     sessionManager,
     settingsManager,
     resourceLoader,
-    tools: options.browserTools
-      ? options.browserTools.map((tool) => tool.name)
-      : ["read", "grep", "find", "ls", "check_document_links"],
-    customTools:
-      options.browserTools ??
-      ([
-        readTool,
-        grepTool,
-        findTool,
-        lsTool,
-        documentLinksTool,
-      ] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>),
+    tools: options.browserTools.map((tool) => tool.name),
+    customTools: options.browserTools,
   });
   if (model.maxTokens === 0 && options.maxTokens === undefined) {
     session.agent.onPayload = (payload: any) => {
@@ -347,35 +227,10 @@ export async function createPiCodingSession(
     session,
     sessionManager,
     sessionFile: sessionManager.getSessionFile(),
-    conversationMessageIds,
-    readFiles,
   };
 }
 
-export interface RunPiCodingSessionOptions extends Omit<
-  PiCodingSessionOptions,
-  "attempt"
-> {
-  prompt: string;
-  signal: AbortSignal;
-  maxAttempts?: number;
-  validateOutput?: (
-    text: string,
-    readFiles: ReadonlyMap<string, Buffer>,
-  ) => void;
-  onHeartbeat?: () => void;
-}
-
-export interface PiCodingSessionResult {
-  text: string;
-  sessionFile: string;
-  htmlFile?: string;
-  readPaths: string[];
-  readFiles?: Map<string, Buffer>;
-  conversationMessageIds: string[];
-}
-
-function retryableModelFailure(message: string): boolean {
+export function retryableModelFailure(message: string): boolean {
   if (
     /insufficient_quota|usage.limit|quota.exceeded|out.of.budget|billing|context.length|context.window/i.test(
       message,
@@ -389,164 +244,4 @@ function retryableModelFailure(message: string): boolean {
   return /fetch failed|network error|connection (?:error|reset|refused|lost)|other side closed|socket hang up|socket connection was closed|websocket (?:error|closed)|timed? out|timeout|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|upstream connect|reset before headers/i.test(
     message,
   );
-}
-
-function safeModelFailure(error: unknown): ExecutionFailure {
-  const message = error instanceof Error ? error.message : String(error);
-  const statusMatch = /(?:^|\D)(408|429|5\d\d)(?:\D|$)/.exec(message);
-  const status = statusMatch ? Number(statusMatch[1]) : undefined;
-  const code =
-    status === 429
-      ? "model_rate_limit"
-      : status === 408 || (status !== undefined && status >= 500)
-        ? "model_unavailable"
-        : classifyModelError(error);
-  return new ExecutionFailure(
-    code,
-    {},
-    status ? { httpStatus: status } : undefined,
-  );
-}
-
-async function waitForRetry(
-  delayMs: number,
-  signal: AbortSignal,
-): Promise<void> {
-  await new Promise<void>((resolveWait, reject) => {
-    if (signal.aborted) return reject(new Error("cancelled"));
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", abort);
-      resolveWait();
-    }, delayMs);
-    const abort = () => {
-      clearTimeout(timer);
-      reject(new Error("cancelled"));
-    };
-    signal.addEventListener("abort", abort, { once: true });
-  });
-}
-
-/** Executes one analysis with independent Pi sessions for retry attempts. */
-export async function runPiCodingSession(
-  options: RunPiCodingSessionOptions,
-): Promise<PiCodingSessionResult> {
-  if (
-    options.maxAttempts !== undefined &&
-    (!Number.isSafeInteger(options.maxAttempts) || options.maxAttempts < 1)
-  )
-    throw new Error("Invalid model attempt limit");
-  const maxAttempts = Math.min(3, options.maxAttempts ?? 3);
-  const pulse = () => {
-    try {
-      options.onHeartbeat?.();
-    } catch {
-      /* Monitoring preserves execution. */
-    }
-  };
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (options.signal.aborted) throw new Error("cancelled");
-    pulse();
-    let handle: PiCodingSessionHandle;
-    try {
-      handle = await createPiCodingSession({ ...options, attempt });
-    } catch (error) {
-      pulse();
-      throw error;
-    }
-    const onAbort = () => {
-      void handle.session.abort();
-    };
-    options.signal.addEventListener("abort", onAbort, { once: true });
-    let error: unknown;
-    let text = "";
-    let htmlFile: string | undefined;
-    const unsubscribe = handle.session.subscribe((event) => {
-      if (event.type === "message_end" || event.type === "tool_execution_start")
-        pulse();
-    });
-    try {
-      await handle.session.prompt(options.prompt, {
-        expandPromptTemplates: false,
-      });
-      for (let correction = 0; correction < 3; correction++) {
-        const last = [...handle.session.messages]
-          .reverse()
-          .find((message) => message.role === "assistant");
-        if (!last) throw new ExecutionFailure("model_empty");
-        if (last.stopReason === "length")
-          throw new ExecutionFailure("model_output_limit");
-        if (last.stopReason === "error")
-          throw new Error(last.errorMessage || "model error");
-        if (last.stopReason !== "stop")
-          throw new ExecutionFailure("model_empty");
-        text = last.content
-          .filter((part) => part.type === "text")
-          .map((part) => part.text)
-          .join("\n")
-          .trim();
-        if (!text) throw new ExecutionFailure("model_empty");
-        try {
-          options.validateOutput?.(text, handle.readFiles);
-          break;
-        } catch (validationError) {
-          if (correction === 2)
-            throw new ExecutionFailure("model_invalid_output");
-          pulse();
-          const diagnostic = outputValidationDiagnostic(validationError);
-          await handle.session.prompt(
-            `The draft failed validation: ${diagnostic}. Re-read the quoted sources, copy exact contiguous literal passages, verify update focus IDs, and return the complete corrected JSON in the requested language. Runtime-expanded strings are not literal source quotes. Keep report prose free of numeric reference markers; retain the supporting evidence in findings. Preserve the objective report and distinct supported cards; fix quotations rather than discarding valid concerns. This is correction ${correction + 1} of at most 2.`,
-            { expandPromptTemplates: false },
-          );
-        }
-      }
-    } catch (caught) {
-      error = caught;
-    } finally {
-      unsubscribe();
-      options.signal.removeEventListener("abort", onAbort);
-      if (handle.sessionFile && existsSync(handle.sessionFile)) {
-        try {
-          const exportDir = join(
-            resolve(options.traceRoot),
-            options.taskId,
-            "html",
-          );
-          await mkdir(exportDir, { recursive: true });
-          htmlFile = await handle.session.exportToHtml(
-            join(exportDir, `attempt-${attempt}.html`),
-          );
-        } catch {
-          // The persisted JSONL remains available for a later export attempt.
-        }
-      }
-      handle.session.dispose();
-    }
-    if (!error) {
-      if (!handle.sessionFile) throw new ExecutionFailure("execution_failed");
-      pulse();
-      return {
-        text,
-        sessionFile: handle.sessionFile,
-        readPaths: [...handle.readFiles.keys()],
-        readFiles: handle.readFiles,
-        conversationMessageIds: [...handle.conversationMessageIds],
-        ...(htmlFile ? { htmlFile } : {}),
-      };
-    }
-    if (options.signal.aborted) throw new Error("cancelled");
-    const message = error instanceof Error ? error.message : String(error);
-    if (
-      error instanceof ExecutionFailure ||
-      !retryableModelFailure(message) ||
-      attempt === maxAttempts
-    ) {
-      pulse();
-      throw error instanceof ExecutionFailure ? error : safeModelFailure(error);
-    }
-    const delayMs = 1_000 * 2 ** (attempt - 1);
-    pulse();
-    await waitForRetry(delayMs, options.signal);
-  }
-  throw new ExecutionFailure("execution_failed");
 }

@@ -13,7 +13,7 @@ try {
   const source = resolve("assets/branchout-icon.svg");
   for (const size of [16, 32, 128, 256, 512]) {
     for (const scale of [1, 2]) {
-      await sharp(source)
+      await sharp(source, { density: 576 })
         .resize(size * scale, size * scale)
         .png()
         .toFile(

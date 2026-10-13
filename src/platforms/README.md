@@ -1,16 +1,12 @@
 # Platforms
 
-This document describes source access for content tasks. See the [product specification](../../docs/product-spec.md#submission-understanding-and-connections) for target sources and [data contracts](../../docs/data-contracts.md#submitted-sources-and-reports) for results.
+[Prompt flow](../../docs/agent-prompt-flow.md) owns loading; [architecture](../../docs/architecture-overview.md#platform-browser-and-focus-search) owns browser access.
 
-## Responsibilities and dependencies
-
-`platforms` owns common browser instructions, task requirements, optional platform guidance, and compatibility source adapters. Forwarding and focus search use one browser runtime and shared session across HTTPS sites. The main process validates and saves captured materials. Xiaohongshu retains its optional enhanced note adapter.
-
-Compatibility adapters use network and process capabilities, platform SDKs, or standalone tools. Telegram submits links to the same main-process reading queue.
-
-## File layout
-
-- `types.ts`: read requests, content results, and capability status interfaces.
-- `registry.ts`: source capability selection by URL and temporary Xiaohongshu reader credentials.
-- `browser/prompts.ts`: platform AI entry points, workflow guides, and search prompt adaptation.
-- [adapters](adapters/README.md): GitHub, X, and Xiaohongshu retrieval and normalization.
+| Path | Responsibility |
+| --- | --- |
+| `browser/prompts.ts` | Generic system and task templates |
+| `browser/skills/` | Separate search and reading SKILL.md files |
+| `browser/skills.ts` | Bundled skill metadata, task catalog, and explicit loading |
+| `browser/tools.ts` | Browser, skill-loader, and optional note-reader tools |
+| `types.ts` | Source adapter results |
+| [adapters](adapters/README.md) | Optional retrieval enhancement |

@@ -1,6 +1,6 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import { createServer } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 // Failures: translated commands or identifiers become unusable; a language link
@@ -91,6 +91,18 @@ test("production translation restores commands and repairs changed link destinat
     expect(partial.chunks[0].translated).toBe("已返回的部分正文。");
     expect(partial.chunks[0].complete).toBe(false);
     expect(partial.issue).toContain("模型上限");
+    const traceFiles = (await readdir(root, { recursive: true })).filter(
+      (name) => name.endsWith("session.html"),
+    );
+    expect(traceFiles.length).toBeGreaterThanOrEqual(4);
+    for (const [index, name] of traceFiles.entries()) {
+      const html = await readFile(join(root, name), "utf8");
+      expect(html.toLowerCase()).toContain("<html");
+      await info.attach(`translation-pi-${index}.html`, {
+        body: html,
+        contentType: "text/html",
+      });
+    }
     await info.attach("provider-capacity-stop", {
       body: JSON.stringify(partial, null, 2),
       contentType: "application/json",

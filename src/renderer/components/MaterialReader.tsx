@@ -6,11 +6,9 @@ import { Markdown } from "./Primitives";
 export function MaterialReader({
   report,
   onBack,
-  onRetry,
 }: {
   report: UiForwardingReport;
   onBack: () => void;
-  onRetry: () => Promise<void>;
 }) {
   const materials = report.materials!;
   const [selectedId, setSelectedId] = useState(materials[0].id);
@@ -41,14 +39,6 @@ export function MaterialReader({
           {t("材料目录")}
         </button>
         <span>{tf("{0} 份材料", materials.length)}</span>
-        {report.retryAvailable && (
-          <button
-            className="button button-quiet"
-            onClick={() => void onRetry()}
-          >
-            {t("继续处理未完成材料")}
-          </button>
-        )}
       </div>
       <div className={`material-layout ${menuOpen ? "menu-open" : ""}`}>
         <aside className="material-index" aria-label={t("材料目录")}>

@@ -19,6 +19,9 @@ const app = await electron.launch({
   },
 });
 try {
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.setSize(1440, 1000),
+  );
   const page = await app.firstWindow();
   await page.getByRole("navigation").waitFor();
   await page.evaluate(() => window.branchout.saveLanguage("zh-CN"));
@@ -122,32 +125,30 @@ try {
         issue: m.issue,
       })),
     });
-    const opened = await page.evaluate(() =>
-      window.branchout.forwardingTasks(),
-    );
-    if (!opened.ok) throw new Error(opened.message);
     await page
       .getByRole("navigation")
-      .getByRole("button", { name: /^(内容|Content)$/ })
+      .getByRole("button", { name: /^(解析结果|Parsed content)$/ })
       .click();
-    if (
-      await page
-        .getByRole("button", { name: /返回内容列表|Back to content list/ })
-        .isVisible()
-    )
-      await page
-        .getByRole("button", { name: /返回内容列表|Back to content list/ })
-        .click();
     const report = materials[0];
-    if (report)
-      await page
-        .locator(".content-list-item")
-        .filter({ hasText: report.title })
-        .first()
-        .click();
+    const rows = page.locator(".parsed-workspace .result-index .result-row");
+    const rowTitle =
+      detail.task.report?.source?.title ??
+      detail.partial.source?.title ??
+      report?.title;
+    if (rowTitle) await rows.filter({ hasText: rowTitle }).first().click();
+    else await rows.first().click();
     await page.screenshot({ path: join(output, `${name}.png`) });
     for (const [index, material] of materials.entries()) {
-      await page.locator(".material-index button").nth(index).click();
+      const choice = page
+        .locator(".parsed-reader .material-index button")
+        .nth(index);
+      if (!(await choice.isVisible()))
+        await page.locator(".parsed-reader .material-menu").click();
+      await choice.click();
+      await page
+        .locator(".parsed-reader .material-body-scroll h2")
+        .filter({ hasText: material.title })
+        .waitFor();
       await page.screenshot({
         path: join(output, `${name}-${material.id}.png`),
       });

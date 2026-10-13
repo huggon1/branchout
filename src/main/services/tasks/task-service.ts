@@ -56,9 +56,6 @@ export class TaskService {
         state: "queued",
         phase: input.phase,
         progress: { completed: 0 },
-        ...(input.focusSetSnapshot
-          ? { focusSetSnapshot: input.focusSetSnapshot }
-          : {}),
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -168,6 +165,49 @@ export class TaskService {
       }
     });
     if (recovered) this.changed();
+  }
+
+  /** Reconcile a search report committed before its terminal task event. Runs only during startup. */
+  async reconcileSearchOutcome(
+    taskId: string,
+    outcome: "completed" | "failed" | "cancelled",
+    reportId: string,
+    finishedAt: string,
+  ): Promise<void> {
+    let changed = false;
+    await this.store.update((state) => {
+      const task = state.tasks.find((item) => item.taskId === taskId);
+      if (!task || task.kind !== "focus_search") return;
+      if (task.state === outcome) return;
+      if (
+        terminal(task.state) &&
+        !(
+          task.state === "failed" &&
+          ["interrupted", "search_interrupted"].includes(
+            task.failure?.code ?? "",
+          )
+        )
+      )
+        return;
+      task.state = outcome;
+      task.phase = outcome;
+      task.finishedAt = finishedAt;
+      task.updatedAt = now();
+      if (outcome === "completed") {
+        task.result = { kind: "focus_search_report", id: reportId };
+        delete task.failure;
+      } else {
+        delete task.result;
+        if (outcome === "cancelled") delete task.failure;
+        else
+          task.failure = {
+            code: "search_interrupted",
+            message: "搜索运行结束，已保留可用结果",
+          };
+      }
+      changed = true;
+    });
+    if (changed) this.changed();
   }
 
   private appendActivity(

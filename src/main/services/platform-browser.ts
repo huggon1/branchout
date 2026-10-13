@@ -25,25 +25,55 @@ const operationSchema = z
 export type BrowserOperation = z.infer<typeof operationSchema>;
 export class PlatformBrowser {
   private contexts = new Map<Platform, Promise<BrowserContext>>();
+  private contextHeadless?: boolean;
+  private contextQueue: Promise<unknown> = Promise.resolve();
   private statusCache = new Map<Platform, string>();
   private locked = new Map<Platform, Promise<unknown>>();
   private chrome = new ChromeProfiles();
   private taskPages = new WeakSet<Page>();
+  private activeTask = false;
   private loginPages = new Map<Platform, Page>();
   constructor(
     private root: string,
     private changed: () => void,
     private xhs?: XhsAuth,
-    private options: { headless?: boolean } = {},
+    private options: { headless?: boolean | (() => boolean) } = {},
   ) {}
-  async context(platform: Platform) {
+  private taskHeadless() {
+    return typeof this.options.headless === "function"
+      ? this.options.headless()
+      : (this.options.headless ?? true);
+  }
+  context(platform: Platform, headless?: boolean) {
+    const operation = this.contextQueue
+      .catch(() => {})
+      .then(async () => {
+        const desired =
+          headless ??
+          (this.activeTask ? this.contextHeadless : undefined) ??
+          this.taskHeadless();
+        const previous = this.contexts.get("web");
+        if (previous && this.contextHeadless !== desired) {
+          const context = await previous;
+          await this.saveStatus(platform, context);
+          // ChromeProfiles relaunches the verified mode and transfers session
+          // cookies before closing Chrome, including cookies without expiry.
+          this.contexts.delete("web");
+          this.loginPages.clear();
+        }
+        return this.openContext(platform, desired);
+      });
+    this.contextQueue = operation;
+    return operation;
+  }
+  private async openContext(platform: Platform, headless: boolean) {
     const key: Platform = "web";
     let existing = this.contexts.get(key);
     if (!existing) {
       existing = (async () => {
         const dir = join(this.root, "shared");
         await mkdir(dir, { recursive: true, mode: 0o700 });
-        const browser = await this.chrome.connect(dir, this.options.headless);
+        const browser = await this.chrome.connect(dir, headless);
         const context = browser.contexts()[0];
         if (!context) {
           await browser.close();
@@ -51,11 +81,13 @@ export class PlatformBrowser {
         }
         context.setDefaultTimeout(12000);
         browser.on("disconnected", () => {
-          if (this.contexts.get(key) === existing) this.contexts.delete(key);
-          this.loginPages.clear();
+          if (this.contexts.get(key) === existing) {
+            this.contexts.delete(key);
+            this.loginPages.clear();
+          }
           this.changed();
         });
-        await this.migrateSessions(context);
+        await this.migrateSessions(context, headless);
         const timer = setInterval(
           () => void this.saveStatus(platform, context).catch(() => {}),
           3000,
@@ -65,14 +97,15 @@ export class PlatformBrowser {
         await this.saveStatus(platform, context);
         return context;
       })();
+      this.contextHeadless = headless;
       this.contexts.set(key, existing);
       existing.catch(() => {
-        this.contexts.delete(key);
+        if (this.contexts.get(key) === existing) this.contexts.delete(key);
       });
     }
     return existing;
   }
-  private async migrateSessions(context: BrowserContext) {
+  private async migrateSessions(context: BrowserContext, headless: boolean) {
     for (const platform of ["github", "x", "xiaohongshu"] as const) {
       const marker = join(this.root, "shared", `migrated-${platform}.json`);
       try {
@@ -85,7 +118,7 @@ export class PlatformBrowser {
       } catch {
         continue;
       }
-      const previous = await this.chrome.connect(old, this.options.headless);
+      const previous = await this.chrome.connect(old, headless);
       try {
         const cookies = await previous.contexts()[0].cookies();
         const current = await context.cookies();
@@ -103,7 +136,7 @@ export class PlatformBrowser {
           { mode: 0o600 },
         );
       } finally {
-        await previous.close();
+        await this.chrome.close(old, previous);
       }
     }
   }
@@ -193,8 +226,11 @@ export class PlatformBrowser {
     }
   }
 
-  async login(platform: "x" | "xiaohongshu") {
-    const context = await this.context(platform);
+  login(platform: "x" | "xiaohongshu") {
+    return this.serialize(() => this.openLogin(platform));
+  }
+  private async openLogin(platform: "x" | "xiaohongshu") {
+    const context = await this.context(platform, false);
     const existing = this.loginPages.get(platform);
     if (existing && !existing.isClosed()) {
       await existing.bringToFront();
@@ -215,7 +251,10 @@ export class PlatformBrowser {
       void this.saveStatus(platform, context).catch(() => {});
     });
   }
-  async logout(platform: "x" | "xiaohongshu") {
+  logout(platform: "x" | "xiaohongshu") {
+    return this.serialize(() => this.clearLogin(platform));
+  }
+  private async clearLogin(platform: "x" | "xiaohongshu") {
     const context = await this.context(platform);
     await context.clearCookies({
       domain: platform === "x" ? /(^|\.)x\.com$/ : /(^|\.)xiaohongshu\.com$/,
@@ -226,32 +265,37 @@ export class PlatformBrowser {
     await this.saveStatus(platform, context);
     if (platform === "xiaohongshu") await this.xhs?.logout();
   }
+  private serialize<T>(run: () => Promise<T>) {
+    const previous = this.locked.get("web") ?? Promise.resolve();
+    const job = previous.catch(() => {}).then(run);
+    this.locked.set("web", job);
+    return job;
+  }
   async exclusive<T>(
     platform: Platform,
     signal: AbortSignal,
     run: (page: Page) => Promise<T>,
   ) {
-    const previous = this.locked.get("web") ?? Promise.resolve();
-    const job = previous
-      .catch(() => {})
-      .then(async () => {
-        if (signal.aborted) throw new Error("Cancelled");
-        const context = await this.context(platform);
-        const page = await context.newPage();
-        const abort = () => void page.close();
+    return this.serialize(async () => {
+      if (signal.aborted) throw new Error("Cancelled");
+      this.activeTask = true;
+      let context: BrowserContext | undefined;
+      let page: Page | undefined;
+      const abort = () => void page?.close();
+      try {
+        context = await this.context(platform, this.taskHeadless());
+        page = await context.newPage();
         signal.addEventListener("abort", abort, { once: true });
-        try {
-          if (signal.aborted) throw new Error("Cancelled");
-          await this.guardTaskPage(platform, page);
-          return await run(page);
-        } finally {
-          signal.removeEventListener("abort", abort);
-          await page.close().catch(() => {});
-          await this.saveStatus(platform, context).catch(() => {});
-        }
-      });
-    this.locked.set("web", job);
-    return job;
+        if (signal.aborted) throw new Error("Cancelled");
+        await this.guardTaskPage(platform, page);
+        return await run(page);
+      } finally {
+        this.activeTask = false;
+        signal.removeEventListener("abort", abort);
+        await page?.close().catch(() => {});
+        if (context) await this.saveStatus(platform, context).catch(() => {});
+      }
+    });
   }
   private async guardTaskPage(platform: Platform, page: Page) {
     if (this.taskPages.has(page)) return;
@@ -282,7 +326,7 @@ export class PlatformBrowser {
     platform: Platform,
     page: Page,
     raw: unknown,
-    purpose: "search" | "read" | "collect" = "search",
+    purpose: "search" | "collect" = "search",
   ) {
     const op = operationSchema.parse(raw);
     let clickedUrl: string | undefined;
@@ -380,6 +424,16 @@ export class PlatformBrowser {
         await target.press(op.value!);
       }
       if (op.action === "capture") {
+        if (
+          purpose === "collect" &&
+          (platform === "x" || platform === "xiaohongshu") &&
+          (await target.evaluate((element) =>
+            ["BODY", "HTML"].includes(element.tagName),
+          ))
+        )
+          throw new Error(
+            "source_scope: Take a fresh snapshot and capture the post's own content container",
+          );
         const structured = await target.evaluate((element) => {
           const links: { url: string; title: string }[] = [];
           const images: { url: string; alt: string }[] = [];
@@ -416,6 +470,13 @@ export class PlatformBrowser {
               const img = node as HTMLImageElement;
               const rect = img.getBoundingClientRect();
               if (rect.width < 48 || rect.height < 48 || !img.currentSrc)
+                return "";
+              const imageUrl = new URL(img.currentSrc);
+              if (
+                imageUrl.protocol !== "https:" ||
+                imageUrl.username ||
+                imageUrl.password
+              )
                 return "";
               const item = { url: img.currentSrc, alt: img.alt };
               images.push(item);
@@ -647,12 +708,15 @@ export class PlatformBrowser {
     };
   }
   async shutdown() {
+    await this.contextQueue.catch(() => {});
     await Promise.all(
       [...this.contexts.entries()].map(async ([platform, pending]) => {
         try {
           const context = await pending;
           await this.saveStatus(platform, context).catch(() => {});
-          await context.browser()?.close();
+          const browser = context.browser();
+          if (browser)
+            await this.chrome.close(join(this.root, "shared"), browser);
         } catch {}
       }),
     );

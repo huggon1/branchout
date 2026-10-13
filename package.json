@@ -18,9 +18,7 @@
     "docs:check": "node scripts/checks/docs.mjs",
     "check": "npm run typecheck && npm run docs:check && npm run test:rules",
     "test:e2e": "npm run build && node tests/build-workers.mjs && playwright test",
-    "check:full": "npm run check && npm run test:e2e",
-    "review:export": "tsx scripts/development/export-analysis.ts",
-    "build:analysis": "node scripts/app-build/app.mjs --analysis-worker"
+    "check:full": "npm run check && npm run test:e2e"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.1.0",
@@ -51,7 +49,7 @@
     "typescript": "^5.9.0"
   },
   "type": "module",
-  "description": "Relate collected content to the projects you are building",
+  "description": "Discover social-media content through platform AI and read forwarded links",
   "engines": {
     "node": ">=24.0.0"
   }

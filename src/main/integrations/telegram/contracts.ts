@@ -17,7 +17,13 @@ export const telegramInboundSchema = z
     updateId: z.number().int().nonnegative(),
     chatId: telegramChatIdSchema,
     messageId: z.number().int().positive(),
-    outcome: z.enum(["queued", "unsupported", "unauthorized", "ignored"]),
+    outcome: z.enum([
+      "queued",
+      "unsupported",
+      "unauthorized",
+      "ignored",
+      "retired_by_reset",
+    ]),
     taskId: z.string().uuid().optional(),
     acknowledgement: z
       .object({
@@ -29,13 +35,13 @@ export const telegramInboundSchema = z
     receivedAt: z.string().datetime(),
   })
   .strict()
-  .refine(
-    (inbound) =>
-      inbound.outcome === "queued"
-        ? !!inbound.taskId && !!inbound.acknowledgement
-        : inbound.outcome === "unsupported"
-          ? !!inbound.acknowledgement
-          : !inbound.acknowledgement,
+  .refine((inbound) =>
+    inbound.outcome === "queued"
+      ? !!inbound.taskId && !!inbound.acknowledgement
+      : inbound.outcome === "unsupported"
+        ? !!inbound.acknowledgement
+        : !inbound.acknowledgement &&
+          (inbound.outcome !== "retired_by_reset" || !inbound.taskId),
   );
 
 export const telegramQueuedForwardingSchema = z

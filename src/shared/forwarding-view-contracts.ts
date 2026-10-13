@@ -1,28 +1,12 @@
 import type { Language } from "./language";
 import type { ReadingMaterial } from "./reading-contracts";
-import type { FocusSetSnapshot } from "./focus-contracts";
 import type { SourceContent } from "./source-contracts";
 
-export interface ForwardingRelationView {
-  projectId: string;
-  projectLabel: string;
-  focusId: string;
-  focusVersionId: string;
-  relationship: "direct" | "adjacent";
-  reason: string;
-  evidence: { blockIndex: number; quote: string }[];
-}
-
 export interface ForwardingReportView {
-  outputLanguage?: Language;
-  materials?: ReadingMaterial[];
+  outputLanguage: Language;
+  materials: ReadingMaterial[];
   source: SourceContent;
-  generalUnderstanding: string;
-  focusSet: FocusSetSnapshot;
-  evaluatedFocusVersionIds: string[];
-  relations: ForwardingRelationView[];
 }
-
 export interface ForwardingActivityView {
   sequence: number;
   occurredAt: string;
@@ -31,7 +15,6 @@ export interface ForwardingActivityView {
   processed?: number;
   total?: number;
 }
-
 export interface ForwardingTaskSummary {
   taskId: string;
   materialId: string;
@@ -46,14 +29,12 @@ export interface ForwardingTaskSummary {
   progress: { evaluated: number; total: number };
   hasSource: boolean;
   hasMaterials?: boolean;
-  hasUnderstanding: boolean;
   activities: ForwardingActivityView[];
   createdAt: string;
   finishedAt?: string;
   updatedAt: string;
   message?: string;
 }
-
 export interface ForwardingTaskDetail {
   task: {
     outputLanguage?: Language;
@@ -63,27 +44,15 @@ export interface ForwardingTaskDetail {
     target: ForwardingTaskSummary["target"];
     state: ForwardingTaskSummary["state"];
     phase: string;
-    focusSet: FocusSetSnapshot;
     materials?: ReadingMaterial[];
     source?: SourceContent;
-    generalUnderstanding?: string;
-    evaluations: {
-      focusVersionId: string;
-      relation?: ForwardingRelationView;
-    }[];
     activities: ForwardingActivityView[];
     report?: ForwardingReportView;
     createdAt: string;
     finishedAt?: string;
     updatedAt: string;
     message?: string;
-    failureStage?: "source" | "understanding" | "relations";
+    failureStage?: "source" | "translation" | "summary";
   };
-  partial: {
-    materials?: ReadingMaterial[];
-    source?: SourceContent;
-    generalUnderstanding?: string;
-    evaluatedFocusVersionIds: string[];
-    relations: ForwardingRelationView[];
-  };
+  partial: { materials?: ReadingMaterial[]; source?: SourceContent };
 }

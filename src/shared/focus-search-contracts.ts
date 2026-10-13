@@ -1,15 +1,11 @@
 import { z } from "zod";
-import { focusSetSnapshotSchema } from "./focus-contracts";
 import { xPostUrlSchema, xhsNoteUrlSchema } from "./source-contracts";
 
 export const searchPlatformSchema = z.enum(["xiaohongshu", "x"]);
-export const searchPeriodSchema = z.enum(["day", "week", "month"]);
+export const searchPeriodSchema = z.enum(["day", "week", "month", "all"]);
 export const startFocusSearchSchema = z
   .object({
-    focusIds: z
-      .array(z.string().uuid())
-      .min(1)
-      .refine((ids) => new Set(ids).size === ids.length),
+    question: z.string().trim().min(1).max(10000),
     platforms: z
       .array(searchPlatformSchema)
       .min(1)
@@ -30,19 +26,25 @@ export const searchCandidateSchema = z
 export const searchSectionSchema = z
   .object({
     sectionId: z.string().uuid(),
-    focusId: z.string().uuid(),
     platform: searchPlatformSchema,
     promptLanguage: z.enum(["zh-CN", "en"]),
     prompt: z.string(),
     platformPrompt: z.string().optional(),
     warnings: z.array(z.string().max(1000)).optional(),
+    citationExtraction: z
+      .object({
+        state: z.enum(["pending", "running", "completed", "empty", "failed"]),
+        error: z.string().max(1000).optional(),
+      })
+      .strict()
+      .optional(),
     state: z.enum(["pending", "running", "completed", "failed"]),
     rawReply: z.string(),
     candidates: z.array(searchCandidateSchema),
     error: z.string().max(1000).optional(),
     finishedAt: z.string().datetime().optional(),
   })
-  .strict()
+  .strip()
   .superRefine((section, ctx) => {
     for (const candidate of section.candidates) {
       const parsed = canonicalPost(section.platform, candidate.url);
@@ -55,9 +57,20 @@ export const focusSearchReportSchema = z
     reportId: z.string().uuid(),
     taskId: z.string().uuid(),
     createdAt: z.string().datetime(),
+    question: z.string().min(1),
+    outputLanguage: z.enum(["zh-CN", "en"]).optional(),
+    taskOutcome: z.enum(["completed", "failed", "cancelled"]).optional(),
+    origin: z.enum(["manual", "follow"]).optional(),
+    followId: z.string().uuid().optional(),
+    followName: z.string().optional(),
+    followRevision: z.number().int().positive().optional(),
+    scheduledFor: z.string().datetime().optional(),
+    status: z
+      .enum(["queued", "running", "completed", "partial", "failed", "stopped"])
+      .optional(),
+    finishedAt: z.string().datetime().optional(),
     period: searchPeriodSchema,
     platforms: z.array(searchPlatformSchema).min(1),
-    focusSet: focusSetSnapshotSchema,
     sections: z.array(searchSectionSchema),
     submissions: z.array(
       z
@@ -70,24 +83,21 @@ export const focusSearchReportSchema = z
         .strict(),
     ),
   })
-  .strict()
+  .strip()
   .superRefine((report, ctx) => {
-    const cardIds = new Set(report.focusSet.cards.map((card) => card.focusId));
     const pairs = new Set<string>(),
       sectionIds = new Set<string>(),
       candidates = new Set<string>();
     for (const section of report.sections) {
-      const pair = `${section.platform}:${section.focusId}`;
+      const pair = section.platform;
       if (
-        !cardIds.has(section.focusId) ||
         !report.platforms.includes(section.platform) ||
         pairs.has(pair) ||
         sectionIds.has(section.sectionId)
       )
         ctx.addIssue({
           code: "custom",
-          message:
-            "Section must reference one frozen card and selected platform",
+          message: "Each section must reference one selected platform",
         });
       if (
         section.promptLanguage !== (section.platform === "x" ? "en" : "zh-CN")
@@ -118,11 +128,11 @@ export const focusSearchReportSchema = z
     }
     if (
       new Set(report.platforms).size !== report.platforms.length ||
-      pairs.size !== cardIds.size * report.platforms.length
+      pairs.size !== report.platforms.length
     )
       ctx.addIssue({
         code: "custom",
-        message: "Report requires all card and platform sections",
+        message: "Report requires all selected platform sections",
       });
     const postKeys = new Set(
         report.sections.flatMap((section) =>
@@ -142,10 +152,62 @@ export const focusSearchReportSchema = z
       submitted.add(submission.postKey);
     }
   });
+export const followScheduleSchema = z
+  .object({
+    cadence: z.enum(["daily", "weekly"]),
+    time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    weekday: z.number().int().min(0).max(6).optional(),
+  })
+  .strict()
+  .refine((s) => s.cadence !== "weekly" || s.weekday !== undefined, {
+    message: "Weekly schedule needs a weekday",
+  });
+export const saveFollowSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    question: z.string().trim().min(1).max(10000),
+    platforms: z
+      .array(searchPlatformSchema)
+      .min(1)
+      .refine((ids) => new Set(ids).size === ids.length),
+    period: searchPeriodSchema,
+    schedule: followScheduleSchema,
+  })
+  .strict();
+export const updateFollowSchema = saveFollowSchema.extend({
+  followId: z.string().uuid(),
+});
+export const followSchema = saveFollowSchema
+  .extend({
+    followId: z.string().uuid(),
+    name: z.string().min(1),
+    paused: z.boolean(),
+    revision: z.number().int().positive(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+    nextRunAt: z.string().datetime(),
+    lastSkippedAt: z.string().datetime().optional(),
+    lastOccurrenceAt: z.string().datetime().optional(),
+  })
+  .strict();
+export type SaveFollow = z.infer<typeof saveFollowSchema>;
+export type UpdateFollow = z.infer<typeof updateFollowSchema>;
+export type Follow = z.infer<typeof followSchema>;
+export type FollowSchedule = z.infer<typeof followScheduleSchema>;
+
 export const searchStateSchema = z
-  .object({ version: z.literal(1), reports: z.array(focusSearchReportSchema) })
+  .object({
+    version: z.literal(1),
+    reports: z.array(focusSearchReportSchema),
+    follows: z.array(followSchema).default([]),
+  })
   .strict()
   .superRefine((state, ctx) => {
+    if (
+      new Set(state.follows.map((f) => f.followId)).size !==
+      state.follows.length
+    )
+      ctx.addIssue({ code: "custom", message: "Follow identity repeated" });
     if (
       new Set(state.reports.map((r) => r.reportId)).size !==
         state.reports.length ||
@@ -187,7 +249,7 @@ export type SearchPeriod = z.infer<typeof searchPeriodSchema>;
 export type SearchSection = z.infer<typeof searchSectionSchema>;
 export type FocusSearchReport = z.infer<typeof focusSearchReportSchema>;
 export type SearchState = z.infer<typeof searchStateSchema>;
-export type StartFocusSearch = z.infer<typeof startFocusSearchSchema>;
+export type StartFocusSearch = z.input<typeof startFocusSearchSchema>;
 export type SearchSelection = z.infer<typeof searchSelectionSchema>;
 export type SearchAddition = {
   candidateId: string;
