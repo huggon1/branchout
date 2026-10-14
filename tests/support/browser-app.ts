@@ -72,6 +72,19 @@ let browser: PlatformBrowser;
   browser = new PlatformBrowser(join(root, "browser"), () => {}, undefined, {
     headless: true,
   });
+  const operation = browser.operation.bind(browser);
+  let failedClicks = 0;
+  browser.operation = async (...args) => {
+    if (
+      !failedClicks &&
+      args[1].url().startsWith("https://article.example.test/") &&
+      (args[2] as { action?: string }).action === "click"
+    ) {
+      failedClicks++;
+      throw new Error("Fixture transient click failure");
+    }
+    return operation(...args);
+  };
   const context = await browser.context("web");
   await context.route("https://reading.example.test/**", (route) =>
     route.fulfill({
@@ -116,7 +129,7 @@ let browser: PlatformBrowser;
         progress.push({ materials, changedId });
       },
     );
-    return { materials, progress };
+    return { materials, progress, failedClicks };
   } finally {
     await browser.shutdown();
   }
@@ -364,6 +377,20 @@ app.whenReady().then(async () => {
     undefined,
     { headless: true },
   );
+  // A failed Ask click must refresh the page and complete the reply capture.
+  let failedClicks = 0;
+  const fixtureOperation = fixtureBrowser.operation.bind(fixtureBrowser);
+  fixtureBrowser.operation = async (...args) => {
+    if (
+      input.mode === "saved-inline" &&
+      !failedClicks &&
+      (args[2] as any).action === "click"
+    ) {
+      failedClicks++;
+      throw new Error("Injected transient Ask click failure");
+    }
+    return fixtureOperation(...args);
+  };
   const progress: unknown[] = [];
   const originalFork = utilityProcess.fork;
   let worker: Electron.UtilityProcess | undefined;
@@ -475,7 +502,12 @@ app.whenReady().then(async () => {
         progress.push(structuredClone(value));
       },
     );
-    return { result, progress, remainingPages: context.pages().length };
+    return {
+      result,
+      progress,
+      failedClicks,
+      remainingPages: context.pages().length,
+    };
   } finally {
     utilityProcess.fork = originalFork;
     await searchService?.shutdown();
@@ -578,12 +610,22 @@ app.whenReady().then(async () => {
   );
   const context = await browser.context("xiaohongshu");
   const visits: { path: string; token: boolean }[] = [];
+  // A failed source navigation must be retried before the 404 admission check.
+  let abortedSourceVisits = 0;
   await context.route("https://www.xiaohongshu.com/**", async (route) => {
     const url = new URL(route.request().url());
     visits.push({
       path: url.pathname,
       token: url.searchParams.has("xsec_token"),
     });
+    if (
+      input.mode === "card-404" &&
+      url.pathname.includes("/explore/") &&
+      abortedSourceVisits++ === 0
+    ) {
+      await route.abort("failed");
+      return;
+    }
     if (
       url.pathname.includes("/explore/") &&
       (["inline-404", "collect-404", "card-404"].includes(input.mode) ||

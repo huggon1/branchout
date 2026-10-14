@@ -14,8 +14,8 @@ Fixtures use isolated profiles and controlled external responses.
 | [reading](e2e/reading.spec.ts)                         | Materials, frozen language, partial output, and restart                                                      |
 | [reading fidelity](e2e/reading-fidelity.spec.ts)       | Code and link preservation                                                                                   |
 | [reading recovery](e2e/reading-recovery.spec.ts)       | Transport recovery, failed-task preservation, cancellation, and native logs                                  |
-| [material collection](e2e/material-collection.spec.ts) | References, frames, provenance, and source structure                                                         |
-| [browser Agent](e2e/browser-agent.spec.ts)             | Capture identity, observed access requirements, and recovery budgets                                         |
+| [material collection](e2e/material-collection.spec.ts) | References, frame recovery after a transient click failure, provenance, and source structure                 |
+| [browser Agent](e2e/browser-agent.spec.ts)             | Capture identity, reply capture after a failed Ask click, observed access requirements, 404 admission after a failed source navigation, and recovery budgets                                         |
 | [browser tools](e2e/platform-browser.spec.ts)          | Constrained actions, observed links, visibility changes, and retained sessions                               |
 | [worker network](e2e/worker-network.spec.ts)           | GUI system proxy, explicit proxy precedence, and loopback routing                                            |
 | [platform sessions](e2e/platform-session.spec.ts)      | Shared sessions, logout, and restart                                                                         |

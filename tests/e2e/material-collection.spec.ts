@@ -7,12 +7,20 @@ import { join, resolve } from "node:path";
 // Failures: a child identity stops before Chrome; frame capture loses its parent
 // identity; images/code/table order changes; an invented or depth-two URL is read;
 // the reference replaces the main material; a failed reference erases main bytes.
+// A transient click error requires a fresh observation before frame capture;
+// the model fixture must retain its collection stage through that observation.
 test("reading collection follows a direct reference and captures its frame with shared tools", async ({}, info) => {
   const root = await mkdtemp(join(tmpdir(), "branchout-materials-e2e-"));
   const taskPrompts: string[] = [],
     systems: string[] = [],
     navigated: string[] = [];
   let sequence = 0;
+  const observations: unknown[] = [];
+  let referenceClicked = false,
+    referenceAction: string | undefined;
+  let referenceFrame: number | undefined,
+    referenceCalls = 0;
+  const referenceOperations: Array<{ action: string; frame?: number }> = [];
   const server = createServer(async (req, res) => {
     let raw = "";
     for await (const part of req) raw += part;
@@ -38,6 +46,15 @@ test("reading collection follows a direct reference and captures its frame with 
       }
     };
     const body = tools.length ? parse(tools.at(-1)) : undefined;
+    observations.push({
+      reference,
+      tools: tools.length,
+      lastTool: tools.at(-1)?.content,
+    });
+    const snapshot =
+      body && Array.isArray(body.elements) && Array.isArray(body.frames);
+    if (reference && referenceAction === "click" && snapshot)
+      referenceClicked = true;
     if (!tools.length) {
       taskPrompts.push(prompt);
       systems.push(JSON.stringify(input.messages[0]));
@@ -50,19 +67,28 @@ test("reading collection follows a direct reference and captures its frame with 
           ? "https://article.example.test/"
           : "https://reading.example.test/post",
       };
-    else if (reference && tools.length === 1)
-      operation = {
-        action: "click",
-        ref: body.elements.find((e: any) => e.label === "Transcript").ref,
-      };
-    else if (reference && tools.length === 2)
-      operation = {
-        action: "snapshot",
-        frame: body.frames.find((f: any) =>
+    else if (reference && !body?.captureId) {
+      if (!snapshot) operation = { action: "snapshot", frame: referenceFrame };
+      else if (!referenceClicked) {
+        const transcript = body.elements.find(
+          (e: any) => e.label === "Transcript",
+        );
+        operation = transcript
+          ? { action: "click", ref: transcript.ref }
+          : { action: "wait", value: "0.25" };
+      } else {
+        const article = body.elements.find((e: any) => e.tag === "ARTICLE");
+        const frame = body.frames.find((f: any) =>
           f.url.includes("frame.example.test"),
-        ).index,
-      };
-    else if (tools.length === (reference ? 3 : 1))
+        );
+        if (article) operation = { action: "capture", ref: article.ref };
+        else if (frame) {
+          referenceFrame = frame.index;
+          operation = { action: "snapshot", frame: referenceFrame };
+        } else
+          operation = { action: "wait", value: "0.25", frame: referenceFrame };
+      }
+    } else if (!reference && tools.length === 1)
       operation = {
         action: "capture",
         ref: body.elements.find((e: any) => e.tag === "ARTICLE").ref,
@@ -77,6 +103,12 @@ test("reading collection follows a direct reference and captures its frame with 
         ).ref,
       };
     if (operation?.action === "navigate") navigated.push(operation.value);
+    if (reference) {
+      referenceCalls++;
+      if (referenceCalls > 12) operation = undefined;
+      referenceAction = operation?.action;
+      if (operation) referenceOperations.push(operation);
+    }
     const output = {
       materials: [
         {
@@ -112,6 +144,15 @@ test("reading collection follows a direct reference and captures its frame with 
           : []),
       ],
     };
+    if (reference && referenceCalls > 12)
+      output.materials = [
+        {
+          role: "main",
+          url: "https://article.example.test/",
+          title: "Full article",
+          error: "Fixture frame recovery budget exhausted",
+        },
+      ] as any;
     res.writeHead(200, { "Content-Type": "text/event-stream" });
     const chunk = (delta: any, reason: string | null) =>
       res.write(
@@ -155,6 +196,16 @@ test("reading collection follows a direct reference and captures its frame with 
       endpoint,
     );
     expect(result.materials).toHaveLength(2);
+    expect(result.failedClicks).toBe(1);
+    expect(
+      referenceOperations.filter((op) => op.action === "click").length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      referenceOperations.some(
+        (op) => op.action === "snapshot" && op.frame === undefined,
+      ),
+    ).toBe(true);
+    expect(referenceCalls).toBeLessThanOrEqual(12);
     expect(result.materials.map((m: any) => m.state)).toEqual([
       "pending",
       "pending",
@@ -194,6 +245,10 @@ test("reading collection follows a direct reference and captures its frame with 
       contentType: "application/json",
     });
   } finally {
+    await info.attach("browser-tool-observations", {
+      body: JSON.stringify(observations, null, 2),
+      contentType: "application/json",
+    });
     await app.close();
     server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
