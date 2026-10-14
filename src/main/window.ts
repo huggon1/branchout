@@ -10,9 +10,9 @@ export function createWindow(mode = "installed") {
     backgroundColor: "#ffffff",
     title:
       mode === "installed"
-        ? "Branchout"
-        : `Branchout · ${mode} · ${buildIdentity.revision.slice(0, 8) + (buildIdentity.dirty ? " dirty" : "")} · ${process.env.BRANCHOUT_TEST_DATA}`,
-    icon: join(__dirname, "../assets/branchout.png"),
+        ? "Postrove"
+        : `Postrove · ${mode} · ${buildIdentity.revision.slice(0, 8) + (buildIdentity.dirty ? " dirty" : "")} · ${process.env.POSTROVE_TEST_DATA}`,
+    icon: join(__dirname, "../assets/postrove.png"),
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
       nodeIntegration: false,

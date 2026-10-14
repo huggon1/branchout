@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 // credential contents enter task state or UI; GPT-6.1 Sol is absent from the
 // Pi catalog or disabled in Settings. The fixture CLI owns its auth file.
 test("subscription reading uses the isolated file credential after app-server refresh", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-token-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-token-e2e-"));
   const profile = join(root, "profile"),
     bin = join(root, "bin"),
     authId = "12345678-1234-4234-8234-123456789012";
@@ -70,10 +70,10 @@ test("subscription reading uses the isolated file credential after app-server re
     env: {
       ...process.env,
       PATH: `${bin}:${process.env.PATH}`,
-      BRANCHOUT_RUN_MODE: "test",
-      BRANCHOUT_TEST_DATA: profile,
-      BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
-      BRANCHOUT_TEST_ENDPOINT: `http://127.0.0.1:${(server.address() as any).port}`,
+      POSTROVE_RUN_MODE: "test",
+      POSTROVE_TEST_DATA: profile,
+      POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
+      POSTROVE_TEST_ENDPOINT: `http://127.0.0.1:${(server.address() as any).port}`,
     },
   });
   try {
@@ -109,7 +109,7 @@ test("subscription reading uses the isolated file credential after app-server re
       path: info.outputPath("gpt-6-1-model-settings.png"),
     });
     const reply = await page.evaluate(() =>
-      window.branchout.addLink("https://example.com/credential-fixture"),
+      window.postrove.addLink("https://example.com/credential-fixture"),
     );
     expect(reply.ok).toBe(true);
     await expect

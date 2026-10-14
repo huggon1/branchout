@@ -11,23 +11,29 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { channels } from "../shared/ipc-contracts";
 import { initializeServices } from "./services";
 import { createWindow } from "./window";
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: "branchout-image",
+import {
+  cachedImageSchemes,
+  installedStorage,
+} from "./runtime/storage-identity";
+protocol.registerSchemesAsPrivileged(
+  cachedImageSchemes.map((scheme) => ({
+    scheme,
     privileges: { standard: true, secure: true, supportFetchAPI: true },
-  },
-]);
-if (process.env.BRANCHOUT_TEST_DATA)
-  app.setPath("userData", resolve(process.env.BRANCHOUT_TEST_DATA));
-else
-  app.setPath(
-    "userData",
-    join(app.getPath("appData"), "Branchout", "profiles", "default"),
-  );
+  })),
+);
+if (process.env.POSTROVE_TEST_DATA) {
+  app.setName("Postrove");
+  app.setPath("userData", resolve(process.env.POSTROVE_TEST_DATA));
+} else {
+  const storage = installedStorage(app.getPath("appData"));
+  // Electron captures this identity for its encryption backend before ready.
+  app.setName(storage.encryptionIdentity);
+  app.setPath("userData", storage.directory);
+}
 
 const profileMode =
-  process.env.BRANCHOUT_RUN_MODE ??
-  (process.env.BRANCHOUT_TEST_DATA ? "review" : "installed");
+  process.env.POSTROVE_RUN_MODE ??
+  (process.env.POSTROVE_TEST_DATA ? "review" : "installed");
 app.setPath("sessionData", app.getPath("userData"));
 mkdirSync(app.getPath("userData"), { recursive: true, mode: 0o700 });
 app.setAppLogsPath(join(app.getPath("userData"), "logs"));
@@ -154,13 +160,13 @@ if (!locked) {
         )
           ? error.message
           : undefined;
-      console.error("Branchout startup failed", {
+      console.error("Postrove startup failed", {
         stage: startupStage,
         errorType: error instanceof Error ? error.name : typeof error,
         ...(integrationError ? { message: integrationError } : {}),
       });
       dialog.showErrorBox(
-        nativeText("Branchout 无法启动", "Branchout could not start"),
+        nativeText("Postrove 无法启动", "Postrove could not start"),
         integrationError ??
           nativeText(
             "无法读取本地数据或初始化应用。原数据已保留。",

@@ -59,8 +59,8 @@ export function createWorkerEnvironment(
     "USERPROFILE",
     "SystemRoot",
     "TMPDIR",
-    ...(inherited.BRANCHOUT_RUN_MODE === "test"
-      ? ["BRANCHOUT_TEST_ENDPOINT"]
+    ...(inherited.POSTROVE_RUN_MODE === "test"
+      ? ["POSTROVE_TEST_ENDPOINT"]
       : []),
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -95,8 +95,8 @@ export function createWorkerEnvironment(
   else if (inherited.NODE_USE_ENV_PROXY)
     env.NODE_USE_ENV_PROXY = inherited.NODE_USE_ENV_PROXY;
   if (layout) {
-    env.BRANCHOUT_DIST_ROOT = layout.distRoot;
-    env.BRANCHOUT_RUNTIME_ROOT = layout.runtimeRoot;
+    env.POSTROVE_DIST_ROOT = layout.distRoot;
+    env.POSTROVE_RUNTIME_ROOT = layout.runtimeRoot;
   }
   return env;
 }

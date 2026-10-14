@@ -43,9 +43,9 @@ try {
     stdio: "inherit",
     env: {
       ...process.env,
-      BRANCHOUT_TEST_DATA: profile,
-      BRANCHOUT_RUN_MODE: "review",
-      BRANCHOUT_BUILD_REVISION: revision,
+      POSTROVE_TEST_DATA: profile,
+      POSTROVE_RUN_MODE: "review",
+      POSTROVE_BUILD_REVISION: revision,
     },
   });
   for (const signal of ["SIGINT", "SIGTERM"] as const)

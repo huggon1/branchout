@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 // cancellation retries again; exported Pi sessions omit failed attempts.
 test("reading recovers bounded model failures and reports saved incomplete work", async ({}, info) => {
   test.setTimeout(120_000);
-  const root = await mkdtemp(join(tmpdir(), "branchout-reading-recovery-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-reading-recovery-"));
   const profile = join(root, "profile");
   await mkdir(profile);
   await writeFile(
@@ -141,10 +141,10 @@ test("reading recovers bounded model failures and reports saved incomplete work"
     args: ["."],
     env: {
       ...process.env,
-      BRANCHOUT_RUN_MODE: "test",
-      BRANCHOUT_TEST_DATA: profile,
-      BRANCHOUT_TEST_WORKERS: resolve("build/test-workers/reading-model"),
-      BRANCHOUT_TEST_ENDPOINT: endpoint,
+      POSTROVE_RUN_MODE: "test",
+      POSTROVE_TEST_DATA: profile,
+      POSTROVE_TEST_WORKERS: resolve("build/test-workers/reading-model"),
+      POSTROVE_TEST_ENDPOINT: endpoint,
     },
   });
   try {
@@ -156,7 +156,7 @@ test("reading recovers bounded model failures and reports saved incomplete work"
       ).tasks.find((t: any) => t.taskId === id);
     const add = async (name: string) => {
       const reply = await page.evaluate(
-        (url) => window.branchout.addLink(url),
+        (url) => window.postrove.addLink(url),
         `https://reading.example.test/${name}`,
       );
       expect(reply.ok).toBe(true);
@@ -214,7 +214,7 @@ test("reading recovers bounded model failures and reports saved incomplete work"
       )
       .toBe(true);
     await page.evaluate(
-      (id) => window.branchout.cancelForwarding(id),
+      (id) => window.postrove.cancelForwarding(id),
       cancelled,
     );
     expect((await saved(cancelled)).state).toBe("cancelled");
@@ -234,7 +234,7 @@ test("reading recovers bounded model failures and reports saved incomplete work"
       shell.openPath = async () => "";
     }, root);
     const exported = await page.evaluate(
-      (id) => window.branchout.exportTaskPiLogs(id),
+      (id) => window.postrove.exportTaskPiLogs(id),
       success,
     );
     expect(exported.ok).toBe(true);
@@ -255,7 +255,7 @@ test("reading recovers bounded model failures and reports saved incomplete work"
       if (
         Buffer.from(encoded!, "base64")
           .toString("utf8")
-          .includes("branchout_model_failure")
+          .includes("postrove_model_failure")
       )
         failedAttempts++;
       const evidenceFile = info.outputPath(session.file);

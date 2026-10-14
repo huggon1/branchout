@@ -1,10 +1,10 @@
-# Branchout product specification
+# Postrove product specification
 
-Branchout searches social-media content through platform AI and parses submitted links into readable material. This document owns behavior and page flows. The root [README](../README.md) describes current source capabilities; live acceptance records describe observed platform results.
+Postrove searches social-media content through platform AI and parses submitted links into readable material. This document owns behavior and page flows. The root [README](../README.md) describes current source capabilities; live acceptance records describe observed platform results.
 
 ## Product scope
 
-The application opens on Search. Content has fixed Parsed Results and Search Results destinations. Follows manages recurring conditions. Tasks shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, Telegram, task browser visibility, application language, and application updates.
+The application opens on Search. Content has fixed Parsed content and Search results destinations. Focus manages recurring conditions. Tasks shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, Telegram, task browser visibility, application language, and application updates.
 
 ## Single-question search
 
@@ -14,7 +14,7 @@ X uses Grok with an English question; Xiaohongshu uses 点点 AI with a Chinese 
 
 Each run produces one independent report containing the original question, conditions, exact platform questions, original replies, and titled candidate links. The application confirms a stable platform answer and saves it before a second step extracts its citations. Source extraction uses that answer's inline links and source panel. A later extraction failure retains the answer and verified links and marks the report partial. A completed source inspection can record an empty source result. Successful sections remain readable when another platform fails.
 
-Search Results mixes manual and follow runs, newest first, with origin filters. Each platform section displays its original answer, source links, and retrieval state. Open Source opens a link. Add to Parsing submits the source and confirms task addition. Repeating the same canonical source within one report reuses its parsing task.
+Search results mixes manual and follow runs, newest first, with origin filters. Each platform section displays its original answer, source links, and retrieval state. Open Source opens a link. Add to Parsing submits the source and confirms task addition. Repeating the same canonical source within one report reuses its parsing task.
 
 ## Follows and scheduling
 
@@ -26,7 +26,7 @@ Each admitted run freezes its conditions. Editing affects later admissions and r
 
 ## Link parsing and connections
 
-Parsed Results accepts an HTTPS link manually or from an authorized Telegram chat. The Agent collects the main text and images plus explicit direct materials, including quoted posts and author-supplied links, one level deep. GitHub repository scope is its default README. Accessible frames contribute ordinary page text and images.
+Parsed content accepts an HTTPS link manually or from an authorized Telegram chat. The Agent collects the main text and images plus explicit direct materials, including quoted posts and author-supplied links, one level deep. GitHub repository scope is its default README. Accessible frames contribute ordinary page text and images.
 
 Each material saves its source snapshot, translated Markdown, short introduction, retrieval coverage, and processing state. Reading preserves source order, headings, lists, tables, code, commands, identifiers, links, and image positions. Long text is translated in chunks. A failed or stopped task retains its saved sources and translated portions.
 
@@ -38,7 +38,7 @@ Telegram acknowledges accepted links after local persistence and queue submissio
 
 Browser execution retries transient model failures and repairs recoverable page actions within time and action budgets. Recovery observes the current page before repeating actions. Login, verification, and account agreements requiring human action end the affected platform section while other sections continue. Translation and introduction also retry transient connection failures. Exhausted recovery marks the parsing task failed and retains its sources and translated portions; translation fidelity validation permits one correction.
 
-Tasks shows state, stage, update time, failure reason, and native Pi export. Content owns reading and Stop. A new search starts from Search; a new parsing request starts from Parsed Results.
+Tasks shows state, stage, update time, failure reason, and native Pi export. Content owns reading and Stop. A new search starts from Search; a new parsing request starts from Parsed content.
 
 ## Languages and runtime boundaries
 

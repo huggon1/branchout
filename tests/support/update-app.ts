@@ -10,8 +10,8 @@ import { registerUpdateIpc } from "../../src/main/services/application-updates-i
 import { updateChannels } from "../../src/shared/update-contracts";
 import { createWindow } from "../../src/main/window";
 
-const root = process.env.BRANCHOUT_TEST_DATA!;
-const endpoint = process.env.BRANCHOUT_TEST_ENDPOINT!;
+const root = process.env.POSTROVE_TEST_DATA!;
+const endpoint = process.env.POSTROVE_TEST_ENDPOINT!;
 app.setPath("userData", root);
 app.setPath("sessionData", root);
 // Keep production preload/window paths while compiling this separate test entry.
@@ -44,7 +44,7 @@ const driver: UpdateDriver = {
 app.whenReady().then(async () => {
   const changed = () =>
     BrowserWindow.getAllWindows().forEach((w) =>
-      w.webContents.send("branchout:changed"),
+      w.webContents.send("postrove:changed"),
     );
   const services = await initializeServices(
     changed,

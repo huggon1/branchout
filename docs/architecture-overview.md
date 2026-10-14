@@ -1,4 +1,4 @@
-# Branchout architecture
+# Postrove architecture
 
 [Product specification](product-spec.md) owns behavior; [data contracts](data-contracts.md) owns fields and persistence. [Prompt flow](agent-prompt-flow.md) describes model instructions and tools.
 

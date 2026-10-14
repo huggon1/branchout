@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 // silently changes destination; a correction exceeds provider capacity; returned
 // partial text disappears; custom model requests use an arbitrary output cap.
 test("production translation restores commands and repairs changed link destinations", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-fidelity-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-fidelity-e2e-"));
   let translations = 0;
   let capacityStop = false;
   const requests: any[] = [];
@@ -39,7 +39,7 @@ test("production translation restores commands and repairs changed link destinat
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();

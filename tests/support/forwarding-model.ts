@@ -23,7 +23,7 @@ port.on("message", ({ data }) => {
           reading: {
             collect: async (url, signal) => {
               const response = await fetch(
-                `${process.env.BRANCHOUT_TEST_ENDPOINT}/collect`,
+                `${process.env.POSTROVE_TEST_ENDPOINT}/collect`,
                 {
                   method: "POST",
                   body: JSON.stringify({ url }),

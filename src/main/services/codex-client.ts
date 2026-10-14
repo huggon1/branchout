@@ -152,7 +152,7 @@ export class CodexClient implements CodexRpc {
       child.on("error", () => this.close());
       child.on("exit", () => this.close());
       await this.send("initialize", {
-        clientInfo: { name: "branchout", version: this.version },
+        clientInfo: { name: "postrove", version: this.version },
         capabilities: { experimentalApi: false },
       });
       child.stdin.write(JSON.stringify({ method: "initialized" }) + "\n");

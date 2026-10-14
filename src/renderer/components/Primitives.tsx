@@ -129,7 +129,7 @@ export function Markdown({
         const link = (event.target as Element).closest("a");
         if (link) {
           event.preventDefault();
-          void window.branchout.openRepositoryLink(link.href);
+          void window.postrove.openRepositoryLink(link.href);
         }
       }}
       dangerouslySetInnerHTML={{ __html: html }}
@@ -226,8 +226,8 @@ export function EmptyState({
 export function Brand() {
   return (
     <div className="brand">
-      <img src="../assets/branchout-mark.svg" width="28" height="28" alt="" />
-      <span>Branchout</span>
+      <img src="../assets/postrove-mark.svg" width="28" height="28" alt="" />
+      <span>Postrove</span>
     </div>
   );
 }

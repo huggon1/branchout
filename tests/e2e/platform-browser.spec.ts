@@ -6,7 +6,7 @@ import { PlatformBrowser } from "../../src/main/services/platform-browser";
 import { ChromeProfiles } from "../../src/main/services/chrome-profiles";
 const html = `<main><h1>Fixture platform AI</h1><textarea aria-label="Ask AI"></textarea><input type="password" value="fictional-private-value"><button id="ask">Ask</button><button aria-label="Follow">Follow</button><div id="reply" hidden></div><div id="sources" hidden style="cursor:pointer"><span>Show sources</span></div></main><script>let typed=false;const editor=document.querySelector('textarea');editor.onkeydown=(event)=>{typed=true;if(event.key==='Enter')document.querySelector('#ask').click()};editor.oninput=()=>{if(!typed)editor.value=''};document.querySelector('#ask').onclick=()=>{const reply=document.querySelector('#reply');reply.hidden=false;document.querySelector('#sources').hidden=false;reply.innerHTML='<p>Original fixture answer about durable drafts</p><img width="300" height="100" alt="Fixture image" src="https://pbs.twimg.com/media/fixture.png">'};document.querySelector('#sources').addEventListener('click',()=>{setTimeout(()=>document.querySelector('#reply').insertAdjacentHTML('beforeend','<a href="https://x.com/fixture/status/123456789">A linked post</a>'),2200)});</script>`;
 test("task browser defaults to headless and switches only after active work while preserving login", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-browser-mode-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-browser-mode-e2e-"));
   let visible = false;
   let browser = new PlatformBrowser(root, () => {}, undefined, {
     headless: () => !visible,
@@ -156,7 +156,7 @@ test("task browser defaults to headless and switches only after active work whil
   }
 });
 test("Chrome tools capture observed replies and links, confine actions, and persist session", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-chrome-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-chrome-e2e-"));
   let browser = new PlatformBrowser(root, () => {}, undefined, {
     headless: true,
   });

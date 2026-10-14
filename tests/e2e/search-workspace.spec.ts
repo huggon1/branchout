@@ -11,7 +11,7 @@ import { join, resolve } from "node:path";
 // an extra synthesis request, duplicate compilation, or legacy synthesis field
 // reaching the current report is a failure.
 test("real workspace persists searches and follows with partial platform results", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-search-workspace-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-search-workspace-"));
   const profile = join(root, "profile");
   await mkdir(profile);
   await writeFile(
@@ -99,11 +99,11 @@ test("real workspace persists searches and follows with partial platform results
       args: ["."],
       env: {
         ...process.env,
-        BRANCHOUT_RUN_MODE: "test",
-        BRANCHOUT_TEST_DATA: profile,
-        BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
-        BRANCHOUT_TEST_ENDPOINT: `http://127.0.0.1:${address.port}`,
-        BRANCHOUT_EVAL_DENY_KEYCHAIN: "1",
+        POSTROVE_RUN_MODE: "test",
+        POSTROVE_TEST_DATA: profile,
+        POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
+        POSTROVE_TEST_ENDPOINT: `http://127.0.0.1:${address.port}`,
+        POSTROVE_EVAL_DENY_KEYCHAIN: "1",
       },
     });
   let app = await launch();
@@ -269,7 +269,7 @@ test("real workspace persists searches and follows with partial platform results
 // platform outcomes, preserve exact replies, and never contact the synthesis
 // endpoint. Restart must present each saved answer once without a disclosure.
 test("single and dual searches present exact original answers without another model pass", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-original-answers-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-original-answers-"));
   const profile = join(root, "profile");
   await mkdir(profile);
   await writeFile(
@@ -315,11 +315,11 @@ test("single and dual searches present exact original answers without another mo
       args: ["."],
       env: {
         ...process.env,
-        BRANCHOUT_RUN_MODE: "test",
-        BRANCHOUT_TEST_DATA: profile,
-        BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
-        BRANCHOUT_TEST_ENDPOINT: `http://127.0.0.1:${(server.address() as any).port}`,
-        BRANCHOUT_EVAL_DENY_KEYCHAIN: "1",
+        POSTROVE_RUN_MODE: "test",
+        POSTROVE_TEST_DATA: profile,
+        POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
+        POSTROVE_TEST_ENDPOINT: `http://127.0.0.1:${(server.address() as any).port}`,
+        POSTROVE_EVAL_DENY_KEYCHAIN: "1",
       },
     });
   let app = await launch();
@@ -429,7 +429,7 @@ test("single and dual searches present exact original answers without another mo
 // every terminal report must also terminalize its citation-extraction state.
 test("saved answers survive citation-stage failure, Stop, and restart", async ({}, info) => {
   test.setTimeout(90_000);
-  const root = await mkdtemp(join(tmpdir(), "branchout-search-checkpoint-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-search-checkpoint-"));
   const profile = join(root, "profile");
   await mkdir(profile);
   await writeFile(
@@ -474,11 +474,11 @@ test("saved answers survive citation-stage failure, Stop, and restart", async ({
       args: ["."],
       env: {
         ...process.env,
-        BRANCHOUT_RUN_MODE: "test",
-        BRANCHOUT_TEST_DATA: profile,
-        BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
-        BRANCHOUT_TEST_ENDPOINT: `http://127.0.0.1:${(server.address() as any).port}`,
-        BRANCHOUT_EVAL_DENY_KEYCHAIN: "1",
+        POSTROVE_RUN_MODE: "test",
+        POSTROVE_TEST_DATA: profile,
+        POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
+        POSTROVE_TEST_ENDPOINT: `http://127.0.0.1:${(server.address() as any).port}`,
+        POSTROVE_EVAL_DENY_KEYCHAIN: "1",
       },
     });
   let application = await launch();

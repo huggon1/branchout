@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createWorkerEnvironment } from "../../src/main/services/worker-environment";
 
-app.setPath("userData", process.env.BRANCHOUT_NETWORK_FIXTURE_ROOT!);
+app.setPath("userData", process.env.POSTROVE_NETWORK_FIXTURE_ROOT!);
 (globalThis as any).checkWorkerNetwork = async (input: {
   url: string;
   systemProxy: string;

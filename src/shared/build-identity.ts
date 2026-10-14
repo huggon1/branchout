@@ -5,9 +5,9 @@ export type BuildIdentity = {
   platform: string;
   builtAt: string;
 };
-declare const __BRANCHOUT_BUILD_IDENTITY__: BuildIdentity;
+declare const __POSTROVE_BUILD_IDENTITY__: BuildIdentity;
 export const buildIdentity: BuildIdentity =
-  typeof __BRANCHOUT_BUILD_IDENTITY__ === "undefined"
+  typeof __POSTROVE_BUILD_IDENTITY__ === "undefined"
     ? {
         revision: "source",
         dirty: true,
@@ -15,4 +15,4 @@ export const buildIdentity: BuildIdentity =
         platform: process.platform,
         builtAt: "unbuilt",
       }
-    : __BRANCHOUT_BUILD_IDENTITY__;
+    : __POSTROVE_BUILD_IDENTITY__;

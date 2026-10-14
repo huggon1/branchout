@@ -37,7 +37,7 @@ async function fixture(
   execute: (s: SearchSection, signal: AbortSignal) => Promise<any>,
   clock: () => Date = () => new Date("2026-10-12T08:00:00"),
 ) {
-  const dir = await mkdtemp(join(tmpdir(), "branchout-search-contract-"));
+  const dir = await mkdtemp(join(tmpdir(), "postrove-search-contract-"));
   const store = new FocusSearchStore(join(dir, "search.json"));
   await store.open();
   const taskStore = new TaskStore(join(dir, "tasks.json"));

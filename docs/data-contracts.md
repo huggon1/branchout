@@ -1,4 +1,4 @@
-# Branchout data and message contracts
+# Postrove data and message contracts
 
 This document defines logical objects, cross-process fields, and persistence order for the search-first product. The [product specification](product-spec.md) owns business behavior; [architecture](architecture-overview.md) owns runtime responsibilities. TypeScript schemas define the exact implemented field shapes.
 
@@ -64,6 +64,8 @@ A task can own several Pi sessions for browser work and reading attempts. Trace 
 ## Development profiles and execution identity
 
 `RuntimeProfile` records installed, review, or test mode, resolved data directory, and integration policy. Storage, credentials, browser sessions, and traces resolve under the selected profile. Independent instances use independent profiles. Review mode pauses background integrations during preparation.
+
+Installed profiles retain their storage location, encryption identity, browser sessions, and cached image addresses. Fresh installations use `Postrove/profiles/default` under the operating system's application-data directory.
 
 `PromptExecution` associates task and attempt identity, revision, output language, model, and build with reading. Current reading `promptRevision` hashes its translation and introduction system strings; its scope is that base post-collection instruction pair. Browser tool definitions and loaded skill bodies are recorded in native session messages. Search saves `outputLanguage` in its report and uses native sessions for execution context.
 

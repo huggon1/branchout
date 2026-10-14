@@ -14,7 +14,7 @@ import type { TelegramStatus } from "../../../shared/telegram-contracts";
 export type { TelegramStatus } from "../../../shared/telegram-contracts";
 
 const receivedMessage =
-  "已收取，正在处理。你可以在 Branchout 中查看进度。";
+  "已收取，正在处理。你可以在 Postrove 中查看进度。";
 const unsupportedMessages = {
   no_link: "请发送一条 HTTPS 网页链接。",
   multiple_links: "请每条消息只发送一个链接。",

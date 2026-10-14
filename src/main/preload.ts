@@ -92,4 +92,4 @@ const bridge: DesktopBridge = {
   },
 };
 
-contextBridge.exposeInMainWorld("branchout", bridge);
+contextBridge.exposeInMainWorld("postrove", bridge);

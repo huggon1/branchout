@@ -72,11 +72,11 @@ export async function initializeServices(
   await preferences.open();
   onLanguage(preferences.language);
   stage("runtime_layout");
-  app.setName("Branchout");
+  app.setName("Postrove");
 
   const testWorkerRoot =
     !app.isPackaged && profileMode === "test"
-      ? process.env.BRANCHOUT_TEST_WORKERS
+      ? process.env.POSTROVE_TEST_WORKERS
       : undefined;
   const runtimeLayout = resolveRuntimeLayout({
     packaged: app.isPackaged,
@@ -86,8 +86,8 @@ export async function initializeServices(
   });
   const legacyIntegrationAvailable = () => {
     if (
-      process.env.BRANCHOUT_TEST_DATA &&
-      process.env.BRANCHOUT_EVAL_DENY_KEYCHAIN === "1"
+      process.env.POSTROVE_TEST_DATA &&
+      process.env.POSTROVE_EVAL_DENY_KEYCHAIN === "1"
     )
       throw new Error("EV-14: legacy Safe Storage access attempted");
     return (
@@ -268,7 +268,7 @@ export async function initializeServices(
     tasks,
     forwarding,
     async () => {
-      if (profileMode === "test" && process.env.BRANCHOUT_TEST_ENDPOINT)
+      if (profileMode === "test" && process.env.POSTROVE_TEST_ENDPOINT)
         return {
           execute: async (
             section: SearchSection,
@@ -277,7 +277,7 @@ export async function initializeServices(
             onProgress?: (progress: SearchProgress) => Promise<void>,
           ) => {
             const response = await fetch(
-              `${process.env.BRANCHOUT_TEST_ENDPOINT}/search`,
+              `${process.env.POSTROVE_TEST_ENDPOINT}/search`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -295,7 +295,7 @@ export async function initializeServices(
             if (result.citationExtraction?.state === "running") {
               await onProgress?.(result);
               const sources = await fetch(
-                `${process.env.BRANCHOUT_TEST_ENDPOINT}/search-sources`,
+                `${process.env.POSTROVE_TEST_ENDPOINT}/search-sources`,
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },

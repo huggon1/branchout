@@ -374,7 +374,7 @@ export class PlatformBrowser {
     else if (op.action !== "snapshot") {
       if (!op.ref || !/^b\d+$/.test(op.ref))
         throw new Error("Use a reference from the current snapshot");
-      const target = frame.locator(`[data-branchout-ref="${op.ref}"]`);
+      const target = frame.locator(`[data-postrove-ref="${op.ref}"]`);
       const label =
         (await target.innerText().catch(() => "")) ||
         (await target.getAttribute("aria-label")) ||
@@ -629,13 +629,13 @@ export class PlatformBrowser {
         return rect.width > 0 && rect.height > 0;
       });
       let nextRef = Number(
-        document.documentElement.getAttribute("data-branchout-next-ref") ?? 0,
+        document.documentElement.getAttribute("data-postrove-next-ref") ?? 0,
       );
       const mapped = elements.slice(0, 500).map((element) => {
-        let ref = element.getAttribute("data-branchout-ref");
+        let ref = element.getAttribute("data-postrove-ref");
         if (!ref) {
           ref = `b${nextRef++}`;
-          element.setAttribute("data-branchout-ref", ref);
+          element.setAttribute("data-postrove-ref", ref);
         }
         const rect = element.getBoundingClientRect();
         const hit = document.elementFromPoint(
@@ -678,7 +678,7 @@ export class PlatformBrowser {
         };
       });
       document.documentElement.setAttribute(
-        "data-branchout-next-ref",
+        "data-postrove-next-ref",
         String(nextRef),
       );
       return {

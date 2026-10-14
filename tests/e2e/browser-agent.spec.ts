@@ -4,7 +4,7 @@ import { mkdtemp, rm, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 test("real Agent worker uses Chrome tools and returns captured platform text", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-agent-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-agent-e2e-"));
   let count = 0;
   let transientFailures = 0;
   let invalidOutputs = 0;
@@ -238,7 +238,7 @@ test("real Agent worker uses Chrome tools and returns captured platform text", a
   const endpoint = `http://127.0.0.1:${(server.address() as any).port}/v1`;
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();
@@ -308,7 +308,7 @@ test("real Agent worker uses Chrome tools and returns captured platform text", a
 // Failure: a model fills the success template with empty capture IDs after an
 // observed login redirect, then output correction hides the actionable cause.
 test("observed X login redirect preserves login_required and its native trace", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-login-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-login-e2e-"));
   let requests = 0;
   const observations: unknown[] = [];
   const server = createServer(async (req, res) => {
@@ -357,7 +357,7 @@ test("observed X login redirect preserves login_required and its native trace", 
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();
@@ -390,7 +390,7 @@ test("observed X login redirect preserves login_required and its native trace", 
 
 // Failure: exhausted model transport retries are mislabeled as platform login.
 test("exhausted model transport retries retain a distinct failure code", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-network-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-network-e2e-"));
   let requests = 0;
   const server = createServer(async (req, res) => {
     for await (const _chunk of req) {
@@ -402,7 +402,7 @@ test("exhausted model transport retries retain a distinct failure code", async (
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();
@@ -446,12 +446,13 @@ for (const mode of [
   "worker-exit",
 ] as const) {
   test(`citation phase preserves answer and handles ${mode}`, async ({}, info) => {
-    const root = await mkdtemp(join(tmpdir(), `branchout-citations-${mode}-`));
+    const root = await mkdtemp(join(tmpdir(), `postrove-citations-${mode}-`));
     let requests = 0;
     let phaseTwoRequests = 0;
     let disclosureClicked = false;
     let savedSourceAttempted = false;
     const prompts: string[] = [];
+    const observations: any[] = [];
     const server = createServer(async (req, res) => {
       let raw = "";
       for await (const chunk of req) raw += chunk;
@@ -478,6 +479,17 @@ for (const mode of [
           }
         });
       const last = tools.at(-1);
+      observations.push({
+        citations,
+        last,
+        ...(last && !Object.keys(last).length
+          ? {
+              toolError: input.messages
+                .filter((m: any) => m.role === "tool")
+                .at(-1)?.content,
+            }
+          : {}),
+      });
       const findRef = (label: string) =>
         last?.elements?.find(
           (e: any) => e.tag === "BUTTON" && e.label === label,
@@ -646,35 +658,50 @@ for (const mode of [
                 ]
               : [],
           };
-      } else if (!tools.length)
-        operation = {
-          action: "navigate",
-          value:
-            mode === "saved-inline"
-              ? "https://x.com/i/grok"
-              : "https://www.xiaohongshu.com/ai_chat",
-        };
-      else if (tools.length === 1)
-        operation = {
-          action: "fill",
-          ref: last.elements.find((e: any) => e.tag === "TEXTAREA").ref,
-          value: "Find original cited notes",
-        };
-      else if (tools.length === 2)
-        operation = { action: "click", ref: findRef("Ask") };
-      else if (tools.length === 3)
-        operation = {
-          action: "capture",
-          ref: last.elements.find(
-            (e: any) =>
-              e.tag === "DIV" && e.label.startsWith("Captured platform"),
-          ).ref,
-        };
-      else
-        output = {
-          platformPrompt: "Find original cited notes",
-          replyCaptureId: last.captureId,
-        };
+      } else {
+        // Tool counts include failures. Observe the current form and reply
+        // before moving to capture; a fresh snapshot repairs stale references.
+        const captured = tools.find((t: any) => t.captureId);
+        const reply = last?.elements?.find(
+          (e: any) =>
+            e.tag === "DIV" && e.label.startsWith("Captured platform"),
+        );
+        const field = last?.elements?.find((e: any) => e.tag === "TEXTAREA");
+        const previousCall = input.messages
+          .filter((m: any) => m.role === "assistant" && m.tool_calls?.length)
+          .at(-1)
+          ?.tool_calls?.at(-1);
+        const previousAction = previousCall
+          ? JSON.parse(previousCall.function.arguments).action
+          : undefined;
+        if (captured)
+          output = {
+            platformPrompt: "Find original cited notes",
+            replyCaptureId: captured.captureId,
+          };
+        else if (
+          !tools.length ||
+          (!last?.elements && ["navigate", "snapshot"].includes(previousAction))
+        )
+          operation = {
+            action: "navigate",
+            value:
+              mode === "saved-inline"
+                ? "https://x.com/i/grok"
+                : "https://www.xiaohongshu.com/ai_chat",
+          };
+        else if (!last?.elements) operation = { action: "snapshot" };
+        else if (reply) operation = { action: "capture", ref: reply.ref };
+        else if (field?.value !== "Find original cited notes" && field)
+          operation = {
+            action: "fill",
+            ref: field.ref,
+            value: "Find original cited notes",
+          };
+        else if (findRef("Ask"))
+          operation = { action: "click", ref: findRef("Ask") };
+        else operation = { action: "snapshot" };
+      }
       const delta = operation
         ? {
             role: "assistant",
@@ -701,7 +728,7 @@ for (const mode of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();
@@ -717,6 +744,10 @@ for (const mode of [
       );
       expect(outcome.progress[0].citationExtraction.state).toBe("running");
       expect(outcome.result.rawReply).toBe(outcome.progress[0].rawReply);
+      if (mode === "saved-inline") {
+        expect(outcome.failedClicks).toBe(1);
+        expect(observations.some((o) => o.toolError)).toBe(true);
+      }
       expect(outcome.result.platformPrompt).toBe("Find original cited notes");
       expect(outcome.remainingPages).toBe(0);
       if (
@@ -790,6 +821,10 @@ for (const mode of [
         contentType: "application/json",
       });
     } finally {
+      await info.attach("citation-browser-observations", {
+        body: JSON.stringify(observations, null, 2),
+        contentType: "application/json",
+      });
       await app.close();
       server.closeAllConnections();
       await new Promise<void>((done) => server.close(() => done()));
@@ -810,7 +845,7 @@ for (const mode of [
   "link-failure",
 ] as const) {
   test(`citation safety handles ${mode}`, async ({}, info) => {
-    const root = await mkdtemp(join(tmpdir(), `branchout-safety-${mode}-`));
+    const root = await mkdtemp(join(tmpdir(), `postrove-safety-${mode}-`));
     let answerStep = 0;
     let citationStep = 0;
     let requests = 0;
@@ -1087,7 +1122,7 @@ for (const mode of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();
@@ -1163,7 +1198,8 @@ for (const mode of [
   "card-button-failure",
 ]) {
   test(`XHS source admission ${mode}`, async ({}, info) => {
-    const root = await mkdtemp(join(tmpdir(), "branchout-admission-e2e-"));
+    if (mode === "card-404") test.setTimeout(120_000);
+    const root = await mkdtemp(join(tmpdir(), "postrove-admission-e2e-"));
     const observations: any[] = [];
     let sequence = 0;
     let visited = false;
@@ -1194,7 +1230,23 @@ for (const mode of [
           }
         });
       const last = tools.at(-1);
-      observations.push({ mode, citations, last });
+      observations.push({
+        mode,
+        citations,
+        last,
+        ...(last && !Object.keys(last).length
+          ? {
+              toolError: input.messages
+                .filter((m: any) => m.role === "tool")
+                .at(-1)?.content,
+            }
+          : {}),
+      });
+      // A failed navigation can leave Chrome's error page, where snapshots are
+      // blocked by the HTTPS guard. Retry the already observed source URL until
+      // the platform's rejection is observed.
+      if (citations && mode === "card-404" && visited)
+        visited = last.sourceError?.code === "300031";
       let name = "browser";
       let operation: any;
       let output: any;
@@ -1382,7 +1434,7 @@ for (const mode of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();
@@ -1415,6 +1467,13 @@ for (const mode of [
           "card-button-failure",
         ].includes(mode);
         expect(outcome.result.candidates).toHaveLength(admitted ? 1 : 0);
+        if (mode === "card-404") {
+          expect(
+            outcome.visits.filter((v: any) => v.path.includes("/explore/"))
+              .length,
+          ).toBeGreaterThanOrEqual(2);
+          expect(observations.some((o) => o.toolError)).toBe(true);
+        }
         expect(outcome.result.citationExtraction.state).toBe(
           admitted && mode !== "card-button-failure" ? "completed" : "failed",
         );

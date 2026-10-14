@@ -14,7 +14,7 @@ npm run dev
 ## Try changes with separate data
 
 ```sh
-BRANCHOUT_TEST_DATA="$PWD/tmp/dev-profile" npm run dev
+POSTROVE_TEST_DATA="$PWD/tmp/dev-profile" npm run dev
 ```
 
 The selected directory retains its records across launches. A separate path defaults to review mode, with Telegram receiving paused during preparation. Saving a Bot Token starts receiving for that instance.
@@ -51,7 +51,7 @@ Use a review profile with the intended model and platform sessions. Submit a que
 
 ## Verify reading with live sources
 
-Submit a public source link in Parsed Results. Inspect source coverage, translated body, introduction, and direct references. The [reading helper](../scripts/development/verify-reading.ts) submits through Electron IPC and exports saved material:
+Submit a public source link in Parsed content. Inspect source coverage, translated body, introduction, and direct references. The [reading helper](../scripts/development/verify-reading.ts) submits through Electron IPC and exports saved material:
 
 ```sh
 npm run build
@@ -62,12 +62,6 @@ The helper's `--help` lists sample selection. `--retry-existing` exercises the r
 
 ## Release preparation
 
-The release line starts at 0.1.0. Tag `v<package version>` from main after verification. The [Release workflow](../.github/workflows/release.yml) checks tag/version equality and main ancestry, then prepares a draft GitHub Release. Publishing the reviewed draft makes its stable version available to installed clients. A manual workflow run produces package verification and upgrade evidence.
+After local packaging, `npm run test:package` launches the packaged executable with separate data, checks startup and restart, and saves evidence under `.tmp/package-verification/`. Options `--app` and `--output` select other package and evidence paths.
 
-macOS packages use the fixed project certificate named `Branchout Release Signing` in the `release-signing` environment. `MAC_CSC_LINK` holds the base64 P12, `MAC_CSC_KEY_PASSWORD` unlocks it, and `MAC_CERT_SHA256` identifies the expected certificate. Keep the same certificate and private key for later releases so native updates satisfy the installed application's signing requirement. This project signature is separate from Apple Developer ID and notarization. macOS may require first-open approval in Privacy & Security for the downloaded application.
-
-Required assets are the ARM64 DMG and ZIP, `latest-mac.yml`, generated blockmaps, `SHA256SUMS.txt`, and `build-manifest.json`. The package manifest records the source revision and artifact hashes. The draft job verifies checksums before uploading assets. Historical CI evidence remains in Actions; a packaging run replaces its generated local output.
-
-In a manual workflow run, `npm run prepare:upgrade` builds signed 0.1.0 and trial 0.1.1 packages. A separate, fresh macOS runner uses `npm run test:upgrade` to serve a local feed and exercise production check, download, native installation, and restart. Its bootstrap fixes an isolated profile across native restarts. The acceptance runner verifies that project signing material is absent from its keychains. Evidence is written to `.tmp/signed-upgrade/evidence/` and uploaded by the workflow. The trial version belongs to verification artifacts; package.json remains 0.1.0. [Update behavior](product-spec.md#application-updates) defines runtime acceptance.
-
-Manual runs can reuse `package_run_id` after source validation confirms matching production inputs. Changes to application code, dependencies, assets, or packaging select a fresh package pair.
+The [release guide](releasing.md) owns approval, signing, assets, and GitHub publication. Its manual verification workflow uses `npm run prepare:upgrade` to build a signed pair and `npm run test:upgrade` to verify native replacement and restart. Evidence enters `.tmp/signed-upgrade/evidence/` and workflow artifacts.

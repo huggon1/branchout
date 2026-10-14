@@ -102,10 +102,10 @@ export function UpdateSettings({
       id="application-updates"
     >
       <div className="update-heading">
-        <img src="../assets/branchout.png" alt="" width="48" height="48" />
+        <img src="../assets/postrove.png" alt="" width="48" height="48" />
         <div>
           <h2 id="application-updates-title">{t("应用更新")}</h2>
-          <p className="muted">Branchout {view.version}</p>
+          <p className="muted">Postrove {view.version}</p>
         </div>
       </div>
       <p role="status">
@@ -251,7 +251,7 @@ export function UpdateExperience({
     <>
       {view.state === "installing" && (
         <div className="update-installation" role="status">
-          <img src="../assets/branchout.png" alt="" width="76" height="76" />
+          <img src="../assets/postrove.png" alt="" width="76" height="76" />
           <h2>{t("正在准备安装更新")}</h2>
           <p className="muted">
             {t("正在验证安装包并保存状态，随后重启应用。")}
@@ -260,7 +260,7 @@ export function UpdateExperience({
       )}
       {view.state === "available" && dismissed !== view.release?.version && (
         <div className="update-toast" role="status">
-          <span>{tf("Branchout {0} 已发布", view.release?.version)}</span>
+          <span>{tf("Postrove {0} 已发布", view.release?.version)}</span>
           <button
             className="button button-quiet"
             onClick={() => {
@@ -280,7 +280,7 @@ export function UpdateExperience({
       )}
       {view.updatedFrom && (
         <div className="update-toast" role="status">
-          <span>{tf("已更新至 Branchout {0}", view.version)}</span>
+          <span>{tf("已更新至 Postrove {0}", view.version)}</span>
           <button
             className="icon-button"
             aria-label={t("关闭提示")}

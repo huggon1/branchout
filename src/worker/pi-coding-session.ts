@@ -56,8 +56,8 @@ class CodexCredentialBridge implements CredentialStore {
       type: "oauth",
       access: token.accessToken,
       // Pi's provider only reads `access` until the five-minute refresh threshold.
-      // Refresh always goes through Branchout's Codex client in modify().
-      refresh: "branchout-managed",
+      // Refresh always goes through Postrove's Codex client in modify().
+      refresh: "postrove-managed",
       expires: token.expiresAt,
     };
   }
@@ -138,7 +138,7 @@ export async function createPiCodingSession(
   const traceRoot = resolve(options.traceRoot);
   const agentDir = join(traceRoot, taskId, "agent-config");
   const sessionDir = join(traceRoot, taskId, "sessions");
-  // Branchout owns the bounded retry and its activity record. Disable both
+  // Postrove owns the bounded retry and its activity record. Disable both
   // Pi's agent-turn retries and the provider SDK retry layer.
   const settingsManager = SettingsManager.inMemory({
     retry: { enabled: false, provider: { maxRetries: 0 } },
@@ -176,7 +176,7 @@ export async function createPiCodingSession(
     );
   } else {
     const store = new InMemoryCredentialStore();
-    await store.modify("branchout-api", async () => ({
+    await store.modify("postrove-api", async () => ({
       type: "api_key",
       key: config.credential,
     }));
@@ -191,7 +191,7 @@ export async function createPiCodingSession(
     if (!config.baseUrl || !config.api)
       throw new Error("Generic API settings are incomplete");
     const model = resolveModel(config);
-    modelRuntime.registerProvider("branchout-api", {
+    modelRuntime.registerProvider("postrove-api", {
       baseUrl: config.baseUrl,
       api: config.api,
       models: [{ ...model, reasoning: false, input: ["text"] }],

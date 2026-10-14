@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { join, resolve, basename } from "node:path";
 import { createRequire } from "node:module";
-import { randomUUID } from "node:crypto";
+import { randomUUID, X509Certificate } from "node:crypto";
 import assert from "node:assert/strict";
 import { _electron as electron } from "@playwright/test";
 
@@ -56,7 +56,7 @@ const server = createServer(async (req, res) => {
   const name = basename(new URL(req.url, "http://localhost").pathname);
   requests.push(name);
   if (
-    !/^(?:latest-mac\.yml|Branchout-[\d.]+-mac-arm64\.zip(?:\.blockmap)?)$/.test(
+    !/^(?:latest-mac\.yml|Postrove-[\d.]+-mac-arm64\.zip(?:\.blockmap)?)$/.test(
       name,
     )
   ) {
@@ -82,6 +82,20 @@ if (!preparing)
   await new Promise((done) => server.listen(port, "127.0.0.1", done));
 const endpoint = `http://127.0.0.1:${port}`;
 const require = createRequire(import.meta.url);
+const baselineVersion = JSON.parse(
+  await readFile("package.json", "utf8"),
+).version;
+assert.match(
+  baselineVersion,
+  /^\d+\.\d+\.\d+$/,
+  "Verify a stable release version",
+);
+const [major, minor, patch] = baselineVersion.split(".").map(Number);
+const candidateVersion = `${major}.${minor}.${patch + 1}`;
+const packages = [
+  [baselineVersion, "baseline"],
+  [candidateVersion, "candidate"],
+];
 const yaml = require("js-yaml");
 const config = yaml.load(await readFile("electron-builder.yml", "utf8"));
 config.mac.target = [{ target: "zip", arch: ["arm64"] }];
@@ -98,15 +112,12 @@ try {
     await writeFile(
       bootstrap,
       `const trialRoot=require("node:path").resolve(require("node:path").dirname(process.execPath), "../../../../..");
-process.env.BRANCHOUT_TEST_DATA=require("node:path").join(trialRoot, "profile");
-process.env.BRANCHOUT_RUN_MODE="review";
+process.env.POSTROVE_TEST_DATA=require("node:path").join(trialRoot, "profile");
+process.env.POSTROVE_RUN_MODE="review";
 require("electron").autoUpdater.on("error", error => require("node:fs").writeFileSync(require("node:path").join(trialRoot, "evidence/native-error.json"), JSON.stringify({ name: error.name, message: error.message })));
 require("./main.cjs");\n`,
     );
-    for (const [version, folder] of [
-      ["0.1.0", "baseline"],
-      ["0.1.1", "candidate"],
-    ]) {
+    for (const [version, folder] of packages) {
       const output = join(root, folder);
       config.directories.output = output;
       config.extraMetadata.version = version;
@@ -126,7 +137,7 @@ require("./main.cjs");\n`,
         "--verify",
         "--deep",
         "--strict",
-        join(output, "mac-arm64/Branchout.app"),
+        join(output, "mac-arm64/Postrove.app"),
       ]);
     }
     await checkpoint("signed packages prepared");
@@ -136,37 +147,46 @@ require("./main.cjs");\n`,
     await checkpoint("verify clean signing environment");
     assert.equal(identity, undefined);
     assert.equal(process.env.CSC_KEYCHAIN, undefined);
-    const installedCertificate = await run("security", [
-      "find-certificate",
-      "-c",
-      "Branchout Release Signing",
-    ]).then(
-      () => true,
-      () => false,
-    );
-    assert.equal(
-      installedCertificate,
-      false,
-      "Project certificate is absent from runner keychains",
-    );
-    for (const [version, folder] of [
-      ["0.1.0", "baseline"],
-      ["0.1.1", "candidate"],
-    ]) {
+    for (const [version, folder] of packages) {
       await checkpoint(`extract ${version}`);
       await run(
         "ditto",
         [
           "-x",
           "-k",
-          join(root, folder, `Branchout-${version}-mac-arm64.zip`),
+          join(root, folder, `Postrove-${version}-mac-arm64.zip`),
           join(root, folder, "mac-arm64"),
         ],
         { timeout: 90000 },
       );
     }
-    const baseline = join(root, "baseline/mac-arm64/Branchout.app");
-    const candidate = join(root, "candidate/mac-arm64/Branchout.app");
+    const baseline = join(root, "baseline/mac-arm64/Postrove.app");
+    const candidate = join(root, "candidate/mac-arm64/Postrove.app");
+    const certificatePrefix = join(evidence, "signer-");
+    await run("codesign", [
+      "-d",
+      `--extract-certificates=${certificatePrefix}`,
+      baseline,
+    ]);
+    const signer = new X509Certificate(await readFile(`${certificatePrefix}0`));
+    const keychainCertificates = await run("security", [
+      "find-certificate",
+      "-a",
+      "-p",
+    ]);
+    const installedCertificate = (
+      keychainCertificates.stdout.match(
+        /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g,
+      ) ?? []
+    ).some(
+      (pem) =>
+        new X509Certificate(pem).fingerprint256 === signer.fingerprint256,
+    );
+    assert.equal(
+      installedCertificate,
+      false,
+      "Project certificate is absent from runner keychains",
+    );
     const signature = await run("codesign", ["-d", "-r-", baseline]);
     const requirement = signature.stderr + signature.stdout;
     assert.match(requirement, /anchor|certificate/);
@@ -248,7 +268,7 @@ require("./main.cjs");\n`,
     );
     await checkpoint("launch baseline");
     application = await electron.launch({
-      executablePath: join(baseline, "Contents/MacOS/Branchout"),
+      executablePath: join(baseline, "Contents/MacOS/Postrove"),
       args: [],
       timeout: 30000,
     });
@@ -304,7 +324,7 @@ require("./main.cjs");\n`,
         ),
       );
       if (
-        version === "0.1.1" &&
+        version === candidateVersion &&
         owner.pid &&
         owner.pid !== originalProcess.pid
       ) {
@@ -314,7 +334,7 @@ require("./main.cjs");\n`,
       if (!page.isClosed()) {
         const state = await bounded(
           page
-            .evaluate(() => window.branchout.applicationUpdates())
+            .evaluate(() => window.postrove.applicationUpdates())
             .catch(() => undefined),
           2000,
           undefined,
@@ -326,7 +346,7 @@ require("./main.cjs");\n`,
       }
       await new Promise((done) => setTimeout(done, 500));
     }
-    assert.equal(version, "0.1.1");
+    assert.equal(version, candidateVersion);
     assert.ok(
       restartedPid,
       "Native updater restarted the new application with the trial profile",
@@ -367,11 +387,11 @@ require("./main.cjs");\n`,
       JSON.stringify(
         {
           result: "passed",
-          from: "0.1.0",
+          from: baselineVersion,
           to: version,
           nativeRestart: true,
           projectCertificateImported: false,
-          packageSourceRun: process.env.BRANCHOUT_UPGRADE_PACKAGE_RUN,
+          packageSourceRun: process.env.POSTROVE_UPGRADE_PACKAGE_RUN,
           data: [
             "platform answer",
             "preferences",
@@ -387,7 +407,7 @@ require("./main.cjs");\n`,
       ),
     );
     console.log(
-      "Signed upgrade passed: 0.1.0 -> 0.1.1; native restart and retained data verified",
+      `Signed upgrade passed: ${baselineVersion} -> ${candidateVersion}; native restart and retained data verified`,
     );
   }
 } catch (error) {
