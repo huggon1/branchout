@@ -2,74 +2,51 @@
 
 # Postrove
 
-**Search through platform AI. Turn forwarded links into readable material.**
-
 [简体中文](README.zh-CN.md)
 
-Postrove is a desktop app with two connected workflows:
+Postrove is a desktop app that helps you find posts with each platform's own AI and collect interesting content to read later.
 
-- **Platform AI search:** Ask a question, save each platform's original answer and source links, and turn search conditions into recurring follows.
-- **Link parsing:** Add a link manually, forward it through Telegram, or select a source from search results. Read the material in your chosen language.
+## Features
 
-## Getting started
+### Search with platform AI
 
-1. Install Google Chrome. Download the macOS Apple silicon DMG from [GitHub Releases](https://github.com/huggon1/postrove/releases), move Postrove into Applications, and open it. See the [0.1.0 release notes](docs/releases/0.1.0.md) for first-open approval and migration from earlier builds.
-2. In Settings, connect a general API or a Codex subscription account, then choose the app language. Codex connections use a locally available Codex CLI. The configured model operates the browser and prepares reading material.
-3. Sign in to the desired platforms through Settings. Search and parsing share saved Chrome sessions. Task browsing defaults to headless; Settings can show task windows.
-4. Enter a question in Search or add a link in Parsed content. Telegram forwarding uses a configured bot and an authorized chat.
+Choose your information sources and a time range, then ask a question. View relevant posts and source links found by each platform's AI, alongside its original answer. Interesting sources can go directly into parsing.
 
-Content provides **Search results** and **Parsed content**. **Focus** manages recurring searches. **Tasks** shows execution state and exports native Pi logs.
-
-## Platform AI search
+Save search conditions as a follow to run daily or weekly while Postrove is open.
 
 | AI search entry | Information source |
-| --------------- | ------------------ |
-| Grok within X   | X                  |
-| 点点 AI         | Xiaohongshu        |
+| --- | --- |
+| Grok within X | X |
+| 点点 AI | Xiaohongshu |
 
-Enter a question, select platforms, and choose a time range. For example: “How have independent developers validated product demand in the past week? Find discussions with actual failures and links to the original posts.”
+### Collect content to read later
 
-Postrove adapts the question for each platform AI and starts a fresh, single-question conversation. Each report saves the original question and presents the platforms' original answers with titled source links. Saved answers remain readable when another platform or citation extraction fails. The selected time range goes into the question; source dates reflect available evidence.
+Collect posts and articles from different platforms in one place. Read their text, images, and summaries in your chosen language.
 
-Open a source or add it directly to parsing from Search results. Save the same conditions as a follow to run daily or weekly at a chosen time. Follow results appear alongside manual searches. Scheduled runs occur while the application is open; missed occurrences expire.
+For example, when you find a long technical article you want to read later, forward its link to your configured Telegram bot. Postrove retrieves the content and prepares a summary, so you can skim the summary first and read the article later in the app. You can also add links directly.
 
-## Link parsing
+| Source | Parsing target | Capability details |
+| --- | --- | --- |
+| General web pages | Body, images, and directly referenced materials | Base browser reading |
+| X posts | Post body, images, quoted posts, and author-supplied material links | Base browser reading with a bundled X reading skill |
+| Xiaohongshu notes | Note text and images | Base browser reading and a bundled reading skill; the macOS package includes `xiaohongshu-mcp` for enhanced note retrieval |
+| GitHub repositories | The repository's default README | Base browser reading with a bundled GitHub reading skill |
 
-Postrove reads the main content and one level of directly referenced materials. It saves source snapshots, short introductions, and readable bodies. Reading preserves headings, images, code, tables, and links, and translates other-language text into the language selected for that run.
+Platform access and login state determine retrieval coverage. Partial retrieval keeps the available content and shows its coverage.
 
-| Source / content type | Parsing target                                                      | Capability details                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| General web pages     | Accessible body, images, and directly referenced materials          | Base browser reading; built-in capture saves selected content and accessible frames as Markdown and caches available images         |
-| X posts               | Post body, images, quoted posts, and author-supplied material links | Base browser reading; bundled X reading skill helps expand text and identify direct materials                                       |
-| Xiaohongshu notes     | Accessible note text and images                                     | Base browser reading and a bundled reading skill; the macOS package includes `xiaohongshu-mcp` to enhance image/text note retrieval |
-| GitHub repositories   | The repository's default README                                     | Base browser reading; bundled GitHub reading skill scopes capture to the default README                                             |
+## Installation and use
 
-Login state, platform verification, and accessible content determine retrieval coverage. Each material shows that coverage and retains available text after a partial failure.
+Installation packages are available for macOS Apple silicon.
 
-## Updates and local data
+1. Install Google Chrome.
+2. Download the DMG from [GitHub Releases](https://github.com/huggon1/postrove/releases), move Postrove into Applications, and open it. Packages use a project signature; macOS may require System Settings → Privacy & Security → Open Anyway on first launch.
+3. In Settings, connect a model API or a Codex subscription account, then sign in to your selected platforms. Codex connections require a locally installed Codex CLI.
+4. Enter a question in Search or add a link in Content → Parsed content. For Telegram forwarding, configure a bot and authorize your chat in Settings.
 
-Later releases appear in Settings → Application updates. Choose Download, then Install and Restart; active tasks can finish before installation. [Update behavior](docs/product-spec.md#application-updates) describes the flow.
+Reports and website sessions are stored locally. Tasks send related questions and materials to your configured model. Later versions can be downloaded and installed through Settings → Application updates.
 
-Reports, follows, task state, and website sessions are stored locally. Execution sends relevant questions and materials to the configured model, and platform searches send their adapted questions to the selected AI entry. [Data contracts](docs/data-contracts.md) describe storage and upgrade rules.
+## Account risk
 
-## Run from source
+> ⚠️ Postrove uses your signed-in platform accounts for automated search and content retrieval. These actions may trigger platform safeguards, leading to extra verification, rate limits, account restrictions, or bans. We recommend dedicated secondary accounts for X, Xiaohongshu, and other platforms to reduce the impact of account restrictions.
 
-Use Node.js 24 or newer:
-
-```sh
-npm ci
-npm run dev
-```
-
-The [development guide](docs/development.md) covers browser preparation, the Xiaohongshu reader, isolated profiles, checks, and packaging.
-
-## Learn more
-
-- [0.1.0 release notes](docs/releases/0.1.0.md) and [release guide](docs/releasing.md)
-- [Product specification](docs/product-spec.md)
-- [Architecture](docs/architecture-overview.md), [prompt flow](docs/agent-prompt-flow.md), and [source guide](src/README.md)
-- [Test guide](tests/README.md)
-
-## License
-
-Postrove is available under the [MIT License](LICENSE).
+[Development guide](docs/development.md) · [0.1.0 release notes](docs/releases/0.1.0.md) · [Release guide](docs/releasing.md) · [MIT License](LICENSE)
