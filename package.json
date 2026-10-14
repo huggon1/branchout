@@ -20,7 +20,8 @@
     "test:e2e": "npm run build && node tests/build-workers.mjs && playwright test",
     "check:full": "npm run check && npm run test:e2e",
     "test:upgrade": "node scripts/development/verify-upgrade.mjs",
-    "prepare:upgrade": "node scripts/development/verify-upgrade.mjs --prepare"
+    "prepare:upgrade": "node scripts/development/verify-upgrade.mjs --prepare",
+    "test:package": "node scripts/development/verify-package.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.1.0",

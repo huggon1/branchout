@@ -82,6 +82,20 @@ if (!preparing)
   await new Promise((done) => server.listen(port, "127.0.0.1", done));
 const endpoint = `http://127.0.0.1:${port}`;
 const require = createRequire(import.meta.url);
+const baselineVersion = JSON.parse(
+  await readFile("package.json", "utf8"),
+).version;
+assert.match(
+  baselineVersion,
+  /^\d+\.\d+\.\d+$/,
+  "Verify a stable release version",
+);
+const [major, minor, patch] = baselineVersion.split(".").map(Number);
+const candidateVersion = `${major}.${minor}.${patch + 1}`;
+const packages = [
+  [baselineVersion, "baseline"],
+  [candidateVersion, "candidate"],
+];
 const yaml = require("js-yaml");
 const config = yaml.load(await readFile("electron-builder.yml", "utf8"));
 config.mac.target = [{ target: "zip", arch: ["arm64"] }];
@@ -103,10 +117,7 @@ process.env.BRANCHOUT_RUN_MODE="review";
 require("electron").autoUpdater.on("error", error => require("node:fs").writeFileSync(require("node:path").join(trialRoot, "evidence/native-error.json"), JSON.stringify({ name: error.name, message: error.message })));
 require("./main.cjs");\n`,
     );
-    for (const [version, folder] of [
-      ["0.1.0", "baseline"],
-      ["0.1.1", "candidate"],
-    ]) {
+    for (const [version, folder] of packages) {
       const output = join(root, folder);
       config.directories.output = output;
       config.extraMetadata.version = version;
@@ -149,10 +160,7 @@ require("./main.cjs");\n`,
       false,
       "Project certificate is absent from runner keychains",
     );
-    for (const [version, folder] of [
-      ["0.1.0", "baseline"],
-      ["0.1.1", "candidate"],
-    ]) {
+    for (const [version, folder] of packages) {
       await checkpoint(`extract ${version}`);
       await run(
         "ditto",
@@ -304,7 +312,7 @@ require("./main.cjs");\n`,
         ),
       );
       if (
-        version === "0.1.1" &&
+        version === candidateVersion &&
         owner.pid &&
         owner.pid !== originalProcess.pid
       ) {
@@ -326,7 +334,7 @@ require("./main.cjs");\n`,
       }
       await new Promise((done) => setTimeout(done, 500));
     }
-    assert.equal(version, "0.1.1");
+    assert.equal(version, candidateVersion);
     assert.ok(
       restartedPid,
       "Native updater restarted the new application with the trial profile",
@@ -367,7 +375,7 @@ require("./main.cjs");\n`,
       JSON.stringify(
         {
           result: "passed",
-          from: "0.1.0",
+          from: baselineVersion,
           to: version,
           nativeRestart: true,
           projectCertificateImported: false,
@@ -387,7 +395,7 @@ require("./main.cjs");\n`,
       ),
     );
     console.log(
-      "Signed upgrade passed: 0.1.0 -> 0.1.1; native restart and retained data verified",
+      `Signed upgrade passed: ${baselineVersion} -> ${candidateVersion}; native restart and retained data verified`,
     );
   }
 } catch (error) {

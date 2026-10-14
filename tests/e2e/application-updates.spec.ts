@@ -19,7 +19,8 @@ test("development shows the version and packaged-update boundary", async ({}, in
     await page.getByRole("button", { name: "设置", exact: true }).click();
     const updates = page.getByRole("region", { name: "应用更新", exact: true });
     await expect(updates).toBeVisible({ timeout: 5000 });
-    await expect(updates).toContainText("0.1.0");
+    const { version } = JSON.parse(await readFile("package.json", "utf8"));
+    await expect(updates).toContainText(version);
     await expect(updates).toContainText("安装版");
     await page.screenshot({ path: info.outputPath("development-updates.png") });
   } finally {

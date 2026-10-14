@@ -41,4 +41,16 @@ The [Checks workflow](../.github/workflows/checks.yml) runs shared checks on Lin
 
 ## Signed update acceptance
 
-[Failure cases](update-failures.md) define the update acceptance boundary. The controlled Electron fixture replaces update transport and native staging while retaining production UI, IPC, queue admission, and stores. The [signed upgrade verifier](../scripts/development/verify-upgrade.mjs) separately proves native replacement, restart, compatible project signatures, and retained data with two real packages. Manual Release workflow runs upload its evidence. [Release preparation](../docs/development.md#release-preparation) owns signing and artifact setup.
+[Failure cases](update-failures.md) define the update acceptance boundary. The controlled Electron fixture replaces update transport and native staging while retaining production UI, IPC, queue admission, and stores. The [signed upgrade verifier](../scripts/development/verify-upgrade.mjs) separately proves native replacement, restart, compatible project signatures, and retained data with two real packages. Manual Release workflow runs upload its evidence. The [release guide](../docs/releasing.md#signing-and-assets) owns signing and artifact setup.
+
+## Packaged startup acceptance
+
+The release package smoke check covers these failure cases:
+
+- Missing ASAR resources, worker entries, icon, update configuration, or bundled Xiaohongshu reader stops verification before upload.
+- A package version or source revision that differs from the workflow checkout fails the build identity check.
+- Startup, preload, renderer, or page navigation failures produce a failed result and an available screenshot.
+- A disabled packaged updater or an incorrect default browser mode fails the Settings check.
+- A language change lost after restart fails the profile persistence check.
+
+The check launches the packaged executable twice with a fresh local profile and saves screenshots and a JSON result. Signing and native upgrade have their own checks. Live platform retrieval and the downloaded DMG's first-open approval belong to [release acceptance](../docs/releasing.md#acceptance-and-publication).
