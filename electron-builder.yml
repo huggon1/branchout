@@ -11,11 +11,16 @@ extraResources:
     to: .runtime
     filter:
       - "**/*"
-      - "!bird-search/**/*"
 asar: true
 asarUnpack:
   - "**/*.node"
 artifactName: Branchout-${version}-mac-arm64.${ext}
+publish:
+  provider: github
+  owner: huggon1
+  repo: branchout
+  releaseType: draft
+  channel: latest
 mac:
   category: public.app-category.productivity
   icon: build/branchout.icns

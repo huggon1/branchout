@@ -145,6 +145,7 @@ export class TaskService {
     await this.store.update((state) => {
       for (const task of state.tasks) {
         if (task.state !== "queued" && task.state !== "running") continue;
+        if (task.kind === "focus_search" && task.state === "queued") continue;
         const timestamp = now();
         task.state = "failed";
         task.phase = "interrupted";

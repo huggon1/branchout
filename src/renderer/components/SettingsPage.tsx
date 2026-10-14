@@ -1,12 +1,13 @@
 import { dateTime } from "../i18n";
 import { useLanguage, selectLanguage } from "../i18n";
 import { t, tf } from "../i18n";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { UiSettings } from "../product-ui";
 import { ModelSettings } from "./ModelSettings";
 import { XSettings } from "./XSettings";
 
 export function SettingsPage({
+  updateSection,
   settings,
   busy,
   onSaveTelegramToken,
@@ -15,6 +16,7 @@ export function SettingsPage({
   onAuthorizeTelegramChat,
   onRevokeTelegramChat,
 }: {
+  updateSection?: ReactNode;
   settings?: UiSettings;
   busy: boolean;
   onSaveTelegramToken: (token: string) => Promise<boolean>;
@@ -61,6 +63,7 @@ export function SettingsPage({
   return (
     <div className="settings-page">
       <header className="page-intro"></header>
+      {updateSection}
       <section className="settings-section">
         <label className="settings-field">
           <span>{t("语言")}</span>

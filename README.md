@@ -14,9 +14,9 @@ Branchout is a desktop app for acquiring and reading social-media content. It pr
 ## Platform AI search
 
 | AI search entry | Information source |
-| --- | --- |
-| Grok within X | X |
-| 点点 AI | Xiaohongshu |
+| --------------- | ------------------ |
+| Grok within X   | X                  |
+| 点点 AI         | Xiaohongshu        |
 
 Questions can include context and conditions. For example: “How have independent developers validated product demand in the past week? Find discussions with actual failures and links to the original posts.”
 
@@ -28,13 +28,13 @@ Read reports in Search Results, open original links, or select sources to parse.
 
 Add an HTTPS link in Parsed Results or send it through a configured Telegram bot from an authorized chat. Branchout reads the main content and its directly referenced materials, then saves source snapshots, short summaries, and bodies in your chosen language.
 
-| Source / content type | Parsing target | Capability details |
-| --- | --- | --- |
-| General web pages | Accessible body, images, and directly referenced materials | Base browser reading; built-in page capture saves selected content as Markdown and caches available images |
-| X posts | Post body, images, quoted posts, and material links supplied by the author | Base browser reading; a bundled X reading skill helps expand text, inspect images, and identify author-supplied materials |
-| Xiaohongshu notes | Accessible note text and images | Base browser reading with a bundled note-reading skill; the optional external `xiaohongshu-mcp` component adds retrieval of titles, bodies, and images from image/text notes |
-| GitHub repositories | The repository's default README | Base browser reading; a bundled GitHub reading skill scopes retrieval to the default README |
-| Interactive pages | Accessible text, images, and embedded page content | Base browser reading; built-in browser tools support page interaction and capture from accessible frames |
+| Source / content type | Parsing target                                                             | Capability details                                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| General web pages     | Accessible body, images, and directly referenced materials                 | Base browser reading; built-in page capture saves selected content as Markdown and caches available images                                                                   |
+| X posts               | Post body, images, quoted posts, and material links supplied by the author | Base browser reading; a bundled X reading skill helps expand text, inspect images, and identify author-supplied materials                                                    |
+| Xiaohongshu notes     | Accessible note text and images                                            | Base browser reading with a bundled note-reading skill; the optional external `xiaohongshu-mcp` component adds retrieval of titles, bodies, and images from image/text notes |
+| GitHub repositories   | The repository's default README                                            | Base browser reading; a bundled GitHub reading skill scopes retrieval to the default README                                                                                  |
+| Interactive pages     | Accessible text, images, and embedded page content                         | Base browser reading; built-in browser tools support page interaction and capture from accessible frames                                                                     |
 
 Parsing follows one level of material links explicitly supplied by the main content. Reading material preserves headings, paragraphs, images, code, tables, and links. Text in another language is translated into the language selected for that run. Each material reports its actual retrieval coverage, and saved content remains readable after a partial failure.
 
@@ -46,6 +46,10 @@ Both functions share Chrome and saved website sessions. Actual coverage depends 
 2. Sign in to the platforms you need through Settings.
 3. Start with either function: enter a question in Search or add a link in Parsed Results. For Telegram forwarding, configure a bot and authorize a chat first.
 4. Read content in Search Results and Parsed Results. Manage recurring searches in Follows. Check execution status and failure reasons in Tasks, where you can also export native Pi session logs.
+
+## Installation and updates
+
+Install the macOS Apple silicon DMG from a published [GitHub Release](https://github.com/huggon1/branchout/releases). Open Branchout from Applications. Packages use a project signature; macOS may ask for first-open approval in Privacy & Security. Version 0.1.0 begins the new release line and requires a manual installation from older builds. Later versions appear in Settings → Application updates, where you can download and choose installation after current tasks finish. Local data and platform sessions remain in the same profile. See [update behavior](docs/product-spec.md#application-updates).
 
 ## Local data
 

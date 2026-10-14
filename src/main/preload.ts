@@ -1,3 +1,4 @@
+import { updateChannels } from "../shared/update-contracts";
 import { contextBridge, ipcRenderer } from "electron";
 import {
   channels,
@@ -12,6 +13,18 @@ import {
 } from "../shared/ipc-contracts";
 
 const bridge: DesktopBridge = {
+  applicationUpdates: () => ipcRenderer.invoke(updateChannels.view),
+  checkForUpdates: () => ipcRenderer.invoke(updateChannels.check),
+  downloadUpdate: () => ipcRenderer.invoke(updateChannels.download),
+  cancelUpdateDownload: () => ipcRenderer.invoke(updateChannels.cancelDownload),
+  installUpdate: (wait) => ipcRenderer.invoke(updateChannels.install, wait),
+  cancelUpdateWait: () => ipcRenderer.invoke(updateChannels.cancelWait),
+  dismissUpdateSuccess: () => ipcRenderer.invoke(updateChannels.dismissSuccess),
+  onUpdateChanged: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(updateChannels.changed, handler);
+    return () => ipcRenderer.removeListener(updateChannels.changed, handler);
+  },
   follows: () => ipcRenderer.invoke(searchChannels.follows),
   saveFollow: (input) => ipcRenderer.invoke(searchChannels.saveFollow, input),
   updateFollow: (input) =>

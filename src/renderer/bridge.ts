@@ -8,7 +8,7 @@ declare global {
 export const bridge = Object.fromEntries(
   Object.entries(window.branchout).map(([key, value]) => [
     key,
-    key === "onChanged"
+    key === "onChanged" || key === "onUpdateChanged"
       ? value
       : async (...args: unknown[]) => {
           const reply = await value(...args);

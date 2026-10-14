@@ -1,3 +1,4 @@
+import type { ApplicationUpdateView } from "./update-contracts";
 import type {
   Follow,
   SaveFollow,
@@ -81,6 +82,14 @@ export const channels = {
 } as const;
 
 export interface DesktopBridge {
+  applicationUpdates(): Promise<ModelReply<ApplicationUpdateView>>;
+  checkForUpdates(): Promise<ModelReply<void>>;
+  downloadUpdate(): Promise<ModelReply<void>>;
+  cancelUpdateDownload(): Promise<ModelReply<void>>;
+  installUpdate(wait: boolean): Promise<ModelReply<{ requiresWait: boolean }>>;
+  cancelUpdateWait(): Promise<ModelReply<void>>;
+  dismissUpdateSuccess(): Promise<ModelReply<void>>;
+  onUpdateChanged(listener: () => void): () => void;
   follows(): Promise<ModelReply<Follow[]>>;
   saveFollow(input: SaveFollow): Promise<ModelReply<Follow>>;
   updateFollow(input: UpdateFollow): Promise<ModelReply<Follow>>;

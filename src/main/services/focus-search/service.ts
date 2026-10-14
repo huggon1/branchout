@@ -1,3 +1,4 @@
+import type { ExecutionGate } from "../execution-gate";
 import { randomUUID } from "node:crypto";
 import {
   startFocusSearchSchema,
@@ -158,6 +159,7 @@ export class FocusSearchService {
     private options: {
       now?: () => Date;
       schedulerIntervalMs?: number;
+      executionGate?: ExecutionGate;
       language?: () => "zh-CN" | "en";
     } = {},
   ) {}
@@ -193,6 +195,13 @@ export class FocusSearchService {
   async recover() {
     await this.store.update((state) => {
       for (const report of state.reports) {
+        if (
+          report.status === "queued" &&
+          report.sections.every(
+            (section) => section.state === "pending" && !section.rawReply,
+          )
+        )
+          continue;
         const interrupted =
           report.status === "queued" ||
           report.status === "running" ||
@@ -227,6 +236,21 @@ export class FocusSearchService {
         follow.nextRunAt = this.nextRun(follow);
     });
     for (const report of this.reports()) {
+      if (
+        report.status === "queued" &&
+        report.sections.every(
+          (section) => section.state === "pending" && !section.rawReply,
+        )
+      ) {
+        await this.tasks.create({
+          taskId: report.taskId,
+          kind: "focus_search",
+          target: { kind: "none" },
+          phase: "等待搜索",
+        });
+        if (!this.active.has(report.taskId)) this.enqueue(report.taskId);
+        continue;
+      }
       const task = this.tasks.read(report.taskId);
       if (
         task &&
@@ -455,9 +479,17 @@ export class FocusSearchService {
   }
   private async run(taskId: string, controller: AbortController) {
     let execution: SearchExecution | undefined;
+    let release: (() => void) | undefined;
     const language = this.readTask(taskId).outputLanguage;
     try {
       if (controller.signal.aborted) return;
+      if (this.options.executionGate) {
+        release = await this.options.executionGate.enter(
+          { id: taskId, kind: "search", label: this.readTask(taskId).question },
+          controller.signal,
+        );
+        if (!release || controller.signal.aborted) return;
+      }
       await this.store.update((s) => {
         s.reports.find((r) => r.taskId === taskId)!.status = "running";
       });
@@ -662,6 +694,7 @@ export class FocusSearchService {
         await execution?.release();
       } finally {
         this.active.delete(taskId);
+        release?.();
         this.changed();
       }
     }
@@ -758,7 +791,10 @@ export class FocusSearchService {
     this.closed = true;
     if (this.timer) clearInterval(this.timer);
     await this.schedules.catch(() => {});
-    for (const taskId of this.active.keys()) await this.cancel(taskId);
+    for (const [taskId, controller] of this.active) {
+      if (this.readTask(taskId).status === "queued") controller.abort();
+      else await this.cancel(taskId);
+    }
     await this.queue.catch(() => {});
     await this.mutations.catch(() => {});
   }

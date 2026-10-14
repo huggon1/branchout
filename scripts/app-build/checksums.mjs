@@ -5,14 +5,26 @@ import { join } from "node:path";
 const build = JSON.parse(await readFile("dist/build-identity.json", "utf8"));
 const artifacts = [];
 for (const name of (await readdir("release"))
-  .filter((name) => /\.(dmg|zip)$/.test(name))
+  .filter(
+    (name) => /\.(dmg|zip|blockmap)$/.test(name) || name === "latest-mac.yml",
+  )
   .sort()) {
   const hash = createHash("sha256");
   for await (const block of createReadStream(join("release", name)))
     hash.update(block);
   artifacts.push({ file: name, sha256: hash.digest("hex") });
 }
-if (!artifacts.length) throw new Error("Packaged artifacts are missing");
+const version = build.version;
+for (const file of [
+  `Branchout-${version}-mac-arm64.dmg`,
+  `Branchout-${version}-mac-arm64.zip`,
+  "latest-mac.yml",
+])
+  if (!artifacts.some((item) => item.file === file))
+    throw new Error(`Release artifact is missing: ${file}`);
+const manifest = await readFile("release/latest-mac.yml", "utf8");
+if (!manifest.includes(`version: ${version}`))
+  throw new Error("Update manifest version differs from the build");
 await writeFile(
   "release/build-manifest.json",
   JSON.stringify({ build, artifacts }, null, 2) + "\n",

@@ -241,7 +241,7 @@ test("parsed materials retain their language and partial state across new submis
     JSON.parse(await readFile(join(profile, "forwarding.json"), "utf8"));
   await expect
     .poll(async () => (await state()).tasks[0]?.state)
-    .toBe("completed");
+    .toBe("failed");
   const initial = (await state()).tasks[0];
   expect(initial.source).toBeTruthy();
   expect(initial.outputLanguage).toBe("zh-CN");

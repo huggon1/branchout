@@ -17,3 +17,20 @@ await build({
   packages: "external",
   loader: { ".md": "text" },
 });
+
+await build({
+  define: { __BRANCHOUT_BUILD_IDENTITY__: JSON.stringify(identity) },
+  entryPoints: ["tests/support/update-app.ts"],
+  outfile: "dist/main/update-test.cjs",
+  platform: "node",
+  bundle: true,
+  format: "cjs",
+  external: [
+    "electron",
+    "electron-updater",
+    "builder-util-runtime",
+    "playwright-core",
+    "@earendil-works/pi-coding-agent",
+  ],
+  loader: { ".md": "text" },
+});

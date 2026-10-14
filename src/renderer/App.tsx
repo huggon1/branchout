@@ -1,4 +1,9 @@
 import {
+  useApplicationUpdates,
+  UpdateSettings,
+  UpdateExperience,
+} from "./components/ApplicationUpdates";
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -72,6 +77,7 @@ const live = (task?: UiTask) =>
 
 export function App() {
   const language = useLanguage();
+  const updates = useApplicationUpdates();
   const ui = useMemo(() => productUiBridge(), []);
   const [page, setPage] = useState<Page>("search");
   const [drawer, setDrawer] = useState(false);
@@ -233,6 +239,7 @@ export function App() {
     <button
       key={key}
       className="nav-item"
+      aria-label={t(labels[key])}
       aria-current={page === key ? "page" : undefined}
       onClick={() => navigate(key)}
     >
@@ -301,6 +308,19 @@ export function App() {
           {nav("tasks", <ListBullets size={18} />)}
           {nav("settings", <GearSix size={18} />)}
         </nav>
+        {updates.view?.release && (
+          <button
+            className="nav-item sidebar-update"
+            onClick={() => navigate("settings")}
+          >
+            <span className="update-dot" />
+            <span>
+              {t(
+                updates.view.state === "waiting" ? "等待安装更新" : "应用更新",
+              )}
+            </span>
+          </button>
+        )}
       </aside>
       <main className="refactor-main">
         {error && (
@@ -826,6 +846,13 @@ export function App() {
         )}
         {page === "settings" && (
           <SettingsPage
+            updateSection={
+              <UpdateSettings
+                updates={updates}
+                onTasks={() => navigate("tasks")}
+                onLater={() => navigate("search")}
+              />
+            }
             settings={settings}
             busy={busy}
             onSaveTelegramToken={(token) =>
@@ -844,6 +871,7 @@ export function App() {
           />
         )}
       </main>
+      <UpdateExperience updates={updates} onOpen={() => navigate("settings")} />
       {notice && (
         <div className="refactor-toast" role="status">
           {notice}

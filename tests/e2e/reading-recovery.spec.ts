@@ -218,7 +218,14 @@ test("reading recovers bounded model failures and reports saved incomplete work"
       cancelled,
     );
     expect((await saved(cancelled)).state).toBe("cancelled");
-    expect(counts["cancel:translation"]).toBe(1);
+    // Polling may observe recovery after a retry has already started. The
+    // cancellation acknowledgement is the boundary for further requests.
+    const requestsAtCancellation = counts["cancel:translation"];
+    expect(requestsAtCancellation).toBeGreaterThan(0);
+    expect(requestsAtCancellation).toBeLessThan(3);
+    await new Promise((done) => setTimeout(done, 1800));
+    expect(counts["cancel:translation"]).toBe(requestsAtCancellation);
+    calls.push({ cancellationAcknowledged: true, requestsAtCancellation });
     await app.evaluate(({ dialog, shell }, destination) => {
       dialog.showOpenDialog = (async () => ({
         canceled: false,

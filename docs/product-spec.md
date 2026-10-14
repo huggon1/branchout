@@ -4,7 +4,7 @@ Branchout searches social-media content through platform AI and parses submitted
 
 ## Product scope
 
-The application opens on Search. Content has fixed Parsed Results and Search Results destinations. Follows manages recurring conditions. Tasks shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, Telegram, task browser visibility, and application language.
+The application opens on Search. Content has fixed Parsed Results and Search Results destinations. Follows manages recurring conditions. Tasks shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, Telegram, task browser visibility, application language, and application updates.
 
 ## Single-question search
 
@@ -47,3 +47,11 @@ Settings supports Simplified Chinese and English. Interface messages use the sel
 Settings connects a general API or local Codex subscription login. Active execution retains its model connection lease. Shared Chrome preserves platform sessions. Task browsing defaults to headless; Settings can show task windows, with changes applied at the next browser operation. Platform login always opens a window. Credentials remain in controlled local storage. Source pages and replies are evidence data; application instructions control task actions.
 
 The [data contracts](data-contracts.md#telegram-queue-and-business-reset) define the test-business reset and retained connections.
+
+## Application updates
+
+Installed macOS builds check the public GitHub Releases source five seconds after startup and every six hours. A new version produces a dismissible notice and a persistent sidebar entry. Settings shows the current version, last check, release notes, download progress, and retry actions. Source builds show the installed-build availability message.
+
+Download starts when the user selects Download Update. Cancel returns to the available version. A downloaded update offers Install and Restart. Selecting this action during active search or parsing opens confirmation to install when current tasks finish. Confirmation pauses admission in both queues; new submissions remain queued. Cancel Waiting resumes admission. Once admitted work finishes and its worker cleanup completes, Main validates the native update, saves the receipt, shuts down services, and installs. A validation failure shows the installation error and resumes admission. Closing the application follows ordinary shutdown; installation starts through the update action.
+
+The new version opens the same profile and shows a one-time completion notice. Queued searches and parsing resume on launch. Running searches that were interrupted retain the saved result and interruption state. [Release preparation](development.md#release-preparation) owns package and signing requirements.
