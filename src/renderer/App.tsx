@@ -923,6 +923,7 @@ export function App() {
         )}
         {page === "settings" && (
           <SettingsPage
+            onOpenContent={() => navigate("parsed")}
             updateSection={
               <UpdateSettings
                 updates={updates}

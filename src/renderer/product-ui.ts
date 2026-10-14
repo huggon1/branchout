@@ -52,6 +52,7 @@ export interface UiContentWorkspace {
 }
 export interface UiSettings {
   telegram: {
+    botUsername?: string;
     configured: boolean;
     connected: boolean;
     status: string;
@@ -230,6 +231,7 @@ export function productUiBridge(): ProductUiBridge {
         ok: true,
         value: {
           telegram: {
+            botUsername: telegram.botUsername,
             configured: telegram.configured,
             connected: telegram.status === "polling",
             status:

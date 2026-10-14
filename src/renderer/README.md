@@ -8,6 +8,7 @@
 | `App.tsx` | Navigation and page assembly |
 | `refactor.css` | Existing shell and responsive layouts |
 | `components/MaterialReader.tsx` | Material directory and saved body reader |
+| `components/TelegramSettings.tsx` | Collapsed connection summary, setup drawer, and chat authorization |
 | `components/SettingsPage.tsx` | Settings assembly |
 | `components/Primitives.tsx` | Controls, dialogs, and sanitized Markdown |
 | `design/Components.tsx`, `design/tokens-and-controls.css` | Existing disclosure and control components |

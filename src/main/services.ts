@@ -401,7 +401,13 @@ export async function initializeServices(
         await forwarding!.submitTelegram(request);
       },
     },
-    fetch,
+    profileMode === "test" && process.env.POSTROVE_TEST_ENDPOINT
+      ? (url, init) =>
+          fetch(
+            `${process.env.POSTROVE_TEST_ENDPOINT}/telegram/${String(url).split("/").at(-1)}`,
+            init,
+          )
+      : fetch,
     changed,
   );
   stage("telegram_credentials");

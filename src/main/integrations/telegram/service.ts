@@ -13,8 +13,7 @@ import { TelegramStore } from "./store";
 import type { TelegramStatus } from "../../../shared/telegram-contracts";
 export type { TelegramStatus } from "../../../shared/telegram-contracts";
 
-const receivedMessage =
-  "已收取，正在处理。你可以在 Postrove 中查看进度。";
+const receivedMessage = "已收取，正在处理。你可以在 Postrove 中查看进度。";
 const unsupportedMessages = {
   no_link: "请发送一条 HTTPS 网页链接。",
   multiple_links: "请每条消息只发送一个链接。",
@@ -43,7 +42,9 @@ export interface TelegramQueueSink {
 function chatTitle(message: ReturnType<typeof telegramMessageSchema.parse>) {
   return (
     message.chat.title ||
-    [message.chat.first_name, message.chat.last_name].filter(Boolean).join(" ") ||
+    [message.chat.first_name, message.chat.last_name]
+      .filter(Boolean)
+      .join(" ") ||
     message.chat.username ||
     message.chat.id.toString()
   );
@@ -79,6 +80,7 @@ export class TelegramService {
       Promise.resolve(this.store.snapshot()),
     ]);
     return {
+      botUsername: token ? snapshot.botUsername : undefined,
       configured: !!token,
       status: token
         ? snapshot.connection.status === "polling" && !this.running
@@ -87,8 +89,9 @@ export class TelegramService {
         : "disconnected",
       authorizedChatIds: snapshot.authorizedChatIds,
       pendingChats: snapshot.pendingChats,
-      queued: snapshot.queuedForwarding.filter((item) => item.state === "queued")
-        .length,
+      queued: snapshot.queuedForwarding.filter(
+        (item) => item.state === "queued",
+      ).length,
       pendingAcknowledgements: snapshot.inbound.filter(
         (item) => item.acknowledgement?.state === "pending",
       ).length,
@@ -104,10 +107,28 @@ export class TelegramService {
     if (!client) throw new Error("请先保存 Telegram Bot Token");
     const bot = await client.getMe();
     await this.store.update((state) => {
+      state.botUsername = bot.username;
       state.connection = { status: this.running ? "polling" : "disconnected" };
     });
     this.changed();
     return { username: bot.username ?? bot.first_name };
+  }
+
+  validateToken(token: string) {
+    return new TelegramBotClient(token, this.request).getMe();
+  }
+
+  async saveIdentity(username?: string) {
+    await this.store.update((state) => {
+      state.botUsername = username;
+    });
+    this.changed();
+  }
+
+  async clearIdentity() {
+    await this.store.update((state) => {
+      delete state.botUsername;
+    });
   }
 
   async authorizeChat(rawChatId: string) {
@@ -300,8 +321,7 @@ export class TelegramService {
           const current = state.inbound.find(
             (item) => item.inboundKey === inbound.inboundKey,
           );
-          if (current?.acknowledgement)
-            current.acknowledgement.state = "sent";
+          if (current?.acknowledgement) current.acknowledgement.state = "sent";
         });
       } catch {
         break;

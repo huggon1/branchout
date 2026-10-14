@@ -138,10 +138,12 @@ export function Markdown({
 }
 export function Dialog({
   title,
+  className = "",
   children,
   onClose,
 }: {
   title: string;
+  className?: string;
   children: ReactNode;
   onClose: () => void;
 }) {
@@ -160,7 +162,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="workspace-dialog"
+      className={`workspace-dialog ${className}`}
       aria-labelledby={id}
       onCancel={(event) => {
         event.preventDefault();
