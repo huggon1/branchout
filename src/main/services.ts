@@ -1,3 +1,8 @@
+import { RecordDeletions } from "./services/record-deletions";
+import {
+  deletionChannels,
+  recordRefSchema,
+} from "../shared/deletion-contracts";
 import { ExecutionGate } from "./services/execution-gate";
 import { resetLegacyBusinessData } from "./runtime/business-reset";
 import { exportTaskPiLogs } from "./services/tasks/pi-log-export";
@@ -263,6 +268,7 @@ export async function initializeServices(
     join(app.getPath("userData"), "focus-search.json"),
   );
   await searchStore.open();
+  let deletions: RecordDeletions;
   const search = new FocusSearchService(
     searchStore,
     tasks,
@@ -331,8 +337,42 @@ export async function initializeServices(
       };
     },
     changed,
-    { language: () => preferences.language, executionGate },
+    {
+      language: () => preferences.language,
+      executionGate,
+      isParsedDeleted: (taskId) => {
+        const item = forwarding!.list().find((t) => t.taskId === taskId);
+        return !!item && deletions.hidden("parsed", item.materialId);
+      },
+    },
   );
+  deletions = new RecordDeletions(
+    join(app.getPath("userData"), "record-deletions.json"),
+    changed,
+    (ref) => {
+      let taskId: string | undefined;
+      if (ref.kind === "task") taskId = ref.id;
+      if (ref.kind === "search")
+        taskId = search.reports().find((r) => r.reportId === ref.id)?.taskId;
+      if (ref.kind === "parsed")
+        taskId = forwarding!
+          .list()
+          .find((r) => r.materialId === ref.id)?.taskId;
+      const task = taskView!.snapshots().find((t) => t.taskId === taskId);
+      return task
+        ? {
+            taskId: task.taskId,
+            active: ["queued", "running", "awaiting_user"].includes(task.state),
+          }
+        : undefined;
+    },
+    async (taskId) => {
+      const task = taskView!.snapshots().find((t) => t.taskId === taskId);
+      if (task?.kind === "focus_search") await search.cancel(taskId);
+      else await forwarding!.cancel(taskId);
+    },
+  );
+  await deletions.open();
   await search.recover();
 
   const telegramStore = new TelegramStore(
@@ -373,9 +413,81 @@ export async function initializeServices(
     join(__dirname, "../renderer/index.html"),
   ).href;
   stage("task_ipc");
-  registerTaskIpc(taskView, expected);
+  registerTaskIpc(
+    {
+      snapshots: () =>
+        taskView!
+          .snapshots()
+          .filter((t) => !deletions.hidden("task", t.taskId))
+          .map((task) => {
+            const report = search
+              .reports()
+              .find((r) => r.taskId === task.taskId);
+            const parsed = forwarding!
+              .list()
+              .find((r) => r.taskId === task.taskId);
+            const resultDeleted = report
+              ? deletions.hidden("search", report.reportId)
+              : !!parsed && deletions.hidden("parsed", parsed.materialId);
+            return {
+              ...task,
+              label:
+                report?.question ??
+                (parsed
+                  ? (forwarding!.read(task.taskId).task.report?.source.title ??
+                    parsed.target.sourceUrl)
+                  : undefined),
+              result: resultDeleted ? undefined : task.result,
+              resultDeleted,
+            };
+          }),
+      activities: (taskId) =>
+        deletions.hidden("task", taskId) ? [] : taskView!.activities(taskId),
+    },
+    expected,
+  );
+  for (const channel of Object.values(deletionChannels))
+    handle(channel, async (event, ...args: unknown[]) => {
+      if (
+        event.senderFrame !== event.sender.mainFrame ||
+        event.senderFrame?.url !== expected ||
+        args.length !==
+          ([deletionChannels.view, deletionChannels.clearEnded].includes(
+            channel as "records:deletions" | "records:clear-ended",
+          )
+            ? 0
+            : 1)
+      )
+        return { ok: false, message: "Invalid record request" };
+      try {
+        let value: unknown;
+        if (channel === deletionChannels.view) value = deletions.pending();
+        if (channel === deletionChannels.delete)
+          value = await deletions.delete([recordRefSchema.parse(args[0])]);
+        if (channel === deletionChannels.undo)
+          await deletions.undo(z.string().uuid().parse(args[0]));
+        if (channel === deletionChannels.clearEnded)
+          value = await deletions.delete(
+            taskView!
+              .snapshots()
+              .filter((t) =>
+                ["completed", "failed", "cancelled"].includes(t.state),
+              )
+              .map((t) => ({ kind: "task" as const, id: t.taskId })),
+          );
+        return { ok: true, value };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof Error ? error.message : "Record operation failed",
+        };
+      }
+    });
   stage("forwarding_ipc");
-  registerForwardingIpc(forwarding, expected);
+  registerForwardingIpc(forwarding, expected, (materialId) =>
+    deletions.hidden("parsed", materialId),
+  );
   stage("telegram_ipc");
   registerTelegramIpc(telegram, telegramCredentials, expected, changed);
 
@@ -440,7 +552,21 @@ export async function initializeServices(
         return { ok: false, message: "Invalid search request" };
       try {
         let value: unknown;
-        if (channel === searchChannels.reports) value = search.reports();
+        if (channel === searchChannels.reports)
+          value = search
+            .reports()
+            .filter((r) => !deletions.hidden("search", r.reportId))
+            .map((report) => ({
+              ...report,
+              submissions: report.submissions.filter((reservation) => {
+                const parsed = forwarding!
+                  .list()
+                  .find((t) => t.taskId === reservation.taskId);
+                return (
+                  !parsed || !deletions.hidden("parsed", parsed.materialId)
+                );
+              }),
+            }));
         else if (channel === searchChannels.follows) value = search.follows();
         else if (channel === searchChannels.saveFollow)
           value = await search.saveFollow(args[0]);
@@ -462,6 +588,8 @@ export async function initializeServices(
           await search.cancel(z.string().uuid().parse(args[0]));
         else {
           const selection = searchSelectionSchema.parse(args[0]);
+          if (deletions.hidden("search", selection.reportId))
+            throw new Error("Result deleted");
           if (channel === searchChannels.add)
             value = await search.add(
               selection.reportId,

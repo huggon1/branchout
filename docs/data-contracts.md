@@ -61,6 +61,12 @@ The main process saves the initial task and report before execution, then valida
 
 A task can own several Pi sessions for browser work and reading attempts. Trace association uses the parent task identity and individual execution/session identity. Native HTML export copies the associated Pi files to the selected local destination. Persisted JSONL remains in the local profile; export reports an unavailable state when native HTML is absent. Trace contents remain local until the user chooses to export them.
 
+## Record visibility and undo journal
+
+Main owns `record-deletions.json` with version 1, `hidden` record references, and `undo` operations. A reference contains kind `task`, `parsed`, or `search` plus its identity. Parsed references use root `materialId`; search references use `reportId`. Each undo operation contains its UUID, references, and expiry timestamp. Main serializes Delete and Undo and atomically saves the journal before publishing visibility changes. Bulk history clearing freezes the terminal records admitted to that operation.
+
+Deletion changes visibility independently of the execution stores. Original records, receipt deduplication, candidate provenance, cached media, and Pi traces remain local historical evidence. Result-facing IPC filters hidden content; task-facing IPC filters hidden history and marks deleted results. Profile copy carries the journal with its original identities. An expired operation keeps the deletion and retires its recovery action; a later journal write removes expired recovery entries. Candidate addition replaces a reservation whose parsing output is hidden while retaining the previous parsing execution as history.
+
 ## Development profiles and execution identity
 
 `RuntimeProfile` records installed, review, or test mode, resolved data directory, and integration policy. Storage, credentials, browser sessions, and traces resolve under the selected profile. Independent instances use independent profiles. Review mode pauses background integrations during preparation.

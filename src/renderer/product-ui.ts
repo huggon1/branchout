@@ -43,6 +43,7 @@ export interface UiTask {
   resultType?: "content" | "search";
   partialResultId?: string;
   error?: string;
+  resultDeleted?: boolean;
 }
 export interface UiContentWorkspace {
   reports: UiForwardingReport[];
@@ -153,10 +154,14 @@ export function productUiBridge(): ProductUiBridge {
           return {
             taskId: task.taskId,
             kind: task.kind,
-            label: report ? tf("解析 {0}", report.title) : t("搜索"),
-            targetLabel: report
-              ? `${report.platform.toUpperCase()} · ${report.sourceIdentity}`
-              : t("搜索"),
+            label:
+              task.label || (report ? tf("解析 {0}", report.title) : t("搜索")),
+            resultDeleted: task.resultDeleted,
+            targetLabel:
+              task.label ||
+              (report
+                ? `${report.platform.toUpperCase()} · ${report.sourceIdentity}`
+                : t("搜索")),
             status: task.state === "awaiting_user" ? "running" : task.state,
             phase:
               summary?.phase ??

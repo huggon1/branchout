@@ -19,6 +19,8 @@ export const taskResultRefSchema = z
 export const taskSnapshotSchema = z
   .object({
     taskId: z.string().uuid(),
+    label: z.string().optional(),
+    resultDeleted: z.boolean().optional(),
     kind: taskKindSchema,
     target: taskTargetSchema,
     state: z.enum([

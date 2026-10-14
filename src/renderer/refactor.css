@@ -621,3 +621,68 @@
   border-radius: 20px;
   margin-bottom: 24px;
 }
+
+.result-item {
+  display: flex;
+  position: relative;
+  align-items: flex-start;
+  border-bottom: 1px solid #ecece9;
+}
+.result-item .result-row {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+.record-actions {
+  position: relative;
+  flex-shrink: 0;
+}
+.result-item > .record-actions {
+  margin: 10px 4px 0 0;
+}
+.record-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  min-width: 110px;
+  padding: 8px;
+  border: 1px solid #e5e6e2;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 6px 22px #0001;
+  z-index: 20;
+}
+.record-menu button {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+}
+.reader-tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.parsed-reader > .reader-tools {
+  padding: 12px 24px 0;
+  justify-content: flex-end;
+}
+.undo-stack {
+  position: fixed;
+  bottom: 22px;
+  right: 24px;
+  max-width: calc(100vw - 32px);
+  display: grid;
+  gap: 8px;
+  z-index: 100;
+}
+.undo-notice {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  padding: 12px 18px;
+  border: 1px solid #dfdfd8;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 20px #0002;
+}

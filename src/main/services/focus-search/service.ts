@@ -157,6 +157,7 @@ export class FocusSearchService {
     private prepareExecution: () => Promise<SearchExecution>,
     private changed: () => void,
     private options: {
+      isParsedDeleted?: (taskId: string) => boolean;
       now?: () => Date;
       schedulerIntervalMs?: number;
       executionGate?: ExecutionGate;
@@ -748,6 +749,18 @@ export class FocusSearchService {
             let submission = report.submissions.find(
               (s) => s.postKey === candidate.postKey,
             );
+            if (
+              submission &&
+              this.options.isParsedDeleted?.(submission.taskId)
+            ) {
+              await this.store.update((s) => {
+                const saved = s.reports.find((r) => r.reportId === reportId)!;
+                saved.submissions = saved.submissions.filter(
+                  (v) => v.postKey !== candidate.postKey,
+                );
+              });
+              submission = undefined;
+            }
             if (!submission) {
               submission = {
                 postKey: candidate.postKey,

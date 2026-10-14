@@ -11,6 +11,7 @@ Electron Main owns stores, model leases, Telegram, scheduling, and execution que
 | `FocusSearchStore` | `focus-search.json`: follows and independent reports                        |
 | `ForwardingStore`  | `forwarding.json`: submitted sources, material progress, and parsed results |
 | `TaskStore`        | `tasks.json`: task snapshots and activity                                   |
+| `RecordDeletions` | `record-deletions.json`: independent record visibility and timed undo |
 | Trace root         | `browser-traces/`: task-associated Pi sessions and native HTML              |
 
 ## Search and follow orchestration

@@ -1,3 +1,4 @@
+import { deletionStateSchema } from "../../shared/deletion-contracts";
 import { searchStateSchema } from "../../shared/focus-search-contracts";
 import { claimProfile } from "./profile-lock";
 import { businessGenerationSchema } from "./business-reset";
@@ -19,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { forwardingStateSchema } from "../services/forwarding/store";
 
 const businessFiles = [
+  "record-deletions.json",
   "business-generation.json",
   "focus-search.json",
   "tasks.json",
@@ -123,6 +125,8 @@ export async function prepareProfile(
           }
           if (file === "preferences.json")
             z.object({ language: languageSchema }).strict().parse(data);
+          if (file === "record-deletions.json")
+            data = deletionStateSchema.parse(data);
           if (file === "tasks.json") {
             data = taskStateSchema.parse(data);
             for (const task of data.tasks) {
