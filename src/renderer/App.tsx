@@ -1,3 +1,4 @@
+import { TaskPanel } from "./components/TaskPanel";
 import { RecordActions } from "./components/RecordActions";
 import type { RecordRef, RecordDeletion } from "../shared/deletion-contracts";
 import {
@@ -17,7 +18,6 @@ import {
   MagnifyingGlass,
   BookOpen,
   BookmarkSimple,
-  ListBullets,
   GearSix,
   List,
   CaretRight,
@@ -43,13 +43,12 @@ import type {
 import type { ModelReply } from "../shared/model-contracts";
 import "./refactor.css";
 
-type Page = "search" | "parsed" | "reports" | "follows" | "tasks" | "settings";
+type Page = "search" | "parsed" | "reports" | "follows" | "settings";
 const labels: Record<Page, string> = {
   search: "搜索",
   parsed: "解析结果",
   reports: "搜索结果",
   follows: "关注",
-  tasks: "任务",
   settings: "设置",
 };
 const platforms = [
@@ -126,7 +125,7 @@ export function App() {
   const [source, setSource] = useState("all");
   const [selectedReport, setSelectedReport] = useState("");
   const [selectedContent, setSelectedContent] = useState("");
-  const [selectedTask, setSelectedTask] = useState("");
+  const [tasksOpen, setTasksOpen] = useState(false);
   const [readerOpen, setReaderOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [contentQuery, setContentQuery] = useState("");
@@ -233,7 +232,6 @@ export function App() {
         }
       : task;
   });
-  const activeCount = tasks.filter(live).length;
   const displayedReports = [...reports]
     .filter((r) => source === "all" || (r.origin ?? "manual") === source)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -256,7 +254,6 @@ export function App() {
   const reading =
     readingReports.find((r) => r.materialId === selectedContent) ??
     readingReports[0];
-  const task = tasks.find((item) => item.taskId === selectedTask) ?? tasks[0];
   const nav = (key: Page, icon?: ReactNode) => (
     <button
       key={key}
@@ -267,9 +264,6 @@ export function App() {
     >
       {icon}
       <span>{t(labels[key])}</span>
-      {key === "tasks" && activeCount > 0 && (
-        <span className="nav-count">{activeCount}</span>
-      )}
     </button>
   );
   const stop = (id: string) =>
@@ -289,13 +283,12 @@ export function App() {
         setSelectedReport(next);
       if (record.kind === "parsed" && reading?.materialId === record.id)
         setSelectedContent(next);
-      if (record.kind === "task" && task?.taskId === record.id)
-        setSelectedTask(next);
+
       if (!next) setReaderOpen(false);
       requestAnimationFrame(() =>
         document
           .querySelector<HTMLElement>(
-            '.result-index .result-row[aria-current="true"], .result-index h1',
+            '.task-panel:popover-open .source-tabs button[aria-pressed="true"], .result-index .result-row[aria-current="true"], .result-index h1',
           )
           ?.focus(),
       );
@@ -364,7 +357,6 @@ export function App() {
             </div>
           )}
           {nav("follows", <BookmarkSimple size={18} />)}
-          {nav("tasks", <ListBullets size={18} />)}
           {nav("settings", <GearSix size={18} />)}
         </nav>
         {updates.view?.release && (
@@ -382,6 +374,29 @@ export function App() {
         )}
       </aside>
       <main className="refactor-main">
+        <header className="workspace-header">
+          <span>{t(labels[page])}</span>
+          <TaskPanel
+            tasks={tasks}
+            open={tasksOpen}
+            onOpen={setTasksOpen}
+            busy={busy}
+            onDelete={deleteRecord}
+            onClearEnded={() => void run(() => bridge.clearEndedTasks())}
+            onExport={(id) => void run(() => bridge.exportTaskPiLogs(id))}
+            onResult={(task) => {
+              if (task.resultType === "search") {
+                setSelectedReport(task.resultId ?? "");
+                navigate("reports");
+              } else {
+                setSelectedContent(task.resultId ?? "");
+                navigate("parsed");
+              }
+              setReaderOpen(true);
+              setTasksOpen(false);
+            }}
+          />
+        </header>
         {!!undo.length && (
           <div className="undo-stack" aria-label={t("删除操作")}>
             {undo.map((operation) => (
@@ -906,70 +921,12 @@ export function App() {
             )}
           </section>
         )}
-        {page === "tasks" && (
-          <div className={`refactor-workspace ${readerOpen ? "reading" : ""}`}>
-            <aside className="result-index">
-              <h1 tabIndex={-1}>{t("任务")}</h1>
-              {tasks.map((item) => (
-                <div className="result-item" key={item.taskId}>
-                  <button
-                    className="result-row"
-                    aria-current={
-                      task?.taskId === item.taskId ? "true" : undefined
-                    }
-                    onClick={() => {
-                      setSelectedTask(item.taskId);
-                      setReaderOpen(true);
-                    }}
-                  >
-                    <strong>{item.targetLabel || item.label}</strong>
-                    <small>
-                      {status(item.status)} · {item.phase}
-                    </small>
-                  </button>
-                  {recordActions(
-                    { kind: "task", id: item.taskId },
-                    item.targetLabel || item.label,
-                    live(item),
-                  )}
-                </div>
-              ))}
-            </aside>
-            <section className="result-reader">
-              {task ? (
-                <>
-                  {back}
-                  <h1>{task.targetLabel || task.label}</h1>
-                  <p className="muted">
-                    {status(task.status)} · {task.phase}
-                  </p>
-                  <p className="muted">{dateTime(task.updatedAt)}</p>
-                  {task.resultDeleted && (
-                    <p className="muted">{t("结果已删除")}</p>
-                  )}
-                  {task.error && <p className="error-text">{task.error}</p>}
-                  <button
-                    className="button"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(() => bridge.exportTaskPiLogs(task.taskId))
-                    }
-                  >
-                    {t("导出 Agent 日志")}
-                  </button>
-                </>
-              ) : (
-                <p className="empty-copy">{t("任务运行状态会显示在这里。")}</p>
-              )}
-            </section>
-          </div>
-        )}
         {page === "settings" && (
           <SettingsPage
             updateSection={
               <UpdateSettings
                 updates={updates}
-                onTasks={() => navigate("tasks")}
+                onTasks={() => setTasksOpen(true)}
                 onLater={() => navigate("search")}
               />
             }

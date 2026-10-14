@@ -4,7 +4,7 @@ Postrove searches social-media content through platform AI and parses submitted 
 
 ## Product scope
 
-The application opens on Search. Content has fixed Parsed content and Search results destinations. Focus manages recurring conditions. Tasks shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, Telegram, task browser visibility, application language, and application updates.
+The application opens on Search. Content has fixed Parsed content and Search results destinations. Focus manages recurring conditions. The global header task panel shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, Telegram, task browser visibility, application language, and application updates.
 
 ## Single-question search
 
@@ -38,7 +38,7 @@ Telegram acknowledges accepted links after local persistence and queue submissio
 
 Browser execution retries transient model failures and repairs recoverable page actions within time and action budgets. Recovery observes the current page before repeating actions. Login, verification, and account agreements requiring human action end the affected platform section while other sections continue. Translation and introduction also retry transient connection failures. Exhausted recovery marks the parsing task failed and retains its sources and translated portions; translation fidelity validation permits one correction.
 
-Tasks shows state, stage, update time, failure reason, and native Pi export. Content owns reading and Stop. A new search starts from Search; a new parsing request starts from Parsed content.
+The global header task entry remains available while searching, reading, or configuring the app. Its panel groups active, failed, and ended work. Rows show state and stage; expanding a row shows update time, failure reason, activity, saved-result navigation, and native Pi export. The panel initially opens failures when present, otherwise active work or ended history. Individual clearing and Clear Ended hide terminal task history and preserve saved results and logs. Clear Ended includes completed, failed, and stopped records present at the time of the action. Each clear uses the eight-second recovery window. Escape or an outside click closes the panel and returns focus to the task entry. Application-update task links open this same panel. Content owns reading and Stop. A new search starts from Search; a new parsing request starts from Parsed content.
 
 ## Record deletion and recovery
 

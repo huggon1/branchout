@@ -727,5 +727,16 @@
   "Undo window expired": "The undo window has ended.",
   "Record unavailable": "The record is unavailable.",
   "记录不存在": "The record is unavailable.",
-  "撤销时间已结束": "The undo window has ended."
+  "撤销时间已结束": "The undo window has ended.",
+  "{0} 进行中": "{0} active",
+  "{0} 失败": "{0} failed",
+  "后台运行，结果保存在内容中。": "Runs in the background. Results are saved in Content.",
+  "关闭任务面板": "Close task panel",
+  "任务状态": "Task status",
+  "已结束": "Ended",
+  "清除已结束 {0}": "Clear ended {0}",
+  "内容结果和日志保留。": "Content and logs are kept.",
+  "清除：{0}": "Clear: {0}",
+  "此分组暂无任务。": "This group has no tasks.",
+  "查看结果": "View result"
 }
