@@ -97,7 +97,7 @@ export function MaterialReader({
               <button
                 className="button button-quiet"
                 onClick={() =>
-                  void window.branchout.openRepositoryLink(material.url)
+                  void window.postrove.openRepositoryLink(material.url)
                 }
               >
                 {t("打开原链接 ↗")}

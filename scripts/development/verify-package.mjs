@@ -31,7 +31,7 @@ assert.equal(
   "Use a macOS runner for package verification",
 );
 const appPath =
-  options.get("--app") ?? resolve("release/mac-arm64/Branchout.app");
+  options.get("--app") ?? resolve("release/mac-arm64/Postrove.app");
 const output = options.get("--output") ?? resolve(".tmp/package-verification");
 const resources = join(appPath, "Contents/Resources");
 const expected = JSON.parse(await readFile("package.json", "utf8")).version;
@@ -43,13 +43,13 @@ let application,
 const rendererErrors = [];
 const env = { ...process.env };
 for (const key of Object.keys(env))
-  if (key.startsWith("BRANCHOUT_") || key === "ELECTRON_RUN_AS_NODE")
+  if (key.startsWith("POSTROVE_") || key === "ELECTRON_RUN_AS_NODE")
     delete env[key];
-env.BRANCHOUT_TEST_DATA = profile;
-env.BRANCHOUT_RUN_MODE = "review";
+env.POSTROVE_TEST_DATA = profile;
+env.POSTROVE_RUN_MODE = "review";
 const launch = async () => {
   application = await electron.launch({
-    executablePath: join(appPath, "Contents/MacOS/Branchout"),
+    executablePath: join(appPath, "Contents/MacOS/Postrove"),
     args: [],
     env,
     timeout: 30000,
@@ -75,7 +75,7 @@ try {
       "dist/worker/jobs/browser/worker-entry.mjs",
       "dist/worker/jobs/forwarding/worker-entry.mjs",
       "dist/renderer/index.html",
-      "dist/assets/branchout.png",
+      "dist/assets/postrove.png",
     ])
       if (!fs.existsSync(path.join(root, name)))
         throw Error("Missing application resource");
@@ -109,9 +109,9 @@ try {
     "headless",
   );
   const updates = page.getByRole("region", { name: "应用更新", exact: true });
-  await expect(updates).toContainText(`Branchout ${expected}`);
+  await expect(updates).toContainText(`Postrove ${expected}`);
   const updateState = await page.evaluate(() =>
-    window.branchout.applicationUpdates(),
+    window.postrove.applicationUpdates(),
   );
   assert.equal(updateState.ok, true);
   assert.notEqual(updateState.value.state, "disabled");
@@ -139,7 +139,7 @@ try {
   );
   await expect(
     page.getByRole("region", { name: "Application updates", exact: true }),
-  ).toContainText(`Branchout ${expected}`);
+  ).toContainText(`Postrove ${expected}`);
   await page.screenshot({ path: join(output, "settings-en.png") });
   assert.deepEqual(rendererErrors, []);
   phase = "shutdown";

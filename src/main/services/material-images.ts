@@ -3,25 +3,28 @@ import { mkdir, writeFile, access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { protocol } from "electron";
 import type { BrowserContext } from "playwright-core";
+import { cachedImageSchemes } from "../runtime/storage-identity";
 
 export function registerMaterialImages(root: string) {
-  protocol.handle("branchout-image", async (request) => {
-    const id = new URL(request.url).hostname;
-    if (!/^[a-f0-9]{64}$/.test(id)) return new Response(null, { status: 404 });
-    try {
-      const data = await readFile(join(root, id));
-      const mime = await readFile(join(root, `${id}.type`), "utf8");
-      return new Response(data, {
-        headers: {
-          "Content-Type": mime,
-          "Content-Security-Policy": "default-src 'none'",
-          "X-Content-Type-Options": "nosniff",
-        },
-      });
-    } catch {
-      return new Response(null, { status: 404 });
-    }
-  });
+  for (const scheme of cachedImageSchemes)
+    protocol.handle(scheme, async (request) => {
+      const id = new URL(request.url).hostname;
+      if (!/^[a-f0-9]{64}$/.test(id))
+        return new Response(null, { status: 404 });
+      try {
+        const data = await readFile(join(root, id));
+        const mime = await readFile(join(root, `${id}.type`), "utf8");
+        return new Response(data, {
+          headers: {
+            "Content-Type": mime,
+            "Content-Security-Policy": "default-src 'none'",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      } catch {
+        return new Response(null, { status: 404 });
+      }
+    });
 }
 export async function cacheMaterialImage(
   context: BrowserContext,
@@ -32,7 +35,7 @@ export async function cacheMaterialImage(
   await mkdir(root, { recursive: true, mode: 0o700 });
   try {
     await access(join(root, id));
-    return `branchout-image://${id}`;
+    return `postrove-image://${id}`;
   } catch {}
   const response = await context.request.get(url, { timeout: 15000 });
   try {
@@ -43,7 +46,7 @@ export async function cacheMaterialImage(
     if (body.length > 20 * 1024 * 1024) return undefined;
     await writeFile(join(root, id), body, { mode: 0o600 });
     await writeFile(join(root, `${id}.type`), mime, { mode: 0o600 });
-    return `branchout-image://${id}`;
+    return `postrove-image://${id}`;
   } finally {
     await response.dispose();
   }

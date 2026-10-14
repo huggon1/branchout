@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 // A transient click error requires a fresh observation before frame capture;
 // the model fixture must retain its collection stage through that observation.
 test("reading collection follows a direct reference and captures its frame with shared tools", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-materials-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-materials-e2e-"));
   const taskPrompts: string[] = [],
     systems: string[] = [],
     navigated: string[] = [];
@@ -186,7 +186,7 @@ test("reading collection follows a direct reference and captures its frame with 
   const endpoint = `http://127.0.0.1:${(server.address() as any).port}/v1`;
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();
@@ -291,7 +291,7 @@ for (const scenario of [
   },
 ] as const) {
   test(`collection validates source identity after ${scenario.name}`, async ({}, info) => {
-    const root = await mkdtemp(join(tmpdir(), "branchout-collection-address-"));
+    const root = await mkdtemp(join(tmpdir(), "postrove-collection-address-"));
     let sequence = 0;
     let capturedUrl: string | undefined;
     let capturedBody = "";
@@ -376,7 +376,7 @@ for (const scenario of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();
@@ -441,7 +441,7 @@ for (const scenario of [
   },
 ] as const) {
   test(`collection whole-page scope guard for ${scenario.platform}`, async ({}, info) => {
-    const root = await mkdtemp(join(tmpdir(), "branchout-collection-scope-"));
+    const root = await mkdtemp(join(tmpdir(), "postrove-collection-scope-"));
     let sequence = 0;
     let bodyAttempted = false;
     let rejected = false;
@@ -532,7 +532,7 @@ for (const scenario of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();

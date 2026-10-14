@@ -7,11 +7,11 @@ export function installMenu(language: Language, open: () => void) {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
-        label: "Branchout",
+        label: "Postrove",
         submenu: [
           { label: label("显示窗口", "Show window"), click: open },
           { type: "separator" },
-          { role: "quit", label: label("退出 Branchout", "Quit Branchout") },
+          { role: "quit", label: label("退出 Postrove", "Quit Postrove") },
         ],
       },
       {

@@ -14,7 +14,7 @@ npm run dev
 ## Try changes with separate data
 
 ```sh
-BRANCHOUT_TEST_DATA="$PWD/tmp/dev-profile" npm run dev
+POSTROVE_TEST_DATA="$PWD/tmp/dev-profile" npm run dev
 ```
 
 The selected directory retains its records across launches. A separate path defaults to review mode, with Telegram receiving paused during preparation. Saving a Bot Token starts receiving for that instance.

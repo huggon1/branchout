@@ -45,7 +45,7 @@ export function resolveModel(
   return {
     id: config.modelId,
     name: config.modelId,
-    provider: "branchout-api",
+    provider: "postrove-api",
     api: config.api,
     baseUrl: config.baseUrl,
     reasoning: false,
@@ -328,7 +328,7 @@ async function runPiAttempt(
       last.diagnostics = [
         ...(last.diagnostics ?? []),
         {
-          type: "branchout_model_failure",
+          type: "postrove_model_failure",
           timestamp: Date.now(),
           details: { attempt, failureCode: code, ...failureDiagnostic },
         },

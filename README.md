@@ -1,19 +1,19 @@
-<p align="center"><img src="assets/branchout-icon.svg" width="112" alt="Branchout app icon"></p>
+<p align="center"><img src="assets/postrove-icon.svg" width="112" alt="Postrove app icon"></p>
 
-# Branchout
+# Postrove
 
 **Search through platform AI. Turn forwarded links into readable material.**
 
 [简体中文](README.zh-CN.md)
 
-Branchout is a desktop app with two connected workflows:
+Postrove is a desktop app with two connected workflows:
 
 - **Platform AI search:** Ask a question, save each platform's original answer and source links, and turn search conditions into recurring follows.
 - **Link parsing:** Add a link manually, forward it through Telegram, or select a source from search results. Read the material in your chosen language.
 
 ## Getting started
 
-1. Install Google Chrome. Download the macOS Apple silicon DMG from [GitHub Releases](https://github.com/huggon1/branchout/releases), move Branchout into Applications, and open it. See the [0.1.0 release notes](docs/releases/0.1.0.md) for first-open approval and migration from earlier builds.
+1. Install Google Chrome. Download the macOS Apple silicon DMG from [GitHub Releases](https://github.com/huggon1/postrove/releases), move Postrove into Applications, and open it. See the [0.1.0 release notes](docs/releases/0.1.0.md) for first-open approval and migration from earlier builds.
 2. In Settings, connect a general API or a Codex subscription account, then choose the app language. Codex connections use a locally available Codex CLI. The configured model operates the browser and prepares reading material.
 3. Sign in to the desired platforms through Settings. Search and parsing share saved Chrome sessions. Task browsing defaults to headless; Settings can show task windows.
 4. Enter a question in Search or add a link in Parsed content. Telegram forwarding uses a configured bot and an authorized chat.
@@ -29,13 +29,13 @@ Content provides **Search results** and **Parsed content**. **Focus** manages re
 
 Enter a question, select platforms, and choose a time range. For example: “How have independent developers validated product demand in the past week? Find discussions with actual failures and links to the original posts.”
 
-Branchout adapts the question for each platform AI and starts a fresh, single-question conversation. Each report saves the original question and presents the platforms' original answers with titled source links. Saved answers remain readable when another platform or citation extraction fails. The selected time range goes into the question; source dates reflect available evidence.
+Postrove adapts the question for each platform AI and starts a fresh, single-question conversation. Each report saves the original question and presents the platforms' original answers with titled source links. Saved answers remain readable when another platform or citation extraction fails. The selected time range goes into the question; source dates reflect available evidence.
 
 Open a source or add it directly to parsing from Search results. Save the same conditions as a follow to run daily or weekly at a chosen time. Follow results appear alongside manual searches. Scheduled runs occur while the application is open; missed occurrences expire.
 
 ## Link parsing
 
-Branchout reads the main content and one level of directly referenced materials. It saves source snapshots, short introductions, and readable bodies. Reading preserves headings, images, code, tables, and links, and translates other-language text into the language selected for that run.
+Postrove reads the main content and one level of directly referenced materials. It saves source snapshots, short introductions, and readable bodies. Reading preserves headings, images, code, tables, and links, and translates other-language text into the language selected for that run.
 
 | Source / content type | Parsing target                                                      | Capability details                                                                                                                  |
 | --------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,4 +72,4 @@ The [development guide](docs/development.md) covers browser preparation, the Xia
 
 ## License
 
-Branchout is available under the [MIT License](LICENSE).
+Postrove is available under the [MIT License](LICENSE).

@@ -2,11 +2,11 @@ import { errorText } from "./i18n";
 import type { DesktopBridge } from "../shared/ipc-contracts";
 declare global {
   interface Window {
-    branchout: DesktopBridge;
+    postrove: DesktopBridge;
   }
 }
 export const bridge = Object.fromEntries(
-  Object.entries(window.branchout).map(([key, value]) => [
+  Object.entries(window.postrove).map(([key, value]) => [
     key,
     key === "onChanged" || key === "onUpdateChanged"
       ? value

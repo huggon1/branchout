@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { join, resolve, basename } from "node:path";
 import { createRequire } from "node:module";
-import { randomUUID } from "node:crypto";
+import { randomUUID, X509Certificate } from "node:crypto";
 import assert from "node:assert/strict";
 import { _electron as electron } from "@playwright/test";
 
@@ -56,7 +56,7 @@ const server = createServer(async (req, res) => {
   const name = basename(new URL(req.url, "http://localhost").pathname);
   requests.push(name);
   if (
-    !/^(?:latest-mac\.yml|Branchout-[\d.]+-mac-arm64\.zip(?:\.blockmap)?)$/.test(
+    !/^(?:latest-mac\.yml|Postrove-[\d.]+-mac-arm64\.zip(?:\.blockmap)?)$/.test(
       name,
     )
   ) {
@@ -112,8 +112,8 @@ try {
     await writeFile(
       bootstrap,
       `const trialRoot=require("node:path").resolve(require("node:path").dirname(process.execPath), "../../../../..");
-process.env.BRANCHOUT_TEST_DATA=require("node:path").join(trialRoot, "profile");
-process.env.BRANCHOUT_RUN_MODE="review";
+process.env.POSTROVE_TEST_DATA=require("node:path").join(trialRoot, "profile");
+process.env.POSTROVE_RUN_MODE="review";
 require("electron").autoUpdater.on("error", error => require("node:fs").writeFileSync(require("node:path").join(trialRoot, "evidence/native-error.json"), JSON.stringify({ name: error.name, message: error.message })));
 require("./main.cjs");\n`,
     );
@@ -137,7 +137,7 @@ require("./main.cjs");\n`,
         "--verify",
         "--deep",
         "--strict",
-        join(output, "mac-arm64/Branchout.app"),
+        join(output, "mac-arm64/Postrove.app"),
       ]);
     }
     await checkpoint("signed packages prepared");
@@ -147,19 +147,6 @@ require("./main.cjs");\n`,
     await checkpoint("verify clean signing environment");
     assert.equal(identity, undefined);
     assert.equal(process.env.CSC_KEYCHAIN, undefined);
-    const installedCertificate = await run("security", [
-      "find-certificate",
-      "-c",
-      "Branchout Release Signing",
-    ]).then(
-      () => true,
-      () => false,
-    );
-    assert.equal(
-      installedCertificate,
-      false,
-      "Project certificate is absent from runner keychains",
-    );
     for (const [version, folder] of packages) {
       await checkpoint(`extract ${version}`);
       await run(
@@ -167,14 +154,39 @@ require("./main.cjs");\n`,
         [
           "-x",
           "-k",
-          join(root, folder, `Branchout-${version}-mac-arm64.zip`),
+          join(root, folder, `Postrove-${version}-mac-arm64.zip`),
           join(root, folder, "mac-arm64"),
         ],
         { timeout: 90000 },
       );
     }
-    const baseline = join(root, "baseline/mac-arm64/Branchout.app");
-    const candidate = join(root, "candidate/mac-arm64/Branchout.app");
+    const baseline = join(root, "baseline/mac-arm64/Postrove.app");
+    const candidate = join(root, "candidate/mac-arm64/Postrove.app");
+    const certificatePrefix = join(evidence, "signer-");
+    await run("codesign", [
+      "-d",
+      `--extract-certificates=${certificatePrefix}`,
+      baseline,
+    ]);
+    const signer = new X509Certificate(await readFile(`${certificatePrefix}0`));
+    const keychainCertificates = await run("security", [
+      "find-certificate",
+      "-a",
+      "-p",
+    ]);
+    const installedCertificate = (
+      keychainCertificates.stdout.match(
+        /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g,
+      ) ?? []
+    ).some(
+      (pem) =>
+        new X509Certificate(pem).fingerprint256 === signer.fingerprint256,
+    );
+    assert.equal(
+      installedCertificate,
+      false,
+      "Project certificate is absent from runner keychains",
+    );
     const signature = await run("codesign", ["-d", "-r-", baseline]);
     const requirement = signature.stderr + signature.stdout;
     assert.match(requirement, /anchor|certificate/);
@@ -256,7 +268,7 @@ require("./main.cjs");\n`,
     );
     await checkpoint("launch baseline");
     application = await electron.launch({
-      executablePath: join(baseline, "Contents/MacOS/Branchout"),
+      executablePath: join(baseline, "Contents/MacOS/Postrove"),
       args: [],
       timeout: 30000,
     });
@@ -322,7 +334,7 @@ require("./main.cjs");\n`,
       if (!page.isClosed()) {
         const state = await bounded(
           page
-            .evaluate(() => window.branchout.applicationUpdates())
+            .evaluate(() => window.postrove.applicationUpdates())
             .catch(() => undefined),
           2000,
           undefined,
@@ -379,7 +391,7 @@ require("./main.cjs");\n`,
           to: version,
           nativeRestart: true,
           projectCertificateImported: false,
-          packageSourceRun: process.env.BRANCHOUT_UPGRADE_PACKAGE_RUN,
+          packageSourceRun: process.env.POSTROVE_UPGRADE_PACKAGE_RUN,
           data: [
             "platform answer",
             "preferences",

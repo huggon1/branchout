@@ -17,12 +17,12 @@ async function launch(mode = "test") {
     args: ["."],
     env: {
       ...process.env,
-      BRANCHOUT_TEST_ENDPOINT: endpoint,
-      BRANCHOUT_RUN_MODE: mode,
-      BRANCHOUT_TEST_DATA: profile,
-      BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
-      BRANCHOUT_BUILD_REVISION: "e2e",
-      BRANCHOUT_EVAL_DENY_KEYCHAIN: "1",
+      POSTROVE_TEST_ENDPOINT: endpoint,
+      POSTROVE_RUN_MODE: mode,
+      POSTROVE_TEST_DATA: profile,
+      POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
+      POSTROVE_BUILD_REVISION: "e2e",
+      POSTROVE_EVAL_DENY_KEYCHAIN: "1",
       HOME: root,
     },
   });
@@ -99,7 +99,7 @@ test.beforeEach(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   endpoint = `http://127.0.0.1:${(server.address() as any).port}`;
-  root = await mkdtemp(join(tmpdir(), "branchout-e2e-"));
+  root = await mkdtemp(join(tmpdir(), "postrove-e2e-"));
   profile = join(root, "profile");
   await mkdir(profile);
   await writeFile(
@@ -196,11 +196,11 @@ await import(${JSON.stringify(resolve("dist/main/main.cjs"))});
     args: [wrapper],
     env: {
       ...process.env,
-      BRANCHOUT_TEST_ENDPOINT: endpoint,
-      BRANCHOUT_RUN_MODE: "test",
-      BRANCHOUT_TEST_DATA: profile,
-      BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
-      BRANCHOUT_EVAL_DENY_KEYCHAIN: "1",
+      POSTROVE_TEST_ENDPOINT: endpoint,
+      POSTROVE_RUN_MODE: "test",
+      POSTROVE_TEST_DATA: profile,
+      POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
+      POSTROVE_EVAL_DENY_KEYCHAIN: "1",
       HOME: root,
     },
   });
@@ -257,7 +257,7 @@ test("parsed materials retain their language and partial state across new submis
       .getByRole("button", { name: "Settings", exact: true }),
   ).toBeVisible();
   const added = await page.evaluate(() =>
-    window.branchout.addLink("https://github.com/fixture/english"),
+    window.postrove.addLink("https://github.com/fixture/english"),
   );
   expect(added.ok).toBe(true);
   await expect
@@ -292,7 +292,7 @@ test("parsed materials retain their language and partial state across new submis
 test("profile copying protects an active source and preserves independent follows", async ({}, info) => {
   let page = await launch();
   const saved = await page.evaluate(() =>
-    window.branchout.saveFollow({
+    window.postrove.saveFollow({
       name: "Saved fixture follow",
       question: "Durable drafts",
       platforms: ["x"],
@@ -323,7 +323,7 @@ test("profile copying protects an active source and preserves independent follow
     profile = source;
     const sourcePage = await launch();
     const deleted = await sourcePage.evaluate(
-      (id) => window.branchout.deleteFollow(id),
+      (id) => window.postrove.deleteFollow(id),
       (saved as any).value.followId,
     );
     expect(deleted.ok).toBe(true);
@@ -374,7 +374,7 @@ test("review with copied Telegram credentials shows receiving paused", async ({}
     "已配置",
   );
   const reply = await page.evaluate(() =>
-    (window as any).branchout.telegramStatus(),
+    (window as any).postrove.telegramStatus(),
   );
   expect(reply.ok).toBe(true);
   expect(reply.value.configured).toBe(true);

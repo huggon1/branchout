@@ -1,19 +1,19 @@
-<p align="center"><img src="assets/branchout-icon.svg" width="112" alt="Branchout 应用图标"></p>
+<p align="center"><img src="assets/postrove-icon.svg" width="112" alt="Postrove 应用图标"></p>
 
-# Branchout
+# Postrove
 
 **通过平台 AI 搜索内容，把转发链接变成可阅读的材料。**
 
 [English](README.md)
 
-Branchout 是桌面应用，提供两套相通的功能：
+Postrove 是桌面应用，提供两套相通的功能：
 
 - **平台 AI 搜索：** 输入问题，保存各平台的原回答和来源链接，还可以把搜索条件保存为定期关注。
 - **转发解析：** 手动添加链接、通过 Telegram 转发，或从搜索结果选择来源，以你选择的语言阅读材料。
 
 ## 开始使用
 
-1. 安装 Google Chrome。从 [GitHub Releases](https://github.com/huggon1/branchout/releases) 下载 macOS Apple silicon DMG，将 Branchout 拖入 Applications 并打开。[0.1.0 发布说明](docs/releases/0.1.0.md)介绍首次打开时的系统确认，以及旧版迁移。
+1. 安装 Google Chrome。从 [GitHub Releases](https://github.com/huggon1/postrove/releases) 下载 macOS Apple silicon DMG，将 Postrove 拖入 Applications 并打开。[0.1.0 发布说明](docs/releases/0.1.0.md)介绍首次打开时的系统确认，以及旧版迁移。
 2. 在设置中连接通用 API 或 Codex 订阅账号，并选择应用语言。Codex 连接使用本机可用的 Codex CLI。配置的模型负责操作浏览器和准备阅读材料。
 3. 在设置中登录需要的平台。搜索与解析共用 Chrome 的网站会话。任务浏览器默认无头运行，设置中可以选择显示窗口。
 4. 在“搜索”中输入问题，或在“解析结果”中添加链接。使用 Telegram 转发时，先配置 Bot 并授权聊天。
@@ -29,13 +29,13 @@ Branchout 是桌面应用，提供两套相通的功能：
 
 输入问题，选择平台和时间范围。例如：“最近一周，独立开发者如何验证产品需求？我想找包含实际失败经验的讨论和原帖。”
 
-Branchout 为各平台 AI 适配问题，并开启一次新的单轮对话。每份报告保存原问题，逐平台呈现原回答和带标题的来源链接。其他平台或引用提取失败时，已保存的回答仍可阅读。时间范围随问题发送，来源日期以实际获取的信息为准。
+Postrove 为各平台 AI 适配问题，并开启一次新的单轮对话。每份报告保存原问题，逐平台呈现原回答和带标题的来源链接。其他平台或引用提取失败时，已保存的回答仍可阅读。时间范围随问题发送，来源日期以实际获取的信息为准。
 
 在“搜索结果”中打开来源，或直接加入解析。将相同条件保存为关注后，可以选择每天或每周的运行时间。关注结果与手动搜索保存在一起。定期任务在应用运行时执行，错过的计划过期。
 
 ## 转发解析
 
-Branchout 读取主内容及一层直接引用材料，保存来源快照、简短导读和可阅读的正文。阅读保留标题、图片、代码、表格和链接；其他语言的文字翻译为本次选择的语言。
+Postrove 读取主内容及一层直接引用材料，保存来源快照、简短导读和可阅读的正文。阅读保留标题、图片、代码、表格和链接；其他语言的文字翻译为本次选择的语言。
 
 | 来源／内容类型 | 解析目标                                     | 能力说明                                                                             |
 | -------------- | -------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -72,4 +72,4 @@ npm run dev
 
 ## 许可证
 
-Branchout 使用 [MIT 许可证](LICENSE)。
+Postrove 使用 [MIT 许可证](LICENSE)。

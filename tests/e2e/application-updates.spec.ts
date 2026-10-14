@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 test("development shows the version and packaged-update boundary", async ({}, info) => {
-  const profile = await mkdtemp(join(tmpdir(), "branchout-update-e2e-"));
+  const profile = await mkdtemp(join(tmpdir(), "postrove-update-e2e-"));
   const application = await electron.launch({
     args: ["."],
     env: {
       ...process.env,
-      BRANCHOUT_TEST_DATA: profile,
-      BRANCHOUT_RUN_MODE: "test",
+      POSTROVE_TEST_DATA: profile,
+      POSTROVE_RUN_MODE: "test",
     },
   });
   try {
@@ -30,7 +30,7 @@ test("development shows the version and packaged-update boundary", async ({}, in
 });
 
 test("update shutdown resumes queued searches on the next launch", async ({}, info) => {
-  const profile = await mkdtemp(join(tmpdir(), "branchout-update-restart-"));
+  const profile = await mkdtemp(join(tmpdir(), "postrove-update-restart-"));
   const server = createServer((req, res) =>
     res.end(
       JSON.stringify(
@@ -51,9 +51,9 @@ test("update shutdown resumes queued searches on the next launch", async ({}, in
       args: [resolve("dist/main/update-test.cjs")],
       env: {
         ...process.env,
-        BRANCHOUT_TEST_DATA: profile,
-        BRANCHOUT_RUN_MODE: "test",
-        BRANCHOUT_TEST_ENDPOINT: endpoint,
+        POSTROVE_TEST_DATA: profile,
+        POSTROVE_RUN_MODE: "test",
+        POSTROVE_TEST_ENDPOINT: endpoint,
       },
     });
   let application = await launch();
@@ -63,7 +63,7 @@ test("update shutdown resumes queued searches on the next launch", async ({}, in
       (globalThis as any).fixtureServices.executionGate.pause(),
     );
     await page.evaluate(() =>
-      window.branchout.startFocusSearch({
+      window.postrove.startFocusSearch({
         question: "Resume saved search",
         platforms: ["x"],
         period: "all",
@@ -104,7 +104,7 @@ test("update shutdown resumes queued searches on the next launch", async ({}, in
 });
 
 test("updates preserve work through cancellation, signature failure, and installation waiting", async ({}, info) => {
-  const profile = await mkdtemp(join(tmpdir(), "branchout-update-flow-"));
+  const profile = await mkdtemp(join(tmpdir(), "postrove-update-flow-"));
   let checkFails = true,
     downloadFails = true,
     stageFails = true;
@@ -173,10 +173,10 @@ test("updates preserve work through cancellation, signature failure, and install
     args: [resolve("dist/main/update-test.cjs")],
     env: {
       ...process.env,
-      BRANCHOUT_TEST_DATA: profile,
-      BRANCHOUT_RUN_MODE: "test",
-      BRANCHOUT_TEST_ENDPOINT: endpoint,
-      BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
+      POSTROVE_TEST_DATA: profile,
+      POSTROVE_RUN_MODE: "test",
+      POSTROVE_TEST_ENDPOINT: endpoint,
+      POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
     },
   });
   try {
@@ -194,7 +194,7 @@ test("updates preserve work through cancellation, signature failure, and install
     expect(downloads).toBe(0);
     await page.getByRole("button", { name: "稍后", exact: true }).click();
     await expect(
-      page.getByText("Branchout 0.1.1 已发布", { exact: true }),
+      page.getByText("Postrove 0.1.1 已发布", { exact: true }),
     ).toHaveCount(0);
     await page
       .getByRole("button", { name: "搜索", exact: true })
@@ -240,7 +240,7 @@ test("updates preserve work through cancellation, signature failure, and install
     stageFails = false;
     const startSearch = () =>
       page.evaluate(() =>
-        window.branchout.startFocusSearch({
+        window.postrove.startFocusSearch({
           question: "Hold running search",
           platforms: ["x"],
           period: "week",
@@ -256,7 +256,7 @@ test("updates preserve work through cancellation, signature failure, and install
       )
       .toBe(1);
     await page.evaluate(() =>
-      window.branchout.addLink("https://github.com/fixture/held"),
+      window.postrove.addLink("https://github.com/fixture/held"),
     );
     await expect
       .poll(() =>
@@ -274,7 +274,7 @@ test("updates preserve work through cancellation, signature failure, and install
     await expect(updates).toContainText("等待当前任务完成");
     await startSearch();
     await page.evaluate(() =>
-      window.branchout.addLink("https://github.com/fixture/queued"),
+      window.postrove.addLink("https://github.com/fixture/queued"),
     );
     expect(
       await application.evaluate(

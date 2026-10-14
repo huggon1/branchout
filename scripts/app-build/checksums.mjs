@@ -16,8 +16,8 @@ for (const name of (await readdir("release"))
 }
 const version = build.version;
 for (const file of [
-  `Branchout-${version}-mac-arm64.dmg`,
-  `Branchout-${version}-mac-arm64.zip`,
+  `Postrove-${version}-mac-arm64.dmg`,
+  `Postrove-${version}-mac-arm64.zip`,
   "latest-mac.yml",
 ])
   if (!artifacts.some((item) => item.file === file))

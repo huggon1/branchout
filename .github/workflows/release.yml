@@ -31,7 +31,7 @@ jobs:
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
           [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          grep -Fx "# Branchout ${version}" "docs/releases/${version}.md"
+          grep -Fx "# Postrove ${version}" "docs/releases/${version}.md"
           if [ "${GITHUB_EVENT_NAME}" = push ]; then
             test "${GITHUB_REF_NAME}" = "v${version}"
           fi
@@ -81,10 +81,10 @@ jobs:
           : "${MAC_CSC_LINK:?MAC_CSC_LINK is required}"
           : "${MAC_CSC_KEY_PASSWORD:?MAC_CSC_KEY_PASSWORD is required}"
           : "${MAC_CERT_SHA256:?MAC_CERT_SHA256 is required}"
-          keychain_path="${RUNNER_TEMP}/branchout-release.keychain-db"
-          p12_path="${RUNNER_TEMP}/branchout-release.p12"
-          cert_path="${RUNNER_TEMP}/branchout-release.pem"
-          cert_der_path="${RUNNER_TEMP}/branchout-release.cer"
+          keychain_path="${RUNNER_TEMP}/postrove-release.keychain-db"
+          p12_path="${RUNNER_TEMP}/postrove-release.p12"
+          cert_path="${RUNNER_TEMP}/postrove-release.pem"
+          cert_der_path="${RUNNER_TEMP}/postrove-release.cer"
           keychain_password=$(openssl rand -base64 32)
           default_keychain=$(security default-keychain -d user | tr -d '"')
           printf '%s' "${MAC_CSC_LINK}" | base64 -D > "${p12_path}"
@@ -105,9 +105,11 @@ jobs:
           test "${fingerprint}" = "${expected}"
           sudo -n security add-trusted-cert -d -r trustRoot -p codeSign \
             -k /Library/Keychains/System.keychain "${cert_der_path}"
+          signing_identity=$(openssl x509 -in "${cert_path}" -noout -fingerprint -sha1 \
+            | cut -d= -f2 | tr -d ':\r\n')
           security find-identity -v -p codesigning "${keychain_path}" \
-            | grep -F 'Branchout Release Signing'
-          printf 'CSC_NAME=%s\n' 'Branchout Release Signing' >> "${GITHUB_ENV}"
+            | grep -F "${signing_identity}"
+          printf 'CSC_NAME=%s\n' "${signing_identity}" >> "${GITHUB_ENV}"
           printf 'CSC_KEYCHAIN=%s\n' "${keychain_path}" >> "${GITHUB_ENV}"
       - run: npm ci
       - run: npm run prepare:runtime
@@ -116,9 +118,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          codesign --verify --deep --strict --verbose=2 release/mac-arm64/Branchout.app
-          codesign -d -r- release/mac-arm64/Branchout.app > release/signing-requirement.txt 2>&1
-          test -s release/mac-arm64/Branchout.app/Contents/Resources/app-update.yml
+          codesign --verify --deep --strict --verbose=2 release/mac-arm64/Postrove.app
+          codesign -d -r- release/mac-arm64/Postrove.app > release/signing-requirement.txt 2>&1
+          test -s release/mac-arm64/Postrove.app/Contents/Resources/app-update.yml
       - name: Verify packaged startup and restart
         run: npm run test:package
       - uses: actions/upload-artifact@v7
@@ -144,7 +146,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: branchout-${{ github.run_id }}
+          name: postrove-${{ github.run_id }}
           path: |
             release/*.dmg
             release/*.zip
@@ -169,7 +171,7 @@ jobs:
           if [ -n "${CSC_KEYCHAIN:-}" ]; then
             security delete-keychain "${CSC_KEYCHAIN}" || true
           fi
-          find "${RUNNER_TEMP}" -maxdepth 1 -name 'branchout-release.*' -delete
+          find "${RUNNER_TEMP}" -maxdepth 1 -name 'postrove-release.*' -delete
 
   signed-upgrade:
     needs: [validate, package]
@@ -192,7 +194,7 @@ jobs:
       - name: Verify native upgrade on a clean runner
         run: npm run test:upgrade
         env:
-          BRANCHOUT_UPGRADE_PACKAGE_RUN: ${{ inputs.package_run_id || github.run_id }}
+          POSTROVE_UPGRADE_PACKAGE_RUN: ${{ inputs.package_run_id || github.run_id }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -211,7 +213,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
-          name: branchout-${{ github.run_id }}
+          name: postrove-${{ github.run_id }}
           path: artifacts
       - name: Verify artifact checksums
         working-directory: artifacts
@@ -236,5 +238,5 @@ jobs:
               --verify-tag \
               --draft \
               --notes-file "${notes}" \
-              --title "Branchout ${GITHUB_REF_NAME}"
+              --title "Postrove ${GITHUB_REF_NAME}"
           fi

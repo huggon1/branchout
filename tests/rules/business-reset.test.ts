@@ -23,7 +23,7 @@ import {
 } from "../../src/main/integrations/telegram/store";
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "branchout-reset-fixture-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-reset-fixture-"));
   const telegram = emptyTelegramState();
   telegram.updateOffset = 901;
   telegram.authorizedChatIds = ["123"];
@@ -136,7 +136,7 @@ test("invalid Telegram and symbolic links fail before deleting business data", a
 });
 
 test("empty profile gains a committed generation and preserves subsequent reports", async () => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-reset-empty-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-reset-empty-"));
   try {
     await resetLegacyBusinessData(root);
     assert.equal(
@@ -157,7 +157,7 @@ test("empty profile gains a committed generation and preserves subsequent report
 
 test("profile copies preserve the generation, follow schedules and normalized search state", async () => {
   const { prepareProfile } = await import("../../src/main/runtime/profile");
-  const root = await mkdtemp(join(tmpdir(), "branchout-reset-copy-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-reset-copy-"));
   const source = join(root, "source"),
     destination = join(root, "copy");
   try {
@@ -212,7 +212,7 @@ test("profile copies preserve the generation, follow schedules and normalized se
 });
 
 test("reset removes abandoned atomic business writes alongside their committed files", async () => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-reset-abandoned-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-reset-abandoned-"));
   try {
     for (const name of [
       "projects.json.tmp",

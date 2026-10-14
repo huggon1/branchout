@@ -1,6 +1,6 @@
-# Branchout product specification
+# Postrove product specification
 
-Branchout searches social-media content through platform AI and parses submitted links into readable material. This document owns behavior and page flows. The root [README](../README.md) describes current source capabilities; live acceptance records describe observed platform results.
+Postrove searches social-media content through platform AI and parses submitted links into readable material. This document owns behavior and page flows. The root [README](../README.md) describes current source capabilities; live acceptance records describe observed platform results.
 
 ## Product scope
 

@@ -11,7 +11,7 @@ import { chromium } from "playwright-core";
 // sessions; shutdown affects another profile; cookie values enter status files.
 test("shared Chrome sessions retain both accounts and retain login across reconnect and restart", async ({}, info) => {
   test.setTimeout(90000);
-  const root = await mkdtemp(join(tmpdir(), "branchout-session-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-session-e2e-"));
   let browser = new PlatformBrowser(
     join(root, "platforms"),
     () => {},
@@ -148,7 +148,7 @@ test("shared Chrome sessions retain both accounts and retain login across reconn
 });
 
 test("existing browser login survives the move from the previous launcher", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-existing-session-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-existing-session-e2e-"));
   const previous = await chromium.launchPersistentContext(
     join(root, "xiaohongshu"),
     { channel: "chrome", headless: true },

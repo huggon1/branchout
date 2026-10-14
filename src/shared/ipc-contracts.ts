@@ -78,7 +78,7 @@ export const xhsChannels = {
 } as const;
 
 export const channels = {
-  changed: "branchout:changed",
+  changed: "postrove:changed",
 } as const;
 
 export interface DesktopBridge {

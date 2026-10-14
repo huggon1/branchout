@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { readFile } from "node:fs/promises";
 const identity = JSON.parse(await readFile("dist/build-identity.json", "utf8"));
 await build({
-  define: { __BRANCHOUT_BUILD_IDENTITY__: JSON.stringify(identity) },
+  define: { __POSTROVE_BUILD_IDENTITY__: JSON.stringify(identity) },
   entryPoints: {
     "browser-app": "tests/support/browser-app.ts",
     "worker-network-app": "tests/support/worker-network-app.ts",
@@ -19,7 +19,7 @@ await build({
 });
 
 await build({
-  define: { __BRANCHOUT_BUILD_IDENTITY__: JSON.stringify(identity) },
+  define: { __POSTROVE_BUILD_IDENTITY__: JSON.stringify(identity) },
   entryPoints: ["tests/support/update-app.ts"],
   outfile: "dist/main/update-test.cjs",
   platform: "node",

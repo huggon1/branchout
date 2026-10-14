@@ -14,17 +14,17 @@ const identity = {
   platform: process.platform + "-" + process.arch,
   builtAt: new Date().toISOString(),
 };
-const define = { __BRANCHOUT_BUILD_IDENTITY__: JSON.stringify(identity) };
+const define = { __POSTROVE_BUILD_IDENTITY__: JSON.stringify(identity) };
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist/renderer", { recursive: true });
 await mkdir("dist/assets", { recursive: true });
 await mkdir("dist/platforms", { recursive: true });
 await mkdir("dist/worker", { recursive: true });
-await sharp("assets/branchout-icon.svg", { density: 576 })
+await sharp("assets/postrove-icon.svg", { density: 576 })
   .resize(1024, 1024)
   .png()
-  .toFile("dist/assets/branchout.png");
-await copyFile("assets/branchout-mark.svg", "dist/assets/branchout-mark.svg");
+  .toFile("dist/assets/postrove.png");
+await copyFile("assets/postrove-mark.svg", "dist/assets/postrove-mark.svg");
 await build({
   define,
   entryPoints: ["src/main/main.ts", "src/main/preload.ts"],

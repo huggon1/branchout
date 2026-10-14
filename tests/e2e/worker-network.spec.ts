@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 // requests; inherited proxy takes precedence; localhost bypasses every proxy.
 test("GUI worker uses system proxy, preserves explicit proxy, and bypasses localhost", async ({}, info) => {
   test.skip(process.platform !== "darwin", "macOS system proxy integration");
-  const root = await mkdtemp(join(tmpdir(), "branchout-worker-network-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-worker-network-"));
   const requests: string[] = [];
   const proxy = createServer((req, res) => {
     requests.push(req.url!);
@@ -35,7 +35,7 @@ test("GUI worker uses system proxy, preserves explicit proxy, and bypasses local
   const systemProxy = `<dictionary> {\n HTTPEnable : 1\n HTTPProxy : 127.0.0.1\n HTTPPort : ${(proxy.address() as any).port}\n HTTPSEnable : 1\n HTTPSProxy : 127.0.0.1\n HTTPSPort : ${(proxy.address() as any).port}\n}`;
   const application = await electron.launch({
     args: [resolve("build/test-workers/worker-network-app.mjs")],
-    env: { ...process.env, BRANCHOUT_NETWORK_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_NETWORK_FIXTURE_ROOT: root },
   });
   try {
     await application.firstWindow();

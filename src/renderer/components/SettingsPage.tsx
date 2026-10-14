@@ -34,7 +34,7 @@ export function SettingsPage({
   useEffect(() => {
     let active = true;
     const refresh = () =>
-      void window.branchout
+      void window.postrove
         .preferences()
         .then((value) => {
           if (active) setTaskBrowserVisible(value.taskBrowserVisible);
@@ -43,7 +43,7 @@ export function SettingsPage({
           if (active) setBrowserModeError(t("设置读取失败"));
         });
     refresh();
-    const unsubscribe = window.branchout.onChanged(refresh);
+    const unsubscribe = window.postrove.onChanged(refresh);
     return () => {
       active = false;
       unsubscribe();
@@ -73,7 +73,7 @@ export function SettingsPage({
             onChange={async (event) => {
               const value = event.target.value as "en" | "zh-CN";
               try {
-                await window.branchout.saveLanguage(value);
+                await window.postrove.saveLanguage(value);
                 selectLanguage(value);
               } catch {
                 setStatusMessage(t("设置保存失败"));
@@ -96,7 +96,7 @@ export function SettingsPage({
               setBrowserModeError("");
               try {
                 const saved =
-                  await window.branchout.saveTaskBrowserVisible(visible);
+                  await window.postrove.saveTaskBrowserVisible(visible);
                 setTaskBrowserVisible(saved.taskBrowserVisible);
               } catch {
                 setBrowserModeError(t("设置保存失败"));

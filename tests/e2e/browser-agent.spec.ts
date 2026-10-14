@@ -4,7 +4,7 @@ import { mkdtemp, rm, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 test("real Agent worker uses Chrome tools and returns captured platform text", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-agent-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-agent-e2e-"));
   let count = 0;
   let transientFailures = 0;
   let invalidOutputs = 0;
@@ -238,7 +238,7 @@ test("real Agent worker uses Chrome tools and returns captured platform text", a
   const endpoint = `http://127.0.0.1:${(server.address() as any).port}/v1`;
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();
@@ -308,7 +308,7 @@ test("real Agent worker uses Chrome tools and returns captured platform text", a
 // Failure: a model fills the success template with empty capture IDs after an
 // observed login redirect, then output correction hides the actionable cause.
 test("observed X login redirect preserves login_required and its native trace", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-login-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-login-e2e-"));
   let requests = 0;
   const observations: unknown[] = [];
   const server = createServer(async (req, res) => {
@@ -357,7 +357,7 @@ test("observed X login redirect preserves login_required and its native trace", 
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();
@@ -390,7 +390,7 @@ test("observed X login redirect preserves login_required and its native trace", 
 
 // Failure: exhausted model transport retries are mislabeled as platform login.
 test("exhausted model transport retries retain a distinct failure code", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-network-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-network-e2e-"));
   let requests = 0;
   const server = createServer(async (req, res) => {
     for await (const _chunk of req) {
@@ -402,7 +402,7 @@ test("exhausted model transport retries retain a distinct failure code", async (
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const app = await electron.launch({
     args: [resolve("build/test-workers/browser-app.mjs")],
-    env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+    env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
   });
   try {
     await app.firstWindow();
@@ -446,7 +446,7 @@ for (const mode of [
   "worker-exit",
 ] as const) {
   test(`citation phase preserves answer and handles ${mode}`, async ({}, info) => {
-    const root = await mkdtemp(join(tmpdir(), `branchout-citations-${mode}-`));
+    const root = await mkdtemp(join(tmpdir(), `postrove-citations-${mode}-`));
     let requests = 0;
     let phaseTwoRequests = 0;
     let disclosureClicked = false;
@@ -728,7 +728,7 @@ for (const mode of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();
@@ -845,7 +845,7 @@ for (const mode of [
   "link-failure",
 ] as const) {
   test(`citation safety handles ${mode}`, async ({}, info) => {
-    const root = await mkdtemp(join(tmpdir(), `branchout-safety-${mode}-`));
+    const root = await mkdtemp(join(tmpdir(), `postrove-safety-${mode}-`));
     let answerStep = 0;
     let citationStep = 0;
     let requests = 0;
@@ -1122,7 +1122,7 @@ for (const mode of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();
@@ -1199,7 +1199,7 @@ for (const mode of [
 ]) {
   test(`XHS source admission ${mode}`, async ({}, info) => {
     if (mode === "card-404") test.setTimeout(120_000);
-    const root = await mkdtemp(join(tmpdir(), "branchout-admission-e2e-"));
+    const root = await mkdtemp(join(tmpdir(), "postrove-admission-e2e-"));
     const observations: any[] = [];
     let sequence = 0;
     let visited = false;
@@ -1434,7 +1434,7 @@ for (const mode of [
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const app = await electron.launch({
       args: [resolve("build/test-workers/browser-app.mjs")],
-      env: { ...process.env, BRANCHOUT_BROWSER_FIXTURE_ROOT: root },
+      env: { ...process.env, POSTROVE_BROWSER_FIXTURE_ROOT: root },
     });
     try {
       await app.firstWindow();

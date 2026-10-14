@@ -14,8 +14,8 @@ const app = await electron.launch({
   args: ["."],
   env: {
     ...process.env,
-    BRANCHOUT_RUN_MODE: "review",
-    BRANCHOUT_TEST_DATA: profile,
+    POSTROVE_RUN_MODE: "review",
+    POSTROVE_TEST_DATA: profile,
   },
 });
 try {
@@ -24,7 +24,7 @@ try {
   );
   const page = await app.firstWindow();
   await page.getByRole("navigation").waitFor();
-  await page.evaluate(() => window.branchout.saveLanguage("zh-CN"));
+  await page.evaluate(() => window.postrove.saveLanguage("zh-CN"));
   const samples = [
     ["zero", "https://x.com/twoclipping/status/2103273003555402193?s=46"],
     ["boris", "https://x.com/bcherny/status/2107516876876362200?s=46"],
@@ -54,14 +54,14 @@ try {
       : undefined;
     const reply = prior
       ? { ok: true as const, value: prior.taskId as string }
-      : await page.evaluate((url) => window.branchout.addLink(url), url);
+      : await page.evaluate((url) => window.postrove.addLink(url), url);
     if (!reply.ok) throw new Error(reply.message);
     if (
       prior &&
       prior.materials.some((m: { state: string }) => m.state !== "completed")
     ) {
       const retried = await page.evaluate(
-        (id) => window.branchout.retryForwarding(id),
+        (id) => window.postrove.retryForwarding(id),
         reply.value,
       );
       if (!retried.ok) throw new Error(retried.message);
@@ -72,7 +72,7 @@ try {
     do {
       await new Promise((r) => setTimeout(r, 5000));
       const current = await page.evaluate(
-        (id) => window.branchout.forwardingTask(id),
+        (id) => window.postrove.forwardingTask(id),
         reply.value,
       );
       if (!current.ok) throw new Error(current.message);

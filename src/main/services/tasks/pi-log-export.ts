@@ -56,7 +56,7 @@ export async function exportTaskPiLogs(
   if (selected.canceled || !selected.filePaths[0]) return undefined;
   const destination = join(
     selected.filePaths[0],
-    `Branchout-task-${id.slice(0, 8)}-${Date.now()}`,
+    `Postrove-task-${id.slice(0, 8)}-${Date.now()}`,
   );
   await mkdir(destination, { recursive: false, mode: 0o700 });
   for (const page of pages)

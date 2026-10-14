@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 // language switches change saved output;
 // images lose their position; restart loses saved partial materials.
 test("reading preserves materials, partial output, frozen language and restart recovery", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-reading-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-reading-"));
   const profile = join(root, "profile");
   await mkdir(profile);
   await writeFile(
@@ -52,7 +52,7 @@ test("reading preserves materials, partial output, frozen language and restart r
               imageId: "diagram",
               url: "https://example.com/diagram.png",
               alt: "Diagram",
-              cachedUrl: `branchout-image://${cacheId}`,
+              cachedUrl: `postrove-image://${cacheId}`,
             },
           ]
         : [],
@@ -171,10 +171,10 @@ test("reading preserves materials, partial output, frozen language and restart r
       args: ["."],
       env: {
         ...process.env,
-        BRANCHOUT_RUN_MODE: "test",
-        BRANCHOUT_TEST_DATA: profile,
-        BRANCHOUT_TEST_WORKERS: resolve("build/test-workers"),
-        BRANCHOUT_TEST_ENDPOINT: endpoint,
+        POSTROVE_RUN_MODE: "test",
+        POSTROVE_TEST_DATA: profile,
+        POSTROVE_TEST_WORKERS: resolve("build/test-workers"),
+        POSTROVE_TEST_ENDPOINT: endpoint,
       },
     });
     const page = await app.firstWindow();
@@ -184,7 +184,7 @@ test("reading preserves materials, partial output, frozen language and restart r
   try {
     let page = await launch();
     const reply = await page.evaluate(() =>
-      window.branchout.addLink("https://example.com/main"),
+      window.postrove.addLink("https://example.com/main"),
     );
     expect(reply.ok).toBe(true);
     const taskId = (reply as any).value;
@@ -282,7 +282,7 @@ test("reading preserves materials, partial output, frozen language and restart r
     const noteUrl =
       "https://www.xiaohongshu.com/explore/abcdef1234567890abcdef12";
     const added = await page.evaluate(
-      (url) => window.branchout.addLink(url),
+      (url) => window.postrove.addLink(url),
       `${noteUrl}?xsec_token=fictional-recovery`,
     );
     expect(added.ok).toBe(true);
@@ -302,13 +302,13 @@ test("reading preserves materials, partial output, frozen language and restart r
     expect(noteState.xhsAccessTokenCiphertext).toMatch(/^local-v1:/);
     expect(noteState.materials[0].source.sourceUrl).toBe(noteUrl);
     const recovery = await page.evaluate(() =>
-      window.branchout.addLink("https://example.com/recover"),
+      window.postrove.addLink("https://example.com/recover"),
     );
     expect(recovery.ok).toBe(true);
     await expect
       .poll(async () => {
         const detail = await page.evaluate(
-          (id) => window.branchout.forwardingTask(id),
+          (id) => window.postrove.forwardingTask(id),
           (recovery as any).value,
         );
         return detail.ok && detail.value.task.state;
@@ -339,13 +339,13 @@ test("reading preserves materials, partial output, frozen language and restart r
     await page.setViewportSize({ width: 780, height: 780 });
     await page.screenshot({ path: info.outputPath("compact-reading.png") });
     const english = await page.evaluate(() =>
-      window.branchout.addLink("https://example.com/english"),
+      window.postrove.addLink("https://example.com/english"),
     );
     expect(english.ok).toBe(true);
     await expect
       .poll(async () => {
         const detail = await page.evaluate(
-          (id) => window.branchout.forwardingTask(id),
+          (id) => window.postrove.forwardingTask(id),
           (english as any).value,
         );
         return detail.ok && detail.value.task.state;

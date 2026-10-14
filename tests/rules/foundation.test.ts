@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { prepareProfile } from "../../src/main/runtime/profile";
 
 test("profile rejects active writers, existing destinations, malformed records and implicit credentials", async () => {
-  const root = await mkdtemp(join(tmpdir(), "branchout-rule-"));
+  const root = await mkdtemp(join(tmpdir(), "postrove-rule-"));
   try {
     const source = join(root, "source");
     await mkdir(source);

@@ -3,7 +3,7 @@ const port = process.parentPort!;
 const controller = new AbortController();
 async function request(kind: string, input: unknown) {
   const response = await fetch(
-    `${process.env.BRANCHOUT_TEST_ENDPOINT}/${kind}`,
+    `${process.env.POSTROVE_TEST_ENDPOINT}/${kind}`,
     { method: "POST", body: JSON.stringify(input), signal: controller.signal },
   );
   if (!response.ok) throw new Error("Controlled external failure");

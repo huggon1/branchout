@@ -256,10 +256,10 @@ export class BrowserAgent {
             }
             const fingerprints: Record<string, string> = {};
             const currentRoots = roots.filter((root, index) => {
-              let id = root.getAttribute("data-branchout-source-root");
+              let id = root.getAttribute("data-postrove-source-root");
               if (!id) {
                 id = `${nonce}-${index}`;
-                root.setAttribute("data-branchout-source-root", id);
+                root.setAttribute("data-postrove-source-root", id);
               }
               const fingerprint = JSON.stringify([
                 root.textContent,
@@ -279,10 +279,10 @@ export class BrowserAgent {
             roots = currentRoots;
             const refs = [
               roots[0],
-              ...roots[0].querySelectorAll("[data-branchout-ref]"),
+              ...roots[0].querySelectorAll("[data-postrove-ref]"),
             ]
               .filter((node) => !node.closest("aside,nav"))
-              .map((node) => node.getAttribute("data-branchout-ref"))
+              .map((node) => node.getAttribute("data-postrove-ref"))
               .filter((ref): ref is string => !!ref);
             return { refs, fingerprints };
           },
@@ -535,7 +535,7 @@ export class BrowserAgent {
                 if (
                   !ref ||
                   (await frame
-                    .locator(`[data-branchout-ref="${ref}"]`)
+                    .locator(`[data-postrove-ref="${ref}"]`)
                     .count()) !== 1
                 )
                   throw new Error(
@@ -563,7 +563,7 @@ export class BrowserAgent {
                     "source_scope: Capture citations inside the saved answer or its opened source panel",
                   );
                 const refs = await frame
-                  .locator(`[data-branchout-ref="${ref}"]`)
+                  .locator(`[data-postrove-ref="${ref}"]`)
                   .evaluate((element) => {
                     if (
                       ["HTML", "BODY"].includes(element.tagName) ||
@@ -576,15 +576,15 @@ export class BrowserAgent {
                       );
                     return [
                       element,
-                      ...element.querySelectorAll("[data-branchout-ref]"),
+                      ...element.querySelectorAll("[data-postrove-ref]"),
                     ]
-                      .map((item) => item.getAttribute("data-branchout-ref"))
+                      .map((item) => item.getAttribute("data-postrove-ref"))
                       .filter((item): item is string => !!item);
                   });
                 capturedDocument = await frame.evaluateHandle(() => document);
                 capturedElement =
                   (await frame
-                    .locator(`[data-branchout-ref="${ref}"]`)
+                    .locator(`[data-postrove-ref="${ref}"]`)
                     .elementHandle()) ?? undefined;
                 return {
                   ...(await this.browser.operation(
@@ -630,7 +630,7 @@ export class BrowserAgent {
                   else
                     disclosureContext = await frame
                       .locator(
-                        `[data-branchout-ref="${match?.[2] ?? data.operation.ref}"]`,
+                        `[data-postrove-ref="${match?.[2] ?? data.operation.ref}"]`,
                       )
                       .evaluate((node) => ({
                         beforeRoots: {} as Record<string, string>,
@@ -714,7 +714,7 @@ export class BrowserAgent {
                     : `f${data.operation.frame}:`;
                 if (!replyCaptureId) {
                   const body = await frame
-                    .locator(`[data-branchout-ref="${ref}"]`)
+                    .locator(`[data-postrove-ref="${ref}"]`)
                     .elementHandle();
                   if (!body)
                     throw new Error(
@@ -749,16 +749,16 @@ export class BrowserAgent {
                 capturedDocument = await frame.evaluateHandle(() => document);
                 capturedElement =
                   (await frame
-                    .locator(`[data-branchout-ref="${ref}"]`)
+                    .locator(`[data-postrove-ref="${ref}"]`)
                     .elementHandle()) ?? undefined;
                 const context = await frame
-                  .locator(`[data-branchout-ref="${ref}"]`)
+                  .locator(`[data-postrove-ref="${ref}"]`)
                   .evaluate((element) => {
                     const replyControls = [
                       element,
-                      ...element.querySelectorAll("[data-branchout-ref]"),
+                      ...element.querySelectorAll("[data-postrove-ref]"),
                     ]
-                      .map((item) => item.getAttribute("data-branchout-ref"))
+                      .map((item) => item.getAttribute("data-postrove-ref"))
                       .filter((item): item is string => !!item);
                     const disclosureControls = new Set<string>();
                     for (
@@ -774,7 +774,7 @@ export class BrowserAgent {
                     ) {
                       for (const node of [
                         parent,
-                        ...parent.querySelectorAll("[data-branchout-ref]"),
+                        ...parent.querySelectorAll("[data-postrove-ref]"),
                       ]) {
                         const label = (
                           node.getAttribute("aria-label") ||
@@ -784,7 +784,7 @@ export class BrowserAgent {
                         const control =
                           node.matches('button,a,[role="button"]') ||
                           getComputedStyle(node).cursor === "pointer";
-                        const ref = node.getAttribute("data-branchout-ref");
+                        const ref = node.getAttribute("data-postrove-ref");
                         if (
                           ref &&
                           control &&

@@ -1,4 +1,4 @@
-# Releasing Branchout
+# Releasing Postrove
 
 This document owns release preparation and publication. The [development guide](development.md) owns source launch and local packaging; [tests](../tests/README.md) owns automated acceptance scope.
 
@@ -14,7 +14,7 @@ The first release is 0.1.0. Later manual verification builds the current package
 
 ## Signing and assets
 
-macOS packages use the fixed project certificate `Branchout Release Signing` in the `release-signing` environment. `MAC_CSC_LINK` holds the base64 P12, `MAC_CSC_KEY_PASSWORD` unlocks it, and `MAC_CERT_SHA256` identifies the expected certificate. Later releases retain the same certificate and private key so native updates satisfy the installed application's signing requirement. This is a project signature, separate from Apple Developer ID and notarization.
+macOS packages use the fixed project certificate in the `release-signing` environment. `MAC_CSC_LINK` holds the base64 P12, `MAC_CSC_KEY_PASSWORD` unlocks it, and `MAC_CERT_SHA256` identifies the expected certificate. Later releases retain the same certificate and private key so native updates satisfy the installed application's signing requirement. This is a project signature, separate from Apple Developer ID and notarization.
 
 Published packages target macOS Apple silicon. Required attachments are the versioned DMG and ZIP, `latest-mac.yml`, generated blockmaps, `SHA256SUMS.txt`, and `build-manifest.json`. The DMG serves first installation; the ZIP and manifest serve installed clients. The build manifest records the source revision and artifact hashes. The draft job verifies checksums before upload.
 
@@ -22,7 +22,7 @@ Manual runs can reuse `package_run_id` after source validation confirms matching
 
 ## Acceptance and publication
 
-Download the draft's DMG from GitHub on a macOS Apple silicon machine. Move Branchout to Applications, then verify first launch and the system's first-open approval path. A project-signed build may require approval in System Settings → Privacy & Security → Open Anyway. [Apple's guide](https://support.apple.com/en-us/102445) describes that approval and its security implications.
+Download the draft's DMG from GitHub on a macOS Apple silicon machine. Move Postrove to Applications, then verify first launch and the system's first-open approval path. A project-signed build may require approval in System Settings → Privacy & Security → Open Anyway. [Apple's guide](https://support.apple.com/en-us/102445) describes that approval and its security implications.
 
 Connect a model and sign in to the platforms used for acceptance. Exercise X Grok and Xiaohongshu 点点 AI search, read original answers and source links, add a source to parsing, and parse a GitHub README. Record source coverage, a partial or access-limited outcome, and native Pi log export. Restart and check saved reports and sessions. [Product behavior](product-spec.md) defines expected results.
 
