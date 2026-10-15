@@ -1,25 +1,15 @@
-import { randomUUID } from "node:crypto";
+import { BotInbox } from "../bots/inbox";
+import { telegramInboxRepository } from "./inbox-repository";
 import { TelegramBotClient } from "./bot-client";
 import {
   telegramChatIdSchema,
   telegramMessageSchema,
-  type TelegramInbound,
-  type TelegramPendingChat,
-  type TelegramQueuedForwarding,
   type TelegramUpdate,
 } from "./contracts";
 import { parseSingleTelegramLink } from "./link-parser";
 import { TelegramStore } from "./store";
 import type { TelegramStatus } from "../../../shared/telegram-contracts";
 export type { TelegramStatus } from "../../../shared/telegram-contracts";
-
-const receivedMessage = "已收取，正在处理。你可以在 Postrove 中查看进度。";
-const unsupportedMessages = {
-  no_link: "请发送一条 HTTPS 网页链接。",
-  multiple_links: "请每条消息只发送一个链接。",
-  extra_text: "请单独发送链接，每条消息只提交一个。",
-  unsupported: "请使用 HTTPS 网页链接，并单独发送。",
-} as const;
 
 export interface TelegramSecretCipher {
   encrypt(plainText: string): Promise<string>;
@@ -56,6 +46,8 @@ function inboundKey(chatId: string, messageId: number) {
 
 export class TelegramService {
   private running = false;
+  private inbox: BotInbox;
+  private deliverySignal?: AbortSignal;
   private loop?: Promise<void>;
   private controller?: AbortController;
 
@@ -66,7 +58,27 @@ export class TelegramService {
     private readonly sink: TelegramQueueSink,
     private readonly request: typeof fetch = fetch,
     private readonly changed: () => void = () => {},
-  ) {}
+  ) {
+    this.inbox = new BotInbox(telegramInboxRepository(store), {
+      origin: { channel: "telegram", accountId: "legacy-telegram" },
+      protect: (value) => cipher.encrypt(value),
+      reveal: (value) => cipher.decrypt(value),
+      submit: (request) =>
+        sink.submit({
+          taskId: request.taskId,
+          resultId: request.resultId,
+          sourceUrl: request.sourceUrl,
+          entry: "telegram",
+          telegramMessageKey: request.origin.messageKey,
+          xhsAccessToken: request.xhsAccessToken,
+        }),
+      send: async (chatId, text) => {
+        const client = await this.client();
+        if (!client) throw new Error("Bot disconnected");
+        await client.sendMessage(chatId, text, this.deliverySignal);
+      },
+    });
+  }
 
   private async client() {
     const token = await this.getBotToken();
@@ -132,204 +144,51 @@ export class TelegramService {
   }
 
   async authorizeChat(rawChatId: string) {
-    const chatId = telegramChatIdSchema.parse(rawChatId);
-    const snapshot = this.store.snapshot();
-    if (!snapshot.pendingChats.some((chat) => chat.chatId === chatId))
-      throw new Error("该聊天尚未向 Bot 发送消息");
-    await this.store.update((state) => {
-      if (!state.authorizedChatIds.includes(chatId))
-        state.authorizedChatIds.push(chatId);
-    });
+    await this.inbox.authorize(telegramChatIdSchema.parse(rawChatId));
     this.changed();
   }
-
   async revokeChat(rawChatId: string) {
-    const chatId = telegramChatIdSchema.parse(rawChatId);
-    await this.store.update((state) => {
-      state.authorizedChatIds = state.authorizedChatIds.filter(
-        (value) => value !== chatId,
-      );
-    });
+    await this.inbox.revoke(telegramChatIdSchema.parse(rawChatId));
     this.changed();
   }
-
   private async persistUpdate(update: TelegramUpdate) {
-    const message = update.message
+    const advance = () =>
+      this.store.update((state) => {
+        state.updateOffset = Math.max(state.updateOffset, update.update_id + 1);
+      });
+    const parsed = update.message
       ? telegramMessageSchema.safeParse(update.message)
       : undefined;
-    if (!message?.success) {
-      await this.store.update((state) => {
-        state.updateOffset = Math.max(state.updateOffset, update.update_id + 1);
-      });
+    if (!parsed?.success) {
+      await advance();
       return;
     }
-
-    const msg = message.data;
-    const chatId = String(msg.chat.id);
-    const key = inboundKey(chatId, msg.message_id);
-    const title = chatTitle(msg);
-    const username = msg.chat.username;
-    const seen: TelegramPendingChat = {
-      chatId,
-      title,
-      ...(username ? { username } : {}),
-      lastSeenAt: new Date().toISOString(),
-    };
-    const snapshot = this.store.snapshot();
-    if (snapshot.inbound.some((item) => item.inboundKey === key)) {
-      await this.store.update((state) => {
-        state.updateOffset = Math.max(state.updateOffset, update.update_id + 1);
-      });
-      return;
-    }
-
-    const authorized = snapshot.authorizedChatIds.includes(chatId);
-    let parsedLink: ReturnType<typeof parseSingleTelegramLink> | undefined;
-    if (authorized)
-      parsedLink = parseSingleTelegramLink({
-        text: msg.text,
-        caption: msg.caption,
-        entities: msg.entities as unknown[] | undefined,
-        caption_entities: msg.caption_entities as unknown[] | undefined,
-      });
-
-    let queued: TelegramQueuedForwarding | undefined;
-    let inbound: TelegramInbound;
-    if (!authorized) {
-      inbound = {
-        inboundKey: key,
-        updateId: update.update_id,
-        chatId,
+    const msg = parsed.data;
+    await this.inbox.receive(
+      {
+        key: inboundKey(String(msg.chat.id), msg.message_id),
+        chatId: String(msg.chat.id),
         messageId: msg.message_id,
-        outcome: "unauthorized",
-        receivedAt: new Date().toISOString(),
-      };
-    } else if (!parsedLink?.ok) {
-      const reason = parsedLink?.reason ?? "no_link";
-      inbound = {
-        inboundKey: key,
         updateId: update.update_id,
-        chatId,
-        messageId: msg.message_id,
-        outcome: "unsupported",
-        acknowledgement: {
-          text: unsupportedMessages[reason],
-          state: "pending",
-        },
-        receivedAt: new Date().toISOString(),
-      };
-    } else {
-      const taskId = randomUUID();
-      const resultId = randomUUID();
-      const ciphertext = parsedLink.xhsAccessToken
-        ? await this.cipher.encrypt(parsedLink.xhsAccessToken)
-        : undefined;
-      queued = {
-        taskId,
-        resultId,
-        sourceUrl: parsedLink.sourceUrl,
-        telegramMessageKey: key,
-        ...(ciphertext ? { xhsAccessTokenCiphertext: ciphertext } : {}),
-        state: "queued",
-        queuedAt: new Date().toISOString(),
-      };
-      inbound = {
-        inboundKey: key,
-        updateId: update.update_id,
-        chatId,
-        messageId: msg.message_id,
-        outcome: "queued",
-        taskId,
-        acknowledgement: { text: receivedMessage, state: "pending" },
-        receivedAt: new Date().toISOString(),
-      };
-    }
-
-    await this.store.update((state) => {
-      const current = state.inbound.find((item) => item.inboundKey === key);
-      if (current) return;
-      const pending = state.pendingChats.find((chat) => chat.chatId === chatId);
-      if (pending) Object.assign(pending, seen);
-      else {
-        state.pendingChats.push(seen);
-        if (state.pendingChats.length > 500)
-          state.pendingChats.splice(0, state.pendingChats.length - 500);
-      }
-      state.inbound.push(inbound);
-      if (queued) state.queuedForwarding.push(queued);
-      state.updateOffset = Math.max(state.updateOffset, update.update_id + 1);
-    });
+        title: chatTitle(msg),
+        username: msg.chat.username,
+        link: parseSingleTelegramLink({
+          text: msg.text,
+          caption: msg.caption,
+          entities: msg.entities,
+          caption_entities: msg.caption_entities,
+        }),
+      },
+      advance,
+    );
   }
-
   async drainQueuedForwarding() {
-    const pending = this.store
-      .snapshot()
-      .queuedForwarding.filter((item) => item.state === "queued");
-    for (const queued of pending) {
-      try {
-        const xhsAccessToken = queued.xhsAccessTokenCiphertext
-          ? await this.cipher.decrypt(queued.xhsAccessTokenCiphertext)
-          : undefined;
-        await this.sink.submit({
-          taskId: queued.taskId,
-          resultId: queued.resultId,
-          sourceUrl: queued.sourceUrl,
-          entry: "telegram",
-          telegramMessageKey: queued.telegramMessageKey,
-          ...(xhsAccessToken ? { xhsAccessToken } : {}),
-        });
-        await this.store.update((state) => {
-          const current = state.queuedForwarding.find(
-            (item) => item.taskId === queued.taskId,
-          );
-          if (current?.state === "queued") {
-            current.state = "submitted";
-            current.submittedAt = new Date().toISOString();
-            delete current.xhsAccessTokenCiphertext;
-          }
-        });
-      } catch {
-        break;
-      }
-    }
+    await this.inbox.drain();
     this.changed();
-  }
-
-  private async sendPendingAcknowledgements(signal?: AbortSignal) {
-    const client = await this.client();
-    if (!client) return;
-    const snapshot = this.store.snapshot();
-    const submittedTasks = new Set(
-      snapshot.queuedForwarding
-        .filter((item) => item.state === "submitted")
-        .map((item) => item.taskId),
-    );
-    const pending = snapshot.inbound.filter(
-      (item) =>
-        item.acknowledgement?.state === "pending" &&
-        (item.outcome !== "queued" ||
-          (!!item.taskId && submittedTasks.has(item.taskId))),
-    );
-    for (const inbound of pending) {
-      try {
-        await client.sendMessage(
-          inbound.chatId,
-          inbound.acknowledgement!.text,
-          signal,
-        );
-        await this.store.update((state) => {
-          const current = state.inbound.find(
-            (item) => item.inboundKey === inbound.inboundKey,
-          );
-          if (current?.acknowledgement) current.acknowledgement.state = "sent";
-        });
-      } catch {
-        break;
-      }
-    }
   }
 
   async pollOnce(timeoutSeconds = 0, signal?: AbortSignal) {
+    this.deliverySignal = signal;
     const client = await this.client();
     if (!client) {
       await this.store.update((state) => {
@@ -347,7 +206,7 @@ export class TelegramService {
       const updates = await client.getUpdates(offset, timeoutSeconds, signal);
       for (const update of updates) await this.persistUpdate(update);
       await this.drainQueuedForwarding();
-      await this.sendPendingAcknowledgements(signal);
+
       await this.store.update((state) => {
         state.connection = {
           status: "polling",
@@ -401,6 +260,7 @@ export class TelegramService {
     this.running = false;
     this.controller?.abort();
     await this.loop;
+    await this.inbox.drain();
     this.loop = undefined;
     this.controller = undefined;
     if (this.store.snapshot().connection.status === "polling")

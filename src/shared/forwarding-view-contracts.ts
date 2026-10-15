@@ -1,3 +1,4 @@
+import type { BotOrigin } from "./bot-contracts";
 import type { Language } from "./language";
 import type { ReadingMaterial } from "./reading-contracts";
 import type { SourceContent } from "./source-contracts";
@@ -21,7 +22,8 @@ export interface ForwardingTaskSummary {
   resultId: string;
   target: {
     sourceUrl: string;
-    entry: "app" | "telegram";
+    entry: "app" | "telegram" | "bot";
+    origin?: BotOrigin;
     telegramMessageKey?: string;
   };
   state: "queued" | "running" | "completed" | "failed" | "cancelled";

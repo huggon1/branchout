@@ -1,3 +1,4 @@
+import { botChannels } from "../shared/bot-contracts";
 import { deletionChannels } from "../shared/deletion-contracts";
 import { updateChannels } from "../shared/update-contracts";
 import { contextBridge, ipcRenderer } from "electron";
@@ -14,6 +15,20 @@ import {
 } from "../shared/ipc-contracts";
 
 const bridge: DesktopBridge = {
+  botStatus: (channel) => ipcRenderer.invoke(botChannels.status, channel),
+  saveBotCredentials: (channel, credentials) =>
+    ipcRenderer.invoke(botChannels.save, channel, credentials),
+  clearBotCredentials: (channel) =>
+    ipcRenderer.invoke(botChannels.clear, channel),
+  verifyBot: (channel) => ipcRenderer.invoke(botChannels.verify, channel),
+  authorizeBotChat: (channel, id) =>
+    ipcRenderer.invoke(botChannels.authorize, channel, id),
+  revokeBotChat: (channel, id) =>
+    ipcRenderer.invoke(botChannels.revoke, channel, id),
+  startBotRegistration: (channel) =>
+    ipcRenderer.invoke(botChannels.register, channel),
+  cancelBotRegistration: (channel) =>
+    ipcRenderer.invoke(botChannels.cancelRegistration, channel),
   recordDeletions: () => ipcRenderer.invoke(deletionChannels.view),
   deleteRecord: (record) => ipcRenderer.invoke(deletionChannels.delete, record),
   undoDeletion: (id) => ipcRenderer.invoke(deletionChannels.undo, id),

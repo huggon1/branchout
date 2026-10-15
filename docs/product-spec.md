@@ -4,7 +4,7 @@ Postrove searches social-media content through platform AI and parses submitted 
 
 ## Product scope
 
-The application opens on Search. Content has fixed Parsed content and Search results destinations. Focus manages recurring conditions. The global header task panel shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, Telegram, task browser visibility, application language, and application updates.
+The application opens on Search. Content has fixed Parsed content and Search results destinations. Focus manages recurring conditions. The global header task panel shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, bot connections, task browser visibility, application language, and application updates.
 
 ## Single-question search
 
@@ -26,7 +26,7 @@ Each admitted run freezes its conditions. Editing affects later admissions and r
 
 ## Link parsing and connections
 
-Parsed content accepts an HTTPS link manually or from an authorized Telegram chat. The Agent collects the main text and images plus explicit direct materials, including quoted posts and author-supplied links, one level deep. GitHub repository scope is its default README. Accessible frames contribute ordinary page text and images.
+Parsed content accepts an HTTPS link manually or from an authorized Telegram or Feishu chat. The Agent collects the main text and images plus explicit direct materials, including quoted posts and author-supplied links, one level deep. GitHub repository scope is its default README. Accessible frames contribute ordinary page text and images.
 
 Each material saves its source snapshot, translated Markdown, short introduction, retrieval coverage, and processing state. Reading preserves source order, headings, lists, tables, code, commands, identifiers, links, and image positions. Long text is translated in chunks. A failed or stopped task retains its saved sources and translated portions.
 
@@ -39,6 +39,16 @@ Telegram acknowledges accepted links after local persistence and queue submissio
 Telegram settings starts collapsed. Its summary shows the connection state and verified Bot username. Expanding it reveals chat authorization and maintenance. Start Setup opens a focused side drawer with BotFather instructions, Token save and verification, discovered-chat authorization, and a completion step that directs the user to Parsed content. Setup advances after successful verification and authorization. Reopening the drawer derives progress from saved configuration.
 
 A new chat appears after sending a message such as `/start` to the Bot. Authorization applies to later messages. The completion step asks the user to send a fresh HTTPS link and check the actual acknowledgment and saved result. Content and the global task panel present processing progress. Verification errors remain visible in the drawer so users can retry. Token save verifies the submitted Bot before changing credentials or interrupting the current receiver. Successful replacement saves the new verified identity; clearing removes it. Revocation and Token clearing use consequence confirmation and retain existing content, tasks, and receipt history.
+
+## Feishu setup and management
+
+Feishu settings uses a collapsed connection summary and a three-step setup drawer. Scan-to-create opens the official application registration page. Existing applications use App ID and App Secret verification. The setup explains bot capability, direct-message reception, sending, history permission, the Receive message event, persistent connections, and application publication. Tenant policy controls application approval.
+
+The user sends a message to their application bot, then authorizes the discovered direct chat in Postrove. Authorization records the sender and effective time. Later messages containing one HTTPS link enter parsing. Text and rich-text hyperlinks share the existing single-link policy. Other message content receives a resend instruction. Group and bot events complete transport receipt with their content outside the parsing queue.
+
+Startup, reconnection, and periodic reconciliation retrieve authorized direct-chat history from saved checkpoints. Complete pagination advances each chat checkpoint. Repeated pages or failed requests preserve the prior checkpoint. Live events and history share durable message deduplication. Successful parsing submission precedes the user-facing receipt. Pending receipts retry independently of parsing.
+
+Replacing credentials verifies the candidate before changing the receiver. Each application retains its own authorization, receipt history, and checkpoints. Clearing configuration stops receiving and retains saved content and account history. Review profiles keep automatic bot receiving paused; explicit configuration or verification starts the selected connection.
 
 ## Recovery and task status
 

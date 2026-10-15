@@ -1,3 +1,8 @@
+import type {
+  BotChannel,
+  BotCredentialsByChannel,
+  BotStatus,
+} from "./bot-contracts";
 import type { RecordRef, RecordDeletion } from "./deletion-contracts";
 import type { ApplicationUpdateView } from "./update-contracts";
 import type {
@@ -83,6 +88,20 @@ export const channels = {
 } as const;
 
 export interface DesktopBridge {
+  botStatus(channel: BotChannel): Promise<ModelReply<BotStatus>>;
+  saveBotCredentials<C extends keyof BotCredentialsByChannel>(
+    channel: C,
+    credentials: BotCredentialsByChannel[C],
+  ): Promise<ModelReply<void>>;
+  clearBotCredentials(channel: BotChannel): Promise<ModelReply<void>>;
+  verifyBot(channel: BotChannel): Promise<ModelReply<void>>;
+  authorizeBotChat(
+    channel: BotChannel,
+    chatId: string,
+  ): Promise<ModelReply<void>>;
+  revokeBotChat(channel: BotChannel, chatId: string): Promise<ModelReply<void>>;
+  startBotRegistration(channel: BotChannel): Promise<ModelReply<void>>;
+  cancelBotRegistration(channel: BotChannel): Promise<ModelReply<void>>;
   recordDeletions(): Promise<ModelReply<RecordDeletion[]>>;
   deleteRecord(
     record: RecordRef,

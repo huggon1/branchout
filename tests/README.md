@@ -11,6 +11,7 @@ Fixtures use isolated profiles and controlled external responses.
 | [application updates](e2e/application-updates.spec.ts) | Version visibility, download cancellation, installation errors, shared queue hold, and queued search restart |
 | [application](e2e/application.spec.ts)                 | Startup, saved language, profile copy, and Telegram preparation                                              |
 | [search workspace](e2e/search-workspace.spec.ts)       | Search, follows, partial results, candidate parsing, and task views                                          |
+| [Feishu bots](e2e/feishu-bot.spec.ts) | Setup, registration cancellation, concurrent receipt deduplication, SDK reconnection, history pagination, submission replay, authorization revocation, pending acknowledgement recovery, account isolation, paused review startup, and drawer layout |
 | [Telegram setup](e2e/telegram-setup.spec.ts) | Collapsed settings, verification recovery, chat authorization, restart, and drawer layout |
 | [task panel](e2e/task-panel.spec.ts) | Global task visibility, terminal clearing, Undo, keyboard focus, and narrow layout |
 | [record deletion](e2e/record-deletion.spec.ts) | Independent visibility, timed undo, candidate re-addition, and restart |

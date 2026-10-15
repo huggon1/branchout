@@ -1,3 +1,7 @@
+import type {
+  BotForwardingSubmission,
+  BotOrigin,
+} from "../../../shared/bot-contracts";
 import type { ExecutionGate } from "../execution-gate";
 import {
   readingMaterialsSchema,
@@ -181,6 +185,35 @@ export class ForwardingPipelineService {
     });
   }
 
+  async submitBot(input: BotForwardingSubmission) {
+    forwardingInputSchema.parse(input.sourceUrl);
+    const normalized = await normalizeInput(input.sourceUrl);
+    const existing = this.dependencies.store
+      .snapshot()
+      .tasks.find((item) => item.taskId === input.taskId);
+    if (existing) {
+      const origin = existing.target.origin;
+      if (
+        existing.resultId !== input.resultId ||
+        existing.target.sourceUrl !== normalized.sourceUrl ||
+        origin?.channel !== input.origin.channel ||
+        origin.accountId !== input.origin.accountId ||
+        origin.messageKey !== input.origin.messageKey
+      )
+        throw new Error("Bot submission identity conflict");
+      this.schedulePump();
+      return input.taskId;
+    }
+    return this.enqueue({
+      taskId: input.taskId,
+      resultId: input.resultId,
+      ...normalized,
+      xhsAccessToken: input.xhsAccessToken ?? normalized.xhsAccessToken,
+      entry: "bot",
+      origin: input.origin,
+    });
+  }
+
   async submitTelegram(input: ForwardingTelegramSubmission) {
     forwardingInputSchema.parse(input.sourceUrl);
     const existing = this.dependencies.store
@@ -232,7 +265,8 @@ export class ForwardingPipelineService {
     resultId: string;
     sourceUrl: string;
     xhsAccessToken?: string;
-    entry: "app" | "telegram";
+    entry: "app" | "telegram" | "bot";
+    origin?: BotOrigin;
     telegramMessageKey?: string;
   }) {
     if (this.closed) throw new Error("转发服务已关闭");
@@ -244,7 +278,8 @@ export class ForwardingPipelineService {
         existing.resultId !== input.resultId ||
         existing.target.sourceUrl !== input.sourceUrl ||
         existing.target.entry !== input.entry ||
-        existing.target.telegramMessageKey !== input.telegramMessageKey
+        existing.target.telegramMessageKey !== input.telegramMessageKey ||
+        JSON.stringify(existing.target.origin) !== JSON.stringify(input.origin)
       )
         throw new Error("转发任务身份冲突");
       this.schedulePump();
@@ -263,6 +298,7 @@ export class ForwardingPipelineService {
         target: {
           sourceUrl: input.sourceUrl,
           entry: input.entry,
+          ...(input.origin ? { origin: input.origin } : {}),
           ...(input.telegramMessageKey
             ? { telegramMessageKey: input.telegramMessageKey }
             : {}),
@@ -280,7 +316,9 @@ export class ForwardingPipelineService {
         summary:
           input.entry === "telegram"
             ? "Telegram 单链接已收取并加入转发队列"
-            : "应用内链接已加入转发队列",
+            : input.entry === "bot"
+              ? "机器人链接已收取并加入解析队列"
+              : "应用内链接已加入转发队列",
         occurredAt: createdAt,
       });
       state.tasks.push(task);

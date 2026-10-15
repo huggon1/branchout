@@ -41,6 +41,8 @@ const authFiles = [
   "Partitions",
   "xiaohongshu",
   "telegram.json",
+  "feishu.json",
+  "feishu-credentials.json",
   "telegram-bot-token.json",
 ];
 export async function assertInactive(directory: string) {

@@ -1,3 +1,10 @@
+import { FeishuService } from "./integrations/feishu/service";
+import { FeishuAdapter } from "./integrations/feishu/adapter";
+import { FeishuStore } from "./integrations/feishu/store";
+import { FeishuCredentialStore } from "./integrations/feishu/credentials";
+import { registerBotIpc, type BotManagement } from "./integrations/bots/ipc";
+import type { BotChannel } from "../shared/bot-contracts";
+import { feishuCredentialsSchema } from "../shared/feishu-contracts";
 import { RecordDeletions } from "./services/record-deletions";
 import {
   deletionChannels,
@@ -69,6 +76,7 @@ export async function initializeServices(
   let models: ModelService | undefined;
   let forwarding: ForwardingPipelineService | undefined;
   let telegram: TelegramService | undefined;
+  let feishu: FeishuService | undefined;
   let telegramCredentials: TelegramCredentialStore | undefined;
   let tasks: TaskService | undefined;
   let taskView: UnifiedTaskService | undefined;
@@ -414,6 +422,37 @@ export async function initializeServices(
   if (profileMode === "installed" && (await telegramCredentials.getBotToken()))
     await telegram.start();
 
+  const feishuStore = new FeishuStore(
+    join(app.getPath("userData"), "feishu.json"),
+  );
+  const feishuCredentials = new FeishuCredentialStore(
+    join(app.getPath("userData"), "feishu-credentials.json"),
+  );
+  await feishuStore.open();
+  await feishuCredentials.open();
+  const botFixtureEndpoint =
+    !app.isPackaged && profileMode === "test"
+      ? process.env.POSTROVE_TEST_ENDPOINT
+      : undefined;
+  feishu = new FeishuService({
+    channel: "feishu",
+    store: feishuStore,
+    credentials: feishuCredentials,
+    adapter: (value) => new FeishuAdapter(value, botFixtureEndpoint),
+    submit: async (request) => {
+      await forwarding!.submitBot(request);
+    },
+    protect: async (value) => encodeLocalIntegrationSecret(value),
+    reveal: async (value) => {
+      const result = readLocalIntegrationSecret(value);
+      if (result === undefined) throw new Error("Invalid local token");
+      return result;
+    },
+    changed,
+  });
+  if (profileMode === "installed" && feishuCredentials.get())
+    await feishu.start();
+
   stage("ipc_registration");
   const expected = pathToFileURL(
     join(__dirname, "../renderer/index.html"),
@@ -496,6 +535,29 @@ export async function initializeServices(
   );
   stage("telegram_ipc");
   registerTelegramIpc(telegram, telegramCredentials, expected, changed);
+  const botRegistry = new Map<BotChannel, BotManagement>([
+    [
+      "feishu",
+      {
+        status: () => feishu!.status(),
+        save: async (value) => {
+          const credentials = feishuCredentialsSchema.parse(value);
+          feishu!.cancelRegistration();
+          await feishu!.save(credentials);
+        },
+        clear: async () => {
+          feishu!.cancelRegistration();
+          await feishu!.clear();
+        },
+        verify: () => feishu!.verify(),
+        authorize: (id) => feishu!.authorize(id),
+        revoke: (id) => feishu!.revoke(id),
+        register: () => feishu!.startRegistration(botFixtureEndpoint),
+        cancelRegistration: () => feishu!.cancelRegistration(),
+      },
+    ],
+  ]);
+  registerBotIpc(botRegistry, expected);
 
   handle("preferences:view", (event) => {
     if (
@@ -724,6 +786,7 @@ export async function initializeServices(
         forwarding?.shutdown(),
         search.shutdown(),
         telegram?.stop(),
+        feishu?.shutdown(),
       ]);
       await models?.close();
       await browser.shutdown();

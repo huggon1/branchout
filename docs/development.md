@@ -17,7 +17,7 @@ npm run dev
 POSTROVE_TEST_DATA="$PWD/tmp/dev-profile" npm run dev
 ```
 
-The selected directory retains its records across launches. A separate path defaults to review mode, with Telegram receiving paused during preparation. Saving a Bot Token starts receiving for that instance.
+The selected directory retains its records across launches. A separate path defaults to review mode, with bot receiving paused during preparation. Saving bot credentials starts the selected receiver for that instance.
 
 ## Work with X or Xiaohongshu content
 
@@ -43,7 +43,7 @@ npm run review -- --profile /absolute/path/to/review-data
 npm run review -- --profile /absolute/path/to/new-review-data --from /absolute/path/to/source-data
 ```
 
-Copy preparation requires an inactive source and preserves current-generation records. `--include-auth` selects supported credentials. Review startup keeps Telegram paused until configured in that instance. The launcher displays build and profile identity.
+Copy preparation requires an inactive source and preserves current-generation records. `--include-auth` selects supported credentials. Review startup keeps bot receiving paused until the selected connection is configured or verified in that instance. The launcher displays build and profile identity.
 
 ## Verify the search-first workspace
 

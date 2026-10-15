@@ -1,3 +1,4 @@
+import { botOriginSchema } from "../../../shared/bot-contracts";
 import { readingMaterialsSchema } from "../../../shared/reading-contracts";
 import { promptExecutionSchema } from "../../../shared/execution-contracts";
 import { languageSchema, type Language } from "../../../shared/language";
@@ -46,14 +47,17 @@ const forwardingTaskSchema = z
     target: z
       .object({
         sourceUrl: sourceUrlSchema,
-        entry: z.enum(["app", "telegram"]),
+        entry: z.enum(["app", "telegram", "bot"]),
+        origin: botOriginSchema.optional(),
         telegramMessageKey: z.string().min(1).max(100).optional(),
       })
       .strict()
       .refine((target) =>
         target.entry === "telegram"
-          ? !!target.telegramMessageKey
-          : !target.telegramMessageKey,
+          ? !!target.telegramMessageKey && !target.origin
+          : target.entry === "bot"
+            ? !!target.origin && !target.telegramMessageKey
+            : !target.telegramMessageKey && !target.origin,
       ),
     state: z.enum(["queued", "running", "completed", "failed", "cancelled"]),
     phase: z.enum([
