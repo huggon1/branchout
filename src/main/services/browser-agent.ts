@@ -335,7 +335,12 @@ export class BrowserAgent {
       }>((resolve, reject) => {
         const worker = utilityProcess.fork(this.workerPath, [], {
           stdio: "pipe",
-          env: createWorkerEnvironment(),
+          env: createWorkerEnvironment(
+            process.env,
+            undefined,
+            undefined,
+            config.method === "pi" && config.useEnvironment,
+          ),
         });
         worker.stdout?.resume();
         worker.stderr?.resume();
@@ -370,7 +375,7 @@ export class BrowserAgent {
           if (done || stopReason) return;
           stopReason = reason;
           worker.postMessage({ type: "cancel" });
-          stopTimer = setTimeout(() => finish(reason), 15_000);
+          stopTimer = setTimeout(() => finish(reason), 35_000);
         };
         const abort = () => stop(new Error("Cancelled"));
         const timer = setTimeout(

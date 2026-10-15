@@ -43,7 +43,7 @@ npm run review -- --profile /absolute/path/to/review-data
 npm run review -- --profile /absolute/path/to/new-review-data --from /absolute/path/to/source-data
 ```
 
-Copy preparation requires an inactive source and preserves current-generation records. `--include-auth` selects supported credentials. Review startup keeps bot receiving paused until the selected connection is configured or verified in that instance. The launcher displays build and profile identity.
+Copy preparation requires an inactive source and preserves current-generation records. `--include-auth` includes supported credentials, including the native Pi connection directory and its model catalogs. Review startup keeps bot receiving paused until the selected connection is configured or verified in that instance. The launcher displays build and profile identity.
 
 ## Verify the search-first workspace
 

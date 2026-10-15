@@ -28,7 +28,9 @@ port.on("message", ({ data }) => {
   if (used) return;
   used = true;
   if (message.type === "catalog") {
-    port.postMessage({ type: "catalog", ids: compatibleCodexModels() });
+    void compatibleCodexModels().then((ids) =>
+      port.postMessage({ type: "catalog", ids }),
+    );
     return;
   }
   active = new AbortController();

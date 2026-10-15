@@ -11,6 +11,10 @@ export const promptExecutionSchema = z
     promptRevision: z.string().regex(/^sha256:[a-f0-9]{64}$/),
     outputLanguage: languageSchema,
     modelId: z.string().min(1),
+    providerId: z.string().optional(),
+    piVersion: z.string().optional(),
+    requestedThinking: z.string().optional(),
+    effectiveThinking: z.string().optional(),
     build: z
       .object({
         revision: z.string(),

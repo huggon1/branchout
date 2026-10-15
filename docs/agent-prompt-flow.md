@@ -20,7 +20,7 @@
 
 [Tool definitions](../src/platforms/browser/tools.ts) owns browser operations and optional enhancement descriptions. Adding a tool changes its definition and registration. Platform instructions change in their own skill file. The generic system stays platform-independent.
 
-Persisted sessions use the application system and Pi's working-directory section. The factory fixes append-system input to an empty list and disables automatic context, skill, extension, and template discovery. Application skills use the explicit tool catalog. Lightweight Agents receive their explicit system directly.
+Persisted sessions use the application system and Pi's working-directory section. The factory fixes append-system input to an empty list and disables automatic context, skill, extension, and template discovery. Application skills use the explicit tool catalog. Lightweight Agents receive their explicit system directly. Both paths use the shared [Pi bridge](../src/pi/README.md) for native credentials, reasoning, and request options. New native sessions append provider, Pi version, and requested/effective reasoning as `postrove:model-settings` metadata.
 
 ## Recovery and logs
 

@@ -1,6 +1,20 @@
 // Keep the worker's home directory aligned with preflight session discovery.
 import { execFileSync } from "node:child_process";
+import * as http from "node:http";
 import type { RuntimeLayout } from "./runtime-layout";
+
+/** Native Pi auth/catalog operations in Main share the worker proxy policy. */
+export function configureMainModelNetwork(
+  inherited: NodeJS.ProcessEnv = process.env,
+  systemProxyReader: () => string = readSystemProxy,
+): () => void {
+  const env = createWorkerEnvironment(inherited, undefined, systemProxyReader);
+  // Electron's Node exposes this public API ahead of the installed Node typings.
+  const runtime = http as typeof http & {
+    setGlobalProxyFromEnv?: (env: NodeJS.ProcessEnv) => () => void;
+  };
+  return runtime.setGlobalProxyFromEnv?.(env) ?? (() => {});
+}
 
 function readSystemProxy(): string {
   return execFileSync("/usr/sbin/scutil", ["--proxy"], {
@@ -51,8 +65,19 @@ export function createWorkerEnvironment(
   inherited: NodeJS.ProcessEnv = process.env,
   layout?: RuntimeLayout,
   systemProxyReader: () => string = readSystemProxy,
+  includeModelEnvironment = false,
 ): Record<string, string> {
-  const env: Record<string, string> = {};
+  const env: Record<string, string> = includeModelEnvironment
+    ? Object.fromEntries(
+        Object.entries(inherited).filter(
+          (entry): entry is [string, string] =>
+            typeof entry[1] === "string" &&
+            !/^(?:NODE_OPTIONS|ELECTRON_RUN_AS_NODE|CODEX_|POSTROVE_)/.test(
+              entry[0],
+            ),
+        ),
+      )
+    : {};
   for (const key of [
     "PATH",
     "HOME",

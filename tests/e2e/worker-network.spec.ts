@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 
 // Failure cases: GUI launch lacks proxy variables; system proxy targets remote
 // requests; inherited proxy takes precedence; localhost bypasses every proxy.
+// Native Pi auth/catalog requests in Main follow the same proxy policy.
 test("GUI worker uses system proxy, preserves explicit proxy, and bypasses localhost", async ({}, info) => {
   test.skip(process.platform !== "darwin", "macOS system proxy integration");
   const root = await mkdtemp(join(tmpdir(), "postrove-worker-network-"));
@@ -62,12 +63,47 @@ test("GUI worker uses system proxy, preserves explicit proxy, and bypasses local
       systemProxy,
     });
     expect(bypass.result).toEqual({ status: 200, body: "direct-local" });
+    const main = (input: any) =>
+      application.evaluate(
+        async (_e, input) => (globalThis as any).checkMainNetwork(input),
+        input,
+      );
+    const mainAutomatic = await main({
+      url: "http://fixture.invalid/main-automatic",
+      systemProxy,
+    });
+    expect(mainAutomatic).toEqual({ status: 200, body: "through-proxy" });
+    const mainExplicit = await main({
+      url: "http://fixture.invalid/main-explicit",
+      explicitProxy: proxyUrl,
+      systemProxy: systemProxy.replace(/HTTPPort : \d+/, "HTTPPort : 1"),
+    });
+    expect(mainExplicit).toEqual({ status: 200, body: "through-proxy" });
+    const mainBypass = await main({
+      url: `http://127.0.0.1:${(local.address() as any).port}/main-local`,
+      systemProxy,
+    });
+    expect(mainBypass).toEqual({ status: 200, body: "direct-local" });
     expect(requests).toEqual([
       "http://fixture.invalid/automatic",
       "http://fixture.invalid/explicit",
+      "http://fixture.invalid/main-automatic",
+      "http://fixture.invalid/main-explicit",
     ]);
     await info.attach("worker-network.json", {
-      body: JSON.stringify({ automatic, explicit, bypass, requests }, null, 2),
+      body: JSON.stringify(
+        {
+          automatic,
+          explicit,
+          bypass,
+          mainAutomatic,
+          mainExplicit,
+          mainBypass,
+          requests,
+        },
+        null,
+        2,
+      ),
       contentType: "application/json",
     });
   } finally {

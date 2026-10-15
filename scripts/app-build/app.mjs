@@ -40,6 +40,8 @@ await build({
     "builder-util-runtime",
     "playwright-core",
     "@earendil-works/pi-coding-agent",
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-agent-core",
   ],
   loader: { ".md": "text" },
 });

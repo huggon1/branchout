@@ -67,7 +67,7 @@ export interface ForwardingServiceDependencies {
   language?: () => Language;
   store: ForwardingStore;
   acquire(): Promise<Lease>;
-  spawn(): ForwardingWorkerHandle;
+  spawn(config?: ModelExecutionConfig): ForwardingWorkerHandle;
   changed(): void;
   protectSensitive(value: string): Promise<string>;
   revealSensitive(value: string): Promise<string>;
@@ -583,7 +583,9 @@ export class ForwardingPipelineService {
           }
         }
       }
-      const worker = (entry.worker = this.dependencies.spawn());
+      const worker = (entry.worker = this.dependencies.spawn(
+        entry.lease.config,
+      ));
       worker.on("message", (raw) => {
         if ((raw as { type?: string })?.type === "logs_saved") {
           this.drainedWorkers.add(worker);
@@ -931,7 +933,7 @@ export class ForwardingPipelineService {
         worker.kill();
         resolve();
       };
-      const watchdog = setTimeout(finish, 15_000);
+      const watchdog = setTimeout(finish, 35_000);
       worker.on("exit", finish);
       worker.on("message", (raw) => {
         if ((raw as { type?: string })?.type === "logs_saved") finish();

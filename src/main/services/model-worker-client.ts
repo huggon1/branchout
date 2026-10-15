@@ -15,10 +15,19 @@ const replySchema = z.discriminatedUnion("type", [
     })
     .strict(),
 ]);
-function request(message: unknown, signal?: AbortSignal) {
+function request(
+  message: unknown,
+  signal?: AbortSignal,
+  config?: ModelExecutionConfig,
+) {
   return new Promise<z.infer<typeof replySchema>>((resolve, reject) => {
-    // No environment credentials or inherited agent configuration in the model worker.
-    const env = createWorkerEnvironment();
+    // Ambient model credentials follow the saved connection's explicit policy.
+    const env = createWorkerEnvironment(
+      process.env,
+      undefined,
+      undefined,
+      config?.method === "pi" && config.useEnvironment,
+    );
     const worker = utilityProcess.fork(
       join(__dirname, "../worker/model-worker.mjs"),
       [],
@@ -27,10 +36,12 @@ function request(message: unknown, signal?: AbortSignal) {
     worker.stdout?.resume();
     worker.stderr?.resume();
     let settled = false;
+    let draining: ReturnType<typeof setTimeout> | undefined;
     const finish = (result?: z.infer<typeof replySchema>) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      clearTimeout(draining);
       signal?.removeEventListener("abort", cancel);
       worker.kill();
       if (result) resolve(result);
@@ -38,9 +49,9 @@ function request(message: unknown, signal?: AbortSignal) {
     };
     const cancel = () => {
       worker.postMessage({ type: "cancel" });
-      finish();
+      draining ??= setTimeout(() => finish(), 35_000);
     };
-    const timeout = setTimeout(() => finish(), 45_000);
+    const timeout = setTimeout(cancel, 45_000);
     worker.on("message", (value) => {
       const parsed = replySchema.safeParse(value);
       if (parsed.success) finish(parsed.data);
@@ -64,6 +75,7 @@ export async function checkModel(
   const result = await request(
     { type: "check", sessionId: randomUUID(), config },
     signal,
+    config,
   );
   if (result.type !== "checked" || !result.success)
     throw new ExecutionFailure(
