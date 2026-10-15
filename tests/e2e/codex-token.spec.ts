@@ -1,7 +1,8 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
+import { writeCodexFixture } from "../codex-cli-fixture";
 import { tmpdir } from "node:os";
 // Failure cases: current app-server omits OAuth tokens from getAuthStatus;
 // logout leaves a stale credential; expired access is used without refresh;
@@ -28,8 +29,11 @@ test("subscription reading uses the isolated file credential after app-server re
       authId,
     }),
   );
-  const shim = `#!${process.execPath}\nconst fs=require('fs'),p=require('path'),rl=require('readline');if(process.argv.includes('--version')){console.log('codex-cli 9999.0.0');process.exit(0)}rl.createInterface({input:process.stdin}).on('line',line=>{const q=JSON.parse(line);if(q.id===undefined)return;let result={};if(q.method==='account/read'){result={account:{type:'chatgpt',email:null}};if(q.params?.refreshToken)fs.writeFileSync(p.join(process.env.CODEX_HOME,'refresh-observed.json'),JSON.stringify({refreshed:true}))}if(q.method==='model/list')result={data:[{model:'gpt-6.1-sol',displayName:'GPT-6.1 Sol'},{model:'gpt-6-luna',displayName:'Fixture model'},{model:'fixture-unknown',displayName:'Unknown fixture'}],nextCursor:null};if(q.method==='getAuthStatus')result={authMethod:'chatgpt',authToken:null,requiresOpenaiAuth:true};console.log(JSON.stringify({id:q.id,result}))});`;
-  await writeFile(join(bin, "codex"), shim, { mode: 0o700 });
+  await writeCodexFixture(bin, [
+    { model: "gpt-6.1-sol", displayName: "GPT-6.1 Sol" },
+    { model: "gpt-6-luna", displayName: "Fixture model" },
+    { model: "fixture-unknown", displayName: "Unknown fixture" },
+  ]);
   const server = createServer(async (req, res) => {
     let body = "";
     for await (const part of req) body += part;
@@ -69,7 +73,7 @@ test("subscription reading uses the isolated file credential after app-server re
     args: ["."],
     env: {
       ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
+      PATH: `${bin}${delimiter}${process.env.PATH}`,
       POSTROVE_RUN_MODE: "test",
       POSTROVE_TEST_DATA: profile,
       POSTROVE_TEST_WORKERS: resolve("build/test-workers"),

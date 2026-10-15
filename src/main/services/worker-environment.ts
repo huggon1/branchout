@@ -17,6 +17,22 @@ export function configureMainModelNetwork(
 }
 
 function readSystemProxy(): string {
+  if (process.platform === "win32")
+    return execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$p = Get-ItemProperty -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings'; [pscustomobject]@{ ProxyEnable = $p.ProxyEnable; ProxyServer = $p.ProxyServer } | ConvertTo-Json -Compress",
+      ],
+      {
+        encoding: "utf8",
+        timeout: 3000,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
   return execFileSync("/usr/sbin/scutil", ["--proxy"], {
     encoding: "utf8",
     timeout: 1000,
@@ -25,6 +41,48 @@ function readSystemProxy(): string {
 }
 
 function systemProxyEnvironment(snapshot: string): Record<string, string> {
+  if (process.platform === "win32") {
+    const settings = JSON.parse(snapshot);
+    if (settings.ProxyEnable !== 1 || typeof settings.ProxyServer !== "string")
+      return {};
+    const servers = settings.ProxyServer.split(";")
+      .map((entry: string) => entry.trim())
+      .filter(Boolean);
+    const env: Record<string, string> = {};
+    for (const [protocol, key] of [
+      ["http", "HTTP_PROXY"],
+      ["https", "HTTPS_PROXY"],
+    ]) {
+      const address =
+        servers
+          .find((entry: string) =>
+            entry.toLowerCase().startsWith(`${protocol}=`),
+          )
+          ?.slice(protocol.length + 1) ??
+        (servers.length === 1 && !servers[0].includes("=")
+          ? servers[0]
+          : undefined);
+      if (!address) continue;
+      try {
+        const url = new URL(
+          address.includes("://") ? address : `http://${address}`,
+        );
+        if (
+          !["http:", "https:"].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.pathname !== "/" ||
+          url.search ||
+          url.hash
+        )
+          continue;
+        env[key] = url.origin;
+      } catch {
+        /* Invalid manual entries retain the normal route. */
+      }
+    }
+    return env;
+  }
   const values = new Map(
     [
       ...snapshot.matchAll(
@@ -84,6 +142,18 @@ export function createWorkerEnvironment(
     "USERPROFILE",
     "SystemRoot",
     "TMPDIR",
+    ...(process.platform === "win32"
+      ? [
+          "TEMP",
+          "TMP",
+          "APPDATA",
+          "LOCALAPPDATA",
+          "PROGRAMFILES",
+          "PROGRAMFILES(X86)",
+          "COMSPEC",
+          "PATHEXT",
+        ]
+      : []),
     ...(inherited.POSTROVE_RUN_MODE === "test"
       ? ["POSTROVE_TEST_ENDPOINT"]
       : []),
@@ -95,7 +165,7 @@ export function createWorkerEnvironment(
     if (inherited[key]) env[key] = inherited[key];
   }
   if (
-    process.platform === "darwin" &&
+    ["darwin", "win32"].includes(process.platform) &&
     !env.HTTP_PROXY &&
     !env.HTTPS_PROXY &&
     !env.ALL_PROXY
@@ -103,7 +173,7 @@ export function createWorkerEnvironment(
     try {
       Object.assign(env, systemProxyEnvironment(systemProxyReader()));
     } catch {
-      // Worker startup can proceed when macOS has no readable proxy settings.
+      // Worker startup can proceed when the OS has no readable manual proxy.
     }
   }
   if (env.HTTP_PROXY || env.HTTPS_PROXY || env.ALL_PROXY)

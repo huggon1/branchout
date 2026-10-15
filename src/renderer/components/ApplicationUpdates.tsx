@@ -9,6 +9,7 @@ import { bridge } from "../bridge";
 import { t, tf, dateTime } from "../i18n";
 import { Dialog, Markdown } from "./Primitives";
 import type { ApplicationUpdateView } from "../../shared/update-contracts";
+import { buildIdentity } from "../../shared/build-identity";
 
 export function useApplicationUpdates() {
   const [view, setView] = useState<ApplicationUpdateView>();
@@ -68,7 +69,11 @@ export function UpdateSettings({
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
   const view = updates.view;
-  if (!view) return null;
+  if (
+    !view ||
+    (view.state === "disabled" && buildIdentity.platform.startsWith("win32"))
+  )
+    return null;
   const { state, release, progress, failure } = view;
   const messages: Record<ApplicationUpdateView["state"], string> = {
     disabled: "安装版支持应用更新。",

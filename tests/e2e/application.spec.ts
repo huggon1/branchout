@@ -9,6 +9,7 @@ import {
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 let server: Server, endpoint: string;
 let requests: string[];
 let root: string, profile: string, application: ElectronApplication;
@@ -189,7 +190,7 @@ fs.readFile = async (path, ...args) => {
   return read(path, ...args);
 };
 app.whenReady().then(() => app.emit("activate"));
-await import(${JSON.stringify(resolve("dist/main/main.cjs"))});
+await import(${JSON.stringify(pathToFileURL(resolve("dist/main/main.cjs")).href)});
 `,
   );
   application = await electron.launch({

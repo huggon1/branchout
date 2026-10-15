@@ -10,7 +10,7 @@ import { z } from "zod";
 export interface CodexRpc {
   request(method: string, params?: unknown): Promise<unknown>;
   onNotice(listener: (method: string, params: unknown) => void): () => void;
-  close(): void;
+  close(): void | Promise<void>;
 }
 export function resolveCodexExecutable(
   platform = process.platform,
@@ -91,6 +91,7 @@ export class CodexClient implements CodexRpc {
   >();
   private listeners = new Set<(method: string, params: unknown) => void>();
   private closed = false;
+  private closing?: Promise<void>;
   constructor(
     private home: string,
     private executable = "codex",
@@ -216,14 +217,26 @@ export class CodexClient implements CodexRpc {
     return () => this.listeners.delete(listener);
   }
   close() {
-    if (this.closed) return;
+    if (this.closing) return this.closing;
     this.closed = true;
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error("Codex 客户端不可用"));
     }
     this.pending.clear();
-    this.process?.kill();
+    const child = this.process;
+    return (this.closing = new Promise<void>((resolve) => {
+      if (!child?.pid || child.exitCode !== null || child.signalCode !== null) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(resolve, 5000);
+      child.once("exit", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      child.kill();
+    }));
   }
 }
 export const accountSchema = z.object({

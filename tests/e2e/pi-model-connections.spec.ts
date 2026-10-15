@@ -27,13 +27,19 @@ import {
   rm,
   stat,
 } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
+import { writeCodexFixture } from "../codex-cli-fixture";
 import { tmpdir } from "node:os";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   getBuiltinProviders,
   getBuiltinModels,
 } from "@earendil-works/pi-ai/providers/all";
+
+const pathWithoutCodex =
+  process.platform === "win32"
+    ? join(process.env.SystemRoot!, "System32")
+    : "/usr/bin:/bin";
 
 async function launch(profile: string, extra: Record<string, string> = {}) {
   const app = await electron.launch({
@@ -236,7 +242,8 @@ test("native Pi UI, reasoning, API options, leases, and restart share one model 
     expect(
       JSON.parse(await readFile(authFile, "utf8"))["fixture-provider"],
     ).toEqual({ type: "api_key", key: "fictional-native-key" });
-    expect((await stat(authFile)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32")
+      expect((await stat(authFile)).mode & 0o777).toBe(0o600);
     expect(JSON.stringify(await modelView(page))).not.toContain(
       "fictional-native-key",
     );
@@ -467,12 +474,13 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
       tokens: { access_token: "fictional-old-token" },
     }),
   );
-  const shim = `#!${process.execPath}\nconst rl=require('readline');if(process.argv.includes('--version')){console.log('codex-cli 9999.0.0');process.exit(0)}rl.createInterface({input:process.stdin}).on('line',line=>{const q=JSON.parse(line);if(q.id===undefined)return;let result={};if(q.method==='account/read')result={account:{type:'chatgpt',email:null}};if(q.method==='model/list')result={data:[{model:'gpt-6-luna',displayName:'Fixture'}],nextCursor:null};console.log(JSON.stringify({id:q.id,result}))});`;
-  await writeFile(join(bin, "codex"), shim, { mode: 0o700 });
+  await writeCodexFixture(bin, [
+    { model: "gpt-6-luna", displayName: "Fixture" },
+  ]);
   let app: ElectronApplication | undefined;
   try {
     let launched = await launch(profile, {
-      PATH: `${bin}:${process.env.PATH}`,
+      PATH: `${bin}${delimiter}${process.env.PATH}`,
     });
     app = launched.app;
     let page = launched.page;
@@ -617,7 +625,7 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
     await app.close();
     app = undefined;
     // A native connection opens without the legacy CLI on PATH.
-    launched = await launch(profile, { PATH: "/usr/bin:/bin" });
+    launched = await launch(profile, { PATH: pathWithoutCodex });
     app = launched.app;
     page = launched.page;
     expect((await modelView(page)).current).toMatchObject({
@@ -639,7 +647,7 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
       .toBe(false);
     await app.close();
     app = undefined;
-    launched = await launch(profile, { PATH: "/usr/bin:/bin" });
+    launched = await launch(profile, { PATH: pathWithoutCodex });
     app = launched.app;
     page = launched.page;
     expect((await modelView(page)).current).toBeNull();
@@ -727,7 +735,9 @@ test("native OAuth rotation is serialized across workers and drains after Stop",
       const original = utilityProcess.fork;
       utilityProcess.fork = ((modulePath, args, options) =>
         original(
-          modulePath.endsWith("/model-worker.mjs") ? fixturePath : modulePath,
+          modulePath.replaceAll("\\", "/").endsWith("/model-worker.mjs")
+            ? fixturePath
+            : modulePath,
           args,
           options,
         )) as typeof original;

@@ -10,6 +10,7 @@
     "prepare:runtime": "npm run setup:xhs",
     "build:icon": "node scripts/app-build/icon.mjs",
     "package:app": "node scripts/app-build/clean-package.mjs && npm run build && npm run build:icon && electron-builder --mac --arm64 --publish never && node scripts/app-build/checksums.mjs",
+    "package:windows": "node scripts/app-build/clean-package.mjs && npm run build && npm run build:icon && node scripts/app-build/windows-trial.mjs && node scripts/app-build/checksums.mjs",
     "dev": "npm run build && electron .",
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
@@ -21,7 +22,8 @@
     "check:full": "npm run check && npm run test:e2e",
     "test:upgrade": "node scripts/development/verify-upgrade.mjs",
     "prepare:upgrade": "node scripts/development/verify-upgrade.mjs --prepare",
-    "test:package": "node scripts/development/verify-package.mjs"
+    "test:package": "node scripts/development/verify-package.mjs",
+    "test:windows-installation": "node scripts/development/verify-windows-installation.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.1.0",
