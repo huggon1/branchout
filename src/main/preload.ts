@@ -94,7 +94,15 @@ const bridge: DesktopBridge = {
     ipcRenderer.invoke(telegramChannels.revokeChat, chatId),
   modelView: () => ipcRenderer.invoke(modelChannels.view),
   saveModel: (input) => ipcRenderer.invoke(modelChannels.save, input),
-  loginModel: () => ipcRenderer.invoke(modelChannels.login),
+  loginModel: (input) => ipcRenderer.invoke(modelChannels.login, input),
+  selectModelConnection: (input) =>
+    ipcRenderer.invoke(modelChannels.select, input),
+  removeModelConnection: (input) =>
+    ipcRenderer.invoke(modelChannels.remove, input),
+  configureModelCatalog: (input) =>
+    ipcRenderer.invoke(modelChannels.configure, input),
+  respondModelAuth: (input) => ipcRenderer.invoke(modelChannels.respond, input),
+  openModelAuthUrl: (url) => ipcRenderer.invoke(modelChannels.openAuthUrl, url),
   cancelModelLogin: () => ipcRenderer.invoke(modelChannels.cancelLogin),
   refreshModels: () => ipcRenderer.invoke(modelChannels.refresh),
   checkModel: () => ipcRenderer.invoke(modelChannels.check),

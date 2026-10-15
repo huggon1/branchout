@@ -73,9 +73,25 @@ Deletion changes visibility independently of the execution stores. Original reco
 
 Installed profiles retain their storage location, encryption identity, browser sessions, and cached image addresses. Fresh installations use `Postrove/profiles/default` under the operating system's application-data directory.
 
-`PromptExecution` associates task and attempt identity, revision, output language, model, and build with reading. Current reading `promptRevision` hashes its translation and introduction system strings; its scope is that base post-collection instruction pair. Browser tool definitions and loaded skill bodies are recorded in native session messages. Search saves `outputLanguage` in its report and uses native sessions for execution context.
+`PromptExecution` associates task and attempt identity, revision, output language, model, and build with reading. New records also include provider ID, Pi version, requested reasoning, and effective reasoning; advanced API mode records `api_options`. Historical records retain their original optional fields. Current reading `promptRevision` hashes its translation and introduction system strings; its scope is that base post-collection instruction pair. Browser tool definitions and loaded skill bodies are recorded in native session messages. Search saves `outputLanguage` in its report and uses native sessions for execution context.
 
-Model execution acquires a connection lease. Credentials remain in controlled local storage; reports and interface state read redacted connection information. Shared Chrome retains website sessions. Platform sign-out clears that platform's session state.
+Model execution acquires a connection lease that freezes the provider, complete Pi model metadata, reasoning, and user options. Reports and interface state read redacted connection information. Shared Chrome retains website sessions. Platform sign-out clears that platform's session state.
+
+## Pi model connections
+
+`pi/connections.json` stores version 2, a saved connection list, an optional active connection UUID, retirement UUIDs, and a completed-legacy-migration marker. Each connection saves its provider ID, model ID, display name, common/API options, and environment-credential policy. A migrated custom model with a former server-selected output limit also retains `serverDefaultOutputModelId`; a model change retires this compatibility marker and an explicit output setting takes precedence. Browser and reading reasoning choices save `task_default` or a Pi level. At acquisition, task defaults resolve against the current model's supported levels; an explicit level that has disappeared requires a new selection. The private worker channel carries the frozen model, options, and credential-file paths.
+
+`pi/connections/<uuid>/auth.json` belongs to Pi AuthStorage. Pi retains complete native API-key or OAuth records, including provider-specific fields, and serializes token replacement across processes. Each directory also owns native `models.json` and `models-store.json`. The independent `pi/catalog` directory provides the initial catalog. `pi/device.json` supplies the stable installation identity requested by native login. Files use mode 0600 and new parent directories use mode 0700.
+
+Stored credentials stay in their connection directory. A connection using ambient credentials explicitly carries that environment policy into workers. Default workers retain the existing minimal environment. Environment-enabled workers inherit the app environment with process-control and application-control variables filtered; Pi resolves the selected provider's environment, profile, or cloud credentials.
+
+Migration first writes and validates the new connection, then atomically saves the active UUID. After native commit, migration writes credential-free `model-connection.migrated.json` evidence and retires the original plain/encrypted credential copies. Interrupted source cleanup resumes at startup. An existing general API becomes a Pi custom provider. Existing Codex OAuth uses fresh Pi authorization because the prior bridge supplied access tokens through Codex CLI. The original connection remains active through authorization and cancellation. After commit, old leases retain their legacy refresh context until release, and the cleanup journal supports restart recovery. Native OpenAI and legacy OpenAI Codex retain their separate Pi provider identities. The completed-migration marker keeps the retired source outside future connection selection.
+
+Removing a connection first saves its retirement UUID and clears its active selection. Existing leases retain the credential directory until release. Cleanup uses native Pi logout and removes the owned connection directory, then clears its retirement UUID. Startup completes saved retirements and removes abandoned authorization drafts from this namespace. Provider-side authorization management stays in the provider account.
+
+Reauthorizing a saved connection stages a new credential directory with its existing catalog, model, and options. Saving commits the replacement connection and retires the prior directory through the same lease-aware cleanup. Cancellation keeps the saved connection active.
+
+Credentials and file paths cross the private execution channel. Public task snapshots and model views contain connection metadata, option identities, and classified failures. Authentication errors use bounded application messages. Native session export follows the local trace boundary above.
 
 ## Telegram queue and business reset
 

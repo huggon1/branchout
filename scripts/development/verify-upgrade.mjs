@@ -370,10 +370,36 @@ require("./main.cjs");\n`,
       ),
       "fictional saved session evidence",
     );
-    assert.ok(
-      JSON.parse(await readFile(join(profile, "model-connection.json"), "utf8"))
-        .apiKey,
-    );
+    const nativeConnections = await readFile(
+      join(profile, "pi", "connections.json"),
+      "utf8",
+    ).catch((error) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (nativeConnections) {
+      const connections = JSON.parse(nativeConnections);
+      const active = connections.connections.find(
+        (item) => item.id === connections.activeId,
+      );
+      assert.ok(active, "The upgraded app retained the active Pi connection");
+      const auth = JSON.parse(
+        await readFile(
+          join(profile, "pi", "connections", active.id, "auth.json"),
+          "utf8",
+        ),
+      );
+      assert.ok(
+        auth[active.providerId]?.key,
+        "The migrated Pi connection retained its API key",
+      );
+    } else {
+      assert.ok(
+        JSON.parse(
+          await readFile(join(profile, "model-connection.json"), "utf8"),
+        ).apiKey,
+      );
+    }
     await run("codesign", [
       "--verify",
       "--deep",

@@ -17,7 +17,13 @@ import type {
 import type { Language } from "./language";
 import type { ApplicationPreferences } from "./preferences-contracts";
 import type { TaskActivity, TaskSnapshot } from "./task-contracts";
-import type { ModelReply, ModelView, SaveModelInput } from "./model-contracts";
+import type {
+  ModelReply,
+  ModelView,
+  SaveModelInput,
+  SelectModelConnectionInput,
+  LoginModelInput,
+} from "./model-contracts";
 import type {
   ForwardingTaskDetail,
   ForwardingTaskSummary,
@@ -66,6 +72,11 @@ export const modelChannels = {
   view: "model:view",
   save: "model:save",
   login: "model:login",
+  select: "model:select",
+  remove: "model:remove",
+  configure: "model:configure",
+  respond: "model:respond",
+  openAuthUrl: "model:openAuthUrl",
   cancelLogin: "model:cancelLogin",
   refresh: "model:refresh",
   check: "model:check",
@@ -150,7 +161,22 @@ export interface DesktopBridge {
   revokeTelegramChat(chatId: string): Promise<ModelReply<void>>;
   modelView(): Promise<ModelReply<ModelView>>;
   saveModel(input: SaveModelInput): Promise<ModelReply<void>>;
-  loginModel(): Promise<ModelReply<void>>;
+  loginModel(input: LoginModelInput): Promise<ModelReply<void>>;
+  selectModelConnection(
+    input: SelectModelConnectionInput,
+  ): Promise<ModelReply<void>>;
+  removeModelConnection(input: {
+    connectionId: string;
+  }): Promise<ModelReply<void>>;
+  configureModelCatalog(input: {
+    modelsJson: string;
+    providerId: string;
+  }): Promise<ModelReply<void>>;
+  respondModelAuth(input: {
+    id: string;
+    value: string;
+  }): Promise<ModelReply<void>>;
+  openModelAuthUrl(url: string): Promise<ModelReply<void>>;
   cancelModelLogin(): Promise<ModelReply<void>>;
   refreshModels(): Promise<ModelReply<void>>;
   checkModel(): Promise<ModelReply<void>>;

@@ -24,7 +24,7 @@ The forwarding service first calls `PlatformAccess.collect`. A browser worker co
 
 Search and parsing have separate queues and share the Chrome access lock.
 
-Worker environments inherit explicit proxy variables. On macOS, a GUI launch without them reads the system HTTP and HTTPS proxy settings. Localhost and loopback requests retain direct routing.
+Worker environments inherit explicit proxy variables. On macOS, a GUI launch reads explicit HTTP and HTTPS proxy variables first, then system proxy settings. Native Pi authentication and catalog operations in Main apply the same policy through Node's public proxy dispatcher. Localhost and loopback requests retain direct routing.
 
 ## Bot integration boundary
 
@@ -45,6 +45,14 @@ The forwarding boundary accepts `BotForwardingSubmission` with a channel, accoun
 | Bundled platform skills | Per-platform search and reading instructions loaded through a dedicated tool |
 
 Browser navigation uses validated HTTPS addresses. Text submission targets recognized platform AI entries. Optional Xiaohongshu retrieval is a separate tool available to reading tasks when its runtime is installed.
+
+## Pi model boundary
+
+[The Pi bridge](../src/pi/README.md) adapts the installed SDK's public ModelRuntime and authentication interactions. Pi owns provider composition, model metadata, protocol adapters, reasoning mappings, authentication, token rotation, and credential-file locking. Main owns connection selection and execution leases. The renderer presents provider/model data and the text, secret, selection, browser-link, and device-code interactions emitted by Pi.
+
+Browser coding sessions and lightweight reading Agents share the same runtime stream bridge. Common options use streamSimple. Advanced API JSON uses stream so Pi receives native API fields. Application task tools, prompts, retry limits, output budgets, and explicit resource loading remain owned by Postrove. Provider-specific metadata changes enter through the Pi catalog; SDK API changes enter through this bridge. JSON formats for custom catalogs and advanced API options follow the installed Pi version.
+
+The legacy Codex service supports connections created before this migration. A staged native authorization uses a separate credential directory. A committed connection pointer switches subsequent tasks; legacy lease references finish before local legacy cleanup. Native connections use Pi AuthStorage directly in Main and workers. Stop waits for worker cleanup, with a thirty-five-second fallback that covers Pi's credential-lock wait and token rotation. The bridge lets native getAuth settle before returning caller cancellation, so a worker completion message follows credential persistence. Catalog refresh settles native authentication before its network phase, and shutdown waits for this serialized operation.
 
 ## Recovery and native Pi logs
 

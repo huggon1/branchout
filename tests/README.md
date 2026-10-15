@@ -21,8 +21,9 @@ Fixtures use isolated profiles and controlled external responses.
 | [material collection](e2e/material-collection.spec.ts) | References, frame recovery after a transient click failure, provenance, and source structure                 |
 | [browser Agent](e2e/browser-agent.spec.ts)             | Capture identity, reply capture after a failed Ask click, observed access requirements, 404 admission after a failed source navigation, and recovery budgets                                         |
 | [browser tools](e2e/platform-browser.spec.ts)          | Constrained actions, observed links, visibility changes, and retained sessions                               |
-| [worker network](e2e/worker-network.spec.ts)           | GUI system proxy, explicit proxy precedence, and loopback routing                                            |
+| [model network](e2e/worker-network.spec.ts)           | Main and worker GUI system proxy, explicit proxy precedence, and loopback routing                                            |
 | [platform sessions](e2e/platform-session.spec.ts)      | Shared sessions, logout, and restart                                                                         |
+| [Native Pi connections](e2e/pi-model-connections.spec.ts) | Native catalog/auth UI, option propagation, frozen leases, restart, and staged Codex migration |
 | [Codex token](e2e/codex-token.spec.ts)                 | Credential refresh, catalog, and redacted state                                                              |
 
 ## Service and contract scope

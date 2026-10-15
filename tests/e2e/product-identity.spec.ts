@@ -160,11 +160,28 @@ test("Postrove retains an installed profile, encrypted connection, images and br
         }, `${scheme}://${imageId}`);
         expect(result).toBe(1);
       }
-      expect(
-        JSON.parse(
-          await readFile(join(profile, "model-connection.json"), "utf8"),
+      const migrated = JSON.parse(
+        await readFile(join(profile, "pi", "connections.json"), "utf8"),
+      );
+      const native = migrated.connections.find(
+        (item: any) => item.id === migrated.activeId,
+      );
+      expect(native.modelId).toBe(connection.modelId);
+      const credential = JSON.parse(
+        await readFile(
+          join(profile, "pi", "connections", native.id, "auth.json"),
+          "utf8",
         ),
-      ).toEqual(connection);
+      );
+      expect(credential["postrove-api"].key).toBe(connection.apiKey);
+      const evidence = JSON.parse(
+        await readFile(join(profile, "model-connection.migrated.json"), "utf8"),
+      );
+      expect(evidence).toMatchObject({
+        modelId: connection.modelId,
+        migratedTo: "pi",
+      });
+      expect(evidence.apiKey).toBeUndefined();
       expect(
         await readFile(join(profile, "retained-record.json"), "utf8"),
       ).toBe(retained);

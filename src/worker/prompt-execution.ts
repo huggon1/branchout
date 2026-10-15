@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Language } from "../shared/language";
 import { buildIdentity } from "../shared/build-identity";
+import type { ModelExecutionConfig } from "../shared/model-contracts";
+import { executionMetadata } from "../pi/model-runtime";
 type Context = {
   taskId: string;
   attemptId: string;
@@ -12,6 +14,7 @@ export function promptExecution(
   language: Language = "zh-CN",
   modelId: string,
   context?: Context,
+  config?: ModelExecutionConfig,
 ) {
   return {
     promptRevision: `sha256:${createHash("sha256")
@@ -21,6 +24,7 @@ export function promptExecution(
       .digest("hex")}`,
     outputLanguage: language,
     modelId,
+    ...(config ? executionMetadata(config, "reading") : {}),
     build: buildIdentity,
     ...(context
       ? {

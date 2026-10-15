@@ -49,7 +49,10 @@ import { registerTelegramIpc } from "./integrations/telegram/ipc";
 import { TaskService } from "./services/tasks/task-service";
 import { registerTaskIpc } from "./services/tasks/task-ipc";
 import { UnifiedTaskService } from "./services/tasks/unified-task-service";
-import { createWorkerEnvironment } from "./services/worker-environment";
+import {
+  createWorkerEnvironment,
+  configureMainModelNetwork,
+} from "./services/worker-environment";
 import { ModelService } from "./services/model-service";
 import { CodexClient, resolveCodexExecutable } from "./services/codex-client";
 import { ModelStore } from "./storage/model-store";
@@ -122,8 +125,9 @@ export async function initializeServices(
   };
 
   const authRoot = join(app.getPath("userData"), "model-auth");
-  const codexExecutable = resolveCodexExecutable();
+  const restoreModelNetwork = configureMainModelNetwork();
   models = new ModelService({
+    root: join(app.getPath("userData"), "pi"),
     storage: new ModelStore(
       join(app.getPath("userData"), "model-connection.enc"),
       {
@@ -139,7 +143,11 @@ export async function initializeServices(
       join(app.getPath("userData"), "auth-cleanup.json"),
     ),
     client: (id) =>
-      new CodexClient(join(authRoot, id), codexExecutable, app.getVersion()),
+      new CodexClient(
+        join(authRoot, id),
+        resolveCodexExecutable(),
+        app.getVersion(),
+      ),
     removeHome: (id) =>
       rm(join(authRoot, id), { recursive: true, force: true }),
     catalog: readPiCatalog,
@@ -222,7 +230,7 @@ export async function initializeServices(
     language: () => preferences.language,
     store: forwardingStore,
     acquire: () => models!.acquire(),
-    spawn: () => {
+    spawn: (config) => {
       const worker = utilityProcess.fork(
         testWorkerRoot
           ? join(testWorkerRoot, "forwarding.mjs")
@@ -230,7 +238,12 @@ export async function initializeServices(
         [],
         {
           stdio: "pipe",
-          env: createWorkerEnvironment(process.env, runtimeLayout),
+          env: createWorkerEnvironment(
+            process.env,
+            runtimeLayout,
+            undefined,
+            config?.method === "pi" && config.useEnvironment,
+          ),
         },
       );
       worker.stdout?.resume();
@@ -739,7 +752,22 @@ export async function initializeServices(
         event.senderFrame.url !== expected
       )
         return { ok: false, message: "无效的界面请求" };
-      if (args.length !== (channel === modelChannels.save ? 1 : 0))
+      if (
+        args.length !==
+        ((
+          [
+            modelChannels.save,
+            modelChannels.remove,
+            modelChannels.select,
+            modelChannels.configure,
+            modelChannels.respond,
+            modelChannels.openAuthUrl,
+            modelChannels.login,
+          ] as string[]
+        ).includes(channel)
+          ? 1
+          : 0)
+      )
         return { ok: false, message: "无效的请求参数" };
       try {
         let value: unknown;
@@ -751,7 +779,22 @@ export async function initializeServices(
             await models!.save(args[0]);
             break;
           case modelChannels.login:
-            await models!.login();
+            await models!.login(args[0]);
+            break;
+          case modelChannels.remove:
+            await models!.remove(args[0]);
+            break;
+          case modelChannels.select:
+            await models!.select(args[0]);
+            break;
+          case modelChannels.configure:
+            await models!.configure(args[0]);
+            break;
+          case modelChannels.respond:
+            models!.respond(args[0]);
+            break;
+          case modelChannels.openAuthUrl:
+            await models!.openAuthUrl(args[0]);
             break;
           case modelChannels.cancelLogin:
             await models!.cancelLogin();
@@ -768,8 +811,6 @@ export async function initializeServices(
         }
         return { ok: true, value };
       } catch (error) {
-        if (channel === modelChannels.login && error instanceof Error)
-          return { ok: false, message: error.message };
         return {
           ok: false,
           message: "操作未完成，请检查配置、登录状态或服务地址后重试",
@@ -789,6 +830,7 @@ export async function initializeServices(
         feishu?.shutdown(),
       ]);
       await models?.close();
+      restoreModelNetwork();
       await browser.shutdown();
       xhsAuth?.shutdown();
     },

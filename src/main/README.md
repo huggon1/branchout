@@ -14,6 +14,6 @@
 | `integrations/bots/`, `integrations/feishu/` | Shared inbox and lifecycle, adapter registry, and Feishu transport |
 | `integrations/telegram/`                                                                              | Authorization, receipts, and acknowledgments                 |
 | `services/application-updates.ts`, `services/electron-update-driver.ts`, `services/execution-gate.ts` | Update state, native validation, and execution admission     |
-| `services/model-service.ts`                                                                           | Model connections and execution leases                       |
+| `services/model-service.ts`                                                                           | Native Pi connections, authentication interactions, and execution leases                       |
 | `runtime/business-reset.ts`, `runtime/profile.ts`                                                     | Generation reset and profile preparation                     |
 | `storage/`                                                                                            | Atomic local stores                                          |

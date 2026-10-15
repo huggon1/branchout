@@ -5,6 +5,7 @@ await build({
   define: { __POSTROVE_BUILD_IDENTITY__: JSON.stringify(identity) },
   entryPoints: {
     "browser-app": "tests/support/browser-app.ts",
+    "pi-model-worker": "tests/support/pi-model-worker.ts",
     "worker-network-app": "tests/support/worker-network-app.ts",
     forwarding: "tests/support/forwarding.ts",
     "reading-model/forwarding": "tests/support/forwarding-model.ts",
@@ -31,6 +32,8 @@ await build({
     "builder-util-runtime",
     "playwright-core",
     "@earendil-works/pi-coding-agent",
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-agent-core",
   ],
   loader: { ".md": "text" },
 });

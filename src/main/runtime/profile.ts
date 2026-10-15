@@ -36,6 +36,7 @@ async function regularTree(path: string): Promise<void> {
 }
 const authFiles = [
   "platform-browser",
+  "pi",
   "model-connection.json",
   "model-auth",
   "Partitions",

@@ -61,9 +61,10 @@ export async function runReadingJob(
     language,
     command.config.modelId,
     { taskId: command.taskId, attemptId: randomUUID() },
+    command.config,
   );
   emit({ type: "execution", taskId: command.taskId, execution });
-  const model = resolveModel(command.config);
+  const model = await resolveModel(command.config);
   const failures = new Map<string, ForwardingReadingFailure>();
   const callModel = (
     material: ReadingMaterial,

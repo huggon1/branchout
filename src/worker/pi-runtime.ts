@@ -14,47 +14,17 @@ import {
   type AgentTool,
   type StreamFn,
 } from "@earendil-works/pi-agent-core";
-import {
-  getBuiltinProviders,
-  getBuiltinModels,
-} from "@earendil-works/pi-ai/providers/all";
-import type { Model } from "@earendil-works/pi-ai";
-import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
-import { streamSimple as responses } from "@earendil-works/pi-ai/api/openai-responses";
-import { streamSimple as completions } from "@earendil-works/pi-ai/api/openai-completions";
-import { streamSimple as codex } from "@earendil-works/pi-ai/api/openai-codex-responses";
 import type { ModelExecutionConfig } from "../shared/model-contracts";
-export const compatibleCodexModels = () =>
-  openaiCodexProvider()
-    .getModels()
-    .map((model) => model.id);
-export function resolveModel(
-  config: ModelExecutionConfig,
-): Model<"openai-responses" | "openai-completions" | "openai-codex-responses"> {
-  if (config.method === "codex_subscription") {
-    const model = openaiCodexProvider()
-      .getModels()
-      .find((candidate) => candidate.id === config.modelId);
-    if (!model) throw new Error("当前 Pi 不支持所选模型");
-    return model;
-  }
-  if (!config.baseUrl || !config.api) throw new Error("连接配置不完整");
-  const catalog = getBuiltinProviders()
-    .flatMap((provider) => getBuiltinModels(provider) as Model<any>[])
-    .find((candidate) => candidate.id === config.modelId);
-  return {
-    id: config.modelId,
-    name: config.modelId,
-    provider: "postrove-api",
-    api: config.api,
-    baseUrl: config.baseUrl,
-    reasoning: false,
-    input: ["text"],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: catalog?.contextWindow ?? 32768,
-    maxTokens: catalog?.maxTokens ?? 0,
-  };
-}
+import { modelExecution, piStream, resolveModel } from "../pi/execution";
+export { resolveModel } from "../pi/execution";
+export const compatibleCodexModels = async () => {
+  const { ModelRuntime } = await import("@earendil-works/pi-coding-agent");
+  const runtime = await ModelRuntime.create({
+    modelsPath: null,
+    refreshOnCreate: false,
+  });
+  return runtime.getModels("openai-codex").map((model) => model.id);
+};
 export interface PiModelAttempt {
   attempt: number;
   total: number;
@@ -204,60 +174,30 @@ async function runPiAttempt(
       return "model_network" as const;
     return classifyModelError(error);
   };
-  const model = resolveModel(config);
-  const streamFn: StreamFn = (_model, context, options) => {
+  const execution = await modelExecution(config);
+  const model = execution.model;
+  const nativeStream = piStream(execution, config, maxTokens, observedFetch);
+  const streamFn: StreamFn = (model, context, options) => {
     if (turns >= maxTurns) {
       turnLimit = true;
       throw new ExecutionFailure("model_turn_limit");
     }
     turns++;
     diagnostic = undefined;
-    const safeOptions = {
-      ...options,
-      apiKey: config.credential,
-      transport: "sse" as const,
-      ...(maxTokens === undefined ? {} : { maxTokens }),
-      maxRetries: 0,
-      fetch: observedFetch,
-      ...(maxTokens === undefined && model.maxTokens === 0
-        ? {
-            onPayload: (payload: any) => {
-              delete payload.max_tokens;
-              delete payload.max_completion_tokens;
-              delete payload.max_output_tokens;
-            },
-          }
-        : {}),
-    };
-    if (model.api === "openai-responses")
-      return responses(
-        model as Model<"openai-responses">,
-        context,
-        safeOptions,
-      );
-    if (model.api === "openai-completions")
-      return completions(
-        model as Model<"openai-completions">,
-        context,
-        safeOptions,
-      );
-    return codex(
-      model as Model<"openai-codex-responses">,
-      context,
-      safeOptions,
-    );
+    return nativeStream(model, context, options);
   };
+  const redact = (value: string) =>
+    config.credential ? value.split(config.credential).join("[已隐藏]") : value;
   const agent = new Agent({
     initialState: {
       model,
       tools,
       messages: [],
       systemPrompt,
-      thinkingLevel: "off",
+      thinkingLevel: config.method === "pi" ? config.thinking.reading : "off",
     },
     streamFn,
     toolExecution: "sequential",
-    getApiKey: () => config.credential,
     sessionId,
     transport: "sse",
   });
@@ -271,12 +211,12 @@ async function runPiAttempt(
       if (turnLimit) throw new ExecutionFailure("model_turn_limit");
       if (last?.role === "assistant" && last.stopReason === "length") {
         onPartial?.(
-          last.content
-            .filter((p) => p.type === "text")
-            .map((p) => p.text)
-            .join("\n")
-            .split(config.credential)
-            .join("[已隐藏]"),
+          redact(
+            last.content
+              .filter((p) => p.type === "text")
+              .map((p) => p.text)
+              .join("\n"),
+          ),
         );
         throw new ExecutionFailure("model_output_limit");
       }
@@ -313,12 +253,12 @@ async function runPiAttempt(
     }
     if (!last.content.some((part) => part.type === "text" && part.text.trim()))
       throw new ExecutionFailure("model_empty");
-    return last.content
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
-      .join("\n")
-      .split(config.credential)
-      .join("[已隐藏]");
+    return redact(
+      last.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("\n"),
+    );
   } catch (error) {
     const code = turnLimit ? "model_turn_limit" : failureCode(error);
     const failureDiagnostic =
@@ -361,6 +301,7 @@ async function runPiAttempt(
           taskId: executionId,
           attempt,
           systemPrompt,
+          role: "reading",
           browserTools: [],
         });
         try {
@@ -400,7 +341,7 @@ export async function checkWithPi(
     signal,
     "Reply with OK.",
     "This is a connection check. Reply only OK.",
-    64,
+    2048,
     fetchOverride,
   );
 }

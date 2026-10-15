@@ -209,10 +209,9 @@ await import(${JSON.stringify(resolve("dist/main/main.cjs"))});
     .getByRole("navigation")
     .getByRole("button", { name: "设置", exact: true })
     .click();
-  await expect(page.getByLabel("模型标识", { exact: true })).toHaveValue(
-    "fixture",
-    { timeout: 5000 },
-  );
+  await expect(
+    page.getByRole("combobox", { name: "模型", exact: true }),
+  ).toHaveValue("fixture", { timeout: 5000 });
   await expect(page.getByText("无法读取模型连接", { exact: true })).toHaveCount(
     0,
   );
@@ -223,8 +222,9 @@ await import(${JSON.stringify(resolve("dist/main/main.cjs"))});
     contentType: "image/png",
   });
   expect(
-    JSON.parse(await readFile(join(profile, "model-connection.json"), "utf8"))
-      .modelId,
+    JSON.parse(
+      await readFile(join(profile, "model-connection.migrated.json"), "utf8"),
+    ).modelId,
   ).toBe("fixture");
 });
 test("parsed materials retain their language and partial state across new submissions", async ({}, info) => {
@@ -239,9 +239,7 @@ test("parsed materials retain their language and partial state across new submis
   await page.getByRole("button", { name: "加入解析", exact: true }).click();
   const state = async () =>
     JSON.parse(await readFile(join(profile, "forwarding.json"), "utf8"));
-  await expect
-    .poll(async () => (await state()).tasks[0]?.state)
-    .toBe("failed");
+  await expect.poll(async () => (await state()).tasks[0]?.state).toBe("failed");
   const initial = (await state()).tasks[0];
   expect(initial.source).toBeTruthy();
   expect(initial.outputLanguage).toBe("zh-CN");
@@ -309,6 +307,33 @@ test("profile copying protects an active source and preserves independent follow
   await expect(
     readFile(join(destination, "model-connection.json")),
   ).rejects.toThrow();
+  await expect(
+    readFile(join(destination, "pi", "connections.json")),
+  ).rejects.toThrow();
+  // Explicit auth copying retains Pi's native credential/catalog pair in an
+  // independent profile; the default copy keeps its existing business-only scope.
+  const authenticatedCopy = join(root, "copied-with-auth");
+  await prepareProfile(authenticatedCopy, source, true);
+  const originalConnections = JSON.parse(
+    await readFile(join(source, "pi", "connections.json"), "utf8"),
+  );
+  const copiedConnections = JSON.parse(
+    await readFile(join(authenticatedCopy, "pi", "connections.json"), "utf8"),
+  );
+  expect(copiedConnections).toEqual(originalConnections);
+  const nativeAuth = join(
+    "pi",
+    "connections",
+    copiedConnections.activeId,
+    "auth.json",
+  );
+  expect(await readFile(join(authenticatedCopy, nativeAuth), "utf8")).toBe(
+    await readFile(join(source, nativeAuth), "utf8"),
+  );
+  await writeFile(join(authenticatedCopy, nativeAuth), "{}");
+  expect(await readFile(join(source, nativeAuth), "utf8")).toContain(
+    "fictional",
+  );
   profile = destination;
   page = await launch();
   await page
