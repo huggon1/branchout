@@ -79,7 +79,7 @@ Model execution acquires a connection lease. Credentials remain in controlled lo
 
 ## Telegram queue and business reset
 
-Telegram state saves authorized chats, pending authorization candidates, confirmed `updateOffset`, inbound receipts, queued forwarding, and connection status. Accepted receipt, queue identity, pending acknowledgment, and cursor advance persist together. Successful forwarding submission and acknowledgment delivery then save their progress. Chat and message identity form the deduplication key.
+Telegram state saves an optional verified `botUsername`, authorized chats, pending authorization candidates, confirmed `updateOffset`, inbound receipts, queued forwarding, and connection status. Accepted receipt, queue identity, pending acknowledgment, and cursor advance persist together. Successful forwarding submission and acknowledgment delivery then save their progress. Chat and message identity form the deduplication key. Successful Bot verification saves its username separately from credentials; status returns that username while a Token is configured. Token save verifies the submitted Bot before committing its credentials and username; Token clearing removes the cached identity. Polling connection updates preserve the verified identity and chat authorization.
 
 A fresh business generation clears old test projects, cards, task records, reports, and allowlisted business traces and caches. It preserves model and bot credentials, platform profiles, authorized chats, and receipt progress. Each cleared receipt keeps its inbound key and update identity with outcome `retired_by_reset`; old task references and acknowledgments are removed. Old queued forwarding is cleared before integration startup.
 

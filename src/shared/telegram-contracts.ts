@@ -16,6 +16,7 @@ export type TelegramForwardingSubmission = z.infer<
 >;
 
 export interface TelegramStatus {
+  botUsername?: string;
   configured: boolean;
   status: "disconnected" | "polling" | "failed";
   authorizedChatIds: string[];

@@ -34,6 +34,12 @@ The reader lists the main material and direct references with their states. Sele
 
 Telegram acknowledges accepted links after local persistence and queue submission. Chat and message identities deduplicate receipt. Startup retrieves messages available after the saved Telegram cursor. [Data contracts](data-contracts.md#telegram-queue-and-business-reset) owns receipt and upgrade behavior.
 
+## Telegram setup and management
+
+Telegram settings starts collapsed. Its summary shows the connection state and verified Bot username. Expanding it reveals chat authorization and maintenance. Start Setup opens a focused side drawer with BotFather instructions, Token save and verification, discovered-chat authorization, and a completion step that directs the user to Parsed content. Setup advances after successful verification and authorization. Reopening the drawer derives progress from saved configuration.
+
+A new chat appears after sending a message such as `/start` to the Bot. Authorization applies to later messages. The completion step asks the user to send a fresh HTTPS link and check the actual acknowledgment and saved result. Content and the global task panel present processing progress. Verification errors remain visible in the drawer so users can retry. Token save verifies the submitted Bot before changing credentials or interrupting the current receiver. Successful replacement saves the new verified identity; clearing removes it. Revocation and Token clearing use consequence confirmation and retain existing content, tasks, and receipt history.
+
 ## Recovery and task status
 
 Browser execution retries transient model failures and repairs recoverable page actions within time and action budgets. Recovery observes the current page before repeating actions. Login, verification, and account agreements requiring human action end the affected platform section while other sections continue. Translation and introduction also retry transient connection failures. Exhausted recovery marks the parsing task failed and retains its sources and translated portions; translation fidelity validation permits one correction.

@@ -31,14 +31,23 @@ export function registerTelegramIpc(
         if (channel === telegramChannels.status) {
           value = await service.status();
         } else if (channel === telegramChannels.saveToken) {
-          await credentials.setBotToken(
-            z.string().min(1).max(512).parse(args[0]),
-          );
-          await service.start();
+          const token = z
+            .string()
+            .regex(/^\d{5,20}:[A-Za-z0-9_-]{20,200}$/)
+            .parse(args[0]);
+          const bot = await service.validateToken(token);
+          await service.stop();
+          try {
+            await credentials.setBotToken(token);
+            await service.saveIdentity(bot.username);
+          } finally {
+            await service.start();
+          }
           changed();
         } else if (channel === telegramChannels.clearToken) {
           await service.stop();
           await credentials.clearBotToken();
+          await service.clearIdentity();
           changed();
         } else if (channel === telegramChannels.verifyBot) {
           value = await service.verifyBot();

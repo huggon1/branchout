@@ -61,6 +61,7 @@ export const telegramQueuedForwardingSchema = z
 export const telegramStateSchema = z
   .object({
     version: z.literal(1),
+    botUsername: z.string().min(1).max(100).optional(),
     updateOffset: z.number().int().nonnegative(),
     authorizedChatIds: z.array(telegramChatIdSchema).max(100),
     pendingChats: z.array(telegramPendingChatSchema).max(500),

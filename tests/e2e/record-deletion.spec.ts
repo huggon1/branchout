@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron } from "@playwright/test";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createServer } from "node:http";
@@ -270,6 +270,11 @@ test("record deletion preserves independent results and persists undo and visibi
     expect(expired.ok).toBe(false);
   } finally {
     await app.close();
+    if (process.env.POSTROVE_REVIEW_OUTPUT) {
+      await cp(profile, process.env.POSTROVE_REVIEW_OUTPUT, {
+        recursive: true,
+      });
+    }
     await new Promise<void>((done) => server.close(() => done()));
     await rm(root, { recursive: true, force: true });
   }
