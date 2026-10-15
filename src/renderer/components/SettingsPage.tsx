@@ -121,37 +121,7 @@ export function SettingsPage({
         className="settings-section sources-settings"
         aria-labelledby="sources-title"
       >
-        <div className="settings-section-heading">
-          <div>
-            <p className="eyebrow">{t("链接读取")}</p>
-            <h3 id="sources-title">{t("公开来源")}</h3>
-          </div>
-        </div>
-        <p className="muted-copy">
-          {t(
-            "通用浏览器可读取网页正文。所有任务复用已保存的网站登录；平台增强说明按需加载。",
-          )}
-        </p>
-        <div className="source-capability-list">
-          {settings?.sources
-            .filter((source) => source.id === "github")
-            .map((source) => (
-              <article className="source-capability" key={source.id}>
-                <div>
-                  <strong>{source.label}</strong>
-                  <p>{source.detail}</p>
-                </div>
-                <span className={`status-tag status-${source.status}`}>
-                  {source.status === "ready"
-                    ? t("可读取")
-                    : source.status === "needs_login"
-                      ? t("需要登录")
-                      : t("暂不可用")}
-                </span>
-              </article>
-            )) ?? <p className="muted-copy">{t("正在读取来源配置…")}</p>}
-        </div>
-        <h3>{t("需要登录的平台")}</h3>
+        <h3 id="sources-title">{t("需要登录的平台")}</h3>
         <XSettings />
       </section>
     </div>

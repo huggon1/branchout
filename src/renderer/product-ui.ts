@@ -62,13 +62,6 @@ export interface UiSettings {
     lastPollAt?: string;
     error?: string;
   };
-  sources: Array<{
-    id: "github" | "x" | "xiaohongshu";
-    label: string;
-    status: "ready" | "needs_login" | "unavailable";
-    enabled: boolean;
-    detail: string;
-  }>;
 }
 
 export interface ProductUiBridge {
@@ -215,14 +208,8 @@ export function productUiBridge(): ProductUiBridge {
     uiSettings: async () => {
       if (!bridge.telegramStatus)
         return failed(t("Telegram 设置服务尚未连接。"));
-      const [telegramReply, xReply, xhsReply] = await Promise.all([
-        bridge.telegramStatus(),
-        bridge.xStatus(),
-        bridge.xhsStatus(),
-      ]);
+      const telegramReply = await bridge.telegramStatus();
       if (!telegramReply.ok) return telegramReply;
-      if (!xReply.ok) return xReply;
-      if (!xhsReply.ok) return xhsReply;
       const telegram = telegramReply.value;
       const chatTitle = new Map(
         telegram.pendingChats.map((chat) => [chat.chatId, chat.title]),
@@ -260,39 +247,6 @@ export function productUiBridge(): ProductUiBridge {
             lastPollAt: telegram.lastPollAt,
             error: telegram.lastError,
           },
-          sources: [
-            {
-              id: "github",
-              label: "GitHub",
-              status: "ready",
-              enabled: true,
-              detail: t("公开仓库 README · 直接读取"),
-            },
-            {
-              id: "x",
-              label: "X",
-              status: xReply.value.signedIn ? "ready" : "needs_login",
-              enabled: true,
-              detail: xReply.value.signedIn
-                ? t("帖子读取使用当前已连接账号。")
-                : t("登录 X 后读取当前账号可访问的帖子。"),
-            },
-            {
-              id: "xiaohongshu",
-              label: t("小红书"),
-              status: !xhsReply.value.installed
-                ? "unavailable"
-                : xhsReply.value.signedIn
-                  ? "ready"
-                  : "needs_login",
-              enabled: true,
-              detail: !xhsReply.value.installed
-                ? t("本地读取组件尚未安装。")
-                : xhsReply.value.signedIn
-                  ? t("图文笔记读取账号已连接。")
-                  : t("登录后读取受支持的图文笔记。"),
-            },
-          ],
         },
       };
     },

@@ -89,7 +89,6 @@ export function TaskPanel({
         <header>
           <div>
             <h2>{t("任务")}</h2>
-            <p className="muted">{t("后台运行，结果保存在内容中。")}</p>
           </div>
           <button
             className="icon-button"

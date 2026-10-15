@@ -87,9 +87,6 @@
   padding: 48px 40px;
   margin: 0 auto;
 }
-.search-home > p {
-  margin-bottom: 28px;
-}
 .search-composer {
   border: 1px solid #e5e6e2;
   border-radius: 18px;
@@ -157,10 +154,6 @@
   display: flex;
   gap: 8px;
   margin-top: 18px;
-}
-.support-note {
-  margin-top: 18px;
-  font-size: 12px;
 }
 .refactor-workspace {
   display: flex;
