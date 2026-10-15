@@ -10,5 +10,5 @@
 | `forwarding-view-contracts.ts` | Parsing views |
 | `task-contracts.ts` | Task status, activity, and result references |
 | `model-contracts.ts` | Model connections and execution configuration |
-| `telegram-contracts.ts`, `platform-contracts.ts` | Integration views |
+| `bot-contracts.ts`, `feishu-contracts.ts`, `telegram-contracts.ts`, `platform-contracts.ts` | Integration views |
 | `ipc-contracts.ts` | Renderer bridge |

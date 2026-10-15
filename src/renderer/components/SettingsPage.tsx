@@ -1,3 +1,4 @@
+import { FeishuSettings } from "./FeishuSettings";
 import { TelegramSettings } from "./TelegramSettings";
 import { useLanguage, selectLanguage } from "../i18n";
 import { t } from "../i18n";
@@ -117,6 +118,7 @@ export function SettingsPage({
         onRevokeTelegramChat={onRevokeTelegramChat}
         onOpenContent={onOpenContent}
       />
+      <FeishuSettings onOpenContent={onOpenContent} />
       <section
         className="settings-section sources-settings"
         aria-labelledby="sources-title"

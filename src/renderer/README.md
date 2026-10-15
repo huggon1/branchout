@@ -8,6 +8,7 @@
 | `App.tsx` | Navigation and page assembly |
 | `refactor.css` | Existing shell and responsive layouts |
 | `components/MaterialReader.tsx` | Material directory and saved body reader |
+| `components/FeishuSettings.tsx` | Feishu onboarding through the shared bot management API |
 | `components/TelegramSettings.tsx` | Collapsed connection summary, setup drawer, and chat authorization |
 | `components/SettingsPage.tsx` | Settings assembly |
 | `components/Primitives.tsx` | Controls, dialogs, and sanitized Markdown |

@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { botAccountStateSchema } from "../integrations/bots/account-store";
 import { telegramStateSchema } from "../integrations/telegram/contracts";
 import { claimProfile } from "./profile-lock";
 
@@ -88,6 +89,8 @@ export async function resetLegacyBusinessData(
     for (const entry of [
       ...legacyBusinessEntries,
       "telegram.json",
+      "feishu.json",
+      "feishu.json.reset-tmp",
       `${markerName}.reset-tmp`,
       "telegram.json.reset-tmp",
     ])
@@ -109,12 +112,30 @@ export async function resetLegacyBusinessData(
       telegramStateSchema.parse(telegram);
     }
 
+    const feishuPath = join(directory, "feishu.json");
+    const feishuRaw = await readOptional(feishuPath);
+    const feishu =
+      feishuRaw === undefined
+        ? undefined
+        : botAccountStateSchema.parse(JSON.parse(feishuRaw));
+    if (feishu)
+      for (const account of Object.values(feishu.accounts)) {
+        account.inbox.inbound = account.inbox.inbound.map(
+          ({ taskId: _task, acknowledgement: _ack, ...receipt }) => ({
+            ...receipt,
+            outcome: "retired_by_reset",
+          }),
+        );
+        account.inbox.queuedForwarding = [];
+      }
+
     await replaceJson(markerPath, {
       generation: "search-follow-v1",
       state: "resetting",
     });
     await options.afterStep?.("journal");
     if (telegram) await replaceJson(telegramPath, telegram);
+    if (feishu) await replaceJson(feishuPath, feishu);
     await options.afterStep?.("telegram");
     for (const entry of legacyBusinessEntries) {
       await rm(join(directory, entry), { force: true, recursive: true });

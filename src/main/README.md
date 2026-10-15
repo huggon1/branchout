@@ -11,6 +11,7 @@
 | `services/platform-access.ts`                                                                         | Capture and material validation                              |
 | `services/browser-agent.ts`                                                                           | Browser and skill tool bridge                                |
 | `services/platform-browser.ts`                                                                        | Shared Chrome operations and access lock                     |
+| `integrations/bots/`, `integrations/feishu/` | Shared inbox and lifecycle, adapter registry, and Feishu transport |
 | `integrations/telegram/`                                                                              | Authorization, receipts, and acknowledgments                 |
 | `services/application-updates.ts`, `services/electron-update-driver.ts`, `services/execution-gate.ts` | Update state, native validation, and execution admission     |
 | `services/model-service.ts`                                                                           | Model connections and execution leases                       |

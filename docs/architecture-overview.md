@@ -4,7 +4,7 @@
 
 ## Runtime boundaries and data ownership
 
-Electron Main owns stores, model leases, Telegram, scheduling, and execution queues. The React renderer sends preload commands and reads saved snapshots. Workers return captures or model output. Main validates identities, persists progress, then publishes changes.
+Electron Main owns stores, model leases, bot integrations, scheduling, and execution queues. The React renderer sends preload commands and reads saved snapshots. Workers return captures or model output. Main validates identities, persists progress, then publishes changes.
 
 | Store              | Saved state                                                                 |
 | ------------------ | --------------------------------------------------------------------------- |
@@ -25,6 +25,14 @@ The forwarding service first calls `PlatformAccess.collect`. A browser worker co
 Search and parsing have separate queues and share the Chrome access lock.
 
 Worker environments inherit explicit proxy variables. On macOS, a GUI launch without them reads the system HTTP and HTTPS proxy settings. Localhost and loopback requests retain direct routing.
+
+## Bot integration boundary
+
+`integrations/bots/` owns the durable inbox, atomic account stores, authorization, receipt delivery, account lifecycle, history reconciliation, and the management IPC registry. `BotAdapter` defines verification, connection lifecycle, normalization, optional history pagination, and outbound delivery. Channel adapters own protocol payloads and transport credentials.
+
+Telegram adapts its existing store through `telegramInboxRepository` and uses the shared inbox while retaining its polling cursor and data format. Feishu implements `BotAdapter` with the official SDK WebSocket transport and REST history and receipt APIs. Each account holds an independent inbox and history checkpoints. SDK event handlers await durable local receipt; queue submission and outbound receipt run in the background.
+
+The forwarding boundary accepts `BotForwardingSubmission` with a channel, account identity, and message key. Existing application and Telegram task identities remain readable. Adding another channel extends the channel contract and supplies its adapter, credential validation, registry entry, and setup view. Collection and reading consume the same submission contract.
 
 ## Platform browser and focus search
 

@@ -83,7 +83,17 @@ Telegram state saves an optional verified `botUsername`, authorized chats, pendi
 
 A fresh business generation clears old test projects, cards, task records, reports, and allowlisted business traces and caches. It preserves model and bot credentials, platform profiles, authorized chats, and receipt progress. Each cleared receipt keeps its inbound key and update identity with outcome `retired_by_reset`; old task references and acknowledgments are removed. Old queued forwarding is cleared before integration startup.
 
-`business-generation.json` records generation `search-follow-v1` and state resetting or committed. A resetting marker causes idempotent cleanup to resume before writers start. A committed marker preserves later-generation records. The reset validates affected regular files and Telegram schema before destructive steps. The explicit allowlist protects credential and browser storage boundaries.
+`business-generation.json` records generation `search-follow-v1` and state resetting or committed. A resetting marker causes idempotent cleanup to resume before writers start. A committed marker preserves later-generation records. The reset validates affected regular files and Telegram and Feishu schemas before destructive steps. The explicit allowlist protects credential and browser storage boundaries.
+
+## Shared bot receipts and Feishu accounts
+
+`BotOrigin` identifies a channel, account, and message. New bot parsing tasks use `entry: bot` and this origin. Existing `entry: app` and `entry: telegram` tasks retain their identities. Telegram's store adapter maps its existing message keys into the shared inbox contract. Optional grants add the authorization time while existing authorized chats remain readable.
+
+`feishu.json` stores application-keyed account identities, authorized chat IDs, sender-bound grants, discovered chats, durable receipts, queued submissions, and per-chat history checkpoints. A receipt and its reserved task and result identities persist in one atomic store update. Concurrent deliveries deduplicate within that update. Submission progress and pending acknowledgement state persist separately after delivery. Receipt retries use a stable outbound UUID derived from application and message identities.
+
+History scans freeze an end time and overlap the prior checkpoint by one second. Authorization time and sender identity filter admission. Every page enters the same inbox as live events. The checkpoint advances after complete pagination. Revocation removes future admission; previously accepted submissions retain their identities. The business reset retires receipt task references and clears queued submissions while preserving account authorization and checkpoints.
+
+`feishu-credentials.json` stores the active application credentials in a current-user file with mode 0600. Profile copying includes this file and bot account state only with `--include-auth`. Status, task views, and exported receipt evidence contain connection and message metadata. App Secrets and transport access tokens stay within Main's credential and transport boundaries. Scan registration uses the official account authorization host and keeps cancellation state in memory.
 
 ## Update receipt and queue recovery
 

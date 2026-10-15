@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { botGrantSchema } from "../bots/contracts";
 
 export const telegramChatIdSchema = z.string().regex(/^-?\d{1,20}$/);
 
@@ -64,6 +65,7 @@ export const telegramStateSchema = z
     botUsername: z.string().min(1).max(100).optional(),
     updateOffset: z.number().int().nonnegative(),
     authorizedChatIds: z.array(telegramChatIdSchema).max(100),
+    grants: z.record(z.string(), botGrantSchema).optional(),
     pendingChats: z.array(telegramPendingChatSchema).max(500),
     inbound: z.array(telegramInboundSchema).max(1_000_000),
     queuedForwarding: z.array(telegramQueuedForwardingSchema).max(1_000_000),
