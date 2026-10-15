@@ -38,6 +38,10 @@ const customTemplate = JSON.stringify(
 
 export function ModelSettings() {
   const [view, setView] = useState<ModelView>();
+  const [catalogSource, setCatalogSource] = useState<"builtin" | "custom">(
+    "builtin",
+  );
+  const [creating, setCreating] = useState(false);
   const [modelId, setModelId] = useState("");
   const [name, setName] = useState("");
   const [options, setOptions] = useState<PiOptions>(defaultPiOptions);
@@ -48,7 +52,6 @@ export function ModelSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [removing, setRemoving] = useState<string>();
-  const [legacyModel, setLegacyModel] = useState("");
   useEffect(() => {
     let active = true,
       version = 0;
@@ -70,19 +73,20 @@ export function ModelSettings() {
       unsubscribe();
     };
   }, []);
+  function restoreSelection(selection: NonNullable<ModelView["selected"]>) {
+    setCatalogSource(selection.catalogSource);
+    setCreating(false);
+    setModelId(selection.modelId ?? "");
+    setName(selection.name);
+    setOptions(selection.options);
+    setApiJson(JSON.stringify(selection.options.apiOptions, null, 2));
+  }
   useEffect(() => {
-    if (!view?.selected) return;
-    setModelId(view.selected.modelId ?? "");
-    setName(view.selected.name);
-    setOptions(view.selected.options);
-    setApiJson(JSON.stringify(view.selected.options.apiOptions, null, 2));
+    if (view?.selected) restoreSelection(view.selected);
   }, [view?.selected?.id]);
   useEffect(() => {
     setAnswer("");
   }, [view?.authPrompt?.id]);
-  useEffect(() => {
-    setLegacyModel(view?.legacy?.current?.modelId ?? "");
-  }, [view?.legacy?.current?.modelId]);
   async function action(operation: () => Promise<ModelReply<void>>) {
     setBusy(true);
     setError("");
@@ -95,7 +99,15 @@ export function ModelSettings() {
       setBusy(false);
     }
   }
-  const selected = view?.selected;
+  const selected =
+    !creating && view?.selected?.catalogSource === catalogSource
+      ? view.selected
+      : undefined;
+  const newConnection = (source = catalogSource) => {
+    setCatalogSource(source);
+    setCreating(true);
+    setError("");
+  };
   const provider = view?.providers.find((p) => p.id === selected?.providerId);
   const model = view?.models.find((m) => m.id === modelId);
   let advanced = false;
@@ -150,73 +162,12 @@ export function ModelSettings() {
           <h2>{t("模型连接")}</h2>
           <p>
             {view?.current
-              ? `${view.current.method === "pi" ? view.current.name : t("Codex 订阅")} · ${view.current.modelId}`
+              ? `${view.current.name} · ${view.current.modelId}`
               : t("未配置")}
           </p>
         </div>
       </div>
-      {view?.migration && (
-        <div className="connection-check">
-          <div>
-            <h3>{t("迁移现有 Codex 连接")}</h3>
-            <p>
-              {t(
-                "原连接继续使用。通过 Pi 重新授权一次并保存，新任务将切换到 Pi 认证。",
-              )}
-            </p>
-          </div>
-          <Button
-            disabled={busy || view.auth === "logging_in"}
-            onClick={() =>
-              void action(() =>
-                bridge.selectModelConnection({ providerId: "openai-codex" }),
-              )
-            }
-          >
-            {t("用 Pi 连接 Codex")}
-          </Button>
-          {!selected && view.legacy && (
-            <div className="model-form">
-              <Button
-                disabled={busy}
-                onClick={() => void action(bridge.refreshModels)}
-              >
-                {t("刷新模型")}
-              </Button>
-              <label>
-                {t("模型")}
-                <select
-                  value={legacyModel}
-                  onChange={(e) => setLegacyModel(e.target.value)}
-                >
-                  {!view.legacy.models.some((m) => m.id === legacyModel) && (
-                    <option value={legacyModel}>{legacyModel}</option>
-                  )}
-                  {view.legacy.models.map((m) => (
-                    <option key={m.id} value={m.id} disabled={!m.compatible}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button
-                disabled={busy || view.legacy.catalog !== "ready"}
-                onClick={() =>
-                  void action(() =>
-                    bridge.saveModel({
-                      method: "codex_subscription",
-                      modelId: legacyModel,
-                    }),
-                  )
-                }
-              >
-                {t("保存连接")}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="model-form">
+      <div className="model-form model-saved">
         <label>
           {t("已保存的连接")}
           <select
@@ -230,22 +181,20 @@ export function ModelSettings() {
               const connection = view?.connections.find(
                 (c) => c.id === e.target.value,
               );
-              if (connection)
+              if (connection && connection.id === view?.selected?.id) {
+                restoreSelection(view.selected);
+              } else if (connection)
                 void action(() =>
                   bridge.selectModelConnection({
                     connectionId: connection.id,
                     providerId: connection.providerId,
                   }),
                 );
-              else if (selected)
-                void action(() =>
-                  bridge.selectModelConnection({
-                    providerId: selected.providerId,
-                  }),
-                );
             }}
           >
-            <option value="">{t("新建连接")}</option>
+            <option value="" disabled>
+              {t("请选择")}
+            </option>
             {view?.connections.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} · {c.modelId}
@@ -253,26 +202,102 @@ export function ModelSettings() {
             ))}
           </select>
         </label>
-        <label>
-          {t("供应商")}
-          <select
-            value={selected?.providerId ?? ""}
+        <Button
+          disabled={busy || view?.auth === "logging_in"}
+          onClick={() => newConnection()}
+        >
+          {t("新建连接")}
+        </Button>
+      </div>
+      <div
+        className="connection-method"
+        role="group"
+        aria-label={t("连接方式")}
+      >
+        {(["builtin", "custom"] as const).map((source) => (
+          <button
+            key={source}
+            type="button"
+            aria-pressed={catalogSource === source}
             disabled={busy || view?.auth === "logging_in"}
-            onChange={(e) => {
-              if (e.target.value)
-                void action(() =>
-                  bridge.selectModelConnection({ providerId: e.target.value }),
-                );
+            onClick={() => {
+              if (source !== catalogSource) newConnection(source);
             }}
           >
-            <option value="">{t("选择 Pi 供应商")}</option>
-            {view?.providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.modelCount})
-              </option>
-            ))}
-          </select>
-        </label>
+            {source === "builtin" ? t("内置供应商") : t("自定义供应商")}
+          </button>
+        ))}
+      </div>
+      {catalogSource === "custom" && !selected && (
+        <div className="model-custom">
+          <p>{t("载入 models.json 后完成认证并保存连接。")}</p>
+          <div className="model-form">
+            <label>
+              {t("供应商 ID")}
+              <input
+                value={customProvider}
+                onChange={(e) => setCustomProvider(e.target.value)}
+              />
+            </label>
+            <label>
+              Pi models.json
+              <textarea
+                aria-label="Pi models.json"
+                className="model-json"
+                rows={12}
+                spellCheck={false}
+                value={customJson}
+                onChange={(e) => setCustomJson(e.target.value)}
+              />
+            </label>
+            <Button
+              disabled={busy || view?.auth === "logging_in"}
+              onClick={() =>
+                void action(() =>
+                  bridge.configureModelCatalog({
+                    providerId: customProvider,
+                    modelsJson: customJson,
+                  }),
+                )
+              }
+            >
+              {t("载入 Pi 目录")}
+            </Button>
+          </div>
+        </div>
+      )}
+      <div className="model-form">
+        {catalogSource === "builtin" ? (
+          <label>
+            {t("供应商")}
+            <select
+              value={selected?.providerId ?? ""}
+              disabled={busy || view?.auth === "logging_in"}
+              onChange={(e) => {
+                if (e.target.value)
+                  void action(() =>
+                    bridge.selectModelConnection({
+                      providerId: e.target.value,
+                    }),
+                  );
+              }}
+            >
+              <option value="">{t("选择 Pi 供应商")}</option>
+              {view?.providers
+                .filter((p) => p.builtin)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.modelCount})
+                  </option>
+                ))}
+            </select>
+          </label>
+        ) : selected ? (
+          <label>
+            {t("供应商")}
+            <input readOnly value={provider?.name ?? selected.providerId} />
+          </label>
+        ) : null}
         {selected && (
           <>
             <div className="model-actions">
@@ -550,9 +575,7 @@ export function ModelSettings() {
               <details>
                 <summary>{t("高级 Pi API 参数")}</summary>
                 <p>
-                  {t(
-                    "填写原生 API 选项 JSON；填写后由 JSON 控制 reasoning。",
-                  )}
+                  {t("填写原生 API 选项 JSON；填写后由 JSON 控制 reasoning。")}
                 </p>
                 <label>
                   {t("Pi API options JSON")}
@@ -595,54 +618,13 @@ export function ModelSettings() {
           </>
         )}
       </div>
-      <details className="model-custom">
-        <summary>{t("自定义 Pi 模型目录")}</summary>
-        <p>
-          {t(
-            "载入 models.json 后完成认证并保存连接。",
-          )}
-        </p>
-        <div className="model-form">
-          <label>
-            {t("供应商 ID")}
-            <input
-              value={customProvider}
-              onChange={(e) => setCustomProvider(e.target.value)}
-            />
-          </label>
-          <label>
-            Pi models.json
-            <textarea
-              aria-label="Pi models.json"
-              className="model-json"
-              rows={12}
-              spellCheck={false}
-              value={customJson}
-              onChange={(e) => setCustomJson(e.target.value)}
-            />
-          </label>
-          <Button
-            disabled={busy || view?.auth === "logging_in"}
-            onClick={() =>
-              void action(() =>
-                bridge.configureModelCatalog({
-                  providerId: customProvider,
-                  modelsJson: customJson,
-                }),
-              )
-            }
-          >
-            {t("载入 Pi 目录")}
-          </Button>
-        </div>
-      </details>
       {error && (
         <p role="alert" className="model-error">
           {t(error)}
         </p>
       )}
       <p className="connection-status" role="status">
-        {t(view?.message ?? "")}
+        {selected ? t(view?.message ?? "") : ""}
       </p>
       {view?.current && (
         <div className="connection-check">

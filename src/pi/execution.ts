@@ -1,11 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { createModelRuntime, piSdk, simpleOptions } from "./model-runtime";
-import {
-  CodexCredentialBridge,
-  initialCodexToken,
-  type CodexTokenProvider,
-} from "./legacy-models";
 import type { ModelExecutionConfig } from "../shared/model-contracts";
 
 type Execution = {
@@ -15,7 +10,6 @@ type Execution = {
 const executions = new WeakMap<ModelExecutionConfig, Promise<Execution>>();
 export async function modelExecution(
   config: ModelExecutionConfig,
-  tokenProvider?: CodexTokenProvider,
 ): Promise<Execution> {
   let pending = executions.get(config);
   if (!pending) {
@@ -31,31 +25,7 @@ export async function modelExecution(
           throw new Error("Pi model snapshot is unavailable");
         return { runtime, model };
       }
-      // Compatibility for old task fixtures and the staged Codex migration only.
       const { ModelRuntime, InMemoryCredentialStore } = await piSdk();
-      if (config.method === "codex_subscription") {
-        const initial = initialCodexToken(config.credential);
-        const credentials = new CodexCredentialBridge(
-          async ({ forceRefresh, signal }) => {
-            if (
-              (!forceRefresh || !tokenProvider) &&
-              initial.expiresAt > Date.now() + 300_000
-            )
-              return initial;
-            return tokenProvider
-              ? tokenProvider({ forceRefresh: true, signal })
-              : initial;
-          },
-        );
-        const runtime = await ModelRuntime.create({
-          credentials,
-          modelsPath: null,
-          refreshOnCreate: false,
-        });
-        const model = runtime.getModel("openai-codex", config.modelId);
-        if (!model) throw new Error("当前 Pi 目录中没有所选模型");
-        return { runtime, model };
-      }
       if (!config.baseUrl || !config.api) throw new Error("连接配置不完整");
       const credentials = new InMemoryCredentialStore();
       await credentials.modify("postrove-api", async () => ({

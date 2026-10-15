@@ -25,8 +25,7 @@ Fixtures use isolated profiles and controlled external responses.
 | [browser tools](e2e/platform-browser.spec.ts)             | Constrained actions, observed links, visibility changes, and retained sessions                                                                                                                                                                       |
 | [model network](e2e/worker-network.spec.ts)               | Main and worker GUI manual system proxy on macOS and Windows, explicit proxy precedence, and loopback routing                                                                                                                                        |
 | [platform sessions](e2e/platform-session.spec.ts)         | Shared sessions, logout, and restart                                                                                                                                                                                                                 |
-| [Native Pi connections](e2e/pi-model-connections.spec.ts) | Native catalog/auth UI, option propagation, frozen leases, restart, and staged Codex migration                                                                                                                                                       |
-| [Codex token](e2e/codex-token.spec.ts)                    | Credential refresh, catalog, and redacted state                                                                                                                                                                                                      |
+| [Native Pi connections](e2e/pi-model-connections.spec.ts) | Native catalog/auth UI, option propagation, frozen leases, restart, and native Codex authentication                                                                                                                                                  |
 
 ## Service and contract scope
 

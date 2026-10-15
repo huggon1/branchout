@@ -85,10 +85,7 @@ export function executionMetadata(
           : config.thinking[role],
       }
     : {
-        providerId:
-          config.method === "codex_subscription"
-            ? "openai-codex"
-            : "postrove-api",
+        providerId: "postrove-api",
         piVersion: PI_VERSION,
       };
 }

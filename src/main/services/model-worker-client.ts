@@ -6,7 +6,6 @@ import type { ModelExecutionConfig } from "../../shared/model-contracts";
 import { ExecutionFailure, failureCodeSchema } from "../../shared/task-failure";
 import { createWorkerEnvironment } from "./worker-environment";
 const replySchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("catalog"), ids: z.array(z.string()) }).strict(),
   z
     .object({
       type: z.literal("checked"),
@@ -62,11 +61,6 @@ function request(
     if (signal?.aborted) cancel();
     else worker.postMessage(message);
   });
-}
-export async function readPiCatalog() {
-  const result = await request({ type: "catalog" });
-  if (result.type !== "catalog") throw new Error("Pi 目录不可用");
-  return result.ids;
 }
 export async function checkModel(
   config: ModelExecutionConfig,

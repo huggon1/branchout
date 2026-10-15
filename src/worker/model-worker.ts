@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { executionSchema } from "../shared/model-contracts";
-import { checkWithPi, compatibleCodexModels } from "./pi-runtime";
+import { checkWithPi } from "./pi-runtime";
 import { classifyModelError } from "../shared/task-failure";
 const command = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("catalog") }).strict(),
   z
     .object({
       type: z.literal("check"),
@@ -27,12 +26,6 @@ port.on("message", ({ data }) => {
   }
   if (used) return;
   used = true;
-  if (message.type === "catalog") {
-    void compatibleCodexModels().then((ids) =>
-      port.postMessage({ type: "catalog", ids }),
-    );
-    return;
-  }
   active = new AbortController();
   void checkWithPi(message.config, message.sessionId, active.signal)
     .then(

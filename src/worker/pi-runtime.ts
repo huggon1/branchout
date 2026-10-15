@@ -17,14 +17,6 @@ import {
 import type { ModelExecutionConfig } from "../shared/model-contracts";
 import { modelExecution, piStream, resolveModel } from "../pi/execution";
 export { resolveModel } from "../pi/execution";
-export const compatibleCodexModels = async () => {
-  const { ModelRuntime } = await import("@earendil-works/pi-coding-agent");
-  const runtime = await ModelRuntime.create({
-    modelsPath: null,
-    refreshOnCreate: false,
-  });
-  return runtime.getModels("openai-codex").map((model) => model.id);
-};
 export interface PiModelAttempt {
   attempt: number;
   total: number;

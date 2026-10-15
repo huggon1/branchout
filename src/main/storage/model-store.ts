@@ -4,16 +4,12 @@ import { dirname } from "node:path";
 import { z } from "zod";
 import { apiSettingsSchema } from "../../shared/model-contracts";
 import { writePrivateJson } from "./pi-connection-store";
-const storedSchema = z.discriminatedUnion("method", [
-  apiSettingsSchema.extend({ apiKey: z.string().min(1) }),
-  z
-    .object({
-      method: z.literal("codex_subscription"),
-      modelId: z.string(),
-      authId: z.string().uuid(),
-    })
-    .strict(),
-]);
+const storedSchema = apiSettingsSchema.extend({ apiKey: z.string().min(1) });
+function readConnection(value: unknown) {
+  if ((value as { method?: string } | null)?.method !== "generic_api")
+    return null;
+  return storedSchema.parse(value);
+}
 export type StoredConnection = z.infer<typeof storedSchema>;
 export interface ProtectedStorage {
   load(): Promise<StoredConnection | null>;
@@ -37,9 +33,7 @@ export class ModelStore implements ProtectedStorage {
   }
   async load() {
     try {
-      return storedSchema.parse(
-        JSON.parse(await readFile(this.plainFile, "utf8")),
-      );
+      return readConnection(JSON.parse(await readFile(this.plainFile, "utf8")));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT")
         throw new Error("模型配置无法读取，原文件已保留");
@@ -54,8 +48,8 @@ export class ModelStore implements ProtectedStorage {
     if (!this.cipher.available())
       throw new Error("旧模型配置需要一次钥匙串读取，原文件已保留");
     try {
-      const value = storedSchema.parse(JSON.parse(this.cipher.decrypt(bytes)));
-      await this.save(value);
+      const value = readConnection(JSON.parse(this.cipher.decrypt(bytes)));
+      if (value) await this.save(value);
       return value;
     } catch {
       throw new Error("旧模型配置无法迁移，原文件已保留");
@@ -69,30 +63,36 @@ export class ModelStore implements ProtectedStorage {
     await rename(temporary, this.plainFile);
   }
   async retire() {
-    let value: StoredConnection | undefined;
+    let value: StoredConnection | null = null;
     try {
-      value = storedSchema.parse(
+      value = readConnection(
         JSON.parse(await readFile(this.plainFile, "utf8")),
       );
+      if (!value) return;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-    if (value) {
-      const metadata =
-        value.method === "generic_api"
-          ? {
-              method: value.method,
-              modelId: value.modelId,
-              baseUrl: value.baseUrl,
-              api: value.api,
-            }
-          : { method: value.method, modelId: value.modelId };
-      await writePrivateJson(
-        this.plainFile.replace(/\.json$/, ".migrated.json"),
-        { ...metadata, migratedTo: "pi" },
+    const evidenceFile = this.plainFile.replace(/\.json$/, ".migrated.json");
+    if (!value) {
+      // A prior API migration may have removed plaintext before encrypted cleanup.
+      const evidence = JSON.parse(
+        await readFile(evidenceFile, "utf8").catch((error) => {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return "null";
+          throw error;
+        }),
       );
-      await rm(this.plainFile, { force: true });
+      if (evidence?.method === "generic_api" && evidence.migratedTo === "pi")
+        await rm(this.file, { force: true });
+      return;
     }
+    await writePrivateJson(evidenceFile, {
+      method: value.method,
+      modelId: value.modelId,
+      baseUrl: value.baseUrl,
+      api: value.api,
+      migratedTo: "pi",
+    });
+    await rm(this.plainFile, { force: true });
     await rm(this.file, { force: true });
   }
 }

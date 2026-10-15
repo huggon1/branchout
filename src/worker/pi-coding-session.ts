@@ -10,8 +10,6 @@ import {
 import type { ModelExecutionConfig } from "../shared/model-contracts";
 import { modelExecution, piStream } from "../pi/execution";
 import { executionMetadata } from "../pi/model-runtime";
-import type { CodexTokenProvider } from "../pi/legacy-models";
-export type { CodexAccessToken, CodexTokenProvider } from "../pi/legacy-models";
 
 export interface PiCodingSessionOptions {
   config: ModelExecutionConfig;
@@ -22,7 +20,6 @@ export interface PiCodingSessionOptions {
   systemPrompt: string;
   maxTokens?: number;
   role?: "browser" | "reading";
-  codexTokenProvider?: CodexTokenProvider;
   browserTools: NonNullable<CreateAgentSessionOptions["customTools"]>;
 }
 
@@ -68,7 +65,7 @@ export async function createPiCodingSession(
   });
   await resourceLoader.reload();
 
-  const execution = await modelExecution(config, options.codexTokenProvider);
+  const execution = await modelExecution(config);
   const { runtime: modelRuntime } = execution;
   const model = {
     ...execution.model,
