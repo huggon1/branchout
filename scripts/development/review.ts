@@ -1,5 +1,6 @@
 import { spawn, execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
 import { prepareProfile } from "../../src/main/runtime/profile";
 const args = process.argv.slice(2);
 if (args.includes("--help")) {
@@ -35,11 +36,13 @@ try {
   const revision = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
     encoding: "utf8",
   }).trim();
-  execFileSync("npm", ["run", "build"], { stdio: "inherit" });
+  execFileSync(process.execPath, ["scripts/app-build/app.mjs"], {
+    stdio: "inherit",
+  });
   console.log(
     `Review ${revision}; profile: ${profile}; Telegram auto-receiving paused`,
   );
-  const child = spawn(resolve("node_modules/.bin/electron"), ["."], {
+  const child = spawn(createRequire(import.meta.url)("electron"), ["."], {
     stdio: "inherit",
     env: {
       ...process.env,

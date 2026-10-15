@@ -390,6 +390,12 @@ test("reading preserves materials, partial output, frozen language and restart r
       contentType: "application/json",
     });
   } finally {
+    await info.attach("reading-state", {
+      body: await readFile(join(profile, "forwarding.json")).catch(() =>
+        Buffer.from("{}"),
+      ),
+      contentType: "application/json",
+    });
     await app?.close();
     await new Promise<void>((r) => server.close(() => r()));
     await rm(root, { recursive: true, force: true });

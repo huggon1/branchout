@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-test("development shows the version and packaged-update boundary", async ({}, info) => {
+test("development shows the platform's packaged-update boundary", async ({}, info) => {
   const profile = await mkdtemp(join(tmpdir(), "postrove-update-e2e-"));
   const application = await electron.launch({
     args: ["."],
@@ -18,10 +18,18 @@ test("development shows the version and packaged-update boundary", async ({}, in
     const page = await application.firstWindow();
     await page.getByRole("button", { name: "设置", exact: true }).click();
     const updates = page.getByRole("region", { name: "应用更新", exact: true });
-    await expect(updates).toBeVisible({ timeout: 5000 });
-    const { version } = JSON.parse(await readFile("package.json", "utf8"));
-    await expect(updates).toContainText(version);
-    await expect(updates).toContainText("安装版");
+    if (process.platform === "win32") {
+      await expect(updates).toHaveCount(0);
+      const reply = await page.evaluate(() =>
+        window.postrove.applicationUpdates(),
+      );
+      expect(reply.ok && reply.value.state).toBe("disabled");
+    } else {
+      await expect(updates).toBeVisible({ timeout: 5000 });
+      const { version } = JSON.parse(await readFile("package.json", "utf8"));
+      await expect(updates).toContainText(version);
+      await expect(updates).toContainText("安装版");
+    }
     await page.screenshot({ path: info.outputPath("development-updates.png") });
   } finally {
     await application.close();

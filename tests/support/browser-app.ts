@@ -151,6 +151,7 @@ let browser: PlatformBrowser;
   );
   try {
     const context = await fixtureBrowser.context(input.platform);
+    const initialPages = new Set(context.pages());
     await context.route(`${new URL(input.sourceUrl).origin}/**`, (route) =>
       route.fulfill({
         contentType: "text/html; charset=utf-8",
@@ -182,7 +183,11 @@ let browser: PlatformBrowser;
       undefined,
       input.accessToken,
     );
-    return { materials, remainingPages: context.pages().length };
+    return {
+      materials,
+      remainingPages: context.pages().filter((page) => !initialPages.has(page))
+        .length,
+    };
   } finally {
     await fixtureBrowser.shutdown();
   }
@@ -403,6 +408,7 @@ app.whenReady().then(async () => {
   try {
     const platform = input.mode === "saved-inline" ? "x" : "xiaohongshu";
     const context = await fixtureBrowser.context(platform);
+    const initialPages = new Set(context.pages());
     await context.route(
       platform === "x" ? "https://x.com/**" : "https://www.xiaohongshu.com/**",
       (route) =>
@@ -475,7 +481,9 @@ app.whenReady().then(async () => {
         result: report.sections[0],
         report,
         progress,
-        remainingPages: context.pages().length,
+        remainingPages: context
+          .pages()
+          .filter((page) => !initialPages.has(page)).length,
       };
     }
     const result = await access.search(
@@ -506,7 +514,8 @@ app.whenReady().then(async () => {
       result,
       progress,
       failedClicks,
-      remainingPages: context.pages().length,
+      remainingPages: context.pages().filter((page) => !initialPages.has(page))
+        .length,
     };
   } finally {
     utilityProcess.fork = originalFork;
@@ -558,6 +567,7 @@ app.whenReady().then(async () => {
   let entryLoads = 0;
   try {
     const context = await browser.context("x");
+    const initialPages = new Set(context.pages());
     await context.route("https://x.com/**", (route) => {
       const isPost = route.request().url().includes("/status/");
       if (!isPost) entryLoads++;
@@ -609,7 +619,8 @@ app.whenReady().then(async () => {
       progress,
       entryLoads,
       replyUpdates,
-      remainingPages: context.pages().length,
+      remainingPages: context.pages().filter((page) => !initialPages.has(page))
+        .length,
     };
   } finally {
     await browser.shutdown();

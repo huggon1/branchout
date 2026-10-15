@@ -1,5 +1,6 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import { createServer } from "node:http";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -516,10 +517,17 @@ test("saved answers survive citation-stage failure, Stop, and restart", async ({
         if (scenario.startsWith("stop"))
           await page.getByRole("button", { name: "停止", exact: true }).click();
         else {
-          application.process().kill("SIGKILL");
-          await new Promise<void>((done) =>
+          const exited = new Promise<void>((done) =>
             application.process().once("exit", () => done()),
           );
+          if (process.platform === "win32")
+            execFileSync(
+              "taskkill",
+              ["/PID", String(application.process().pid), "/T", "/F"],
+              { windowsHide: true },
+            );
+          else application.process().kill("SIGKILL");
+          await exited;
           application = await launch();
           page = await application.firstWindow();
           await page

@@ -36,6 +36,25 @@ npm run package:app
 
 Packaging clears generated `release/` output, rebuilds the app and icon, and writes ARM64 DMG, ZIP, update manifests, blockmaps, and checksums. The cleanup also retires the obsolete bird-search runtime.
 
+## Create a Windows installation trial
+
+Use a native Windows x64 host with Node.js 24 or later, npm, Git, and Google Chrome. Run from the repository root:
+
+```powershell
+npm ci
+npm run check:full
+npm run prepare:runtime
+npm run package:windows
+npm run test:package
+npm run test:windows-installation
+```
+
+The package command generates `release/Postrove-<version>-win-x64.exe`, blockmaps, `build-manifest.json`, and `SHA256SUMS.txt`. The unsigned NSIS installer targets the current user and includes the Windows Xiaohongshu reader. The application carries its runtime. Installed users prepare Chrome and their model and platform connections through Settings.
+
+The Windows job in [Checks](../.github/workflows/checks.yml) builds and verifies the trial on Windows Server 2025. Its `postrove-windows-x64-trial-<revision>` artifact holds the installer and checksums for fourteen days. Download and extract the artifact, then open the installer. Windows can show a publisher or reputation prompt for this unsigned trial. Windows Smart App Control and managed-device policies can block unsigned executables, as described in [Microsoft's distribution guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation). The [trial acceptance](../tests/windows-trial-failures.md) defines automated and live evidence.
+
+Application updates remain disabled in the trial. A replacement installer retains the workspace. The installation check uses a separate profile and paths containing Chinese characters and spaces. Its screenshots and JSON results enter `.tmp/windows-installation/`. Real Windows 11 client use establishes the installation experience, live platform access, and display behavior.
+
 ## Prepare a review profile
 
 ```sh

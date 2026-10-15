@@ -11,7 +11,7 @@ Electron Main owns stores, model leases, bot integrations, scheduling, and execu
 | `FocusSearchStore` | `focus-search.json`: follows and independent reports                        |
 | `ForwardingStore`  | `forwarding.json`: submitted sources, material progress, and parsed results |
 | `TaskStore`        | `tasks.json`: task snapshots and activity                                   |
-| `RecordDeletions` | `record-deletions.json`: independent record visibility and timed undo |
+| `RecordDeletions`  | `record-deletions.json`: independent record visibility and timed undo       |
 | Trace root         | `browser-traces/`: task-associated Pi sessions and native HTML              |
 
 ## Search and follow orchestration
@@ -24,7 +24,7 @@ The forwarding service first calls `PlatformAccess.collect`. A browser worker co
 
 Search and parsing have separate queues and share the Chrome access lock.
 
-Worker environments inherit explicit proxy variables. On macOS, a GUI launch reads explicit HTTP and HTTPS proxy variables first, then system proxy settings. Native Pi authentication and catalog operations in Main apply the same policy through Node's public proxy dispatcher. Localhost and loopback requests retain direct routing.
+Worker environments inherit explicit proxy variables. On macOS and Windows, a GUI launch reads explicit HTTP and HTTPS proxy variables first, then manual system proxy settings. Windows reads the current user's Internet Settings and retains the Windows home, application-data, temporary-directory, and executable-discovery environment in workers. Native Pi authentication and catalog operations in Main apply the same policy through Node's public proxy dispatcher. Localhost and loopback requests retain direct routing.
 
 ## Bot integration boundary
 

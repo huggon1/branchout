@@ -316,7 +316,7 @@ export class LegacyModelService {
       }
       await context.client.request("account/logout");
       context.unsubscribe();
-      context.client.close();
+      await context.client.close();
       this.contexts.delete(context.id);
       await this.dependencies.removeHome(context.id);
       await this.dependencies.journal.remove(context.id);
@@ -336,7 +336,7 @@ export class LegacyModelService {
           .catch(() => {});
       await this.cleanup(context);
       context.unsubscribe();
-      context.client.close();
+      await context.client.close();
     }
   }
 }

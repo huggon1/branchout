@@ -8,7 +8,10 @@ import { join, resolve } from "node:path";
 // requests; inherited proxy takes precedence; localhost bypasses every proxy.
 // Native Pi auth/catalog requests in Main follow the same proxy policy.
 test("GUI worker uses system proxy, preserves explicit proxy, and bypasses localhost", async ({}, info) => {
-  test.skip(process.platform !== "darwin", "macOS system proxy integration");
+  test.skip(
+    !["darwin", "win32"].includes(process.platform),
+    "Desktop system proxy integration",
+  );
   const root = await mkdtemp(join(tmpdir(), "postrove-worker-network-"));
   const requests: string[] = [];
   const proxy = createServer((req, res) => {
@@ -33,7 +36,17 @@ test("GUI worker uses system proxy, preserves explicit proxy, and bypasses local
     ),
   );
   const proxyUrl = `http://127.0.0.1:${(proxy.address() as any).port}`;
-  const systemProxy = `<dictionary> {\n HTTPEnable : 1\n HTTPProxy : 127.0.0.1\n HTTPPort : ${(proxy.address() as any).port}\n HTTPSEnable : 1\n HTTPSProxy : 127.0.0.1\n HTTPSPort : ${(proxy.address() as any).port}\n}`;
+  const systemProxy =
+    process.platform === "win32"
+      ? JSON.stringify({
+          ProxyEnable: 1,
+          ProxyServer: `http=127.0.0.1:${(proxy.address() as any).port};https=127.0.0.1:${(proxy.address() as any).port}`,
+        })
+      : `<dictionary> {\n HTTPEnable : 1\n HTTPProxy : 127.0.0.1\n HTTPPort : ${(proxy.address() as any).port}\n HTTPSEnable : 1\n HTTPSProxy : 127.0.0.1\n HTTPSPort : ${(proxy.address() as any).port}\n}`;
+  const conflictingProxy =
+    process.platform === "win32"
+      ? JSON.stringify({ ProxyEnable: 1, ProxyServer: "127.0.0.1:1" })
+      : systemProxy.replace(/HTTPPort : \d+/, "HTTPPort : 1");
   const application = await electron.launch({
     args: [resolve("build/test-workers/worker-network-app.mjs")],
     env: { ...process.env, POSTROVE_NETWORK_FIXTURE_ROOT: root },
@@ -55,7 +68,7 @@ test("GUI worker uses system proxy, preserves explicit proxy, and bypasses local
     const explicit = await check({
       url: "http://fixture.invalid/explicit",
       explicitProxy: proxyUrl,
-      systemProxy: systemProxy.replace(/HTTPPort : \d+/, "HTTPPort : 1"),
+      systemProxy: conflictingProxy,
     });
     expect(explicit.result).toEqual({ status: 200, body: "through-proxy" });
     const bypass = await check({
@@ -76,7 +89,7 @@ test("GUI worker uses system proxy, preserves explicit proxy, and bypasses local
     const mainExplicit = await main({
       url: "http://fixture.invalid/main-explicit",
       explicitProxy: proxyUrl,
-      systemProxy: systemProxy.replace(/HTTPPort : \d+/, "HTTPPort : 1"),
+      systemProxy: conflictingProxy,
     });
     expect(mainExplicit).toEqual({ status: 200, body: "through-proxy" });
     const mainBypass = await main({

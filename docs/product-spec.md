@@ -6,6 +6,8 @@ Postrove searches social-media content through platform AI and parses submitted 
 
 The application opens on Search. Content has fixed Parsed content and Search results destinations. Focus manages recurring conditions. The global header task panel shows execution status and exports native Pi logs. Settings manages model connections, platform sessions, bot connections, task browser visibility, application language, and application updates.
 
+On Windows, minimizing retains the running application. Closing the final window starts ordinary service shutdown, saves task state, and exits. The Windows installation trial retains the local workspace across installation and reinstallation. Its unavailable application-update section stays hidden; trial replacement uses the next installation package.
+
 ## Single-question search
 
 Search accepts a question, selected platforms, and a content time range. Search executes these conditions and confirms task addition while retaining the form. Save as Follow opens a schedule editor and saves the conditions after schedule selection.

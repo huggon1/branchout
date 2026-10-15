@@ -1,5 +1,6 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import { createServer } from "node:http";
+import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -150,6 +151,30 @@ test("reading recovers bounded model failures and reports saved incomplete work"
   try {
     const page = await app.firstWindow();
     await expect(page.getByRole("navigation")).toBeVisible();
+    await app.evaluate(() => {
+      const failures: { operation: string; file?: string; code?: string }[] =
+        [];
+      (globalThis as any).readingStorageFailures = failures;
+      const fs = process.getBuiltinModule("fs/promises") as any;
+      for (const operation of ["rename", "writeFile"]) {
+        const original = fs[operation];
+        fs[operation] = async (...args: any[]) => {
+          try {
+            return await original(...args);
+          } catch (error) {
+            failures.push({
+              operation,
+              file: String(args[operation === "rename" ? 1 : 0])
+                .split(/[\\/]/)
+                .at(-1),
+              code: (error as NodeJS.ErrnoException).code,
+            });
+            throw error;
+          }
+        };
+      }
+      process.getBuiltinModule("module").syncBuiltinESMExports();
+    });
     const saved = async (id: string) =>
       JSON.parse(
         await readFile(join(profile, "forwarding.json"), "utf8"),
@@ -162,10 +187,53 @@ test("reading recovers bounded model failures and reports saved incomplete work"
       expect(reply.ok).toBe(true);
       return (reply as any).value as string;
     };
+    let reader: ReturnType<typeof spawn> | undefined;
+    if (process.platform === "win32") {
+      reader = spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$reader = [System.IO.File]::Open($env:POSTROVE_STATE_FILE, 'Open', 'Read', 'ReadWrite'); [Console]::Out.WriteLine('locked'); Start-Sleep -Milliseconds 750; $reader.Dispose()",
+        ],
+        {
+          env: {
+            ...process.env,
+            POSTROVE_STATE_FILE: join(profile, "forwarding.json"),
+          },
+          windowsHide: true,
+          stdio: ["ignore", "pipe", "ignore"],
+        },
+      );
+      await new Promise<void>((done, reject) => {
+        const timeout = setTimeout(() => {
+          reader?.kill();
+          reject(new Error("State reader did not open"));
+        }, 10000);
+        reader!.stdout!.once("data", () => {
+          clearTimeout(timeout);
+          done();
+        });
+        reader!.once("error", reject);
+      });
+    }
     const success = await add("transient");
     await expect
       .poll(async () => (await saved(success)).state)
       .toBe("completed");
+    if (reader) {
+      await expect.poll(() => reader!.exitCode).toBe(0);
+      expect(
+        await app.evaluate(() =>
+          (globalThis as any).readingStorageFailures.some(
+            (failure: any) =>
+              failure.file === "forwarding.json" &&
+              ["EPERM", "EBUSY", "EACCES"].includes(failure.code),
+          ),
+        ),
+      ).toBe(true);
+    }
     expect(counts["transient:translation"]).toBe(2);
     expect(counts["transient:summary"]).toBe(2);
     const completed = await saved(success);
@@ -283,12 +351,41 @@ test("reading recovers bounded model failures and reports saved incomplete work"
       contentType: "application/json",
     });
     await page.getByRole("button", { name: "Tasks", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: "Tasks", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Tasks", exact: true }),
+    ).toBeVisible();
     await page.screenshot({
       path: info.outputPath("reading-failure-tasks.png"),
       animations: "disabled",
     });
   } finally {
+    await info.attach("reading-state", {
+      body: await readFile(join(profile, "forwarding.json")).catch(() =>
+        Buffer.from("{}"),
+      ),
+      contentType: "application/json",
+    });
+    await info.attach("model-calls", {
+      body: JSON.stringify({ counts, calls }),
+      contentType: "application/json",
+    });
+    await info.attach("storage-failures", {
+      body: JSON.stringify(
+        await app
+          .evaluate(() => (globalThis as any).readingStorageFailures)
+          .catch(() => []),
+      ),
+      contentType: "application/json",
+    });
+    await info.attach("model-state", {
+      body: JSON.stringify(
+        (await app
+          .windows()[0]
+          ?.evaluate(() => window.postrove.modelView())
+          .catch(() => null)) ?? null,
+      ),
+      contentType: "application/json",
+    });
     await app.close();
     server.closeAllConnections();
     await new Promise<void>((done) => server.close(() => done()));

@@ -186,7 +186,9 @@ export class ChromeProfiles {
         "--no-first-run",
         "--no-default-browser-check",
         ...(headless ? ["--headless=new"] : []),
-        "--no-startup-window",
+        ...(process.platform === "win32"
+          ? ["about:blank"]
+          : ["--no-startup-window"]),
       ],
       { stdio: ["ignore", "ignore", "pipe"], windowsHide: headless },
     );
@@ -249,17 +251,21 @@ export class ChromeProfiles {
     ]);
     await Promise.race([disconnected, delay(5000)]);
     const child = this.children.get(resolve(directory));
-    if (child) await this.stop(child);
+    if (child) await this.stop(child, true);
     if (browser.isConnected())
       throw new Error("Platform browser is still closing; try again shortly");
   }
 
-  private async stop(child: ChildProcess) {
+  private async stop(child: ChildProcess, graceful = false) {
     if (child.exitCode !== null || child.signalCode !== null || !child.pid)
       return;
     const exited = new Promise<void>((resolve) =>
       child.once("exit", () => resolve()),
     );
+    // Browser.close disconnects CDP before Chrome finishes writing its profile.
+    // Windows SIGTERM terminates immediately, so allow that write to finish.
+    if (graceful) await Promise.race([exited, delay(5000)]);
+    if (child.exitCode !== null || child.signalCode !== null) return;
     child.kill("SIGTERM");
     await Promise.race([exited, delay(5000)]);
   }
