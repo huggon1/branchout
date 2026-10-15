@@ -49,4 +49,4 @@ Postrove 是一款桌面应用，通过各平台自身的 AI 查找相关帖子�
 
 > ⚠️ Postrove 使用已登录的平台账号执行自动搜索和内容读取。这类操作可能触发平台风控，导致额外验证、限流、账号限制或封禁。建议为 X、小红书等平台使用专用小号，以降低账号受限时的影响。
 
-[开发指南](docs/development.md) · [0.1.1 发布说明](docs/releases/0.1.1.md) · [发布指南](docs/releasing.md) · [MIT 许可证](LICENSE)
+[开发指南](docs/development.md) · [0.1.2 发布说明](docs/releases/0.1.2.md) · [发布指南](docs/releasing.md) · [MIT 许可证](LICENSE)
