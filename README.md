@@ -49,4 +49,4 @@ Reports and website sessions are stored locally. Tasks send related questions an
 
 > ⚠️ Postrove uses your signed-in platform accounts for automated search and content retrieval. These actions may trigger platform safeguards, leading to extra verification, rate limits, account restrictions, or bans. We recommend dedicated secondary accounts for X, Xiaohongshu, and other platforms to reduce the impact of account restrictions.
 
-[Development guide](docs/development.md) · [0.1.0 release notes](docs/releases/0.1.0.md) · [Release guide](docs/releasing.md) · [MIT License](LICENSE)
+[Development guide](docs/development.md) · [0.1.1 release notes](docs/releases/0.1.1.md) · [Release guide](docs/releasing.md) · [MIT License](LICENSE)

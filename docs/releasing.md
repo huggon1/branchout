@@ -10,7 +10,7 @@ This document owns release preparation and publication. The [development guide](
 4. Record the source revision, workflow runs, package identity, screenshots, live trials, and remaining acceptance items in a local release evidence directory.
 5. Obtain publication approval from the release owner, then tag the approved main revision as `v<version>` and push the tag. The tag run creates a GitHub Release draft with reviewed notes and verified attachments.
 
-The first release is 0.1.0. Later manual verification builds the current package version and a trial version with the next patch number. Trial packages stay in Actions artifacts. Manual runs produce evidence; tag runs produce a Release draft.
+The first release is 0.1.0. Later manual verification builds the current package version and a trial version with the next patch number. A separate hosted runner also upgrades the latest published ZIP to the current production ZIP when their versions differ. Trial packages stay in Actions artifacts. Tag runs repeat the published-baseline verification with their exact production ZIP before creating the Release draft.
 
 ## Signing and assets
 
@@ -18,7 +18,9 @@ macOS packages use the fixed project certificate in the `release-signing` enviro
 
 Published packages target macOS Apple silicon. Required attachments are the versioned DMG and ZIP, `latest-mac.yml`, generated blockmaps, `SHA256SUMS.txt`, and `build-manifest.json`. The DMG serves first installation; the ZIP and manifest serve installed clients. The build manifest records the source revision and artifact hashes. The draft job verifies checksums before upload.
 
-Manual runs can reuse `package_run_id` after source validation confirms matching production inputs. Application code, dependencies, assets, and packaging changes select a fresh package pair. The separate native verification runner imports neither the project certificate nor its private key. Its evidence includes replacement, restart, retained records, and a session-directory marker; actual website login belongs to live acceptance.
+Manual runs can reuse `package_run_id` after source validation confirms matching production inputs. Application code, dependencies, assets, and packaging changes select a fresh package pair. Separate native verification runners keep signing material on the build runner. Their evidence includes replacement, restart, retained records, and a session-directory marker; actual website login belongs to live acceptance.
+
+Published-baseline verification checks ZIP hashes and signing continuity before launch. It uses the signed applications unchanged and redirects the running baseline's update transport to a local feed. A fresh hosted-runner default profile verifies ordinary application restart and legacy model migration. Existing application-data directories stop this verification before profile creation.
 
 ## Acceptance and publication
 
