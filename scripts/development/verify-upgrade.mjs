@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createServer } from "node:http";
-import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm, lstat } from "node:fs/promises";
 import { join, resolve, basename } from "node:path";
+import { homedir } from "node:os";
 import { createRequire } from "node:module";
-import { randomUUID, X509Certificate } from "node:crypto";
+import { createHash, randomUUID, X509Certificate } from "node:crypto";
 import assert from "node:assert/strict";
 import { _electron as electron } from "@playwright/test";
 
@@ -26,9 +27,47 @@ const bounded = async (operation, milliseconds, fallback) => {
     clearTimeout(timer);
   }
 };
-const root = resolve(".tmp/signed-upgrade");
+const releasedIndex = process.argv.indexOf("--released-baseline");
+const releasedVersion =
+  releasedIndex >= 0 ? process.argv[releasedIndex + 1] : undefined;
+if (releasedIndex >= 0) {
+  assert.match(releasedVersion ?? "", /^\d+\.\d+\.\d+$/);
+  assert.equal(
+    process.env.GITHUB_ACTIONS,
+    "true",
+    "Released-baseline verification requires GitHub Actions",
+  );
+  assert.equal(
+    process.env.RUNNER_ENVIRONMENT,
+    "github-hosted",
+    "Released-baseline verification requires a hosted runner",
+  );
+  assert.equal(process.argv.includes("--prepare"), false);
+}
+const root = resolve(
+  releasedVersion ? ".tmp/released-upgrade" : ".tmp/signed-upgrade",
+);
 const evidence = join(root, "evidence");
-const profile = join(root, "profile");
+const applicationData = join(homedir(), "Library/Application Support");
+const profile = releasedVersion
+  ? join(applicationData, "Postrove/profiles/default")
+  : join(root, "profile");
+if (releasedVersion) {
+  for (const directory of [
+    join(applicationData, "Postrove"),
+    join(applicationData, "Branchout"),
+  ]) {
+    const existing = await lstat(directory).catch((error) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    assert.equal(
+      existing,
+      undefined,
+      "Hosted runner application data is fresh",
+    );
+  }
+}
 const preparing = process.argv.includes("--prepare");
 const identity = process.env.CSC_NAME;
 if (
@@ -82,16 +121,27 @@ if (!preparing)
   await new Promise((done) => server.listen(port, "127.0.0.1", done));
 const endpoint = `http://127.0.0.1:${port}`;
 const require = createRequire(import.meta.url);
-const baselineVersion = JSON.parse(
+const packageVersion = JSON.parse(
   await readFile("package.json", "utf8"),
 ).version;
+const baselineVersion = releasedVersion ?? packageVersion;
 assert.match(
   baselineVersion,
   /^\d+\.\d+\.\d+$/,
   "Verify a stable release version",
 );
 const [major, minor, patch] = baselineVersion.split(".").map(Number);
-const candidateVersion = `${major}.${minor}.${patch + 1}`;
+const candidateVersion = releasedVersion
+  ? packageVersion
+  : `${major}.${minor}.${patch + 1}`;
+if (releasedVersion) {
+  const current = candidateVersion.split(".").map(Number);
+  const previous = baselineVersion.split(".").map(Number);
+  const difference = current.findIndex(
+    (value, index) => value !== previous[index],
+  );
+  assert.ok(difference >= 0 && current[difference] > previous[difference]);
+}
 const packages = [
   [baselineVersion, "baseline"],
   [candidateVersion, "candidate"],
@@ -148,6 +198,26 @@ require("./main.cjs");\n`,
     assert.equal(identity, undefined);
     assert.equal(process.env.CSC_KEYCHAIN, undefined);
     for (const [version, folder] of packages) {
+      if (releasedVersion) {
+        const name = `Postrove-${version}-mac-arm64.zip`;
+        const checksums = await readFile(
+          join(root, folder, "SHA256SUMS.txt"),
+          "utf8",
+        );
+        const expected = checksums
+          .split(/\r?\n/)
+          .find((line) => line.trim().endsWith(`  ${name}`))
+          ?.split(/\s+/)[0];
+        assert.match(expected ?? "", /^[a-f0-9]{64}$/);
+        const digest = createHash("sha256")
+          .update(await readFile(join(root, folder, name)))
+          .digest("hex");
+        assert.equal(
+          digest,
+          expected,
+          "Published upgrade package hash matches",
+        );
+      }
       await checkpoint(`extract ${version}`);
       await run(
         "ditto",
@@ -267,12 +337,35 @@ require("./main.cjs");\n`,
       }),
     );
     await checkpoint("launch baseline");
+    const launchEnvironment = { ...process.env };
+    if (releasedVersion)
+      for (const key of Object.keys(launchEnvironment))
+        if (key.startsWith("POSTROVE_") || key === "ELECTRON_RUN_AS_NODE")
+          delete launchEnvironment[key];
     application = await electron.launch({
       executablePath: join(baseline, "Contents/MacOS/Postrove"),
       args: [],
+      env: launchEnvironment,
       timeout: 30000,
     });
     originalProcess = application.process();
+    if (releasedVersion) {
+      const identity = await application.evaluate(({ app }, feed) => {
+        const module = process.getBuiltinModule("module");
+        const path = process.getBuiltinModule("path");
+        const require = module.createRequire(
+          path.join(app.getAppPath(), "package.json"),
+        );
+        require("electron-updater").autoUpdater.setFeedURL({
+          provider: "generic",
+          url: feed,
+          channel: "latest",
+        });
+        return { version: app.getVersion(), profile: app.getPath("userData") };
+      }, endpoint);
+      assert.equal(identity.version, baselineVersion);
+      assert.equal(identity.profile, profile);
+    }
     page = await application.firstWindow({ timeout: 30000 });
     await page.getByRole("button", { name: "设置", exact: true }).click();
     const updates = page.getByRole("region", { name: "应用更新", exact: true });
@@ -303,6 +396,7 @@ require("./main.cjs");\n`,
         if (!/Target.*closed/i.test(error.message)) throw error;
       });
     const deadline = Date.now() + 150000;
+    let startupCompleted = false;
     let version = "",
       owner;
     while (Date.now() < deadline) {
@@ -329,7 +423,10 @@ require("./main.cjs");\n`,
         owner.pid !== originalProcess.pid
       ) {
         restartedPid = owner.pid;
-        if (!receipt.to) break;
+        if (!receipt.to) {
+          startupCompleted = true;
+          break;
+        }
       }
       if (!page.isClosed()) {
         const state = await bounded(
@@ -351,6 +448,11 @@ require("./main.cjs");\n`,
       restartedPid,
       "Native updater restarted the new application with the trial profile",
     );
+    assert.ok(
+      startupCompleted,
+      "Restarted application consumed its update receipt",
+    );
+    process.kill(restartedPid, 0);
     await checkpoint("verify restarted version and saved data");
     const saved = JSON.parse(
       await readFile(join(profile, "focus-search.json"), "utf8"),
@@ -377,21 +479,38 @@ require("./main.cjs");\n`,
       if (error.code === "ENOENT") return undefined;
       throw error;
     });
+    if (releasedVersion)
+      assert.ok(
+        nativeConnections,
+        "Published API connection migrated to native Pi storage",
+      );
     if (nativeConnections) {
       const connections = JSON.parse(nativeConnections);
       const active = connections.connections.find(
         (item) => item.id === connections.activeId,
       );
       assert.ok(active, "The upgraded app retained the active Pi connection");
+      assert.equal(active.modelId, "fixture");
       const auth = JSON.parse(
         await readFile(
           join(profile, "pi", "connections", active.id, "auth.json"),
           "utf8",
         ),
       );
-      assert.ok(
+      assert.equal(
         auth[active.providerId]?.key,
+        "fictional",
         "The migrated Pi connection retained its API key",
+      );
+      const catalog = JSON.parse(
+        await readFile(
+          join(profile, "pi", "connections", active.id, "models.json"),
+          "utf8",
+        ),
+      );
+      assert.equal(
+        catalog.providers[active.providerId].baseUrl,
+        "http://127.0.0.1:1",
       );
     } else {
       assert.ok(
@@ -418,6 +537,9 @@ require("./main.cjs");\n`,
           nativeRestart: true,
           projectCertificateImported: false,
           packageSourceRun: process.env.POSTROVE_UPGRADE_PACKAGE_RUN,
+          baselineSource: releasedVersion
+            ? `Published GitHub Release v${releasedVersion}`
+            : "Current source with trial versions",
           data: [
             "platform answer",
             "preferences",
@@ -425,8 +547,9 @@ require("./main.cjs");\n`,
             "session sentinel",
           ],
           requests,
-          boundary:
-            "Real project-signed packages, production updater and shutdown, local HTTP feed, isolated profile; clean runner without imported signing material",
+          boundary: releasedVersion
+            ? "Published baseline and production candidate ZIPs with intact signatures, production updater and shutdown, local HTTP feed, fresh hosted-runner default profile; signing material stays on the separate build runner"
+            : "Real project-signed packages, production updater and shutdown, local HTTP feed, isolated profile; clean runner without imported signing material",
         },
         null,
         2,
@@ -470,5 +593,5 @@ require("./main.cjs");\n`,
     server.closeAllConnections();
     await new Promise((done) => server.close(done));
   }
-  await rm(bootstrap, { force: true });
+  if (!releasedVersion) await rm(bootstrap, { force: true });
 }

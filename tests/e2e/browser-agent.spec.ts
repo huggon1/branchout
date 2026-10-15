@@ -835,6 +835,7 @@ for (const mode of [
 
 // These reproduce delayed unrelated content, reused page refs, collapsed sources,
 // premature reply completion and loss of already captured links after a click fails.
+// The growing-answer case must reject an observed changing reply before saving it.
 for (const mode of [
   "dynamic-sidebar",
   "generation-reuse",
@@ -851,6 +852,7 @@ for (const mode of [
     let requests = 0;
     const hostileRefs: string[] = [];
     let hostileCaptureRejected = false;
+    let growingReplyRejected = false;
     const operationLog: unknown[] = [];
     let failingClickAttempted = false;
     let failingClickObserved = false;
@@ -873,6 +875,15 @@ for (const mode of [
           }
         });
       const last = tools.at(-1);
+      if (
+        mode === "growing-answer" &&
+        input.messages.some(
+          (message: any) =>
+            message.role === "tool" &&
+            JSON.stringify(message.content).includes("reply_generating:"),
+        )
+      )
+        growingReplyRejected = true;
       if (
         hostileRefs.length > 0 &&
         /source_scope:|stale_ref:/.test(
@@ -1135,6 +1146,10 @@ for (const mode of [
         },
       );
       if (mode === "link-failure") expect(failingClickObserved).toBe(true);
+      if (mode === "growing-answer") {
+        expect(growingReplyRejected).toBe(true);
+        expect(outcome.replyUpdates).toBe(1);
+      }
       if (["dynamic-sidebar", "generation-reuse"].includes(mode)) {
         expect(hostileRefs).not.toHaveLength(0);
         expect(hostileCaptureRejected).toBe(true);
@@ -1182,7 +1197,8 @@ for (const mode of [
 // Failures: an AI-written bare URL passes admission; a real source card loses
 // its token to the earlier inline URL; readable tokenless notes are rejected;
 // a 404, a different note, or a sidebar is treated as a readable source;
-// forwarding discards the platform's observed source rejection.
+// forwarding discards the platform's observed source rejection; a redirected
+// fixture request escapes local routing and depends on the public platform.
 for (const mode of [
   "inline-unverified",
   "card-preferred",
@@ -1449,6 +1465,10 @@ for (const mode of [
         body: JSON.stringify({ outcome, observations }, null, 2),
         contentType: "application/json",
       });
+      if (["inline-404", "collect-404", "card-404"].includes(mode))
+        expect(outcome.visits.some((visit: any) => visit.path === "/404")).toBe(
+          true,
+        );
       if (mode === "collect-404") {
         expect(outcome.result.state).toBe("failed");
         expect(outcome.result.failureStage).toBe("source");

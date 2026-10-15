@@ -203,8 +203,58 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  released-upgrade:
+    needs: [validate, package]
+    if: always() && needs.validate.result == 'success' && (needs.package.result == 'success' || inputs.package_run_id != '')
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Select the published baseline
+        id: baseline
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          baseline_tag=$(gh release view --repo "${GITHUB_REPOSITORY}" --json tagName --jq '.tagName')
+          [[ "${baseline_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          version=$(node -p "require('./package.json').version")
+          printf 'version=%s\n' "${baseline_tag#v}" >> "${GITHUB_OUTPUT}"
+          if [ "${baseline_tag}" != "v${version}" ]; then
+            printf 'verify=true\n' >> "${GITHUB_OUTPUT}"
+            gh release download "${baseline_tag}" --repo "${GITHUB_REPOSITORY}" \
+              --pattern "Postrove-${baseline_tag#v}-mac-arm64.zip" \
+              --pattern SHA256SUMS.txt --dir .tmp/released-upgrade/baseline
+          fi
+      - uses: actions/download-artifact@v8
+        if: steps.baseline.outputs.verify == 'true'
+        with:
+          name: postrove-${{ inputs.package_run_id || github.run_id }}
+          path: .tmp/released-upgrade/candidate/
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.package_run_id || github.run_id }}
+      - name: Verify the published-to-candidate native upgrade
+        if: steps.baseline.outputs.verify == 'true'
+        run: npm run test:upgrade -- --released-baseline "$BASELINE_VERSION"
+        env:
+          BASELINE_VERSION: ${{ steps.baseline.outputs.version }}
+          POSTROVE_UPGRADE_PACKAGE_RUN: ${{ inputs.package_run_id || github.run_id }}
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.baseline.outputs.verify == 'true'
+        with:
+          name: released-upgrade-evidence
+          path: .tmp/released-upgrade/evidence/
+          if-no-files-found: error
+          retention-days: 14
+
   draft-release:
-    needs: package
+    needs: [package, released-upgrade]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:

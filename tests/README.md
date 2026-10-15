@@ -48,6 +48,8 @@ The [Checks workflow](../.github/workflows/checks.yml) runs shared checks on Lin
 
 [Failure cases](update-failures.md) define the update acceptance boundary. The controlled Electron fixture replaces update transport and native staging while retaining production UI, IPC, queue admission, and stores. The [signed upgrade verifier](../scripts/development/verify-upgrade.mjs) separately proves native replacement, restart, compatible project signatures, and retained data with two real packages. Manual Release workflow runs upload its evidence. The [release guide](../docs/releasing.md#signing-and-assets) owns signing and artifact setup.
 
+Release runs also verify the latest published package against the current production package when their versions differ. `--released-baseline <version>` selects these intact signed ZIPs, validates their hashes, and requires a fresh GitHub-hosted macOS runner. Evidence enters `.tmp/released-upgrade/evidence/` and the `released-upgrade-evidence` workflow artifact. Tag runs create the draft after this verification passes.
+
 ## Packaged startup acceptance
 
 The release package smoke check covers these failure cases:

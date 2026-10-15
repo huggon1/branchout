@@ -533,6 +533,27 @@ app.whenReady().then(async () => {
     undefined,
     { headless: true },
   );
+  let replyUpdates = 0;
+  const operation = browser.operation.bind(browser);
+  browser.operation = async (...args) => {
+    const value = await operation(...args);
+    if (
+      input.mode === "growing-answer" &&
+      !replyUpdates &&
+      (args[2] as { action?: string }).action === "capture" &&
+      "capture" in value &&
+      value.capture.includes("Partial answer")
+    ) {
+      replyUpdates++;
+      // Advance the simulated stream after the captured snapshot and before
+      // Main checks stability. Node and Chrome timers can run on different ticks.
+      await args[1].evaluate(() => {
+        document.querySelector("#reply")!.innerHTML =
+          "<p>Complete final answer from the platform with separately disclosed sources.</p>";
+      });
+    }
+    return value;
+  };
   const progress: unknown[] = [];
   let entryLoads = 0;
   try {
@@ -546,7 +567,7 @@ app.whenReady().then(async () => {
         ? "<article>Original source post</article>"
         : repeated
           ? `<aside><section id="reused"><a href="https://x.com/unrelated/status/99999">Unrelated Sidebar Recommendation</a></section></aside><script>document.querySelector('#reused').setAttribute('data-postrove-ref',sessionStorage.getItem('authorizedSourceRef'));</script>`
-          : `${input.mode === "link-failure" ? "<style>#card a{pointer-events:none}</style>" : ""}<main><textarea aria-label="Ask AI"></textarea><button id="ask">Ask</button><article hidden id="answer"><div hidden id="reply"></div><button hidden id="disclosure" aria-controls="source-panel">Sources</button></article></main><div id="source-panel" role="region" aria-label="Sources" hidden><h2>Sources</h2><section id="card">${input.mode === "expanded-empty" ? "No posts found" : input.mode === "loading-empty" ? "Loading…" : '<a href="https://x.com/source/status/10001">Observed original post</a><p>2026-10-12</p>'}</section></div><aside hidden id="sidebar"><section><a href="https://x.com/unrelated/status/99999">Unrelated Sidebar Recommendation</a></section></aside><script>document.querySelector('#ask').onclick=()=>{document.querySelector('#answer').hidden=false;document.querySelector('#reply').hidden=false;document.querySelector('#reply').innerHTML='<p>${input.mode === "growing-answer" ? "Partial answer is still generating and must be checked again." : "Complete final answer from the platform with separately disclosed sources."}</p>';${input.mode === "growing-answer" ? "setTimeout(()=>document.querySelector('#reply').innerHTML='<p>Complete final answer from the platform with separately disclosed sources.</p>',1500);" : ""}document.querySelector('#disclosure').hidden=false;};document.querySelector('#disclosure').onclick=()=>{document.querySelector('#source-panel').hidden=false;${input.mode === "dynamic-sidebar" ? "document.querySelector('#sidebar').hidden=false;" : ""}};const sourceLink=document.querySelector('#card a');if(sourceLink)sourceLink.onclick=()=>sessionStorage.setItem('authorizedSourceRef',document.querySelector('#card').getAttribute('data-postrove-ref'));</script>`;
+          : `${input.mode === "link-failure" ? "<style>#card a{pointer-events:none}</style>" : ""}<main><textarea aria-label="Ask AI"></textarea><button id="ask">Ask</button><article hidden id="answer"><div hidden id="reply"></div><button hidden id="disclosure" aria-controls="source-panel">Sources</button></article></main><div id="source-panel" role="region" aria-label="Sources" hidden><h2>Sources</h2><section id="card">${input.mode === "expanded-empty" ? "No posts found" : input.mode === "loading-empty" ? "Loading…" : '<a href="https://x.com/source/status/10001">Observed original post</a><p>2026-10-12</p>'}</section></div><aside hidden id="sidebar"><section><a href="https://x.com/unrelated/status/99999">Unrelated Sidebar Recommendation</a></section></aside><script>document.querySelector('#ask').onclick=()=>{document.querySelector('#answer').hidden=false;document.querySelector('#reply').hidden=false;document.querySelector('#reply').innerHTML='<p>${input.mode === "growing-answer" ? "Partial answer is still generating and must be checked again." : "Complete final answer from the platform with separately disclosed sources."}</p>';document.querySelector('#disclosure').hidden=false;};document.querySelector('#disclosure').onclick=()=>{document.querySelector('#source-panel').hidden=false;${input.mode === "dynamic-sidebar" ? "document.querySelector('#sidebar').hidden=false;" : ""}};const sourceLink=document.querySelector('#card a');if(sourceLink)sourceLink.onclick=()=>sessionStorage.setItem('authorizedSourceRef',document.querySelector('#card').getAttribute('data-postrove-ref'));</script>`;
       return route.fulfill({
         contentType: "text/html; charset=utf-8",
         body: html,
@@ -587,6 +608,7 @@ app.whenReady().then(async () => {
       result,
       progress,
       entryLoads,
+      replyUpdates,
       remainingPages: context.pages().length,
     };
   } finally {
@@ -631,13 +653,14 @@ app.whenReady().then(async () => {
       (["inline-404", "collect-404", "card-404"].includes(input.mode) ||
         (input.mode === "bare-404-card" && !url.searchParams.has("xsec_token")))
     ) {
+      // Playwright routes only the first URL in an HTTP redirect chain. A
+      // document navigation keeps the destination inside this local fixture.
+      const destination =
+        "/404?error_code=300031&error_msg=" +
+        encodeURIComponent("当前笔记暂时无法浏览");
       await route.fulfill({
-        status: 302,
-        headers: {
-          location:
-            "/404?error_code=300031&error_msg=" +
-            encodeURIComponent("当前笔记暂时无法浏览"),
-        },
+        contentType: "text/html; charset=utf-8",
+        body: `<script>location.replace(${JSON.stringify(destination)})</script>`,
       });
       return;
     }
@@ -647,8 +670,8 @@ app.whenReady().then(async () => {
       url.pathname.endsWith("abcdef1234567890abcdef12")
     ) {
       await route.fulfill({
-        status: 302,
-        headers: { location: "/explore/bbbbbbbb1234567890abcdef" },
+        contentType: "text/html; charset=utf-8",
+        body: '<script>location.replace("/explore/bbbbbbbb1234567890abcdef")</script>',
       });
       return;
     }
