@@ -686,3 +686,142 @@
   background: #fff;
   box-shadow: 0 4px 20px #0002;
 }
+
+.workspace-header {
+  height: 60px;
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  padding: 10px 28px;
+  border-bottom: 1px solid #ecece9;
+  background: #ffffffed;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.workspace-header > span {
+  color: #777a70;
+  font-size: 12px;
+}
+.task-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.task-entry small {
+  color: #74776e;
+}
+.task-failure-count {
+  color: #a33e32;
+  font-size: 11px;
+  border-radius: 5px;
+  background: #faeeeb;
+  padding: 2px 5px;
+}
+.task-panel {
+  position: fixed;
+  inset: 68px 20px auto auto;
+  width: 415px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 100px);
+  margin: 0;
+  padding: 20px;
+  border: 1px solid #e5e6e2;
+  border-radius: 16px;
+  background: #fff;
+  color: #242621;
+  box-shadow: 0 10px 32px #00000012;
+  overflow: auto;
+}
+.task-panel header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.task-panel h2 {
+  margin: 0;
+}
+.task-panel header p {
+  margin: 5px 0 14px;
+}
+.task-panel .source-tabs {
+  position: sticky;
+  top: -20px;
+  background: #fff;
+  padding-top: 8px;
+  z-index: 2;
+}
+.task-clear {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0;
+}
+.task-clear small {
+  color: #777a70;
+  font-size: 11px;
+}
+.task-panel-row {
+  display: flex;
+  border-bottom: 1px solid #ecece9;
+  padding: 12px 0;
+  align-items: flex-start;
+  gap: 6px;
+}
+.task-panel-row details {
+  flex: 1;
+  min-width: 0;
+}
+.task-panel-row summary {
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  list-style: none;
+}
+.task-panel-row summary::-webkit-details-marker {
+  display: none;
+}
+.task-panel-row summary > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #838c76;
+}
+.task-panel-row summary strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.task-panel-row summary small {
+  display: block;
+  color: #777a70;
+  font-size: 11px;
+  margin-top: 5px;
+}
+.task-detail {
+  padding-left: 28px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.task-detail > button {
+  margin-right: 14px;
+  margin-top: 8px;
+}
+.task-detail ol {
+  padding-left: 16px;
+  color: #71746d;
+}
+@media (max-width: 760px) {
+  .workspace-header {
+    padding: 8px 14px;
+  }
+  .task-panel {
+    top: 115px;
+    right: 12px;
+    max-height: calc(100dvh - 140px);
+  }
+}

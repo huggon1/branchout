@@ -436,7 +436,7 @@ export async function initializeServices(
                 (parsed
                   ? (forwarding!.read(task.taskId).task.report?.source.title ??
                     parsed.target.sourceUrl)
-                  : undefined),
+                  : task.label),
               result: resultDeleted ? undefined : task.result,
               resultDeleted,
             };

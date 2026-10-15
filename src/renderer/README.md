@@ -4,6 +4,7 @@
 
 | Path | Responsibility |
 | --- | --- |
+| `components/TaskPanel.tsx` | Global task entry, grouped history, details, and clearing |
 | `App.tsx` | Navigation and page assembly |
 | `refactor.css` | Existing shell and responsive layouts |
 | `components/MaterialReader.tsx` | Material directory and saved body reader |

@@ -99,11 +99,16 @@ try {
     assert.equal(identity.build.dirty, false);
   }
   phase = "navigation";
-  for (const name of ["搜索", "搜索结果", "解析结果", "关注", "任务", "设置"])
+  for (const name of ["搜索", "搜索结果", "解析结果", "关注", "设置"])
     await page
       .getByRole("navigation")
       .getByRole("button", { name, exact: true })
       .click();
+  await page.getByRole("button", { name: "任务", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "任务", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   phase = "settings";
   await expect(page.getByLabel("任务浏览器", { exact: true })).toHaveValue(
     "headless",
