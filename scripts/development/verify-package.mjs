@@ -49,6 +49,8 @@ let application,
   page,
   phase = "resources";
 const rendererErrors = [];
+const startupDurationsMs = [];
+let startupStarted;
 const env = { ...process.env };
 for (const key of Object.keys(env))
   if (key.startsWith("POSTROVE_") || key === "ELECTRON_RUN_AS_NODE")
@@ -56,6 +58,7 @@ for (const key of Object.keys(env))
 env.POSTROVE_TEST_DATA = profile;
 env.POSTROVE_RUN_MODE = "review";
 const launch = async () => {
+  startupStarted = Date.now();
   application = await electron.launch({
     executablePath: join(
       appPath,
@@ -67,7 +70,9 @@ const launch = async () => {
   });
   page = await application.firstWindow({ timeout: 30000 });
   page.on("pageerror", (error) => rendererErrors.push(error.name));
-  await expect(page.getByRole("navigation")).toBeVisible();
+  await expect(page.getByRole("navigation")).toBeVisible({ timeout: 30000 });
+  startupDurationsMs.push(Date.now() - startupStarted);
+  startupStarted = undefined;
 };
 const close = async () => {
   if (!windows) await application.close();
@@ -217,6 +222,7 @@ try {
         result: "passed",
         version: expected,
         build: identity.build,
+        startupDurationsMs,
         checks: [
           "ASAR resources",
           "bundled reader and license",
@@ -248,6 +254,8 @@ try {
         result: "failed",
         phase,
         errorType: error.name,
+        startupElapsedMs: startupStarted ? Date.now() - startupStarted : null,
+        rendererErrors,
       },
       null,
       2,

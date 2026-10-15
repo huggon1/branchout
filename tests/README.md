@@ -57,6 +57,7 @@ The release package smoke check covers these failure cases:
 
 - Missing ASAR resources, worker entries, icon, update configuration, or bundled Xiaohongshu reader stops verification before upload.
 - A package version or source revision that differs from the workflow checkout fails the build identity check.
+- Navigation readiness after window creation has a 30-second deadline. Successful launches record their elapsed startup time; expiration records a failed startup result and attempts a screenshot.
 - Startup, preload, renderer, or page navigation failures produce a failed result and an available screenshot.
 - A disabled macOS packaged updater or an incorrect default browser mode fails the Settings check. The Windows trial check confirms the disabled update state and omitted update section.
 - A language change lost after restart fails the profile persistence check.
