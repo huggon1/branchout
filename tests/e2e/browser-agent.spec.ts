@@ -1182,7 +1182,8 @@ for (const mode of [
 // Failures: an AI-written bare URL passes admission; a real source card loses
 // its token to the earlier inline URL; readable tokenless notes are rejected;
 // a 404, a different note, or a sidebar is treated as a readable source;
-// forwarding discards the platform's observed source rejection.
+// forwarding discards the platform's observed source rejection; a redirected
+// fixture request escapes local routing and depends on the public platform.
 for (const mode of [
   "inline-unverified",
   "card-preferred",
@@ -1449,6 +1450,10 @@ for (const mode of [
         body: JSON.stringify({ outcome, observations }, null, 2),
         contentType: "application/json",
       });
+      if (["inline-404", "collect-404", "card-404"].includes(mode))
+        expect(outcome.visits.some((visit: any) => visit.path === "/404")).toBe(
+          true,
+        );
       if (mode === "collect-404") {
         expect(outcome.result.state).toBe("failed");
         expect(outcome.result.failureStage).toBe("source");

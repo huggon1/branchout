@@ -631,13 +631,14 @@ app.whenReady().then(async () => {
       (["inline-404", "collect-404", "card-404"].includes(input.mode) ||
         (input.mode === "bare-404-card" && !url.searchParams.has("xsec_token")))
     ) {
+      // Playwright routes only the first URL in an HTTP redirect chain. A
+      // document navigation keeps the destination inside this local fixture.
+      const destination =
+        "/404?error_code=300031&error_msg=" +
+        encodeURIComponent("当前笔记暂时无法浏览");
       await route.fulfill({
-        status: 302,
-        headers: {
-          location:
-            "/404?error_code=300031&error_msg=" +
-            encodeURIComponent("当前笔记暂时无法浏览"),
-        },
+        contentType: "text/html; charset=utf-8",
+        body: `<script>location.replace(${JSON.stringify(destination)})</script>`,
       });
       return;
     }
@@ -647,8 +648,8 @@ app.whenReady().then(async () => {
       url.pathname.endsWith("abcdef1234567890abcdef12")
     ) {
       await route.fulfill({
-        status: 302,
-        headers: { location: "/explore/bbbbbbbb1234567890abcdef" },
+        contentType: "text/html; charset=utf-8",
+        body: '<script>location.replace("/explore/bbbbbbbb1234567890abcdef")</script>',
       });
       return;
     }
