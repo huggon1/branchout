@@ -1159,14 +1159,23 @@ textarea {
   color: var(--muted);
 }
 .connection-method button[aria-pressed="true"] {
-  border-color: var(--line);
+  border-color: var(--ink);
   background: var(--canvas);
-  color: var(--muted);
+  color: var(--ink);
+  font-weight: 600;
 }
 .model-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+.model-saved {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  margin-top: 14px;
+}
+.model-saved > .button {
+  min-height: 35px;
 }
 .model-form > .model-actions,
 .model-form > .model-auth-prompt,
@@ -1204,7 +1213,6 @@ textarea {
 .model-custom {
   margin: 16px 0;
 }
-.model-custom summary,
 .model-options summary {
   cursor: pointer;
   font-size: 11px;
@@ -1236,11 +1244,7 @@ textarea {
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
-.model-settings > .connection-check > .model-form {
-  flex-basis: 100%;
-}
-.model-form label,
-.codex-form label {
+.model-form label {
   display: grid;
   gap: 6px;
   color: var(--muted);
@@ -1248,17 +1252,8 @@ textarea {
   font-weight: 550;
 }
 .model-form input,
-.model-form select,
-.codex-form select {
+.model-form select {
   width: 100%;
-}
-.codex-form {
-  display: grid;
-  gap: 9px;
-  max-width: 540px;
-}
-.codex-form > p {
-  color: var(--muted);
 }
 .model-actions {
   display: flex;

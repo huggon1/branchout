@@ -27,13 +27,11 @@ import {
   type PiConnection,
   type PiConnections,
 } from "../storage/pi-connection-store";
-import {
-  LegacyModelService,
-  type ModelDependencies as LegacyDependencies,
-} from "./legacy-model-service";
+import type { ProtectedStorage } from "../storage/model-store";
 
 type Runtime = Awaited<ReturnType<typeof createModelRuntime>>;
 type Candidate = {
+  catalogSource: "builtin" | "custom";
   id: string;
   providerId: string;
   runtime: Runtime;
@@ -42,8 +40,12 @@ type Candidate = {
   replacesId?: string;
   settings?: Pick<PiConnection, "name" | "modelId" | "options">;
 };
-export interface ModelDependencies extends LegacyDependencies {
+export interface ModelDependencies {
   root: string;
+  storage: ProtectedStorage;
+  openLogin(url: string): Promise<void>;
+  check(config: ModelExecutionConfig, signal: AbortSignal): Promise<void>;
+  changed(): void;
 }
 
 /** Pi owns catalog composition, credentials, login, refresh, and provider requests. */
@@ -57,7 +59,6 @@ export class ModelService {
   };
   private catalog!: Runtime;
   private candidate?: Candidate;
-  private legacy?: LegacyModelService;
   private runtimes = new Map<string, Runtime>();
   private drafts = new Set<string>();
   private references = new Map<string, number>();
@@ -206,6 +207,7 @@ export class ModelService {
         this.candidate = {
           id,
           providerId: "postrove-api",
+          catalogSource: "custom",
           runtime,
           useEnvironment: false,
           ...(!metadata?.maxTokens
@@ -221,19 +223,9 @@ export class ModelService {
         });
         this.state.message =
           "原 API 连接已迁移到 Pi，新任务沿用原地址、模型和密钥";
-      } else if (old) {
-        this.legacy = new LegacyModelService(this.dependencies);
-        await this.legacy.open();
-        this.state.message =
-          "原 Codex 连接仍可使用。选择 OpenAI Codex，通过 Pi 登录并保存后完成迁移";
       }
     }
     if (this.data.legacyMigrated) {
-      // The migration marker also survives removal of the last native connection.
-      for (const id of await this.dependencies.journal.list()) {
-        await this.dependencies.removeHome(id);
-        await this.dependencies.journal.remove(id);
-      }
       await this.retireLegacySource();
     }
   }
@@ -296,10 +288,11 @@ export class ModelService {
             hasCredential: true,
             options: active.options,
           }
-        : (this.legacy?.view().current ?? null),
+        : null,
       providers: [...providerMap.values()]
         .map((provider) => ({
           id: provider.id,
+          builtin: !!this.catalog.getProvider(provider.id),
           name: provider.name,
           modelCount: provider.getModels().length,
           authMethods: [
@@ -337,6 +330,7 @@ export class ModelService {
       ...(candidate
         ? {
             selected: {
+              catalogSource: candidate.catalogSource,
               id: candidate.id,
               providerId: candidate.providerId,
               name:
@@ -355,9 +349,6 @@ export class ModelService {
       models: candidate
         ? this.modelOptions(candidate.runtime, candidate.providerId)
         : [],
-      ...(this.legacy?.view().current && !active
-        ? { migration: "legacy_codex" as const, legacy: this.legacy.view() }
-        : {}),
     });
   }
   private async choose(providerId: string, connectionId?: string) {
@@ -374,9 +365,19 @@ export class ModelService {
     if (!runtime.getProvider(providerId))
       throw new Error("当前 Pi 目录中没有该供应商");
     if (!saved) this.drafts.add(id);
+    const modelsJson = await readFile(this.paths(id).modelsPath, "utf8").catch(
+      (error) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return "{}";
+        throw error;
+      },
+    );
+    const catalogSource = JSON.parse(modelsJson).providers?.[providerId]
+      ? "custom"
+      : "builtin";
     this.candidate = {
       id,
       providerId,
+      catalogSource,
       runtime,
       useEnvironment: saved?.useEnvironment ?? false,
       serverDefaultOutputModelId: saved?.serverDefaultOutputModelId,
@@ -422,6 +423,7 @@ export class ModelService {
       this.candidate = {
         id,
         providerId: value.providerId,
+        catalogSource: "custom",
         runtime,
         useEnvironment: false,
       };
@@ -635,7 +637,6 @@ export class ModelService {
     return this.serial(async () => {
       if (this.closed || this.loginAbort) throw new Error("请等待认证完成");
       if (!this.candidate) {
-        await this.legacy?.refresh();
         this.changed();
         return;
       }
@@ -662,20 +663,6 @@ export class ModelService {
     });
   }
   async save(input: unknown) {
-    // Existing legacy preferences remain editable during the staged migration.
-    if ((input as { method?: string })?.method !== "pi") {
-      if (
-        !this.legacy ||
-        this.data.activeId ||
-        (input as { method?: string })?.method !== "codex_subscription"
-      )
-        throw new Error("请使用 Pi 模型连接");
-      await this.legacy.save(input);
-      this.generation++;
-      this.state.checkIsCurrent = false;
-      this.changed();
-      return;
-    }
     return this.serial(async () => {
       if (this.closed || this.loginAbort) throw new Error("请等待认证完成");
       const value = nativeSaveModelSchema.parse(input);
@@ -735,7 +722,6 @@ export class ModelService {
           ]),
         ],
       };
-      await this.legacy?.prepareRetirement();
       await this.store.save(next);
       this.data = next;
       this.drafts.delete(connection.id);
@@ -746,7 +732,6 @@ export class ModelService {
       this.state.message = "已保存，新连接将用于后续任务";
       this.changed();
       // Old leases own the remaining cleanup reference until their tasks finish.
-      await this.legacy?.retire();
       await this.retireLegacySource();
       if (replacesId) await this.cleanupRetired(replacesId);
     });
@@ -757,13 +742,7 @@ export class ModelService {
       const active = this.data.connections.find(
         (c) => c.id === this.data.activeId,
       );
-      if (!active) {
-        if (!this.legacy) throw new Error("请先保存模型连接");
-        return {
-          ...(await this.legacy.acquire()),
-          generation: this.generation,
-        };
-      }
+      if (!active) throw new Error("请先保存模型连接");
       const runtime = await this.runtime(active.id);
       const model = runtime.getModel(active.providerId, active.modelId);
       if (
@@ -807,7 +786,6 @@ export class ModelService {
       return {
         config,
         generation: this.generation,
-        refreshCredential: async () => "",
         release: async () => {
           if (released) return;
           released = true;
@@ -930,7 +908,6 @@ export class ModelService {
     await this.cancelLogin();
     await this.checking;
     await this.pending;
-    await this.legacy?.close();
     for (const id of this.drafts)
       await rm(join(this.dependencies.root, "connections", id), {
         recursive: true,

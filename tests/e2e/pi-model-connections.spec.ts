@@ -1,11 +1,15 @@
 // Failure cases for the native Pi connection boundary:
+// - Built-in and custom setup appear together or share an unsaved selection.
+// - Switching setup changes the active connection or loses custom input.
+// - Restart or saved selection opens a custom connection as built-in setup.
 // - Provider/model choices drift from the installed Pi catalog or lose valid IDs.
 // - API-key, browser OAuth, device-code, and cancelled prompts use vendor UI branches.
 // - A provider switch reuses another connection's credential or changes a running lease.
 // - Reauthorization drops saved model/options or leaves the replaced credential behind.
 // - Unsupported reasoning is silently raised, or selected options miss either Agent path.
 // - Advanced Pi API options silently disappear through the simple request path.
-// - A failed/cancelled native login replaces a working legacy Codex connection.
+// - Old Codex settings reappear in the UI or prevent native Pi login.
+// - A failed/cancelled native login activates an unsaved connection.
 // - Refresh races, Stop, or restart lose a rotated credential.
 // - Quitting during a catalog refresh interrupts native credential persistence.
 // - Migrated generic API settings lose their endpoint, key, model, or task behavior.
@@ -27,8 +31,7 @@ import {
   rm,
   stat,
 } from "node:fs/promises";
-import { delimiter, join, resolve } from "node:path";
-import { writeCodexFixture } from "../codex-cli-fixture";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
@@ -165,7 +168,26 @@ test("native Pi UI, reasoning, API options, leases, and restart share one model 
         ),
       ),
     ).toBe(true);
-    await page.getByText("自定义 Pi 模型目录", { exact: true }).click();
+    const builtinMode = page.getByRole("button", {
+      name: "内置供应商",
+      exact: true,
+    });
+    const customMode = page.getByRole("button", {
+      name: "自定义供应商",
+      exact: true,
+    });
+    await expect(builtinMode).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByLabel("Pi models.json", { exact: true }),
+    ).toHaveCount(0);
+    await customMode.click();
+    await expect(customMode).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByRole("combobox", { name: "供应商", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "保存连接", exact: true }),
+    ).toHaveCount(0);
     const catalog = {
       providers: {
         "fixture-provider": {
@@ -192,12 +214,76 @@ test("native Pi UI, reasoning, API options, leases, and restart share one model 
     await page
       .getByLabel("Pi models.json", { exact: true })
       .fill(JSON.stringify(catalog));
+    await builtinMode.click();
+    await expect(
+      page.getByLabel("Pi models.json", { exact: true }),
+    ).toHaveCount(0);
+    await customMode.click();
+    await expect(
+      page.getByLabel("Pi models.json", { exact: true }),
+    ).toHaveValue(JSON.stringify(catalog));
+    await page.getByLabel("Pi models.json", { exact: true }).fill("{");
+    await page
+      .getByRole("button", { name: "载入 Pi 目录", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toBeVisible();
+    expect((await modelView(page)).current).toBeNull();
+    await page
+      .getByLabel("Pi models.json", { exact: true })
+      .fill(JSON.stringify(catalog));
+    await builtinMode.click();
+    await builtinMode.scrollIntoViewIfNeeded();
+    await page.locator(".model-settings").screenshot({
+      path: info.outputPath("builtin-provider-setup.png"),
+    });
+    await page
+      .getByRole("combobox", { name: "Language", exact: true })
+      .selectOption("en");
+    await page.locator(".model-settings").screenshot({
+      path: info.outputPath("builtin-provider-setup-en.png"),
+    });
+    await page
+      .getByRole("button", { name: "Custom provider", exact: true })
+      .click();
+    await page.locator(".model-settings").screenshot({
+      path: info.outputPath("custom-provider-setup-en.png"),
+    });
+    await page
+      .getByRole("combobox", { name: "Language", exact: true })
+      .selectOption("zh-CN");
+    await customMode.scrollIntoViewIfNeeded();
+    await page.locator(".model-settings").screenshot({
+      path: info.outputPath("custom-provider-setup.png"),
+    });
+    const viewport = await page.evaluate(() => ({
+      width: innerWidth,
+      height: innerHeight,
+    }));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page
+      .getByLabel("Pi models.json", { exact: true })
+      .scrollIntoViewIfNeeded();
+    const bounds = await page
+      .getByLabel("Pi models.json", { exact: true })
+      .boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+    await page
+      .locator(".model-settings")
+      .screenshot({
+        path: info.outputPath("custom-provider-setup-narrow.png"),
+      });
+    await page.setViewportSize(viewport);
     await page
       .getByRole("button", { name: "载入 Pi 目录", exact: true })
       .click();
     await expect(
-      page.getByRole("combobox", { name: "供应商", exact: true }),
-    ).toHaveValue("fixture-provider");
+      page.getByRole("textbox", { name: "供应商", exact: true }),
+    ).toHaveValue("Fixture provider");
+    await expect(
+      page.getByLabel("Pi models.json", { exact: true }),
+    ).toHaveCount(0);
+    expect((await modelView(page)).selected.catalogSource).toBe("custom");
     const native = await modelView(page);
     const authType = native.providers.find(
       (p: any) => p.id === "fixture-provider",
@@ -236,6 +322,37 @@ test("native Pi UI, reasoning, API options, leases, and restart share one model 
     await expect
       .poll(async () => (await saved(profile)).connections[0]?.modelId)
       .toBe("fixture@local");
+    const firstActiveId = (await saved(profile)).activeId;
+    await builtinMode.click();
+    await expect(
+      page.getByRole("button", { name: "保存连接", exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("combobox", { name: "供应商", exact: true })
+      .selectOption("openai-codex");
+    expect((await modelView(page)).current.connectionId).toBe(firstActiveId);
+    await customMode.click();
+    await expect(
+      page.getByRole("button", { name: "保存连接", exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("combobox", { name: "已保存的连接", exact: true })
+      .selectOption(firstActiveId);
+    await expect(customMode).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByRole("textbox", { name: "供应商", exact: true }),
+    ).toHaveValue("Fixture provider");
+    await page.getByRole("button", { name: "新建连接", exact: true }).click();
+    await expect(
+      page.getByLabel("Pi models.json", { exact: true }),
+    ).toBeVisible();
+    expect((await modelView(page)).current.connectionId).toBe(firstActiveId);
+    await page
+      .getByRole("combobox", { name: "已保存的连接", exact: true })
+      .selectOption(firstActiveId);
+    await expect(
+      page.getByRole("textbox", { name: "供应商", exact: true }),
+    ).toHaveValue("Fixture provider");
     const store = await saved(profile),
       id = store.activeId;
     const authFile = join(profile, "pi", "connections", id, "auth.json");
@@ -404,6 +521,12 @@ test("native Pi UI, reasoning, API options, leases, and restart share one model 
     await expect(
       page.getByLabel("Pi API options JSON", { exact: true }),
     ).toHaveValue(/reasoningEffort/);
+    await expect(
+      page.getByRole("button", { name: "自定义供应商", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByRole("combobox", { name: "供应商", exact: true }),
+    ).toHaveCount(0);
     const beforeReauthorization = (await saved(profile)).connections[0];
     await page
       .getByRole("button", { name: authType.name, exact: true })
@@ -456,15 +579,13 @@ test("native Pi UI, reasoning, API options, leases, and restart share one model 
   }
 });
 
-test("legacy Codex survives cancelled and failed native auth, then migrates atomically", async ({}, info) => {
+test("old Codex settings stay inactive while native Pi auth saves and restarts", async ({}, info) => {
   test.setTimeout(120_000);
   const root = await mkdtemp(join(tmpdir(), "postrove-pi-codex-"));
   const profile = join(root, "profile"),
-    bin = join(root, "bin"),
     authId = "12345678-1234-4234-8234-123456789012";
   const home = join(profile, "model-auth", authId);
   await mkdir(home, { recursive: true });
-  await mkdir(bin);
   const old = { method: "codex_subscription", modelId: "gpt-6-luna", authId };
   await writeFile(join(profile, "model-connection.json"), JSON.stringify(old));
   await writeFile(
@@ -474,17 +595,12 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
       tokens: { access_token: "fictional-old-token" },
     }),
   );
-  await writeCodexFixture(bin, [
-    { model: "gpt-6-luna", displayName: "Fixture" },
-  ]);
   let app: ElectronApplication | undefined;
   try {
-    let launched = await launch(profile, {
-      PATH: `${bin}${delimiter}${process.env.PATH}`,
-    });
+    let launched = await launch(profile, { PATH: pathWithoutCodex });
     app = launched.app;
     let page = launched.page;
-    expect((await modelView(page)).current.method).toBe("codex_subscription");
+    expect((await modelView(page)).current).toBeNull();
     await app.evaluate(() => {
       const actualFetch = globalThis.fetch;
       (globalThis as any).__piFixtureSuccess = false;
@@ -528,9 +644,22 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
         throw new Error("Unexpected fixture OAuth request");
       };
     });
+    await expect(
+      page.getByText("迁移现有 Codex 连接", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "用 Pi 连接 Codex", exact: true }),
+    ).toHaveCount(0);
+    const rejected = await page.evaluate(() =>
+      window.postrove.saveModel({
+        method: "codex_subscription",
+        modelId: "gpt-6-luna",
+      } as any),
+    );
+    expect(rejected.ok).toBe(false);
     await page
-      .getByRole("button", { name: "用 Pi 连接 Codex", exact: true })
-      .click();
+      .getByRole("combobox", { name: "供应商", exact: true })
+      .selectOption("openai-codex");
     const begin = async (method: "browser" | "device_code") => {
       const view = await modelView(page);
       const auth = view.providers
@@ -549,7 +678,7 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
     await expect(
       page.getByRole("button", { name: "打开认证页面", exact: true }),
     ).toBeVisible();
-    expect((await modelView(page)).current.method).toBe("codex_subscription");
+    expect((await modelView(page)).current).toBeNull();
     await page.getByRole("button", { name: "取消登录", exact: true }).click();
     await expect(
       page.getByText("登录已取消，原连接继续使用", { exact: true }),
@@ -565,7 +694,7 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
         exact: true,
       }),
     ).toBeVisible();
-    expect((await modelView(page)).current.method).toBe("codex_subscription");
+    expect((await modelView(page)).current).toBeNull();
     expect(await stat(join(home, "auth.json"))).toBeTruthy();
     await app.evaluate(() => {
       (globalThis as any).__piFixtureSuccess = true;
@@ -573,7 +702,7 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
     await begin("device_code");
     await expect(page.getByText("认证已配置", { exact: false })).toBeVisible();
     // Successful authorization is staged until the user saves the chosen model.
-    expect((await modelView(page)).current.method).toBe("codex_subscription");
+    expect((await modelView(page)).current).toBeNull();
     const view = await modelView(page);
     const target =
       view.models.find((m: any) => m.id === old.modelId) ?? view.models[0];
@@ -582,7 +711,7 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
       .selectOption(target.id);
     await page.getByRole("button", { name: "保存连接", exact: true }).click();
     await expect
-      .poll(async () => (await modelView(page)).current.method)
+      .poll(async () => (await modelView(page)).current?.method)
       .toBe("pi");
     const data = await saved(profile),
       native = data.connections.find((c: any) => c.id === data.activeId);
@@ -602,19 +731,74 @@ test("legacy Codex survives cancelled and failed native auth, then migrates atom
     expect(JSON.stringify(await modelView(page))).not.toContain(
       "fictional-native-refresh",
     );
-    await expect
-      .poll(async () =>
-        stat(home).then(
-          () => true,
-          () => false,
-        ),
-      )
-      .toBe(false);
-    await info.attach("codex-migration", {
+    expect(await stat(join(home, "auth.json"))).toBeTruthy();
+    await page
+      .getByRole("heading", { name: "模型连接", exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: info.outputPath("pi-settings-without-legacy.png"),
+      fullPage: true,
+    });
+    await page
+      .getByRole("combobox", { name: "Language", exact: true })
+      .selectOption("en");
+    await expect(
+      page.getByRole("heading", { name: "Model connection", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Migrate the existing Codex connection", { exact: true }),
+    ).toHaveCount(0);
+    await page.screenshot({
+      path: info.outputPath("pi-settings-without-legacy-en.png"),
+      fullPage: true,
+    });
+    await info.attach("ui-copy-review", {
       body: JSON.stringify(
         {
-          before: old.method,
-          after: native,
+          languages: ["zh-CN", "en"],
+          addedOrExpandedMessages: [
+            {
+              copy: "内置供应商 / 自定义供应商",
+              translations: "Built-in provider / Custom provider",
+              source: "explicit user approval",
+              placement: "parallel connection setup selector",
+              trigger: "Settings model connection",
+            },
+            {
+              copy: "连接方式",
+              translation: "Connection method",
+              source: "required operation",
+              placement: "accessible setup selector group name",
+              trigger: "choose a setup method",
+            },
+            {
+              copy: "新建连接",
+              translation: "New connection",
+              source: "existing copy",
+              placement: "button beside saved connection selector",
+              trigger: "start another connection",
+            },
+          ],
+          removed: [
+            "legacy migration card",
+            "legacy model selector",
+            "legacy reconnect action",
+          ],
+          retained: "existing native Pi controls and custom catalog copy",
+        },
+        null,
+        2,
+      ),
+      contentType: "application/json",
+    });
+    await page
+      .getByRole("combobox", { name: "Language", exact: true })
+      .selectOption("zh-CN");
+    await info.attach("native-codex-connection", {
+      body: JSON.stringify(
+        {
+          oldConnectionActive: false,
+          native,
           nativeCredentialFields: Object.keys(credentials["openai-codex"]),
         },
         null,

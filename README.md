@@ -40,7 +40,7 @@ Installation packages are available for macOS Apple silicon.
 
 1. Install Google Chrome.
 2. Download the DMG from [GitHub Releases](https://github.com/huggon1/postrove/releases), move Postrove into Applications, and open it. Packages use a project signature; macOS may require System Settings → Privacy & Security → Open Anyway on first launch.
-3. In Settings, select a Pi provider, complete its authentication, and save a model connection. Then sign in to your selected platforms. Existing Codex connections offer a one-time migration to native Pi login.
+3. In Settings, select a Pi provider, complete its authentication, and save a model connection. Then sign in to your selected platforms.
 4. Enter a question in Search or add a link in Content → Parsed content. For bot forwarding, configure Telegram or Feishu and authorize your chat in Settings. Feishu supports official scan-to-create registration or an existing app with direct-message, sending, and history permissions.
 
 Reports and website sessions are stored locally. Tasks send related questions and materials to your configured model. Later versions can be downloaded and installed through Settings → Application updates.
