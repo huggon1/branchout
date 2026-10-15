@@ -65,7 +65,6 @@ export class PlatformAccess {
     url: string,
     config: ModelExecutionConfig,
     signal: AbortSignal,
-    refreshCredential?: () => Promise<string>,
     includeReferences = true,
     onProgress?: (
       materials: ReadingMaterial[],
@@ -90,7 +89,6 @@ export class PlatformAccess {
       materialCollectionInstruction(url, includeReferences, browserUrl.href),
       signal,
       "collect",
-      refreshCredential,
     );
     const main = result.output.materials[0];
     if (main.role !== "main" || main.url !== url)
@@ -238,7 +236,6 @@ export class PlatformAccess {
             material.url,
             config,
             signal,
-            refreshCredential,
             false,
           );
           material.source = collected[0].source;
@@ -258,7 +255,6 @@ export class PlatformAccess {
     section: SearchSection,
     config: ModelExecutionConfig,
     signal: AbortSignal,
-    refreshCredential?: () => Promise<string>,
     taskId = section.sectionId,
     onProgress?: (progress: SearchProgress) => Promise<void>,
   ) {
@@ -269,7 +265,6 @@ export class PlatformAccess {
       platformSearchInstruction(section.platform, section.prompt),
       signal,
       "search",
-      refreshCredential,
       onProgress,
     );
     if (

@@ -33,40 +33,15 @@ export const apiSettingsSchema = z
     apiKey: z.string().min(1).max(8192).optional(),
   })
   .strict();
-export const codexSettingsSchema = z
-  .object({ method: z.literal("codex_subscription"), modelId })
-  .strict();
-export const legacySaveModelSchema = z.discriminatedUnion("method", [
-  apiSettingsSchema,
-  codexSettingsSchema,
-]);
 export interface ModelOption {
   id: string;
   name: string;
   compatible: boolean;
 }
-export interface LegacyModelView {
-  current: {
-    method: "generic_api" | "codex_subscription";
-    modelId: string;
-    baseUrl?: string;
-    api?: "openai-responses" | "openai-completions";
-    hasCredential: boolean;
-  } | null;
-  auth: "signed_out" | "logging_in" | "signed_in" | "unavailable";
-  accountLabel?: string;
-  catalog: "empty" | "ready" | "failed";
-  models: ModelOption[];
-  message: string;
-  check: "idle" | "running" | "passed" | "failed" | "cancelled";
-  checkFailure?: FailureCode;
-  checkModelId?: string;
-  checkIsCurrent?: boolean;
-}
 // Only crosses the private main/worker channel; never included in persisted task state.
 const legacyExecutionSchema = z
   .object({
-    method: z.enum(["generic_api", "codex_subscription"]),
+    method: z.literal("generic_api"),
     modelId,
     baseUrl: baseUrlSchema.optional(),
     api: z.enum(["openai-responses", "openai-completions"]).optional(),
@@ -174,10 +149,7 @@ export const nativeSaveModelSchema = z
     options: piOptionsSchema,
   })
   .strict();
-export const saveModelSchema = z.union([
-  nativeSaveModelSchema,
-  legacySaveModelSchema,
-]);
+export const saveModelSchema = nativeSaveModelSchema;
 export type SaveModelInput = z.infer<typeof saveModelSchema>;
 export interface PiModelOption extends ModelOption {
   thinkingLevels: ThinkingLevel[];
@@ -187,24 +159,22 @@ export interface PiModelOption extends ModelOption {
   input: string[];
 }
 export interface ProviderOption {
+  builtin: boolean;
   id: string;
   name: string;
   authMethods: { type: LoginModelInput["authType"]; name: string }[];
   modelCount: number;
 }
 export interface ModelView {
-  current:
-    | (LegacyModelView["current"] & {})
-    | {
-        method: "pi";
-        connectionId: string;
-        providerId: string;
-        modelId: string;
-        hasCredential: boolean;
-        name: string;
-        options: PiOptions;
-      }
-    | null;
+  current: {
+    method: "pi";
+    connectionId: string;
+    providerId: string;
+    modelId: string;
+    hasCredential: boolean;
+    name: string;
+    options: PiOptions;
+  } | null;
   providers: ProviderOption[];
   connections: {
     id: string;
@@ -213,6 +183,7 @@ export interface ModelView {
     modelId: string;
   }[];
   selected?: {
+    catalogSource: "builtin" | "custom";
     id: string;
     providerId: string;
     name: string;
@@ -220,7 +191,7 @@ export interface ModelView {
     options: PiOptions;
   };
   models: PiModelOption[];
-  auth: LegacyModelView["auth"];
+  auth: "signed_out" | "logging_in" | "signed_in" | "unavailable";
   authSource?: string;
   authPrompt?: {
     id: string;
@@ -238,11 +209,9 @@ export interface ModelView {
     | { type: "auth_url"; url: string; instructions?: string }
     | { type: "device_code"; userCode: string; verificationUri: string }
   )[];
-  catalog: LegacyModelView["catalog"];
+  catalog: "empty" | "ready" | "failed";
   message: string;
-  migration?: "legacy_codex";
-  legacy?: LegacyModelView;
-  check: LegacyModelView["check"];
+  check: "idle" | "running" | "passed" | "failed" | "cancelled";
   checkFailure?: FailureCode;
   checkModelId?: string;
   checkIsCurrent?: boolean;

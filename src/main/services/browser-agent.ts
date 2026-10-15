@@ -51,7 +51,6 @@ export class BrowserAgent {
     prompt: string,
     signal: AbortSignal,
     purpose: "search" | "collect" = "search",
-    refreshCredential?: () => Promise<string>,
     onSearchProgress?: (progress: SearchProgress) => Promise<void>,
   ) {
     await mkdir(this.traceRoot, { recursive: true, mode: 0o700 });
@@ -385,39 +384,7 @@ export class BrowserAgent {
         signal.addEventListener("abort", abort, { once: true });
         worker.on("exit", () => finish(new Error("Browser worker stopped")));
         worker.on("message", (data) => {
-          if (data?.type === "credential_request") {
-            void (
-              refreshCredential
-                ? refreshCredential()
-                : Promise.resolve(config.credential)
-            )
-              .then((credential) => {
-                let expiresAt = 0;
-                try {
-                  expiresAt =
-                    JSON.parse(
-                      Buffer.from(
-                        credential.split(".")[1],
-                        "base64url",
-                      ).toString("utf8"),
-                    ).exp * 1000;
-                } catch {}
-                if (!done)
-                  worker.postMessage({
-                    type: "browser_result",
-                    requestId: data.requestId,
-                    value: { accessToken: credential, expiresAt },
-                  });
-              })
-              .catch(() => {
-                if (!done)
-                  worker.postMessage({
-                    type: "browser_result",
-                    requestId: data.requestId,
-                    error: "Model credential refresh failed",
-                  });
-              });
-          } else if (data?.type === "search_reply") {
+          if (data?.type === "search_reply") {
             void (async () => {
               const capture = captureData.get(data.output.replyCaptureId);
               if (

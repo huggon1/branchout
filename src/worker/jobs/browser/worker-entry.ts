@@ -100,8 +100,6 @@ port.on("message", ({ data }) => {
         browserSystem +
         '\nUse the browser tool to execute the task before returning its result. Observed sign-in, verification, access limits, or account/terms confirmation return JSON {"error":"login_required|verification_required|access_limited|action_required"}, selecting the actual code. Account linking and agreement belong to the user. Recover incomplete browser actions with fresh observations before returning {"error":"browser_interaction_failed"}. A successful answer includes a real capture ID.',
       browserTools: tools,
-      codexTokenProvider: () =>
-        request("credential_request", `credential-${Date.now()}`, {}),
     });
     const runPhase = async (
       initialPrompt: string,

@@ -123,7 +123,6 @@ let browser: PlatformBrowser;
         credential: "fictional",
       },
       new AbortController().signal,
-      undefined,
       true,
       async (materials, changedId) => {
         progress.push({ materials, changedId });
@@ -178,7 +177,6 @@ let browser: PlatformBrowser;
         credential: "fictional",
       },
       new AbortController().signal,
-      undefined,
       false,
       undefined,
       input.accessToken,
@@ -240,7 +238,6 @@ let browser: PlatformBrowser;
       },
       new AbortController().signal,
       undefined,
-      undefined,
       async (value) => {
         progress.push(value);
       },
@@ -258,7 +255,6 @@ let browser: PlatformBrowser;
           credential: "fictional",
         },
         new AbortController().signal,
-        undefined,
         false,
       )
     )[0].source;
@@ -285,7 +281,6 @@ let browser: PlatformBrowser;
           credential: "fictional",
         },
         new AbortController().signal,
-        undefined,
         false,
         undefined,
         "fictional-recovery",
@@ -448,7 +443,6 @@ app.whenReady().then(async () => {
                 credential: "fictional",
               },
               signal,
-              undefined,
               taskId,
               async (value) => {
                 progress.push(structuredClone(value));
@@ -504,7 +498,6 @@ app.whenReady().then(async () => {
         credential: "fictional",
       },
       new AbortController().signal,
-      undefined,
       undefined,
       async (value) => {
         progress.push(structuredClone(value));
@@ -608,7 +601,6 @@ app.whenReady().then(async () => {
         credential: "fictional",
       },
       new AbortController().signal,
-      undefined,
       undefined,
       async (value) => {
         progress.push(structuredClone(value));
@@ -730,10 +722,9 @@ app.whenReady().then(async () => {
             args[1],
             args[2],
             args[3],
+            args[5],
             args[4],
             args[6],
-            args[5],
-            args[7],
           ),
         spawn: () => {
           throw new Error("A rejected source must stop before translation");
@@ -767,7 +758,6 @@ app.whenReady().then(async () => {
       },
       config,
       new AbortController().signal,
-      undefined,
       undefined,
       async (value) => {
         progress.push(structuredClone(value));
