@@ -329,9 +329,6 @@ export function TelegramSettings(props: TelegramSettingsProps) {
                   "现在可以向已授权聊天发送一条 HTTPS 链接。Bot 确认收取后，在内容中查看解析结果，在顶部任务面板查看进度。",
                 )}
               </p>
-              <p className="muted">
-                {t("此处显示连接与授权配置。链接处理状态保存在内容和任务中。")}
-              </p>
               <div className="settings-actions">
                 <button
                   className="button button-quiet"

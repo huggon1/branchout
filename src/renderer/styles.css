@@ -1083,29 +1083,6 @@ textarea {
   color: var(--muted);
   font-size: 10px;
 }
-.source-capability-list {
-  display: grid;
-  gap: 7px;
-  margin-bottom: 15px;
-}
-.source-capability {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 11px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-}
-.source-capability strong {
-  font-size: 11px;
-}
-.source-capability p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.45;
-}
 .platform-settings {
   margin-top: 14px;
 }

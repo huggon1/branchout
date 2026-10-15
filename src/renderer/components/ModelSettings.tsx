@@ -244,7 +244,6 @@ export function ModelSettings() {
         >
           {t("保存连接")}
         </Button>
-        <span>{t("新连接将用于后续任务")}</span>
       </div>
       {error && (
         <p role="alert" className="model-error">

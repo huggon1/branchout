@@ -429,9 +429,6 @@ export function App() {
         {page === "search" && (
           <section className="search-home">
             <h1>{t("搜索")}</h1>
-            <p className="muted">
-              {t("发起一轮搜索，或把当前条件保存为关注。")}
-            </p>
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -527,11 +524,6 @@ export function App() {
                   {t("保存为关注")}
                 </button>
               </div>
-              <p className="muted support-note">
-                {t(
-                  "Gemini / YouTube 暂未接入。时间范围由平台 AI 按问题理解，报告保留实际取得的结果。",
-                )}
-              </p>
             </form>
           </section>
         )}
