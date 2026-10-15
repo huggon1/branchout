@@ -127,6 +127,9 @@ test("record deletion preserves independent results and persists undo and visibi
       page.getByText("已保存的来源正文。", { exact: true }),
     ).toHaveCount(0);
     await expect(
+      page.getByRole("textbox", { name: "原文链接", exact: true }),
+    ).toBeFocused();
+    await expect(
       page.getByRole("button", { name: "撤销", exact: true }).first(),
     ).toBeVisible();
     await page.screenshot({ path: info.outputPath("deletion-undo.png") });

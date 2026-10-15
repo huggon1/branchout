@@ -9,6 +9,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -84,6 +85,9 @@ export function App() {
   const [drawer, setDrawer] = useState(false);
   const navToggle = useRef<HTMLButtonElement>(null);
   const navPanel = useRef<HTMLElement>(null);
+  const pageContent = useRef<HTMLDivElement>(null);
+  const resultIndex = useRef<HTMLElement>(null);
+  const [listFocusRequest, setListFocusRequest] = useState(0);
   const [contentOpen, setContentOpen] = useState(true);
   const [content, setContent] = useState<UiContentWorkspace>();
   const [settings, setSettings] = useState<UiSettings>();
@@ -219,10 +223,27 @@ export function App() {
   }
   const navigate = (next: Page) => {
     setPage(next);
+    if (next === "parsed" || next === "reports") setContentOpen(true);
     setDrawer(false);
     setReaderOpen(false);
     setError("");
+    requestAnimationFrame(() => pageContent.current?.focus());
   };
+  const returnToList = () => {
+    setReaderOpen(false);
+    setListFocusRequest((request) => request + 1);
+  };
+  useLayoutEffect(() => {
+    if (listFocusRequest) focusResultList();
+  }, [listFocusRequest]);
+  function focusResultList() {
+    const index = resultIndex.current;
+    const target =
+      index?.querySelector<HTMLElement>('.result-row[aria-current="true"]') ??
+      index?.querySelector<HTMLElement>("input, button");
+    if (target?.getClientRects().length) target.focus();
+    else pageContent.current?.focus();
+  }
   const tasks = (content?.tasks ?? []).map((task) => {
     const report = reports.find((r) => r.taskId === task.taskId);
     return report
@@ -284,14 +305,18 @@ export function App() {
       if (record.kind === "parsed" && reading?.materialId === record.id)
         setSelectedContent(next);
 
-      if (!next) setReaderOpen(false);
-      requestAnimationFrame(() =>
-        document
-          .querySelector<HTMLElement>(
-            '.task-panel:popover-open .source-tabs button[aria-pressed="true"], .result-index .result-row[aria-current="true"], .result-index h1',
-          )
-          ?.focus(),
-      );
+      if (record.kind === "task") {
+        requestAnimationFrame(() =>
+          document
+            .querySelector<HTMLElement>(
+              '.task-panel:popover-open .source-tabs button[aria-pressed="true"]',
+            )
+            ?.focus(),
+        );
+      } else {
+        if (!next) setReaderOpen(false);
+        setListFocusRequest((request) => request + 1);
+      }
     }
     return ok;
   }
@@ -305,28 +330,13 @@ export function App() {
     />
   );
   const back = (
-    <button
-      className="button button-quiet"
-      onClick={() => setReaderOpen(false)}
-    >
+    <button className="button button-quiet" onClick={returnToList}>
       {t("返回列表")}
     </button>
   );
 
   return (
     <div className={`refactor-shell ${drawer ? "drawer-open" : ""}`}>
-      <header className="compact-header">
-        <button
-          className="icon-button"
-          ref={navToggle}
-          aria-label={t("打开导航")}
-          aria-expanded={drawer}
-          onClick={() => setDrawer(!drawer)}
-        >
-          <List size={20} />
-        </button>
-        <Brand />
-      </header>
       {drawer && (
         <button
           className="nav-scrim"
@@ -341,10 +351,21 @@ export function App() {
           <button
             className="nav-item"
             aria-expanded={contentOpen}
+            aria-current={
+              !contentOpen && (page === "parsed" || page === "reports")
+                ? "page"
+                : undefined
+            }
             onClick={() => setContentOpen(!contentOpen)}
           >
             <BookOpen size={18} />
-            <span>{t("内容")}</span>
+            <span>
+              {t(
+                !contentOpen && (page === "parsed" || page === "reports")
+                  ? labels[page]
+                  : "内容",
+              )}
+            </span>
             <CaretRight
               className={`nav-chevron ${contentOpen ? "open" : ""}`}
               size={14}
@@ -373,9 +394,20 @@ export function App() {
           </button>
         )}
       </aside>
-      <main className="refactor-main">
+      <main className="refactor-main" aria-labelledby="workspace-title">
         <header className="workspace-header">
-          <span>{t(labels[page])}</span>
+          <button
+            className="icon-button nav-toggle"
+            ref={navToggle}
+            aria-label={t("打开导航")}
+            aria-expanded={drawer}
+            onClick={() => setDrawer(!drawer)}
+          >
+            <List size={20} />
+          </button>
+          <h1 id="workspace-title" className="workspace-title">
+            {t(labels[page])}
+          </h1>
           <TaskPanel
             tasks={tasks}
             open={tasksOpen}
@@ -397,549 +429,575 @@ export function App() {
             }}
           />
         </header>
-        {!!undo.length && (
-          <div className="undo-stack" aria-label={t("删除操作")}>
-            {undo.map((operation) => (
-              <div
-                className="undo-notice"
-                role="status"
-                key={operation.operationId}
-              >
-                <span>{tf("已删除 {0} 条记录", operation.records.length)}</span>
-                <button
-                  className="text-button"
-                  onClick={() =>
-                    void run(() => bridge.undoDeletion(operation.operationId))
-                  }
+        <div
+          className="workspace-body"
+          key={page}
+          ref={pageContent}
+          tabIndex={-1}
+        >
+          {!!undo.length && (
+            <div className="undo-stack" aria-label={t("删除操作")}>
+              {undo.map((operation) => (
+                <div
+                  className="undo-notice"
+                  role="status"
+                  key={operation.operationId}
                 >
-                  {t("撤销")}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {error && (
-          <div className="global-alert" role="alert">
-            <span>{error}</span>
-            <button aria-label={t("关闭提示")} onClick={() => setError("")}>
-              ×
-            </button>
-          </div>
-        )}
-        {page === "search" && (
-          <section className="search-home">
-            <h1>{t("搜索")}</h1>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(
-                  () =>
-                    bridge.startFocusSearch({
-                      question: question.trim(),
-                      platforms: selectedPlatforms,
-                      period,
-                    }),
-                  "已添加搜索任务",
-                );
-              }}
-            >
-              <div className="search-composer">
-                <label className="sr-only" htmlFor="search-question">
-                  {t("问题")}
-                </label>
-                <textarea
-                  id="search-question"
-                  placeholder={t("想找什么讨论？")}
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  required
-                  maxLength={12000}
-                />
-                <div className="search-conditions">
-                  <fieldset>
-                    <legend className="sr-only">{t("平台")}</legend>
-                    {platforms.map((p) => (
-                      <label className="condition-chip" key={p.id}>
-                        <input
-                          type="checkbox"
-                          checked={selectedPlatforms.includes(p.id)}
-                          onChange={(e) =>
-                            setSelectedPlatforms((values) =>
-                              e.target.checked
-                                ? [...values, p.id]
-                                : values.filter((v) => v !== p.id),
-                            )
-                          }
-                        />
-                        {p.name}
-                      </label>
-                    ))}
-                  </fieldset>
-                  <fieldset className="period-segments">
-                    <legend className="sr-only">{t("内容时间范围")}</legend>
-                    {periods.map((p) => (
-                      <label
-                        className={period === p.id ? "chosen" : ""}
-                        key={p.id}
-                      >
-                        <input
-                          className="sr-only"
-                          type="radio"
-                          name="period"
-                          checked={period === p.id}
-                          onChange={() => setPeriod(p.id)}
-                        />
-                        {t(p.name)}
-                      </label>
-                    ))}
-                  </fieldset>
-                </div>
-              </div>
-              <div className="search-actions">
-                <button
-                  className="button button-primary"
-                  disabled={
-                    busy || !question.trim() || !selectedPlatforms.length
-                  }
-                >
-                  {t("搜索")}
-                </button>
-                <button
-                  type="button"
-                  className="button"
-                  disabled={
-                    busy || !question.trim() || !selectedPlatforms.length
-                  }
-                  onClick={() =>
-                    setFollowDraft({
-                      input: {
-                        question,
-                        platforms: selectedPlatforms,
-                        period,
-                        schedule: { cadence: "daily", time: "08:30" },
-                      },
-                    })
-                  }
-                >
-                  {t("保存为关注")}
-                </button>
-              </div>
-            </form>
-          </section>
-        )}
-        {page === "reports" && (
-          <div className={`refactor-workspace ${readerOpen ? "reading" : ""}`}>
-            <aside className="result-index">
-              <h1 tabIndex={-1}>{t("搜索结果")}</h1>
-              <div className="source-tabs" role="group" aria-label={t("来源")}>
-                {[
-                  ["all", "全部"],
-                  ["manual", "手动搜索"],
-                  ["follow", "关注运行"],
-                ].map(([id, name]) => (
+                  <span>
+                    {tf("已删除 {0} 条记录", operation.records.length)}
+                  </span>
                   <button
-                    key={id}
-                    aria-pressed={source === id}
-                    onClick={() => {
-                      setSource(id);
-                      setReaderOpen(false);
-                    }}
-                  >
-                    {t(name)}
-                  </button>
-                ))}
-              </div>
-              {displayedReports.map((r) => (
-                <div className="result-item" key={r.reportId}>
-                  <button
-                    className="result-row"
-
-                    aria-current={
-                      report?.reportId === r.reportId ? "true" : undefined
+                    className="text-button"
+                    onClick={() =>
+                      void run(() => bridge.undoDeletion(operation.operationId))
                     }
-                    onClick={() => {
-                      setSelectedReport(r.reportId);
-                      setReaderOpen(true);
-                    }}
                   >
-                    <strong>{title(r)}</strong>
-                    <small>
-                      {t(r.origin === "follow" ? "关注" : "手动搜索")} ·{" "}
-                      {status(r.status ?? "completed")} ·{" "}
-                      {dateTime(r.createdAt)}
-                    </small>
+                    {t("撤销")}
                   </button>
-                  {recordActions(
-                    { kind: "search", id: r.reportId },
-                    title(r),
-                    ["queued", "running"].includes(r.status ?? ""),
-                  )}
                 </div>
               ))}
-              {!displayedReports.length && (
-                <p className="empty-copy">{t("搜索结果会保存在这里。")}</p>
-              )}
-            </aside>
-            <section className="result-reader">
-              {report ? (
-                <>
-                  <div className="reader-tools">
-                    {back}
-                    {recordActions(
-                      { kind: "search", id: report.reportId },
-                      title(report),
-                      ["queued", "running"].includes(report.status ?? ""),
-                    )}
-                  </div>
-                  <h1>{title(report)}</h1>
-                  <p className="muted">
-                    {t(report.origin === "follow" ? "关注运行" : "手动搜索")} ·{" "}
-                    {report.platforms
-                      .map((p) => platforms.find((x) => x.id === p)?.name)
-                      .join("、")}{" "}
-                    · {status(report.status ?? "completed")}
-                  </p>
-                  {["queued", "running"].includes(report.status ?? "") && (
-                    <button
-                      className="button"
-                      disabled={busy}
-                      onClick={() => void stop(report.taskId)}
-                    >
-                      {t("停止")}
-                    </button>
-                  )}
-                  {report.sections.map((section) => (
-                    <section
-                      className="platform-section"
-                      key={section.sectionId}
-                    >
-                      <header>
-                        <h2>
-                          {
-                            platforms.find((p) => p.id === section.platform)
-                              ?.name
-                          }
-                        </h2>
-                        <span className="muted">{status(section.state)}</span>
-                      </header>
-                      {section.error && (
-                        <p className="error-text">{t(section.error)}</p>
-                      )}
-                      {section.rawReply && (
-                        <Markdown>{section.rawReply}</Markdown>
-                      )}
-                      {section.rawReply &&
-                        ["pending", "running"].includes(
-                          section.citationExtraction?.state ?? "",
-                        ) && <p className="muted">{t("正在提取引用帖子")}</p>}
-                      {section.rawReply &&
-                        section.citationExtraction?.state === "failed" && (
-                          <div className="error-text">
-                            <p>{t("引用提取未完成")}</p>
-                            {section.citationExtraction.error && (
-                              <p>{t(section.citationExtraction.error)}</p>
-                            )}
-                          </div>
-                        )}
-                      {section.rawReply &&
-                        section.citationExtraction?.state === "empty" && (
-                          <p className="muted">{t("平台回答未提供引用帖子")}</p>
-                        )}
-                      {section.warnings?.map((warning, index) => (
-                        <p className="muted" key={index}>
-                          {t(warning)}
-                        </p>
-                      ))}
-                      {section.candidates.map((candidate) => (
-                        <div className="source-row" key={candidate.candidateId}>
-                          <div>
-                            <strong>{candidate.title}</strong>
-                            <button
-                              className="source-link"
-                              onClick={() =>
-                                void run(() =>
-                                  bridge.openSearchCandidate({
-                                    reportId: report.reportId,
-                                    candidateIds: [candidate.candidateId],
-                                  }),
-                                )
-                              }
-                            >
-                              {candidate.url.split("?")[0]}
-                            </button>
-                          </div>
-                          <button
-                            className="button"
-                            disabled={
-                              busy ||
-                              report.submissions.some(
-                                (s) =>
-                                  s.postKey === candidate.postKey &&
-                                  s.submitted,
-                              )
-                            }
-                            onClick={() =>
-                              void run(async () => {
-                                const reply = await bridge.addSearchCandidates({
-                                  reportId: report.reportId,
-                                  candidateIds: [candidate.candidateId],
-                                });
-                                if (reply.ok && reply.value[0]?.error)
-                                  return {
-                                    ok: false,
-                                    message: reply.value[0].error,
-                                  };
-                                return reply;
-                              }, "已加入解析")
-                            }
-                          >
-                            {t(
-                              report.submissions.some(
-                                (s) =>
-                                  s.postKey === candidate.postKey &&
-                                  s.submitted,
-                              )
-                                ? "已加入解析"
-                                : "加入解析",
-                            )}
-                          </button>
-                        </div>
-                      ))}
-                    </section>
-                  ))}
-                </>
-              ) : (
-                <p className="empty-copy">{t("选择一条搜索结果。")}</p>
-              )}
-            </section>
-          </div>
-        )}
-        {page === "parsed" && (
-          <div
-            className={`refactor-workspace parsed-workspace ${readerOpen ? "reading" : ""}`}
-          >
-            <aside className="result-index">
-              <h1 tabIndex={-1}>{t("解析结果")}</h1>
+            </div>
+          )}
+          {error && (
+            <div className="global-alert" role="alert">
+              <span>{error}</span>
+              <button aria-label={t("关闭提示")} onClick={() => setError("")}>
+                ×
+              </button>
+            </div>
+          )}
+          {page === "search" && (
+            <section className="search-home">
               <form
-                className="add-source"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void run(() => ui.uiAddLink(url), "已添加解析任务").then(
-                    (ok) => {
-                      if (ok) setUrl("");
-                    },
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(
+                    () =>
+                      bridge.startFocusSearch({
+                        question: question.trim(),
+                        platforms: selectedPlatforms,
+                        period,
+                      }),
+                    "已添加搜索任务",
                   );
                 }}
               >
-                <input
-                  type="url"
-                  aria-label={t("原文链接")}
-                  placeholder="https://…"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  required
-                />
-                <button className="button" disabled={busy || !url.trim()}>
-                  {t("加入解析")}
-                </button>
-              </form>
-              <input
-                className="content-query"
-                aria-label={t("搜索内容")}
-                placeholder={t("搜索标题或来源")}
-                value={contentQuery}
-                onChange={(e) => setContentQuery(e.target.value)}
-              />
-              {readingReports.map((r) => (
-                <div className="result-item" key={r.materialId}>
-                  <button
-                    className="result-row"
-                    aria-current={
-                      reading?.materialId === r.materialId ? "true" : undefined
-                    }
-                    onClick={() => {
-                      setSelectedContent(r.materialId);
-                      setReaderOpen(true);
-                    }}
-                  >
-                    <strong>{r.title || r.sourceIdentity}</strong>
-                    <small>
-                      {r.platform} · {r.stageLabel || t("完成")} ·{" "}
-                      {dateTime(r.fetchedAt)}
-                    </small>
-                  </button>
-                  {recordActions(
-                    { kind: "parsed", id: r.materialId },
-                    r.title || r.sourceIdentity,
-                    live(tasks.find((t) => t.taskId === r.taskId)),
-                  )}
-                </div>
-              ))}
-              {!readingReports.length && (
-                <p className="empty-copy">
-                  {t("添加原文链接，或从搜索结果选择加入解析。")}
-                </p>
-              )}
-            </aside>
-            <section className="parsed-reader">
-              {reading ? (
-                <>
-                  <div className="reader-tools">
-                    {!tasks.some((t) => t.taskId === reading.taskId) && (
-                      <small>{t("任务记录已清除")}</small>
-                    )}
-                    {recordActions(
-                      { kind: "parsed", id: reading.materialId },
-                      reading.title,
-                      live(tasks.find((t) => t.taskId === reading.taskId)),
-                    )}
+                <div className="search-composer">
+                  <label className="sr-only" htmlFor="search-question">
+                    {t("问题")}
+                  </label>
+                  <textarea
+                    id="search-question"
+                    placeholder={t("想找什么讨论？")}
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    required
+                    maxLength={12000}
+                  />
+                  <div className="search-conditions">
+                    <fieldset>
+                      <legend className="sr-only">{t("平台")}</legend>
+                      {platforms.map((p) => (
+                        <label className="condition-chip" key={p.id}>
+                          <input
+                            type="checkbox"
+                            checked={selectedPlatforms.includes(p.id)}
+                            onChange={(e) =>
+                              setSelectedPlatforms((values) =>
+                                e.target.checked
+                                  ? [...values, p.id]
+                                  : values.filter((v) => v !== p.id),
+                              )
+                            }
+                          />
+                          {p.name}
+                        </label>
+                      ))}
+                    </fieldset>
+                    <fieldset className="period-segments">
+                      <legend className="sr-only">{t("内容时间范围")}</legend>
+                      {periods.map((p) => (
+                        <label
+                          className={period === p.id ? "chosen" : ""}
+                          key={p.id}
+                        >
+                          <input
+                            className="sr-only"
+                            type="radio"
+                            name="period"
+                            checked={period === p.id}
+                            onChange={() => setPeriod(p.id)}
+                          />
+                          {t(p.name)}
+                        </label>
+                      ))}
+                    </fieldset>
                   </div>
-                  {live(
-                    tasks.find((task) => task.taskId === reading.taskId),
-                  ) && (
-                    <button
-                      className="button stop-reading"
-                      disabled={busy}
-                      onClick={() => void stop(reading.taskId)}
-                    >
-                      {t("停止")}
-                    </button>
-                  )}
-                  {reading.materials?.length ? (
-                    <MaterialReader
-                      key={reading.materialId}
-                      report={reading}
-                      onBack={() => setReaderOpen(false)}
-                    />
-                  ) : (
-                    <div className="result-reader">
-                      {back}
-                      <h1>{reading.title}</h1>
-                      <p>{reading.taskMessage || reading.stageLabel}</p>
-                      <Markdown>{reading.summary}</Markdown>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="empty-copy">{t("选择一条解析结果。")}</p>
-              )}
-            </section>
-          </div>
-        )}
-        {page === "follows" && (
-          <section className="follow-page">
-            <h1>{t("关注")}</h1>
-            <p className="muted">
-              {t("保存的搜索条件和运行周期。应用开启时按计划运行。")}
-            </p>
-            {follows.map((f) => (
-              <article className="follow-row" key={f.followId}>
-                <h2>{f.name || f.question}</h2>
-                {f.name && f.name !== f.question && <p>{f.question}</p>}
-                <p className="muted">
-                  {f.platforms
-                    .map((p) => platforms.find((x) => x.id === p)?.name)
-                    .join("、")}{" "}
-                  · {t(periods.find((p) => p.id === f.period)?.name ?? "不限")}{" "}
-                  · {t(f.schedule.cadence === "daily" ? "每天" : "每周")}
-                  {f.schedule.cadence === "weekly"
-                    ? t(
-                        [
-                          "周日",
-                          "周一",
-                          "周二",
-                          "周三",
-                          "周四",
-                          "周五",
-                          "周六",
-                        ][f.schedule.weekday ?? 1],
-                      )
-                    : ""}{" "}
-                  {f.schedule.time} · {t(f.paused ? "已暂停" : "已启用")}
-                </p>
-                {!f.paused && f.nextRunAt && (
-                  <p className="muted">
-                    {t("下次运行")} {dateTime(f.nextRunAt)}
-                  </p>
-                )}
-                <div className="row-actions">
+                </div>
+                <div className="search-actions">
                   <button
+                    className="button button-primary"
+                    disabled={
+                      busy || !question.trim() || !selectedPlatforms.length
+                    }
+                  >
+                    {t("搜索")}
+                  </button>
+                  <button
+                    type="button"
                     className="button"
+                    disabled={
+                      busy || !question.trim() || !selectedPlatforms.length
+                    }
                     onClick={() =>
                       setFollowDraft({
                         input: {
-                          name: f.name,
-                          question: f.question,
-                          platforms: f.platforms,
-                          period: f.period,
-                          schedule: f.schedule,
+                          question,
+                          platforms: selectedPlatforms,
+                          period,
+                          schedule: { cadence: "daily", time: "08:30" },
                         },
-                        followId: f.followId,
                       })
                     }
                   >
-                    {t("编辑")}
-                  </button>
-                  <button
-                    className="button"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(() =>
-                        bridge.setFollowPaused(f.followId, !f.paused),
-                      )
-                    }
-                  >
-                    {t(f.paused ? "恢复" : "暂停")}
-                  </button>
-                  <button
-                    className="button button-quiet"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(
-                        () => bridge.deleteFollow(f.followId),
-                        "已删除关注，历史结果已保留",
-                      )
-                    }
-                  >
-                    {t("删除")}
+                    {t("保存为关注")}
                   </button>
                 </div>
-              </article>
-            ))}
-            {!follows.length && (
-              <p className="empty-copy">
-                {t("在搜索页输入问题，然后保存为关注。")}
-              </p>
-            )}
-          </section>
-        )}
-        {page === "settings" && (
-          <SettingsPage
-            onOpenContent={() => navigate("parsed")}
-            updateSection={
-              <UpdateSettings
-                updates={updates}
-                onTasks={() => setTasksOpen(true)}
-                onLater={() => navigate("search")}
-              />
-            }
-            settings={settings}
-            busy={busy}
-            onSaveTelegramToken={(token) =>
-              run(() => ui.uiSaveTelegramToken(token))
-            }
-            onClearTelegramBotToken={() =>
-              run(() => ui.uiClearTelegramBotToken())
-            }
-            onVerifyTelegramBot={() => run(() => ui.uiVerifyTelegramBot())}
-            onAuthorizeTelegramChat={(id) =>
-              run(() => ui.uiAuthorizeTelegramChat(id))
-            }
-            onRevokeTelegramChat={(id) =>
-              run(() => ui.uiRevokeTelegramChat(id))
-            }
-          />
-        )}
+              </form>
+            </section>
+          )}
+          {page === "reports" && (
+            <div
+              className={`refactor-workspace ${readerOpen ? "reading" : ""}`}
+            >
+              <aside
+                className="result-index"
+                ref={resultIndex}
+                aria-label={t("搜索结果")}
+              >
+                <div
+                  className="source-tabs"
+                  role="group"
+                  aria-label={t("来源")}
+                >
+                  {[
+                    ["all", "全部"],
+                    ["manual", "手动搜索"],
+                    ["follow", "关注运行"],
+                  ].map(([id, name]) => (
+                    <button
+                      key={id}
+                      aria-pressed={source === id}
+                      onClick={() => {
+                        setSource(id);
+                        setReaderOpen(false);
+                      }}
+                    >
+                      {t(name)}
+                    </button>
+                  ))}
+                </div>
+                {displayedReports.map((r) => (
+                  <div className="result-item" key={r.reportId}>
+                    <button
+                      className="result-row"
+
+                      aria-current={
+                        report?.reportId === r.reportId ? "true" : undefined
+                      }
+                      onClick={() => {
+                        setSelectedReport(r.reportId);
+                        setReaderOpen(true);
+                      }}
+                    >
+                      <strong>{title(r)}</strong>
+                      <small>
+                        {t(r.origin === "follow" ? "关注" : "手动搜索")} ·{" "}
+                        {status(r.status ?? "completed")} ·{" "}
+                        {dateTime(r.createdAt)}
+                      </small>
+                    </button>
+                    {recordActions(
+                      { kind: "search", id: r.reportId },
+                      title(r),
+                      ["queued", "running"].includes(r.status ?? ""),
+                    )}
+                  </div>
+                ))}
+                {!displayedReports.length && (
+                  <p className="empty-copy">{t("搜索结果会保存在这里。")}</p>
+                )}
+              </aside>
+              <section className="result-reader">
+                {report ? (
+                  <>
+                    <div className="reader-tools">
+                      {back}
+                      {recordActions(
+                        { kind: "search", id: report.reportId },
+                        title(report),
+                        ["queued", "running"].includes(report.status ?? ""),
+                      )}
+                    </div>
+                    <h2 className="reader-title">{title(report)}</h2>
+                    <p className="muted">
+                      {t(report.origin === "follow" ? "关注运行" : "手动搜索")}{" "}
+                      ·{" "}
+                      {report.platforms
+                        .map((p) => platforms.find((x) => x.id === p)?.name)
+                        .join("、")}{" "}
+                      · {status(report.status ?? "completed")}
+                    </p>
+                    {["queued", "running"].includes(report.status ?? "") && (
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => void stop(report.taskId)}
+                      >
+                        {t("停止")}
+                      </button>
+                    )}
+                    {report.sections.map((section) => (
+                      <section
+                        className="platform-section"
+                        key={section.sectionId}
+                      >
+                        <header>
+                          <h3>
+                            {
+                              platforms.find((p) => p.id === section.platform)
+                                ?.name
+                            }
+                          </h3>
+                          <span className="muted">{status(section.state)}</span>
+                        </header>
+                        {section.error && (
+                          <p className="error-text">{t(section.error)}</p>
+                        )}
+                        {section.rawReply && (
+                          <Markdown>{section.rawReply}</Markdown>
+                        )}
+                        {section.rawReply &&
+                          ["pending", "running"].includes(
+                            section.citationExtraction?.state ?? "",
+                          ) && <p className="muted">{t("正在提取引用帖子")}</p>}
+                        {section.rawReply &&
+                          section.citationExtraction?.state === "failed" && (
+                            <div className="error-text">
+                              <p>{t("引用提取未完成")}</p>
+                              {section.citationExtraction.error && (
+                                <p>{t(section.citationExtraction.error)}</p>
+                              )}
+                            </div>
+                          )}
+                        {section.rawReply &&
+                          section.citationExtraction?.state === "empty" && (
+                            <p className="muted">
+                              {t("平台回答未提供引用帖子")}
+                            </p>
+                          )}
+                        {section.warnings?.map((warning, index) => (
+                          <p className="muted" key={index}>
+                            {t(warning)}
+                          </p>
+                        ))}
+                        {section.candidates.map((candidate) => (
+                          <div
+                            className="source-row"
+                            key={candidate.candidateId}
+                          >
+                            <div>
+                              <strong>{candidate.title}</strong>
+                              <button
+                                className="source-link"
+                                onClick={() =>
+                                  void run(() =>
+                                    bridge.openSearchCandidate({
+                                      reportId: report.reportId,
+                                      candidateIds: [candidate.candidateId],
+                                    }),
+                                  )
+                                }
+                              >
+                                {candidate.url.split("?")[0]}
+                              </button>
+                            </div>
+                            <button
+                              className="button"
+                              disabled={
+                                busy ||
+                                report.submissions.some(
+                                  (s) =>
+                                    s.postKey === candidate.postKey &&
+                                    s.submitted,
+                                )
+                              }
+                              onClick={() =>
+                                void run(async () => {
+                                  const reply =
+                                    await bridge.addSearchCandidates({
+                                      reportId: report.reportId,
+                                      candidateIds: [candidate.candidateId],
+                                    });
+                                  if (reply.ok && reply.value[0]?.error)
+                                    return {
+                                      ok: false,
+                                      message: reply.value[0].error,
+                                    };
+                                  return reply;
+                                }, "已加入解析")
+                              }
+                            >
+                              {t(
+                                report.submissions.some(
+                                  (s) =>
+                                    s.postKey === candidate.postKey &&
+                                    s.submitted,
+                                )
+                                  ? "已加入解析"
+                                  : "加入解析",
+                              )}
+                            </button>
+                          </div>
+                        ))}
+                      </section>
+                    ))}
+                  </>
+                ) : (
+                  <p className="empty-copy">{t("选择一条搜索结果。")}</p>
+                )}
+              </section>
+            </div>
+          )}
+          {page === "parsed" && (
+            <div
+              className={`refactor-workspace parsed-workspace ${readerOpen ? "reading" : ""}`}
+            >
+              <aside
+                className="result-index"
+                ref={resultIndex}
+                aria-label={t("解析结果")}
+              >
+                <form
+                  className="add-source"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void run(() => ui.uiAddLink(url), "已添加解析任务").then(
+                      (ok) => {
+                        if (ok) setUrl("");
+                      },
+                    );
+                  }}
+                >
+                  <input
+                    type="url"
+                    aria-label={t("原文链接")}
+                    placeholder="https://…"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    required
+                  />
+                  <button className="button" disabled={busy || !url.trim()}>
+                    {t("加入解析")}
+                  </button>
+                </form>
+                <input
+                  className="content-query"
+                  aria-label={t("搜索内容")}
+                  placeholder={t("搜索标题或来源")}
+                  value={contentQuery}
+                  onChange={(e) => setContentQuery(e.target.value)}
+                />
+                {readingReports.map((r) => (
+                  <div className="result-item" key={r.materialId}>
+                    <button
+                      className="result-row"
+                      aria-current={
+                        reading?.materialId === r.materialId
+                          ? "true"
+                          : undefined
+                      }
+                      onClick={() => {
+                        setSelectedContent(r.materialId);
+                        setReaderOpen(true);
+                      }}
+                    >
+                      <strong>{r.title || r.sourceIdentity}</strong>
+                      <small>
+                        {r.platform} · {r.stageLabel || t("完成")} ·{" "}
+                        {dateTime(r.fetchedAt)}
+                      </small>
+                    </button>
+                    {recordActions(
+                      { kind: "parsed", id: r.materialId },
+                      r.title || r.sourceIdentity,
+                      live(tasks.find((t) => t.taskId === r.taskId)),
+                    )}
+                  </div>
+                ))}
+                {!readingReports.length && (
+                  <p className="empty-copy">
+                    {t("添加原文链接，或从搜索结果选择加入解析。")}
+                  </p>
+                )}
+              </aside>
+              <section className="parsed-reader">
+                {reading ? (
+                  <>
+                    <div className="reader-tools">
+                      {!tasks.some((t) => t.taskId === reading.taskId) && (
+                        <small>{t("任务记录已清除")}</small>
+                      )}
+                      {recordActions(
+                        { kind: "parsed", id: reading.materialId },
+                        reading.title,
+                        live(tasks.find((t) => t.taskId === reading.taskId)),
+                      )}
+                    </div>
+                    {live(
+                      tasks.find((task) => task.taskId === reading.taskId),
+                    ) && (
+                      <button
+                        className="button stop-reading"
+                        disabled={busy}
+                        onClick={() => void stop(reading.taskId)}
+                      >
+                        {t("停止")}
+                      </button>
+                    )}
+                    {reading.materials?.length ? (
+                      <MaterialReader
+                        key={reading.materialId}
+                        report={reading}
+                        onBack={returnToList}
+                      />
+                    ) : (
+                      <div className="result-reader">
+                        {back}
+                        <h2 className="reader-title">{reading.title}</h2>
+                        <p>{reading.taskMessage || reading.stageLabel}</p>
+                        <Markdown>{reading.summary}</Markdown>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="empty-copy">{t("选择一条解析结果。")}</p>
+                )}
+              </section>
+            </div>
+          )}
+          {page === "follows" && (
+            <section className="follow-page">
+              {follows.map((f) => (
+                <article className="follow-row" key={f.followId}>
+                  <h2>{f.name || f.question}</h2>
+                  {f.name && f.name !== f.question && <p>{f.question}</p>}
+                  <p className="muted">
+                    {f.platforms
+                      .map((p) => platforms.find((x) => x.id === p)?.name)
+                      .join("、")}{" "}
+                    ·{" "}
+                    {t(periods.find((p) => p.id === f.period)?.name ?? "不限")}{" "}
+                    · {t(f.schedule.cadence === "daily" ? "每天" : "每周")}
+                    {f.schedule.cadence === "weekly"
+                      ? t(
+                          [
+                            "周日",
+                            "周一",
+                            "周二",
+                            "周三",
+                            "周四",
+                            "周五",
+                            "周六",
+                          ][f.schedule.weekday ?? 1],
+                        )
+                      : ""}{" "}
+                    {f.schedule.time} · {t(f.paused ? "已暂停" : "已启用")}
+                  </p>
+                  {!f.paused && f.nextRunAt && (
+                    <p className="muted">
+                      {t("下次运行")} {dateTime(f.nextRunAt)}
+                    </p>
+                  )}
+                  <div className="row-actions">
+                    <button
+                      className="button"
+                      onClick={() =>
+                        setFollowDraft({
+                          input: {
+                            name: f.name,
+                            question: f.question,
+                            platforms: f.platforms,
+                            period: f.period,
+                            schedule: f.schedule,
+                          },
+                          followId: f.followId,
+                        })
+                      }
+                    >
+                      {t("编辑")}
+                    </button>
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() =>
+                          bridge.setFollowPaused(f.followId, !f.paused),
+                        )
+                      }
+                    >
+                      {t(f.paused ? "恢复" : "暂停")}
+                    </button>
+                    <button
+                      className="button button-quiet"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(
+                          () => bridge.deleteFollow(f.followId),
+                          "已删除关注，历史结果已保留",
+                        )
+                      }
+                    >
+                      {t("删除")}
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {!follows.length && (
+                <p className="empty-copy">
+                  {t("在搜索页输入问题，然后保存为关注。")}
+                </p>
+              )}
+            </section>
+          )}
+          {page === "settings" && (
+            <SettingsPage
+              onOpenContent={() => navigate("parsed")}
+              updateSection={
+                <UpdateSettings
+                  updates={updates}
+                  onTasks={() => setTasksOpen(true)}
+                  onLater={() => navigate("search")}
+                />
+              }
+              settings={settings}
+              busy={busy}
+              onSaveTelegramToken={(token) =>
+                run(() => ui.uiSaveTelegramToken(token))
+              }
+              onClearTelegramBotToken={() =>
+                run(() => ui.uiClearTelegramBotToken())
+              }
+              onVerifyTelegramBot={() => run(() => ui.uiVerifyTelegramBot())}
+              onAuthorizeTelegramChat={(id) =>
+                run(() => ui.uiAuthorizeTelegramChat(id))
+              }
+              onRevokeTelegramChat={(id) =>
+                run(() => ui.uiRevokeTelegramChat(id))
+              }
+            />
+          )}
+        </div>
       </main>
       <UpdateExperience updates={updates} onOpen={() => navigate("settings")} />
       {notice && (

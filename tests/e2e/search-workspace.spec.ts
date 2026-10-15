@@ -111,7 +111,7 @@ test("real workspace persists searches and follows with partial platform results
   try {
     let page = await app.firstWindow();
     await expect(
-      page.getByRole("heading", { name: "搜索", exact: true }),
+      page.getByRole("main", { name: "搜索", exact: true }),
     ).toBeVisible();
     await page
       .getByRole("textbox", { name: "问题", exact: true })
@@ -128,7 +128,7 @@ test("real workspace persists searches and follows with partial platform results
       .getByRole("button", { name: "搜索", exact: true })
       .click();
     await expect(
-      page.getByRole("heading", { name: "搜索", exact: true }),
+      page.getByRole("main", { name: "搜索", exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("status")).toContainText("已添加搜索任务");
     await page.getByRole("button", { name: "搜索结果", exact: true }).click();
@@ -251,7 +251,7 @@ test("real workspace persists searches and follows with partial platform results
     await page.getByLabel("Language").selectOption("en");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "Search", exact: true }),
+      page.getByRole("main", { name: "Search", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Save as follow", exact: true }),

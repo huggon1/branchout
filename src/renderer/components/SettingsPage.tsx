@@ -53,7 +53,6 @@ export function SettingsPage({
   }, []);
   return (
     <div className="settings-page">
-      <header className="page-intro"></header>
       {updateSection}
       <section className="settings-section">
         <label className="settings-field">
