@@ -1,3 +1,4 @@
+import { deletionChannels } from "../shared/deletion-contracts";
 import { updateChannels } from "../shared/update-contracts";
 import { contextBridge, ipcRenderer } from "electron";
 import {
@@ -13,6 +14,10 @@ import {
 } from "../shared/ipc-contracts";
 
 const bridge: DesktopBridge = {
+  recordDeletions: () => ipcRenderer.invoke(deletionChannels.view),
+  deleteRecord: (record) => ipcRenderer.invoke(deletionChannels.delete, record),
+  undoDeletion: (id) => ipcRenderer.invoke(deletionChannels.undo, id),
+  clearEndedTasks: () => ipcRenderer.invoke(deletionChannels.clearEnded),
   applicationUpdates: () => ipcRenderer.invoke(updateChannels.view),
   checkForUpdates: () => ipcRenderer.invoke(updateChannels.check),
   downloadUpdate: () => ipcRenderer.invoke(updateChannels.download),

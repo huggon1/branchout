@@ -1,3 +1,4 @@
+import type { RecordRef, RecordDeletion } from "./deletion-contracts";
 import type { ApplicationUpdateView } from "./update-contracts";
 import type {
   Follow,
@@ -82,6 +83,12 @@ export const channels = {
 } as const;
 
 export interface DesktopBridge {
+  recordDeletions(): Promise<ModelReply<RecordDeletion[]>>;
+  deleteRecord(
+    record: RecordRef,
+  ): Promise<ModelReply<RecordDeletion | undefined>>;
+  undoDeletion(operationId: string): Promise<ModelReply<void>>;
+  clearEndedTasks(): Promise<ModelReply<RecordDeletion | undefined>>;
   applicationUpdates(): Promise<ModelReply<ApplicationUpdateView>>;
   checkForUpdates(): Promise<ModelReply<void>>;
   downloadUpdate(): Promise<ModelReply<void>>;

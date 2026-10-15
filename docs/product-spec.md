@@ -40,6 +40,12 @@ Browser execution retries transient model failures and repairs recoverable page 
 
 Tasks shows state, stage, update time, failure reason, and native Pi export. Content owns reading and Stop. A new search starts from Search; a new parsing request starts from Parsed content.
 
+## Record deletion and recovery
+
+Each task, parsed result, and search result exposes Delete through its More menu. Active records first offer Stop and Delete. Main completes Stop before saving deletion; a Stop failure leaves the record visible. Deleting a task entry preserves its saved content. Deleting a parsed result hides its main material and direct references together and retains task history. Deleting a search result retains its follow and independently submitted parsing records.
+
+Deletion feedback offers Undo for eight seconds. Each operation has its own recovery action. Undo restores original identities and saved data; stopped execution stays stopped. Startup restores feedback for the remaining recovery window. Deleting the selected item selects its next neighbour, or its preceding neighbour at the list end. The last deletion shows the destination's empty state. Repeating Add to Parsing after result deletion creates a fresh parsing identity.
+
 ## Languages and runtime boundaries
 
 Settings supports Simplified Chinese and English. Interface messages use the selected language. Generated reading material and saved execution messages use the language frozen for that run. Questions, platform replies, quotations, URLs, and identifiers keep their source wording.

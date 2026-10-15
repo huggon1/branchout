@@ -16,6 +16,7 @@ function isMainFrame(event: Electron.IpcMainInvokeEvent, expected: string) {
 export function registerForwardingIpc(
   service: ForwardingPipelineService,
   expected: string,
+  hidden: (materialId: string) => boolean = () => false,
 ) {
   for (const channel of Object.values(forwardingChannels))
     handle(channel, async (event, ...args: unknown[]) => {
@@ -36,9 +37,11 @@ export function registerForwardingIpc(
       try {
         let value: unknown;
         if (channel === forwardingChannels.tasks) {
-          value = service.list();
+          value = service.list().filter((r) => !hidden(r.materialId));
         } else if (channel === forwardingChannels.task) {
-          value = service.read(z.string().uuid().parse(args[0]));
+          const detail = service.read(z.string().uuid().parse(args[0]));
+          if (hidden(detail.task.materialId)) throw new Error("Result deleted");
+          value = detail;
         } else if (channel === forwardingChannels.add) {
           value = await service.submit(
             z.string().min(1).max(4096).parse(args[0]),
@@ -52,7 +55,8 @@ export function registerForwardingIpc(
           const task = service
             .list()
             .find((item) => item.materialId === materialId);
-          if (!task) throw new Error("转发报告不存在");
+          if (!task || hidden(task.materialId))
+            throw new Error("转发报告不存在");
           await shell.openExternal(task.target.sourceUrl);
         } else {
           const url = webUrlSchema.parse(args[0]);

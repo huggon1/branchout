@@ -215,7 +215,8 @@ test("real workspace persists searches and follows with partial platform results
     await page.getByRole("button", { name: "打开导航", exact: true }).click();
     await page.getByRole("button", { name: "搜索结果", exact: true }).click();
     await page
-      .getByRole("button", { name: /How do people keep useful reading/ })
+      .locator("button.result-row")
+      .filter({ hasText: "How do people keep useful reading" })
       .click();
     await expect(
       page.getByRole("heading", {
@@ -347,7 +348,10 @@ test("single and dual searches present exact original answers without another mo
           async () =>
             JSON.parse(
               await readFile(join(profile, "focus-search.json"), "utf8"),
-            ).reports.at(-1)?.status,
+            ).reports.find(
+              (r: { question: string }) =>
+                r.question === `Original answer ${mode}`,
+            )?.status,
         )
         .toBe("completed");
       const report = JSON.parse(

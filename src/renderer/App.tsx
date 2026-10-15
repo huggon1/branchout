@@ -1,3 +1,5 @@
+import { RecordActions } from "./components/RecordActions";
+import type { RecordRef, RecordDeletion } from "../shared/deletion-contracts";
 import {
   useApplicationUpdates,
   UpdateSettings,
@@ -30,7 +32,7 @@ import {
   type UiTask,
 } from "./product-ui";
 import { bridge } from "./bridge";
-import { t, dateTime, selectLanguage, useLanguage } from "./i18n";
+import { t, tf, dateTime, selectLanguage, useLanguage } from "./i18n";
 import type {
   FocusSearchReport,
   Follow,
@@ -91,6 +93,26 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [undo, setUndo] = useState<RecordDeletion[]>([]);
+  useEffect(() => {
+    const load = () =>
+      void bridge.recordDeletions().then((reply) => {
+        if (reply.ok) setUndo(reply.value);
+      });
+    load();
+    const unsubscribe = bridge.onChanged(load);
+    const timer = setInterval(
+      () =>
+        setUndo((items) =>
+          items.filter((item) => Date.parse(item.expiresAt) > Date.now()),
+        ),
+      250,
+    );
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+    };
+  }, []);
   const [question, setQuestion] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<SearchPlatform[]>([
     "x",
@@ -252,6 +274,43 @@ export function App() {
   );
   const stop = (id: string) =>
     run(() => ui.uiCancelTask(id), "已停止，并保留已有结果");
+  async function deleteRecord(record: RecordRef) {
+    const ids =
+      record.kind === "search"
+        ? displayedReports.map((r) => r.reportId)
+        : record.kind === "parsed"
+          ? readingReports.map((r) => r.materialId)
+          : tasks.map((r) => r.taskId);
+    const index = ids.indexOf(record.id);
+    const next = ids[index + 1] ?? ids[index - 1] ?? "";
+    const ok = await run(() => bridge.deleteRecord(record));
+    if (ok) {
+      if (record.kind === "search" && report?.reportId === record.id)
+        setSelectedReport(next);
+      if (record.kind === "parsed" && reading?.materialId === record.id)
+        setSelectedContent(next);
+      if (record.kind === "task" && task?.taskId === record.id)
+        setSelectedTask(next);
+      if (!next) setReaderOpen(false);
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLElement>(
+            '.result-index .result-row[aria-current="true"], .result-index h1',
+          )
+          ?.focus(),
+      );
+    }
+    return ok;
+  }
+  const recordActions = (record: RecordRef, name: string, active = false) => (
+    <RecordActions
+      record={record}
+      title={name}
+      active={active}
+      disabled={busy}
+      onDelete={deleteRecord}
+    />
+  );
   const back = (
     <button
       className="button button-quiet"
@@ -323,6 +382,27 @@ export function App() {
         )}
       </aside>
       <main className="refactor-main">
+        {!!undo.length && (
+          <div className="undo-stack" aria-label={t("删除操作")}>
+            {undo.map((operation) => (
+              <div
+                className="undo-notice"
+                role="status"
+                key={operation.operationId}
+              >
+                <span>{tf("已删除 {0} 条记录", operation.records.length)}</span>
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    void run(() => bridge.undoDeletion(operation.operationId))
+                  }
+                >
+                  {t("撤销")}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {error && (
           <div className="global-alert" role="alert">
             <span>{error}</span>
@@ -443,7 +523,7 @@ export function App() {
         {page === "reports" && (
           <div className={`refactor-workspace ${readerOpen ? "reading" : ""}`}>
             <aside className="result-index">
-              <h1>{t("搜索结果")}</h1>
+              <h1 tabIndex={-1}>{t("搜索结果")}</h1>
               <div className="source-tabs" role="group" aria-label={t("来源")}>
                 {[
                   ["all", "全部"],
@@ -463,23 +543,31 @@ export function App() {
                 ))}
               </div>
               {displayedReports.map((r) => (
-                <button
-                  className="result-row"
-                  key={r.reportId}
-                  aria-current={
-                    report?.reportId === r.reportId ? "true" : undefined
-                  }
-                  onClick={() => {
-                    setSelectedReport(r.reportId);
-                    setReaderOpen(true);
-                  }}
-                >
-                  <strong>{title(r)}</strong>
-                  <small>
-                    {t(r.origin === "follow" ? "关注" : "手动搜索")} ·{" "}
-                    {status(r.status ?? "completed")} · {dateTime(r.createdAt)}
-                  </small>
-                </button>
+                <div className="result-item" key={r.reportId}>
+                  <button
+                    className="result-row"
+
+                    aria-current={
+                      report?.reportId === r.reportId ? "true" : undefined
+                    }
+                    onClick={() => {
+                      setSelectedReport(r.reportId);
+                      setReaderOpen(true);
+                    }}
+                  >
+                    <strong>{title(r)}</strong>
+                    <small>
+                      {t(r.origin === "follow" ? "关注" : "手动搜索")} ·{" "}
+                      {status(r.status ?? "completed")} ·{" "}
+                      {dateTime(r.createdAt)}
+                    </small>
+                  </button>
+                  {recordActions(
+                    { kind: "search", id: r.reportId },
+                    title(r),
+                    ["queued", "running"].includes(r.status ?? ""),
+                  )}
+                </div>
               ))}
               {!displayedReports.length && (
                 <p className="empty-copy">{t("搜索结果会保存在这里。")}</p>
@@ -488,7 +576,14 @@ export function App() {
             <section className="result-reader">
               {report ? (
                 <>
-                  {back}
+                  <div className="reader-tools">
+                    {back}
+                    {recordActions(
+                      { kind: "search", id: report.reportId },
+                      title(report),
+                      ["queued", "running"].includes(report.status ?? ""),
+                    )}
+                  </div>
                   <h1>{title(report)}</h1>
                   <p className="muted">
                     {t(report.origin === "follow" ? "关注运行" : "手动搜索")} ·{" "}
@@ -617,7 +712,7 @@ export function App() {
             className={`refactor-workspace parsed-workspace ${readerOpen ? "reading" : ""}`}
           >
             <aside className="result-index">
-              <h1>{t("解析结果")}</h1>
+              <h1 tabIndex={-1}>{t("解析结果")}</h1>
               <form
                 className="add-source"
                 onSubmit={(e) => {
@@ -649,23 +744,29 @@ export function App() {
                 onChange={(e) => setContentQuery(e.target.value)}
               />
               {readingReports.map((r) => (
-                <button
-                  key={r.materialId}
-                  className="result-row"
-                  aria-current={
-                    reading?.materialId === r.materialId ? "true" : undefined
-                  }
-                  onClick={() => {
-                    setSelectedContent(r.materialId);
-                    setReaderOpen(true);
-                  }}
-                >
-                  <strong>{r.title || r.sourceIdentity}</strong>
-                  <small>
-                    {r.platform} · {r.stageLabel || t("完成")} ·{" "}
-                    {dateTime(r.fetchedAt)}
-                  </small>
-                </button>
+                <div className="result-item" key={r.materialId}>
+                  <button
+                    className="result-row"
+                    aria-current={
+                      reading?.materialId === r.materialId ? "true" : undefined
+                    }
+                    onClick={() => {
+                      setSelectedContent(r.materialId);
+                      setReaderOpen(true);
+                    }}
+                  >
+                    <strong>{r.title || r.sourceIdentity}</strong>
+                    <small>
+                      {r.platform} · {r.stageLabel || t("完成")} ·{" "}
+                      {dateTime(r.fetchedAt)}
+                    </small>
+                  </button>
+                  {recordActions(
+                    { kind: "parsed", id: r.materialId },
+                    r.title || r.sourceIdentity,
+                    live(tasks.find((t) => t.taskId === r.taskId)),
+                  )}
+                </div>
               ))}
               {!readingReports.length && (
                 <p className="empty-copy">
@@ -676,6 +777,16 @@ export function App() {
             <section className="parsed-reader">
               {reading ? (
                 <>
+                  <div className="reader-tools">
+                    {!tasks.some((t) => t.taskId === reading.taskId) && (
+                      <small>{t("任务记录已清除")}</small>
+                    )}
+                    {recordActions(
+                      { kind: "parsed", id: reading.materialId },
+                      reading.title,
+                      live(tasks.find((t) => t.taskId === reading.taskId)),
+                    )}
+                  </div>
                   {live(
                     tasks.find((task) => task.taskId === reading.taskId),
                   ) && (
@@ -798,24 +909,30 @@ export function App() {
         {page === "tasks" && (
           <div className={`refactor-workspace ${readerOpen ? "reading" : ""}`}>
             <aside className="result-index">
-              <h1>{t("任务")}</h1>
+              <h1 tabIndex={-1}>{t("任务")}</h1>
               {tasks.map((item) => (
-                <button
-                  key={item.taskId}
-                  className="result-row"
-                  aria-current={
-                    task?.taskId === item.taskId ? "true" : undefined
-                  }
-                  onClick={() => {
-                    setSelectedTask(item.taskId);
-                    setReaderOpen(true);
-                  }}
-                >
-                  <strong>{item.targetLabel || item.label}</strong>
-                  <small>
-                    {status(item.status)} · {item.phase}
-                  </small>
-                </button>
+                <div className="result-item" key={item.taskId}>
+                  <button
+                    className="result-row"
+                    aria-current={
+                      task?.taskId === item.taskId ? "true" : undefined
+                    }
+                    onClick={() => {
+                      setSelectedTask(item.taskId);
+                      setReaderOpen(true);
+                    }}
+                  >
+                    <strong>{item.targetLabel || item.label}</strong>
+                    <small>
+                      {status(item.status)} · {item.phase}
+                    </small>
+                  </button>
+                  {recordActions(
+                    { kind: "task", id: item.taskId },
+                    item.targetLabel || item.label,
+                    live(item),
+                  )}
+                </div>
               ))}
             </aside>
             <section className="result-reader">
@@ -827,6 +944,9 @@ export function App() {
                     {status(task.status)} · {task.phase}
                   </p>
                   <p className="muted">{dateTime(task.updatedAt)}</p>
+                  {task.resultDeleted && (
+                    <p className="muted">{t("结果已删除")}</p>
+                  )}
                   {task.error && <p className="error-text">{task.error}</p>}
                   <button
                     className="button"

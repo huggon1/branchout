@@ -712,5 +712,20 @@
   "更新状态读取失败": "Could not read update status",
   "更新操作失败，请重试": "Update action failed. Please retry",
   "正在准备安装更新": "Preparing to install the update",
-  "正在验证安装包并保存状态，随后重启应用。": "Verifying the package and saving state, then restarting the application."
+  "正在验证安装包并保存状态，随后重启应用。": "Verifying the package and saving state, then restarting the application.",
+  "更多：{0}": "More: {0}",
+  "删除操作": "Deletion actions",
+  "已删除 {0} 条记录": "Deleted {0} records",
+  "已删除 {0} 条记录.one": "Deleted {0} record",
+  "停止并删除": "Stop and delete",
+  "保留记录": "Keep record",
+  "任务记录已清除": "Task record cleared",
+  "结果已删除": "Result deleted",
+  "先停止当前任务，再删除所选记录。撤销会恢复保存的内容，任务保持已停止。": "Stop the current task, then delete the selected record. Undo restores saved content and keeps execution stopped.",
+  "已保存的内容和日志保留。": "Saved content and logs are kept.",
+  "关联任务和其他内容保留。": "Related tasks and other content are kept.",
+  "Undo window expired": "The undo window has ended.",
+  "Record unavailable": "The record is unavailable.",
+  "记录不存在": "The record is unavailable.",
+  "撤销时间已结束": "The undo window has ended."
 }
