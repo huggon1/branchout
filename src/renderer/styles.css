@@ -965,9 +965,6 @@ textarea {
   color: var(--soft);
   font-size: 9px;
 }
-.settings-page > .page-intro {
-  margin-bottom: 1px;
-}
 .settings-section,
 .model-settings {
   min-width: 0;
@@ -2364,10 +2361,7 @@ blockquote span {
   display: grid;
   gap: 15px;
   max-width: 900px !important;
-  padding: 16px 40px 60px !important;
-}
-.settings-page > .page-intro:empty {
-  display: none;
+  padding: 24px 40px 40px !important;
 }
 .settings-section,
 .connection-section {
@@ -2653,7 +2647,7 @@ blockquote span {
     font-size: 11px;
   }
   .settings-page {
-    padding: 10px 24px 40px !important;
+    padding: 24px 24px 40px !important;
   }
 }
 @media (prefers-reduced-motion: reduce) {

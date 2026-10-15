@@ -10,6 +10,7 @@
 | --- | --- |
 | Root READMEs | Product entry, current capabilities, and usage |
 | [Product specification](product-spec.md) | Behavior and page ownership |
+| [UI design](ui-design.md) | Page identity, content hierarchy, adaptive layout, and review evidence |
 | [Architecture](architecture-overview.md) | Processes, execution paths, and module boundaries |
 | [Data contracts](data-contracts.md) | Saved fields, message identities, and reset boundaries |
 | [Prompt flow](agent-prompt-flow.md) | Prompt and tool loading |

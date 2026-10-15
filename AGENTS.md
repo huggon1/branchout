@@ -6,7 +6,7 @@
 - For product behavior or scope, read [docs/product-spec.md](docs/product-spec.md) first. It describes target behavior; consult the root README for currently available capabilities.
 - For architecture or module responsibilities, read [docs/architecture-overview.md](docs/architecture-overview.md) and [src/README.md](src/README.md) first.
 - For cross-module data fields, platform outputs, material storage, or task messages, read [docs/data-contracts.md](docs/data-contracts.md) first.
-- For UI changes, reuse existing components and styles. Match the application's current visual style when adding new controls.
+- For UI changes, read [UI design](docs/ui-design.md) for page identity, headings, spacing, responsive states, and review evidence. Reuse existing components and styles. Match the application's current visual style when adding controls.
 
 ## UI content admission
 
